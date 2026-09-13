@@ -327,6 +327,7 @@ lesson-widget-practice-loop = Loop de prática
 lesson-widget-scale-pattern = Padrão da escala
 lesson-widget-navigation-pattern = Padrão de navegação
 lesson-widget-octave-movement = Movimento de oitavas
+lesson-widget-practice-pattern = Padrão de prática
 lesson-mark-done = Marcar como Concluída
 lesson-goal-accuracy = Meta: {$pct}% de precisão geral
 lesson-goal-technique = Meta: {$pct}% de precisão nas notas de {$technique}

@@ -4,6 +4,9 @@
   "track": "hand",
   "title_key": "lesson-hand-wah-title",
   "body_key": "lesson-hand-wah-body",
+  "widgets": [
+    {"type":"metronome","bpm":60,"tempo_steps":[40,50,60,70]}
+  ],
   "chart": "song/chart.harpchart",
   "prerequisites": [
     "breathing"
