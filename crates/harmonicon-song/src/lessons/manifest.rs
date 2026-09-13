@@ -377,6 +377,20 @@ mod tests {
     }
 
     #[test]
+    fn rejects_an_accented_rest() {
+        let error = parse_lesson(
+            br#"{"id":"sync","unit":"rhythm","title_key":"t","body_key":"b",
+                 "widgets":[{"type":"rhythm-pattern","steps":[
+                 {"label":"1","rest":true,"accent":true},{"label":"&"}]}]}"#,
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("rest") || error.contains("accent"),
+            "{error}"
+        );
+    }
+
+    #[test]
     fn parses_a_phrase_looper_and_its_timing() {
         let manifest = parse_lesson(
             br#"{"id":"lick","unit":"blues","title_key":"t","body_key":"b",

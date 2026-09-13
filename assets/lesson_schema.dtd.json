@@ -290,6 +290,13 @@
                     "label": { "type": "string", "minLength": 1, "maxLength": 12 },
                     "rest": { "type": "boolean" },
                     "accent": { "type": "boolean" }
+                  },
+                  "not": {
+                    "required": ["rest", "accent"],
+                    "properties": {
+                      "rest": { "const": true },
+                      "accent": { "const": true }
+                    }
                   }
                 },
                 "minItems": 2,
