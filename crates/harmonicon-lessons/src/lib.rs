@@ -51,7 +51,11 @@ impl Plugin for LessonsUiPlugin {
             )
             .add_systems(
                 Update,
-                lesson_reader::update_lesson_metronomes.run_if(in_state(MenuPage::LessonReader)),
+                (
+                    lesson_reader::update_lesson_metronomes,
+                    lesson_reader::update_lesson_phrase_loopers,
+                )
+                    .run_if(in_state(MenuPage::LessonReader)),
             )
             .add_systems(
                 OnExit(MenuPage::LessonReader),

@@ -96,6 +96,13 @@ pub enum LessonWidget {
     RhythmPattern {
         steps: Vec<RhythmPatternStep>,
     },
+    PhraseLooper {
+        steps: Vec<String>,
+        #[serde(default = "default_bpm")]
+        bpm: f32,
+        #[serde(default = "default_beats_per_step")]
+        beats_per_step: f32,
+    },
     Metronome {
         #[serde(default = "default_bpm")]
         bpm: f32,
@@ -121,6 +128,9 @@ fn default_progression() -> String {
 }
 fn default_bpm() -> f32 {
     90.0
+}
+fn default_beats_per_step() -> f32 {
+    1.0
 }
 fn default_bars_per_step() -> usize {
     1
@@ -361,6 +371,31 @@ mod tests {
         let error = parse_lesson(
             br#"{"id":"sync","unit":"rhythm","title_key":"t","body_key":"b",
                  "widgets":[{"type":"rhythm-pattern","steps":[{"label":"1"}]}]}"#,
+        )
+        .unwrap_err();
+        assert!(error.contains("steps"), "{error}");
+    }
+
+    #[test]
+    fn parses_a_phrase_looper_and_its_timing() {
+        let manifest = parse_lesson(
+            br#"{"id":"lick","unit":"blues","title_key":"t","body_key":"b",
+                 "widgets":[{"type":"phrase-looper","steps":["-4","+5","-4"],
+                 "bpm":72,"beats_per_step":0.5}]}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            &manifest.widgets[0],
+            LessonWidget::PhraseLooper { steps, bpm, beats_per_step }
+                if steps == &["-4", "+5", "-4"] && *bpm == 72.0 && *beats_per_step == 0.5
+        ));
+    }
+
+    #[test]
+    fn rejects_a_phrase_looper_with_one_cell() {
+        let error = parse_lesson(
+            br#"{"id":"lick","unit":"blues","title_key":"t","body_key":"b",
+                 "widgets":[{"type":"phrase-looper","steps":["-4"]}]}"#,
         )
         .unwrap_err();
         assert!(error.contains("steps"), "{error}");

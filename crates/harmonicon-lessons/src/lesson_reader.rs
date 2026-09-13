@@ -31,6 +31,9 @@ use harmonicon_ui::dialogs::form_map::{section_bg, spawn_form_map};
 use harmonicon_ui::dialogs::metronome::{
     MetronomeClock, MetronomeFeel, click_for_tick, is_downbeat, twelve_bar_for_tick,
 };
+use harmonicon_ui::dialogs::phrase_looper::{
+    ACTIVE_BG as LOOP_ACTIVE_BG, CELL_BG as LOOP_CELL_BG, PhraseLoopClock, spawn_phrase_looper,
+};
 use harmonicon_ui::dialogs::rhythm_pattern::{
     ACTIVE_BG as RHYTHM_ACTIVE_BG, RhythmStep, spawn_rhythm_pattern, step_bg,
 };
@@ -143,6 +146,15 @@ struct LessonRhythmPattern {
 }
 
 #[derive(Component)]
+pub(crate) struct LessonPhraseLooper {
+    clock: PhraseLoopClock,
+    cells: Vec<Entity>,
+    bpm: f32,
+    beats_per_step: f32,
+    label: Entity,
+}
+
+#[derive(Component)]
 pub(crate) struct LessonMetronomeAudio;
 
 pub(crate) fn cleanup_lesson_audio(
@@ -210,6 +222,46 @@ fn highlight_rhythm_step(
             } else {
                 step_bg(&pattern.steps[index])
             });
+        }
+    }
+}
+
+fn highlight_phrase_step(
+    looper: &LessonPhraseLooper,
+    selected: usize,
+    backgrounds: &mut Query<&mut BackgroundColor>,
+) {
+    for (index, entity) in looper.cells.iter().enumerate() {
+        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
+            *bg = BackgroundColor(if index == selected {
+                LOOP_ACTIVE_BG
+            } else {
+                LOOP_CELL_BG
+            });
+        }
+    }
+}
+
+pub(crate) fn update_lesson_phrase_loopers(
+    time: Res<Time>,
+    mut loopers: Query<&mut LessonPhraseLooper>,
+    mut labels: Query<&mut Text>,
+    mut backgrounds: Query<&mut BackgroundColor>,
+) {
+    for mut looper in &mut loopers {
+        if let Ok(mut text) = labels.get_mut(looper.label) {
+            *text = Text::new(format!("♩ = {}", looper.bpm as u32));
+        }
+        let bpm = looper.bpm;
+        let beats_per_step = looper.beats_per_step;
+        let step_count = looper.cells.len();
+        if let Some(selected) = looper.clock.advance(
+            time.delta_secs_f64(),
+            f64::from(bpm),
+            f64::from(beats_per_step),
+            step_count,
+        ) {
+            highlight_phrase_step(&looper, selected, &mut backgrounds);
         }
     }
 }
@@ -820,6 +872,100 @@ pub(crate) fn setup_lesson_reader(
                                 pattern.current_step,
                                 &mut backgrounds,
                             );
+                        },
+                    );
+                }
+            }
+            LessonWidget::PhraseLooper {
+                steps,
+                bpm,
+                beats_per_step,
+            } => {
+                let mut cells = Vec::new();
+                commands.entity(root).with_children(|parent| {
+                    cells = spawn_phrase_looper(parent, steps);
+                });
+                let label = commands
+                    .spawn((
+                        Text::new(format!("♩ = {}", *bpm as u32)),
+                        TextFont {
+                            font_size: FontSize::Px(22.0),
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                    ))
+                    .id();
+                let marker = commands
+                    .spawn((
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(8.0),
+                            ..default()
+                        },
+                        LessonPhraseLooper {
+                            clock: PhraseLoopClock::default(),
+                            cells,
+                            bpm: *bpm,
+                            beats_per_step: *beats_per_step,
+                            label,
+                        },
+                    ))
+                    .add_child(label)
+                    .id();
+                commands.entity(root).add_child(marker);
+
+                let target = marker;
+                spawn_button(
+                    &mut commands,
+                    marker,
+                    &loc.msg("lesson-widget-metronome-toggle"),
+                    move |_: On<Activate>, mut q: Query<&mut LessonPhraseLooper>| {
+                        if let Ok(mut looper) = q.get_mut(target) {
+                            looper.clock.running = !looper.clock.running;
+                        }
+                    },
+                );
+                for (message, delta) in [
+                    ("lesson-widget-step-previous", -1),
+                    ("lesson-widget-step-next", 1),
+                    ("lesson-widget-step-reset", 0),
+                ] {
+                    let target = marker;
+                    spawn_button(
+                        &mut commands,
+                        marker,
+                        &loc.msg(message),
+                        move |_: On<Activate>,
+                              mut q: Query<&mut LessonPhraseLooper>,
+                              mut backgrounds: Query<&mut BackgroundColor>| {
+                            let Ok(mut looper) = q.get_mut(target) else {
+                                return;
+                            };
+                            let count = looper.cells.len();
+                            let selected = if delta == 0 {
+                                looper.clock.reset();
+                                0
+                            } else {
+                                looper.clock.step(delta, count)
+                            };
+                            highlight_phrase_step(&looper, selected, &mut backgrounds);
+                        },
+                    );
+                }
+                for (message, delta) in [
+                    ("lesson-widget-tempo-decrease", -5.0_f32),
+                    ("lesson-widget-tempo-increase", 5.0_f32),
+                ] {
+                    let target = marker;
+                    spawn_button(
+                        &mut commands,
+                        marker,
+                        &loc.msg(message),
+                        move |_: On<Activate>, mut q: Query<&mut LessonPhraseLooper>| {
+                            if let Ok(mut looper) = q.get_mut(target) {
+                                looper.bpm = (looper.bpm + delta).clamp(30.0, 300.0);
+                                looper.clock.reset();
+                            }
                         },
                     );
                 }

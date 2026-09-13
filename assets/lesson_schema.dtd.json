@@ -301,6 +301,21 @@
           {
             "additionalProperties": false,
             "properties": {
+              "type": { "const": "phrase-looper" },
+              "steps": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1, "maxLength": 24 },
+                "minItems": 2,
+                "maxItems": 16
+              },
+              "bpm": { "type": "number", "minimum": 30, "maximum": 300 },
+              "beats_per_step": { "type": "number", "minimum": 0.25, "maximum": 16 }
+            },
+            "required": ["steps"]
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
               "type": { "const": "metronome" },
               "bpm": { "type": "number", "minimum": 30, "maximum": 300 },
               "tempo_steps": {
