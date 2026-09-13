@@ -361,10 +361,10 @@ fn lesson_assets_are_complete_and_valid() {
     assert!(report.is_empty(), "Lesson asset failures:\n{report}");
 }
 
-/// Every Fluent key a lesson manifest declares (`title_key`, `body_key`,
-/// `lesson-unit-<unit>`, `lesson-track-<track>`) must exist in the en-US locale — the parity test in
-/// `localization.rs` then guarantees every other locale has it too. A missing
-/// key would render as the raw key name in the menu.
+/// Every Fluent key a lesson manifest declares (`title_key`, `body_key`, widget
+/// `title_key`, `lesson-unit-<unit>`, `lesson-track-<track>`) must exist in the
+/// en-US locale — the parity test in `localization.rs` then guarantees every
+/// other locale has it too. A missing key would render as the raw key name.
 /// The shipped curriculum must form a drawable graph, and every bundled
 /// lesson must say which row of the skill tree it belongs to.
 ///
@@ -498,6 +498,13 @@ fn lesson_localization_keys_exist() {
         for field in ["title_key", "body_key"] {
             if let Some(k) = manifest[field].as_str() {
                 needed.push(k.to_string());
+            }
+        }
+        if let Some(widgets) = manifest["widgets"].as_array() {
+            for widget in widgets {
+                if let Some(k) = widget["title_key"].as_str() {
+                    needed.push(k.to_string());
+                }
             }
         }
         if let Some(unit) = manifest["unit"].as_str() {
