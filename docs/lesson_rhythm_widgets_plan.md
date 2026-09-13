@@ -27,6 +27,6 @@ timing/layout models live in `harmonicon-ui`; manifests live in
 
 - [x] Cover schema rejection, timing/wrap behavior, and reader lifecycle;
   update authoring and gameplay-validation documentation.
-- [ ] Run formatting, focused tests, Clippy, and the bundled-manifest checks.
+- [x] Run formatting, focused tests, Clippy, and the bundled-manifest checks.
 
 Each checked point is committed separately.
