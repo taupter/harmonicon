@@ -525,6 +525,62 @@ fn lesson_localization_keys_exist() {
     assert!(report.is_empty(), "Missing lesson locale keys:\n{report}");
 }
 
+/// Tab-like tokens in bundled phrase loopers must use the same compact
+/// notation shown by gameplay: a breath sign, hole 1-10, and an optional
+/// bend, overnote, or chromatic-slide suffix. Cells may also contain labels
+/// such as chord names or A/B section markers.
+#[test]
+fn lesson_phrase_loopers_use_supported_tab_notation() {
+    fn valid_tab_token(token: &str) -> bool {
+        let Some(rest) = token.strip_prefix(['+', '-']) else {
+            return true;
+        };
+        let digit_count = rest.bytes().take_while(u8::is_ascii_digit).count();
+        let (hole, suffix) = rest.split_at(digit_count);
+        matches!(hole.parse::<u8>(), Ok(1..=10))
+            && (suffix.is_empty()
+                || suffix == "o"
+                || suffix == "*"
+                || (suffix.len() <= 3 && suffix.bytes().all(|b| b == b'\'')))
+    }
+
+    let mut report = String::new();
+    for dir in subdirs(Path::new("assets/lessons"))
+        .iter()
+        .flat_map(|unit| subdirs(unit))
+    {
+        let Ok(text) = std::fs::read_to_string(dir.join("lesson.json")) else {
+            continue;
+        };
+        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let Some(widgets) = manifest["widgets"].as_array() else {
+            continue;
+        };
+        for widget in widgets {
+            if widget["type"] != "phrase-looper" {
+                continue;
+            }
+            for step in widget["steps"].as_array().into_iter().flatten() {
+                let Some(step) = step.as_str() else { continue };
+                for token in step.split_whitespace().flat_map(|part| part.split('/')) {
+                    if !valid_tab_token(token) {
+                        report.push_str(&format!(
+                            "  {}: unsupported tab token {token:?} in {step:?}\n",
+                            label(&dir)
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        report.is_empty(),
+        "Phrase-looper notation failures:\n{report}"
+    );
+}
+
 // ── Theme tests ───────────────────────────────────────────────────────────────
 
 /// Loads the compiled JSON Schema validator for `theme_schema.dtd.json`.
