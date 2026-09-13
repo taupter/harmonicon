@@ -309,6 +309,7 @@
             "additionalProperties": false,
             "properties": {
               "type": { "const": "phrase-looper" },
+              "title_key": { "type": "string", "minLength": 1 },
               "steps": {
                 "type": "array",
                 "items": { "type": "string", "minLength": 1, "maxLength": 24 },

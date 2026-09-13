@@ -97,6 +97,8 @@ pub enum LessonWidget {
         steps: Vec<RhythmPatternStep>,
     },
     PhraseLooper {
+        #[serde(default)]
+        title_key: Option<String>,
         steps: Vec<String>,
         #[serde(default = "default_bpm")]
         bpm: f32,
@@ -394,14 +396,17 @@ mod tests {
     fn parses_a_phrase_looper_and_its_timing() {
         let manifest = parse_lesson(
             br#"{"id":"lick","unit":"blues","title_key":"t","body_key":"b",
-                 "widgets":[{"type":"phrase-looper","steps":["-4","+5","-4"],
+                 "widgets":[{"type":"phrase-looper","title_key":"lesson-lick-one",
+                 "steps":["-4","+5","-4"],
                  "bpm":72,"beats_per_step":0.5}]}"#,
         )
         .unwrap();
         assert!(matches!(
             &manifest.widgets[0],
-            LessonWidget::PhraseLooper { steps, bpm, beats_per_step }
-                if steps == &["-4", "+5", "-4"] && *bpm == 72.0 && *beats_per_step == 0.5
+            LessonWidget::PhraseLooper { title_key, steps, bpm, beats_per_step }
+                if title_key.as_deref() == Some("lesson-lick-one")
+                    && steps == &["-4", "+5", "-4"]
+                    && *bpm == 72.0 && *beats_per_step == 0.5
         ));
     }
 

@@ -212,7 +212,7 @@ manifest** rather than silently rendering an incomplete lesson — the same
 | `twelve-bar-grid` | `key`, `progression`, `sync_group` | Step the highlighted bar back/forward, reset to bar 1 |
 | `form-map` | `sections` | Step through and reset a named form; repeated labels share a colour |
 | `rhythm-pattern` | `steps` (`label`, `rest`, `accent`) | Step through and reset an authored subdivision strip |
-| `phrase-looper` | `steps`, `bpm`, `beats_per_step` | Start/stop an A/B visual loop, step/reset it, adjust tempo ±5 BPM |
+| `phrase-looper` | `title_key`, `steps`, `bpm`, `beats_per_step` | Show an optional localized heading; start/stop an A/B visual loop, step/reset it, adjust tempo ±5 BPM |
 | `metronome` | `bpm`, `beats_per_bar`, `feel`, `sync_group` | Start/stop, ±5 BPM, straight/shuffle, mute |
 
 **Every widget renders through `harmonicon-ui`, not through

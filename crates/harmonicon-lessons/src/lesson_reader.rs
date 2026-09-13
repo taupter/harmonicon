@@ -877,10 +877,19 @@ pub(crate) fn setup_lesson_reader(
                 }
             }
             LessonWidget::PhraseLooper {
+                title_key,
                 steps,
                 bpm,
                 beats_per_step,
             } => {
+                if let Some(title_key) = title_key {
+                    spawn_reader_line(
+                        &mut commands,
+                        root,
+                        String::from(loc.msg(title_key)),
+                        Color::srgb(0.80, 0.82, 0.90),
+                    );
+                }
                 let mut cells = Vec::new();
                 commands.entity(root).with_children(|parent| {
                     cells = spawn_phrase_looper(parent, steps);
