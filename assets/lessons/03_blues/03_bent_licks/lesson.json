@@ -4,6 +4,11 @@
   "track": "vocabulary",
   "title_key": "lesson-bent-licks-title",
   "body_key": "lesson-bent-licks-body",
+  "widgets": [
+    {"type":"phrase-looper","steps":["Cry: -3","-3'","-3"],"bpm":80,"beats_per_step":1.2},
+    {"type":"phrase-looper","steps":["Deep: -4","-4'","-4"],"bpm":80,"beats_per_step":1.2},
+    {"type":"phrase-looper","steps":["Both: -2","-3'","-4'"],"bpm":80,"beats_per_step":1.2}
+  ],
   "chart": "song/chart.harpchart",
   "prerequisites": [
     "first-licks",

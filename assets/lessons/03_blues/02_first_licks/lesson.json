@@ -4,6 +4,11 @@
   "track": "vocabulary",
   "title_key": "lesson-first-licks-title",
   "body_key": "lesson-first-licks-body",
+  "widgets": [
+    {"type":"phrase-looper","steps":["Lick 1: -2","-3","+4"],"bpm":80,"beats_per_step":1},
+    {"type":"phrase-looper","steps":["Lick 2: +4","-4","-5"],"bpm":80,"beats_per_step":1},
+    {"type":"phrase-looper","steps":["Lick 3: +6","-5","-4"],"bpm":80,"beats_per_step":1}
+  ],
   "chart": "song/chart.harpchart",
   "prerequisites": [
     "call-response"
