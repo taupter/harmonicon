@@ -324,6 +324,7 @@ lesson-widget-guide-tone-line = Línea de notas guía
 lesson-widget-chord-tones = Notas del acorde
 lesson-widget-scale-tones = Notas de la escala
 lesson-widget-practice-loop = Bucle de práctica
+lesson-widget-scale-pattern = Patrón de escala
 lesson-mark-done = Marcar como Hecha
 lesson-goal-accuracy = Objetivo: {$pct}% de precisión general
 lesson-goal-technique = Objetivo: {$pct}% de precisión en las notas de {$technique}
