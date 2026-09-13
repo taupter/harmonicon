@@ -210,11 +210,15 @@ manifest** rather than silently rendering an incomplete lesson — the same
 |---|---|---|
 | `circle-of-fifths` | `harp_key`, `positions` | Step the reference harp key down/up a semitone, respawning the diagram |
 | `twelve-bar-grid` | `key`, `progression`, `sync_group` | Step the highlighted bar back/forward, reset to bar 1 |
+| `form-map` | `sections` | Step through and reset a named form; repeated labels share a colour |
+| `rhythm-pattern` | `steps` (`label`, `rest`, `accent`) | Step through and reset an authored subdivision strip |
+| `phrase-looper` | `steps`, `bpm`, `beats_per_step` | Start/stop an A/B visual loop, step/reset it, adjust tempo ±5 BPM |
 | `metronome` | `bpm`, `beats_per_bar`, `feel`, `sync_group` | Start/stop, ±5 BPM, straight/shuffle, mute |
 
 **Every widget renders through `harmonicon-ui`, not through
 `harmonicon-lessons`.** `dialogs::circle_of_fifths`,
-`dialogs::twelve_bar_grid` and `dialogs::metronome` are lesson-agnostic —
+`dialogs::twelve_bar_grid`, `dialogs::metronome`, `dialogs::form_map`,
+`dialogs::rhythm_pattern`, and `dialogs::phrase_looper` are lesson-agnostic —
 they take a key, a progression, an elapsed time, and know nothing about
 curricula. That's this codebase's standing rule for reusable widgets, and
 it paid off immediately: the 12-bar grid and the metronome timing model
@@ -267,6 +271,15 @@ Metronome clicks are ordinary `AudioPlayer` entities tagged
 page must not leave a click running, and tying the sounds to a marker
 rather than to the widget entity means that holds even if a click is
 in flight when the page tears down.
+
+`rhythm-pattern` uses explicit flags instead of interpreting its label:
+`rest: true` dims the cell and `accent: true` marks an attack, while `label`
+is display text such as `&` or `trip`. `phrase-looper` is visual as well. Its
+pure `PhraseLoopClock` advances one cell per `beats_per_step`, wraps the final
+B cell to the first A cell, and is driven by reader-page frame time. It does
+not load a chart or synthesize notes, so leaving the reader removes the whole
+looper through the ordinary menu-root cleanup with no transport or audio
+resource left behind.
 
 ## The skill tree
 

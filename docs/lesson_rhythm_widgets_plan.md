@@ -25,7 +25,7 @@ timing/layout models live in `harmonicon-ui`; manifests live in
 
 ## Completion
 
-- [ ] Cover schema rejection, timing/wrap behavior, and reader lifecycle;
+- [x] Cover schema rejection, timing/wrap behavior, and reader lifecycle;
   update authoring and gameplay-validation documentation.
 - [ ] Run formatting, focused tests, Clippy, and the bundled-manifest checks.
 

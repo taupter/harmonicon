@@ -57,6 +57,13 @@ completion still comes from **Start Lesson** or **Mark as Done**.
   configured number of bars to demonstrate an accelerando.
 - **Form map** — a row of named sections such as A–A–B–A. Repeated sections
   share a colour, and Previous/Next lets you follow the form as you listen.
+- **Rhythm pattern** — a strip of counted subdivisions. Dark cells are rests,
+  accented cells carry a `>` mark, and Previous/Next lets you trace exactly
+  where an attack or silence falls.
+- **Phrase looper** — an A-to-B strip of short tab or practice cues. Start it
+  to watch the active cell repeat at the displayed tempo, adjust that tempo
+  in 5 BPM steps, or move through the phrase by hand. It marks practice time;
+  the lesson's playable drill supplies the sound.
 
 **When a page shows a metronome and a grid together, starting the
 metronome walks the highlight through the form** — one bar per bar, in

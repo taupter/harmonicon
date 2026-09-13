@@ -36,6 +36,14 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
   a doubled or missing boundary click.
 - [ ] Open Listening for Form. Its A–A–B–A sections should give both A returns
   the same colour, and Previous/Next/Reset should move and wrap the highlight.
+- [ ] Open Syncopation and Rests. Numbered beats should appear as dim rests and
+  each `&` as an accented attack; Previous/Next/Reset should move and wrap the
+  gold highlight without starting audio.
+- [ ] Open First Licks. Each of its three tab strips should mark A and B, run
+  independently at 80 BPM, wrap B back to A, respond to ±5 BPM and manual
+  stepping, and stop changing as soon as the reader page is closed.
+- [ ] Open Loop Isolation. Its Context in → Problem → Context out strip should
+  repeat as a visual practice timer; it should not synthesize a melody.
 
 ## Automated coverage (`cargo test`)
 
