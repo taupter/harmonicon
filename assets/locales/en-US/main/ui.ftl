@@ -328,6 +328,7 @@ lesson-widget-scale-tones = Scale tones
 lesson-widget-practice-loop = Practice loop
 lesson-widget-scale-pattern = Scale pattern
 lesson-widget-navigation-pattern = Navigation pattern
+lesson-widget-octave-movement = Octave movement
 lesson-mark-done = Mark as Done
 lesson-goal-accuracy = Goal: {$pct}% overall accuracy
 lesson-goal-technique = Goal: {$pct}% accuracy on {$technique} notes

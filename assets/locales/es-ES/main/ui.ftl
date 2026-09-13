@@ -326,6 +326,7 @@ lesson-widget-scale-tones = Notas de la escala
 lesson-widget-practice-loop = Bucle de práctica
 lesson-widget-scale-pattern = Patrón de escala
 lesson-widget-navigation-pattern = Patrón de navegación
+lesson-widget-octave-movement = Movimiento de octavas
 lesson-mark-done = Marcar como Hecha
 lesson-goal-accuracy = Objetivo: {$pct}% de precisión general
 lesson-goal-technique = Objetivo: {$pct}% de precisión en las notas de {$technique}
