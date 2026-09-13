@@ -7,6 +7,18 @@ use bevy::prelude::*;
 pub const ACTIVE_BG: Color = Color::srgba(0.82, 0.62, 0.10, 1.0);
 pub const CELL_BG: Color = Color::srgba(0.20, 0.25, 0.34, 0.95);
 
+fn phrase_strip_node() -> Node {
+    Node {
+        width: Val::Percent(100.0),
+        max_width: Val::Px(760.0),
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: Val::Px(5.0),
+        row_gap: Val::Px(5.0),
+        ..default()
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PhraseLoopClock {
     elapsed: f64,
@@ -60,60 +72,51 @@ impl PhraseLoopClock {
 
 pub fn spawn_phrase_looper(parent: &mut ChildSpawnerCommands, steps: &[String]) -> Vec<Entity> {
     let mut cells = Vec::with_capacity(steps.len());
-    parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: Val::Px(5.0),
-            row_gap: Val::Px(5.0),
-            max_width: Val::Px(760.0),
-            ..default()
-        })
-        .with_children(|row| {
-            for (index, label) in steps.iter().enumerate() {
-                let boundary = match (index, index + 1 == steps.len()) {
-                    (0, true) => "A/B",
-                    (0, false) => "A",
-                    (_, true) => "B",
-                    _ => "",
-                };
-                let cell = row
-                    .spawn((
-                        Node {
-                            min_width: Val::Px(82.0),
-                            height: Val::Px(58.0),
-                            padding: UiRect::horizontal(Val::Px(10.0)),
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border: UiRect::all(Val::Px(1.0)),
+    parent.spawn(phrase_strip_node()).with_children(|row| {
+        for (index, label) in steps.iter().enumerate() {
+            let boundary = match (index, index + 1 == steps.len()) {
+                (0, true) => "A/B",
+                (0, false) => "A",
+                (_, true) => "B",
+                _ => "",
+            };
+            let cell = row
+                .spawn((
+                    Node {
+                        min_width: Val::Px(82.0),
+                        height: Val::Px(58.0),
+                        padding: UiRect::horizontal(Val::Px(10.0)),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    BackgroundColor(if index == 0 { ACTIVE_BG } else { CELL_BG }),
+                    BorderColor::all(Color::srgb(0.40, 0.40, 0.55)),
+                ))
+                .with_children(|cell| {
+                    cell.spawn((
+                        Text::new(label.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(19.0),
                             ..default()
                         },
-                        BackgroundColor(if index == 0 { ACTIVE_BG } else { CELL_BG }),
-                        BorderColor::all(Color::srgb(0.40, 0.40, 0.55)),
-                    ))
-                    .with_children(|cell| {
-                        cell.spawn((
-                            Text::new(label.clone()),
-                            TextFont {
-                                font_size: FontSize::Px(19.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
-                        cell.spawn((
-                            Text::new(boundary),
-                            TextFont {
-                                font_size: FontSize::Px(12.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgb(0.68, 0.70, 0.76)),
-                        ));
-                    })
-                    .id();
-                cells.push(cell);
-            }
-        });
+                        TextColor(Color::WHITE),
+                    ));
+                    cell.spawn((
+                        Text::new(boundary),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.68, 0.70, 0.76)),
+                    ));
+                })
+                .id();
+            cells.push(cell);
+        }
+    });
     cells
 }
 
@@ -148,5 +151,13 @@ mod tests {
         assert_eq!(clock.advance(0.25, 60.0, 1.0, 4), None);
         assert_eq!(clock.step(-1, 4), 3);
         assert_eq!(clock.advance(0.75, 60.0, 1.0, 4), None);
+    }
+
+    #[test]
+    fn phrase_strip_uses_available_width_and_wraps() {
+        let node = phrase_strip_node();
+        assert_eq!(node.width, Val::Percent(100.0));
+        assert_eq!(node.max_width, Val::Px(760.0));
+        assert_eq!(node.flex_wrap, FlexWrap::Wrap);
     }
 }
