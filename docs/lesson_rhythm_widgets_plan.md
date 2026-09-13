@@ -16,7 +16,7 @@ timing/layout models live in `harmonicon-ui`; manifests live in
 
 ## Phrase looper
 
-- [ ] Add a reusable phrase-strip widget and a clock that wraps its active
+- [x] Add a reusable phrase-strip widget and a clock that wraps its active
   step over an authored A/B range.
 - [ ] Add a schema-validated `phrase-looper` lesson widget and reader
   controls for play/pause, previous, next, reset, and tempo.
