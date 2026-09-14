@@ -139,7 +139,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                     phrase["phrase"] = json!(section);
                 }
                 if let Some(chord) = &annotation.chord {
-                    phrase["groove"] = json!(chord);
+                    phrase["chord"] = json!(chord);
                 }
             }
             phrase
@@ -418,7 +418,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             };
 
             let section = phrase["phrase"].as_str().map(str::to_owned);
-            let chord = phrase["groove"].as_str().map(str::to_owned);
+            let chord = phrase["chord"].as_str().map(str::to_owned);
             if section.is_some() || chord.is_some() {
                 state
                     .phrase_annotations
@@ -533,6 +533,9 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
     if let Some(track) = value["track"].as_array() {
         for (index, phrase) in track.iter().enumerate() {
             let number = index + 1;
+            if phrase.get("groove").is_some() {
+                found.push(format!("phrase {number} has a groove annotation"));
+            }
             if phrase["call"].as_bool() == Some(true) {
                 found.push(format!("phrase {number} is marked for call-and-response"));
             }

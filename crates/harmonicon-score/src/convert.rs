@@ -279,6 +279,7 @@ pub fn to_chart(
             duration: note.duration_secs,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: None,
             call: false,
             events: vec![NoteEvent {

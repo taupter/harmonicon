@@ -341,6 +341,7 @@ pub fn generated_chart(
             duration: total_secs,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: None,
             call: false,
             events: vec![NoteEvent {

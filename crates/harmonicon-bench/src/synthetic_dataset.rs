@@ -306,6 +306,7 @@ fn render_scenario(
             duration: item.duration_secs,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: Some(if events.len() > 1 {
                 PlayMode::Chord
             } else {

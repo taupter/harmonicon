@@ -340,6 +340,7 @@ fn track_item(time: Option<f64>, tick: Option<u64>) -> TrackItem {
         duration: 0.5,
         phrase: None,
         groove: None,
+        chord: None,
         play_mode: None,
         call: false,
         events: vec![],

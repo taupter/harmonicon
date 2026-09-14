@@ -363,6 +363,7 @@ mod tests {
             duration,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: Some(PlayMode::Single),
             call: false,
             events: vec![NoteEvent {

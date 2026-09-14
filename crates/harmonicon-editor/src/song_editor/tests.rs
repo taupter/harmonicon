@@ -1436,10 +1436,12 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
     value["harmonica"]["holes"] = serde_json::json!(16);
     value["timing"]["time_signature_map"] =
         serde_json::json!([{ "tick": 0, "time_signature": "4/4" }]);
+    value["track"][0]["groove"] = serde_json::json!("laid-back");
     value["track"][0]["call"] = serde_json::json!(true);
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
     assert!(error.contains("time-signature changes"));
+    assert!(error.contains("groove annotation"));
     assert!(error.contains("call-and-response"));
 }
 
@@ -1525,7 +1527,7 @@ fn phrase_section_and_chord_annotations_round_trip() {
     validated_harpchart(&text).expect("annotations are supported editor semantics");
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(value["track"][0]["phrase"], "Verse A");
-    assert_eq!(value["track"][0]["groove"], "G7alt");
+    assert_eq!(value["track"][0]["chord"], "G7alt");
 
     let mut loaded = EditorState::default();
     let mut scroll = Scroll::default();

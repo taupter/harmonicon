@@ -337,6 +337,11 @@ of every *other* track as `song/music.wav`, via the same additive synth
 and is a different design point from, the newer `song/music.mid`
 per-track-stem backing Jam Session can use instead.
 
+Phrase annotations are tick-keyed editor content. Section names serialize as
+the established `phrase` field, while harmonic analysis uses the dedicated
+optional `chord` field; `groove` remains reserved for performance feel. Both
+section and chord annotations participate in undo and round-trip with notes.
+
 The editor models standard Richter, Paddy Richter, natural minor, 12-hole
 chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
 variants. `playback::build_harp` supplies the matching core layout, and

@@ -379,6 +379,9 @@ pub struct TrackItem {
     pub phrase: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub groove: Option<String>,
+    /// Optional harmonic marker beginning at this item (for example `G7alt`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chord: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub play_mode: Option<PlayMode>,
     /// Marks this item as part of a call-and-response phrase: absent/`false`

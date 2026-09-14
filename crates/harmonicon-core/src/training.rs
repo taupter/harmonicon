@@ -237,6 +237,7 @@ pub fn drill_chart(
             duration: secs_per_note,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: None,
             call: false,
             events: vec![NoteEvent {

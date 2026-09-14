@@ -314,6 +314,11 @@
             "type": "string"
           },
 
+          "chord": {
+            "type": "string",
+            "description": "Optional chord symbol in effect at this phrase onset, such as G7alt or Bbmaj7."
+          },
+
           "play_mode": {
             "type": "string",
             "enum": [

@@ -213,6 +213,7 @@ mod tests {
             duration,
             phrase: None,
             groove: None,
+            chord: None,
             play_mode: None,
             call,
             events: holes
