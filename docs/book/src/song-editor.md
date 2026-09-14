@@ -339,6 +339,10 @@ written against, so a chart saved by a newer Harmonicon that added
 something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
+Settings that do not yet have form controls—source, license, description,
+difficulty, feel, scoring rules, and loop configuration—are retained from a
+loaded chart. Editing its notes therefore does not reset those values.
+
 Loading also stops before changing the open chart when a file uses musical
 features the grid cannot preserve yet, such as meter changes or combinations
 of mutually exclusive technique modifiers. The status bar names the unsupported feature;

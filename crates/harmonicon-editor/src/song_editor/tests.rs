@@ -1425,6 +1425,42 @@ fn editor_load_validation_accepts_its_own_expression_intensity() {
 }
 
 #[test]
+fn non_grid_chart_settings_survive_load_and_save() {
+    let mut source = EditorState::default();
+    select_or_add(&mut source, 1, 0);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&source)).expect("valid chart JSON");
+    value["metadata"]["source"] = serde_json::json!("Traditional");
+    value["metadata"]["license"] = serde_json::json!("CC-BY-4.0");
+    value["metadata"]["description"] = serde_json::json!("Custom description");
+    value["song"]["difficulty"] = serde_json::json!("expert");
+    value["song"]["feel"] = serde_json::json!("shuffle");
+    value["scoring"] = serde_json::json!({
+        "perfect_window_ms": 90,
+        "good_window_ms": 180,
+        "miss_window_ms": 360
+    });
+    value["loop"] = serde_json::json!({
+        "type": "verse", "repeat": true, "start_index": 0, "end_index": 0
+    });
+
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    let saved: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&loaded)).expect("saved chart JSON");
+
+    assert_eq!(saved["metadata"]["source"], "Traditional");
+    assert_eq!(saved["metadata"]["license"], "CC-BY-4.0");
+    assert_eq!(saved["metadata"]["description"], "Custom description");
+    assert_eq!(saved["song"]["difficulty"], "expert");
+    assert_eq!(saved["song"]["feel"], "shuffle");
+    assert_eq!(saved["scoring"], value["scoring"]);
+    assert_eq!(saved["loop"], value["loop"]);
+    validated_harpchart(&saved.to_string()).expect("preserved settings remain valid");
+}
+
+#[test]
 fn editor_load_validation_lists_semantics_it_cannot_preserve() {
     let mut state = EditorState {
         harmonica_kind: HarmonicaKind::Chromatic,

@@ -239,6 +239,12 @@ pub(super) struct EditorState {
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
+    /// Chart settings the grid does not edit yet, retained verbatim so a
+    /// load/save cycle cannot reset them to editor defaults.
+    pub(super) preserved_metadata: Option<serde_json::Value>,
+    pub(super) preserved_song: Option<serde_json::Value>,
+    pub(super) preserved_scoring: Option<serde_json::Value>,
+    pub(super) preserved_loop: Option<serde_json::Value>,
     /// The song's meter, as it will be written to the chart (`"4/4"`,
     /// `"3/4"`, `"6/8"`). Everything that needs a bar length asks
     /// [`EditorState::beats_per_bar`] rather than assuming four — the grid's
@@ -336,6 +342,10 @@ impl Default for EditorState {
             tempo_changes: Vec::new(),
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
+            preserved_metadata: None,
+            preserved_song: None,
+            preserved_scoring: None,
+            preserved_loop: None,
             time_signature: "4/4".into(),
             key: "C".into(),
             position: "2nd".into(),

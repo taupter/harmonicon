@@ -247,37 +247,43 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
         "author": artist,
         "description": "Created with Harmonicon Song Editor 2"
     });
+    if let Some(preserved) = &state.preserved_metadata {
+        for key in ["source", "license", "description"] {
+            if let Some(value) = preserved.get(key) {
+                metadata[key] = value.clone();
+            }
+        }
+    }
     let audio_file = state.music.trim();
     if !audio_file.is_empty() {
         metadata["audio_file"] = json!(audio_file);
     }
 
-    let chart = json!({
-        "metadata": metadata,
-        "song": {
-            "title": title,
-            "artist": artist,
-            "tempo_bpm": bpm,
-            "key": state.key,
-            "time_signature": state.time_signature,
-            "difficulty": "intermediate"
-        },
-        "timing": {
-            "resolution": TICKS_PER_BEAT,
-            "tempo_map": tempo_map
-                .iter()
-                .map(|p| json!({ "tick": p.tick, "bpm": p.bpm }))
-                .collect::<Vec<_>>()
-        },
-        "harmonica": harmonica,
-        "track": track,
-        "loop": {
+    let mut song = json!({
+        "title": title,
+        "artist": artist,
+        "tempo_bpm": bpm,
+        "key": state.key,
+        "time_signature": state.time_signature,
+        "difficulty": "intermediate"
+    });
+    if let Some(preserved) = &state.preserved_song {
+        for key in ["difficulty", "feel"] {
+            if let Some(value) = preserved.get(key) {
+                song[key] = value.clone();
+            }
+        }
+    }
+    let loop_settings = state.preserved_loop.clone().unwrap_or_else(|| {
+        json!({
             "type": "full",
             "repeat": false,
             "start_index": 0,
             "end_index": last_phrase
-        },
-        "scoring": {
+        })
+    });
+    let scoring = state.preserved_scoring.clone().unwrap_or_else(|| {
+        json!({
             "perfect_window_ms": 60,
             "good_window_ms": 120,
             "miss_window_ms": 220,
@@ -289,7 +295,23 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 "decay_ms": 2000
             },
             "style_bonus": { "bend": 50, "vibrato": 25, "wah-wah": 40 }
-        }
+        })
+    });
+
+    let chart = json!({
+        "metadata": metadata,
+        "song": song,
+        "timing": {
+            "resolution": TICKS_PER_BEAT,
+            "tempo_map": tempo_map
+                .iter()
+                .map(|p| json!({ "tick": p.tick, "bpm": p.bpm }))
+                .collect::<Vec<_>>()
+        },
+        "harmonica": harmonica,
+        "track": track,
+        "loop": loop_settings,
+        "scoring": scoring
     });
 
     serde_json::to_string_pretty(&chart).unwrap_or_default()
@@ -328,6 +350,10 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
 }
 
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
+    state.preserved_metadata = v.get("metadata").cloned();
+    state.preserved_song = v.get("song").cloned();
+    state.preserved_scoring = v.get("scoring").cloned();
+    state.preserved_loop = v.get("loop").cloned();
     if let Some(song) = v.get("song") {
         if let Some(t) = song["title"].as_str() {
             state.name = t.to_string();

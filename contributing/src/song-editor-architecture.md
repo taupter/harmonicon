@@ -352,6 +352,12 @@ This preserves old charts without expanding the expression enum used by every
 placement, recording, playback, and rendering path. Undo snapshots carry the
 map, and note-removal paths prune stale ids.
 
+`EditorState` also retains the loaded chart's non-grid metadata, song options,
+scoring object, and loop object as JSON. Serialization starts from editor-owned
+title, artist, timing, instrument, and track data, then restores only those
+settings that have no editor control yet. This prevents a note edit from
+resetting difficulty, feel, attribution, scoring windows, or loop behavior.
+
 The editor models standard Richter, Paddy Richter, country tuned, natural
 minor, 12-hole chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
 variants. `playback::build_harp` supplies the matching core layout, and
