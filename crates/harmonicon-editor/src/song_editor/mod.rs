@@ -41,6 +41,7 @@ mod metronome;
 mod midi_import;
 mod mod_panel;
 mod music_score_bridge;
+mod note_model;
 mod panel;
 mod panel_widgets;
 mod pitch_map;
@@ -50,7 +51,6 @@ mod scroll;
 // `pub(crate)`, not private like its neighbours: `gameplay::call_response`
 // shares this module's synth (`PhraseNote`/`render_pcm`/`encode_wav`) for
 // the call-and-response lesson feature's audio cue.
-mod note_model;
 pub(crate) mod playback;
 mod practice;
 mod record;
