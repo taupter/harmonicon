@@ -2,7 +2,7 @@
 
 use super::clipboard::{copy_selected, paste_targets};
 use super::grid::{
-    beat_label, group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats,
+    group_move_targets, group_move_valid, mix_srgba, note_in_scale, ruler_label, visible_beats,
 };
 use super::harpchart::{
     load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
@@ -1991,31 +1991,53 @@ fn visible_beats_never_goes_negative_for_a_narrow_window() {
     assert_eq!(visible_beats(HOLE_COL_W), 1);
 }
 
-// ── beat_label ────────────────────────────────────────────────────────────────
+// ── ruler_label ───────────────────────────────────────────────────────────────
+
+/// 4/4 at the editor's 12 ticks to a quarter.
+const FOUR_FOUR: (usize, usize) = (48, 12);
+/// 7/8: seven eighths to a bar, 42 ticks — three and a half quarter-note
+/// columns, which is exactly what the old rounded `beats_per_bar` could not
+/// express.
+const SEVEN_EIGHT: (usize, usize) = (42, 6);
 
 #[test]
-fn beat_label_counts_bars_at_a_bar_line_and_beats_within_one() {
-    // 4/4: beats 0..7 are bar 1 beats 1-4, then bar 2 beats 1-4 — and the
-    // downbeat of each bar is labelled with the *bar* number, so scrolling
-    // away from the start still says where you are.
-    let labels: Vec<String> = (0..8).map(|b| beat_label(b, 4)).collect();
+fn ruler_label_counts_bars_at_a_bar_line_and_beats_within_one() {
+    let (bar, beat) = FOUR_FOUR;
+    let labels: Vec<String> = (0..8).map(|i| ruler_label(i * beat, bar, beat)).collect();
     assert_eq!(labels, ["1", "2", "3", "4", "2", "2", "3", "4"]);
     // Bar 37's downbeat reads "37", not another "1".
-    assert_eq!(beat_label(36 * 4, 4), "37");
+    assert_eq!(ruler_label(36 * bar, bar, beat), "37");
 }
 
 #[test]
-fn beat_label_follows_the_time_signature() {
-    // 3/4: a bar line every three beats, not four.
-    let labels: Vec<String> = (0..6).map(|b| beat_label(b, 3)).collect();
-    assert_eq!(labels, ["1", "2", "3", "2", "2", "3"]);
+fn ruler_label_counts_a_seven_eight_bar_as_seven_eighths() {
+    // The bug this fixes: 7/8 is 3.5 quarter-note columns, so counting
+    // columns gave "1 2 3 4" and a bar line half a beat from where the
+    // music puts it. Counting the meter's own beat gives seven.
+    let (bar, beat) = SEVEN_EIGHT;
+    let labels: Vec<String> = (0..7).map(|i| ruler_label(i * beat, bar, beat)).collect();
+    assert_eq!(labels, ["1", "2", "3", "4", "5", "6", "7"]);
+    // Bar 2 starts at tick 42, which is *not* a column boundary (those are
+    // multiples of 12) — the whole point of measuring in ticks.
+    assert_eq!(ruler_label(42, bar, beat), "2");
+    assert!(!42_usize.is_multiple_of(TICKS_PER_BEAT));
 }
 
 #[test]
-fn beat_label_survives_a_zero_beats_per_bar() {
-    // `beats_per_bar()` clamps to 1, but the label must not divide by zero
-    // if some future caller doesn't.
-    assert_eq!(beat_label(5, 0), "6");
+fn ruler_label_counts_a_six_eight_bar_as_six_eighths() {
+    // 6/8 *is* a whole number of quarters (3), so the old code placed its
+    // bar lines correctly — but counted three beats where a musician counts
+    // six.
+    let labels: Vec<String> = (0..6).map(|i| ruler_label(i * 6, 36, 6)).collect();
+    assert_eq!(labels, ["1", "2", "3", "4", "5", "6"]);
+    assert_eq!(ruler_label(36, 36, 6), "2");
+}
+
+#[test]
+fn ruler_label_survives_degenerate_meter_lengths() {
+    // Both accessors clamp to 1, but the label must not divide by zero if
+    // some future caller doesn't.
+    assert_eq!(ruler_label(5, 0, 0), "6");
 }
 
 // ── resize_grip_position ──────────────────────────────────────────────────────
@@ -2634,6 +2656,61 @@ fn beats_per_bar_reads_the_chart_meter_not_a_fixed_four() {
     // the grid and the staff both count in.
     s.time_signature = "6/8".into();
     assert_eq!(s.beats_per_bar(), 3);
+}
+
+#[test]
+fn ticks_per_bar_is_exact_where_beats_per_bar_has_to_round() {
+    let mut s = EditorState::default();
+    // 4/4: four quarters, 48 ticks. Both agree.
+    assert_eq!(s.ticks_per_bar(), 4 * TICKS_PER_BEAT);
+    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT);
+
+    // 7/8: seven eighths. `beats_per_bar` rounds 3.5 quarters up to 4 and
+    // so claims a 48-tick bar; the real one is 42.
+    s.time_signature = "7/8".into();
+    assert_eq!(
+        s.beats_per_bar(),
+        4,
+        "precondition: the rounded value is wrong"
+    );
+    assert_eq!(s.ticks_per_bar(), 42);
+    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT / 2);
+
+    // 5/8: 2.5 quarters, the other direction.
+    s.time_signature = "5/8".into();
+    assert_eq!(s.ticks_per_bar(), 30);
+
+    // 6/8 was always a whole number of quarters, so only the *beat* changes:
+    // six eighths per bar rather than three quarters.
+    s.time_signature = "6/8".into();
+    assert_eq!(s.ticks_per_bar(), 36);
+    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT / 2);
+}
+
+#[test]
+fn every_offered_meter_divides_the_tick_grid_exactly() {
+    // Nothing the picker offers may fall back — a fallback would silently
+    // mis-place bar lines again, which is the whole bug.
+    let mut s = EditorState::default();
+    for sig in harmonicon_ui::music_score::TIME_SIGNATURES {
+        s.time_signature = sig.into();
+        let meter = harmonicon_ui::music_score::parse_time_signature(sig);
+        assert_eq!(
+            s.ticks_per_bar(),
+            meter.ticks_per_bar(TICKS_PER_BEAT as u32).unwrap() as usize,
+            "{sig} fell back instead of dividing exactly"
+        );
+    }
+}
+
+#[test]
+fn a_meter_too_fine_for_the_tick_grid_falls_back_rather_than_panicking() {
+    let s = EditorState {
+        time_signature: "4/32".into(),
+        ..Default::default()
+    };
+    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT);
+    assert_eq!(s.ticks_per_bar(), TICKS_PER_BEAT * 4);
 }
 
 #[test]

@@ -46,7 +46,7 @@ use super::state::{
     EditorState, Mode, Scroll, Side, TimelineDrag, TimelineSelection, TimelineTool,
     toggle_tempo_point,
 };
-use super::{BEAT_W, TICK_W, TICKS_PER_BEAT};
+use super::{BEAT_W, TICK_W};
 use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_ui::dialogs::confirm_dialog::{ConfirmChosen, DialogId, OpenConfirmDialog};
 
@@ -118,11 +118,20 @@ pub(super) fn sync_timeline_surface(
 
 /// A tick as "bar.beat" (1-indexed), matching the numbers already shown on
 /// the ruler — used in the confirm dialog's message.
-fn describe_tick(tick: usize, beats_per_bar: usize) -> String {
-    let beat = tick / TICKS_PER_BEAT;
-    let beats_per_bar = beats_per_bar.max(1);
-    let bar = beat / beats_per_bar + 1;
-    let beat_in_bar = beat % beats_per_bar + 1;
+///
+/// Measured in ticks, like `grid::ruler_label`, so the two agree in a meter
+/// whose bar isn't a whole number of quarter-note columns (7/8, 5/8): going
+/// through the rounded `beats_per_bar` named a different bar than the one
+/// the ruler was showing.
+pub(super) fn describe_tick(
+    tick: usize,
+    ticks_per_bar: usize,
+    ticks_per_signature_beat: usize,
+) -> String {
+    let ticks_per_bar = ticks_per_bar.max(1);
+    let ticks_per_signature_beat = ticks_per_signature_beat.max(1);
+    let bar = tick / ticks_per_bar + 1;
+    let beat_in_bar = (tick % ticks_per_bar) / ticks_per_signature_beat + 1;
     format!("{bar}.{beat_in_bar}")
 }
 
@@ -143,14 +152,15 @@ pub(super) fn request_confirm(
         // through the confirm-dialog path this function drives.
         TimelineTool::Tempo => return,
     };
-    let bpb = state.beats_per_bar();
+    let tpb = state.ticks_per_bar();
+    let tpsb = state.ticks_per_signature_beat();
     state.pending_timeline_op = Some((tool, start, end));
     let message = loc
         .msg_args(
             key,
             &[
-                ("from", describe_tick(start, bpb)),
-                ("to", describe_tick(end, bpb)),
+                ("from", describe_tick(start, tpb, tpsb)),
+                ("to", describe_tick(end, tpb, tpsb)),
             ],
         )
         .to_string();

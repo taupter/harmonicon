@@ -51,20 +51,31 @@ const BAR_LABEL_FONT: f32 = 13.0;
 const BEAT_LABEL_FONT: f32 = 11.5;
 const OFF_BEAT_LABEL_FONT: f32 = 11.0;
 
-/// The beat ruler's label for `beat`: the *bar* number at a bar line, the
-/// within-bar beat index everywhere else. Both are 1-based.
+/// The beat ruler's label for the signature beat starting at `tick`: the
+/// *bar* number on a downbeat, the beat's index within its bar everywhere
+/// else. Both are 1-based.
+///
+/// Works in ticks so that meters whose bar isn't a whole number of
+/// quarter-note columns still count correctly — 7/8 numbers seven eighths
+/// to a bar, where counting columns gave four quarters and a bar line in
+/// the wrong place.
 ///
 /// Labelling every beat with only its index within the bar made the ruler
 /// identical in every bar of a chart, with nothing to distinguish bar 1
 /// from bar 37 — which also left the 12-bar tint (`bar_bg`, keyed on a bar
 /// index) unreadable, since its colour cycle has no visible counter to
 /// anchor to.
-pub(super) fn beat_label(beat: usize, beats_per_bar: usize) -> String {
-    let beats_per_bar = beats_per_bar.max(1);
-    if beat.is_multiple_of(beats_per_bar) {
-        format!("{}", beat / beats_per_bar + 1)
+pub(super) fn ruler_label(
+    tick: usize,
+    ticks_per_bar: usize,
+    ticks_per_signature_beat: usize,
+) -> String {
+    let ticks_per_bar = ticks_per_bar.max(1);
+    let ticks_per_signature_beat = ticks_per_signature_beat.max(1);
+    if tick.is_multiple_of(ticks_per_bar) {
+        format!("{}", tick / ticks_per_bar + 1)
     } else {
-        format!("{}", beat % beats_per_bar + 1)
+        format!("{}", (tick % ticks_per_bar) / ticks_per_signature_beat + 1)
     }
 }
 
@@ -168,76 +179,34 @@ pub(super) fn rebuild_grid(
     let Ok(content) = content.single() else {
         return;
     };
-    let beats_per_bar = state.beats_per_bar();
+    // Bar geometry is measured in ticks, not in whole quarter-note columns:
+    // a 7/8 bar is 42 ticks — three and a half columns — so its bar line
+    // genuinely falls *between* two of them. `beats_per_bar` rounds that to
+    // 4 and put the line half a beat out.
+    let ticks_per_bar = state.ticks_per_bar();
+    let ticks_per_signature_beat = state.ticks_per_signature_beat();
+    let first_tick = state.scroll_beat * TICKS_PER_BEAT;
+    let last_tick = (state.scroll_beat + cols + 1) * TICKS_PER_BEAT;
     let mut items: Vec<Entity> = Vec::new();
 
     for col in 0..=cols {
         let beat = state.scroll_beat + col;
         let x = beat as f32 * BEAT_W;
-        let is_bar = beat.is_multiple_of(beats_per_bar);
         // Opt-in (`EditorState::twelve_bar_tint`): tiles the standard
         // 12-bar-blues form indefinitely as the user scrolls, so the grid
         // reads as harmonic function (I/IV/V) even for charts longer than
         // 12 bars. Off by default — a chart that isn't a 12-bar blues has
-        // no such progression for the background to be describing.
+        // no such progression for the background to be describing. Keyed on
+        // the bar containing the cell's *start*, since in a meter whose bar
+        // isn't a whole number of columns one cell can straddle two bars.
         let bar_tint = state.twelve_bar_tint.then(|| {
             bar_bg(
-                (beat / beats_per_bar) % 12,
+                (beat * TICKS_PER_BEAT / ticks_per_bar) % 12,
                 &state.key,
                 harmonicon_core::harmonica::Progression::Standard,
                 bar_colors,
             )
         });
-
-        items.push(
-            commands
-                .spawn((
-                    GridItem,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x + 4.0),
-                        top: Val::Px(6.0),
-                        ..default()
-                    },
-                    Text::new(beat_label(beat, beats_per_bar)),
-                    TextFont {
-                        font_size: FontSize::Px(if is_bar {
-                            BAR_LABEL_FONT
-                        } else {
-                            BEAT_LABEL_FONT
-                        }),
-                        ..default()
-                    },
-                    TextColor(if is_bar { colors.accent } else { colors.label }),
-                    Pickable::IGNORE,
-                ))
-                .id(),
-        );
-        // Counting syllables between the beat numbers, placed on the ticks
-        // the *active* snap mode can land on — a fixed "&" at half a beat
-        // would name an unreachable position in Shuffle and Triplet.
-        for &(tick, key) in off_beat_labels(state.snap_mode) {
-            items.push(
-                commands
-                    .spawn((
-                        GridItem,
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(x + tick as f32 * TICK_W + 2.0),
-                            top: Val::Px(6.0),
-                            ..default()
-                        },
-                        Text::new(String::from(loc.msg(key))),
-                        TextFont {
-                            font_size: FontSize::Px(OFF_BEAT_LABEL_FONT),
-                            ..default()
-                        },
-                        TextColor(colors.label.with_alpha(0.55)),
-                        Pickable::IGNORE,
-                    ))
-                    .id(),
-            );
-        }
 
         for hole in 1..=hole_count {
             let y = HEADER_H + (hole as f32 - 1.0) * ROW_H;
@@ -325,6 +294,11 @@ pub(super) fn rebuild_grid(
         // making them look like they stop at the header instead of running
         // down through every hole's row. `Pickable::IGNORE` keeps them from
         // blocking clicks on the lane buttons underneath.
+        //
+        // Always the plain beat line: this one separates two lane *cells*,
+        // so it belongs at a column boundary whatever the meter. Bar lines
+        // are drawn afterwards, at their own tick positions, and land on
+        // top of this where the two coincide (as they always do in 4/4).
         items.push(
             commands
                 .spawn((
@@ -333,15 +307,11 @@ pub(super) fn rebuild_grid(
                         position_type: PositionType::Absolute,
                         left: Val::Px(x),
                         top: Val::Px(0.0),
-                        width: Val::Px(if is_bar { 2.0 } else { 1.0 }),
+                        width: Val::Px(1.0),
                         height: Val::Px(grid_height(hole_count)),
                         ..default()
                     },
-                    BackgroundColor(if is_bar {
-                        colors.bar_line
-                    } else {
-                        colors.grid_line
-                    }),
+                    BackgroundColor(colors.grid_line),
                     Pickable::IGNORE,
                 ))
                 .id(),
@@ -378,8 +348,103 @@ pub(super) fn rebuild_grid(
         }
     }
 
-    let first_tick = state.scroll_beat * TICKS_PER_BEAT;
-    let last_tick = (state.scroll_beat + cols + 1) * TICKS_PER_BEAT;
+    // ── The beat ruler ───────────────────────────────────────────────────
+    //
+    // Driven by ticks rather than by the column loop above, because in any
+    // meter counted in eighths a signature beat is half a column wide and a
+    // bar boundary need not coincide with one at all. In 4/4 every position
+    // below lands exactly on a column, so this draws what it always did.
+    let mut tick = first_tick - first_tick % ticks_per_signature_beat;
+    while tick < last_tick {
+        let is_bar = tick.is_multiple_of(ticks_per_bar);
+        items.push(
+            commands
+                .spawn((
+                    GridItem,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(tick as f32 * TICK_W + 4.0),
+                        top: Val::Px(6.0),
+                        ..default()
+                    },
+                    Text::new(ruler_label(tick, ticks_per_bar, ticks_per_signature_beat)),
+                    TextFont {
+                        font_size: FontSize::Px(if is_bar {
+                            BAR_LABEL_FONT
+                        } else {
+                            BEAT_LABEL_FONT
+                        }),
+                        ..default()
+                    },
+                    TextColor(if is_bar { colors.accent } else { colors.label }),
+                    Pickable::IGNORE,
+                ))
+                .id(),
+        );
+        tick += ticks_per_signature_beat;
+    }
+
+    // Bar lines, at their true tick positions — heavier than the beat lines
+    // the column loop drew, and drawn after them so they win where the two
+    // coincide.
+    let mut tick = first_tick - first_tick % ticks_per_bar;
+    while tick < last_tick {
+        items.push(
+            commands
+                .spawn((
+                    GridItem,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(tick as f32 * TICK_W),
+                        top: Val::Px(0.0),
+                        width: Val::Px(2.0),
+                        height: Val::Px(grid_height(hole_count)),
+                        ..default()
+                    },
+                    BackgroundColor(colors.bar_line),
+                    Pickable::IGNORE,
+                ))
+                .id(),
+        );
+        tick += ticks_per_bar;
+    }
+
+    // Counting syllables, on the ticks the *active* snap mode can land on —
+    // a fixed "&" at half a beat would name an unreachable position in
+    // Shuffle and Triplet. Skipped wherever one would collide with a
+    // numbered signature beat, which is every one of them in a meter
+    // counted in eighths: there the "&" position *is* a beat, and already
+    // carries its own number.
+    for col in 0..=cols {
+        let beat = state.scroll_beat + col;
+        for &(sub, key) in off_beat_labels(state.snap_mode) {
+            let tick = beat * TICKS_PER_BEAT + sub;
+            if tick.is_multiple_of(ticks_per_signature_beat) {
+                continue;
+            }
+            items.push(
+                commands
+                    .spawn((
+                        GridItem,
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(tick as f32 * TICK_W + 2.0),
+                            top: Val::Px(6.0),
+                            ..default()
+                        },
+                        Text::new(String::from(loc.msg(key))),
+                        TextFont {
+                            font_size: FontSize::Px(OFF_BEAT_LABEL_FONT),
+                            ..default()
+                        },
+                        TextColor(colors.label.with_alpha(0.55)),
+                        Pickable::IGNORE,
+                    ))
+                    .id(),
+            );
+        }
+    }
+
     for note in &state.notes {
         if note.tick < last_tick && note.tick + note.len > first_tick {
             let selected = state.is_selected(note.id);

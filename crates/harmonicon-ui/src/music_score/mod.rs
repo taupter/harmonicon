@@ -268,6 +268,30 @@ impl MusicScoreMeter {
     pub fn beats_per_bar(self) -> f64 {
         self.numerator as f64 * 4.0 / self.denominator.max(1) as f64
     }
+
+    /// Ticks spanned by one beat *of this meter* — the unit its upper
+    /// number counts, so an eighth in 7/8 and a quarter in 4/4 — given
+    /// `quarter_ticks` ticks to a quarter note.
+    ///
+    /// Exact or nothing, unlike [`beats_per_bar`](Self::beats_per_bar),
+    /// whose `f64` the Song Editor had to round to a whole number of
+    /// quarters: a 7/8 bar is 3.5 of them, so rounding put its bar line
+    /// half a beat out. `None` when the meter's beat isn't a whole number
+    /// of ticks (a 32nd-note beat at 12 ticks to the quarter would be 1.5),
+    /// which is why [`TIME_SIGNATURES`] stops at /16.
+    pub fn ticks_per_beat(self, quarter_ticks: u32) -> Option<u32> {
+        let whole_note = quarter_ticks.checked_mul(4)?;
+        let denominator = u32::from(self.denominator);
+        (denominator > 0 && whole_note.is_multiple_of(denominator))
+            .then(|| whole_note / denominator)
+    }
+
+    /// Ticks spanned by one bar. `None` under the same conditions as
+    /// [`ticks_per_beat`](Self::ticks_per_beat).
+    pub fn ticks_per_bar(self, quarter_ticks: u32) -> Option<u32> {
+        self.ticks_per_beat(quarter_ticks)?
+            .checked_mul(u32::from(self.numerator))
+    }
 }
 
 /// The meters the Song Editor offers, commonest first.
@@ -926,6 +950,46 @@ mod tests {
                 "{s} does not round-trip, so a picked value would not match"
             );
         }
+    }
+
+    #[test]
+    fn every_offered_meter_has_an_exact_tick_length() {
+        // The whole point of the picker's list: at the editor's 12 ticks to
+        // a quarter, every meter it offers divides evenly, so no bar
+        // boundary ever has to be rounded.
+        for s in TIME_SIGNATURES {
+            let m = parse_time_signature(s);
+            assert!(
+                m.ticks_per_beat(12).is_some(),
+                "{s}: beat is not a whole number of ticks"
+            );
+            assert!(m.ticks_per_bar(12).is_some(), "{s}: bar is not either");
+        }
+    }
+
+    #[test]
+    fn tick_lengths_follow_the_note_value_the_lower_number_names() {
+        // 12 ticks to a quarter: a 4/4 beat is a quarter (12), a 7/8 beat
+        // an eighth (6), a 2/2 beat a half (24).
+        let tpb = |s: &str| parse_time_signature(s).ticks_per_beat(12);
+        assert_eq!(tpb("4/4"), Some(12));
+        assert_eq!(tpb("7/8"), Some(6));
+        assert_eq!(tpb("2/2"), Some(24));
+        // And a bar is that times the upper number — 7/8 is 42 ticks, which
+        // is 3.5 quarters, exactly the half-beat `beats_per_bar` had to
+        // round away.
+        assert_eq!(parse_time_signature("7/8").ticks_per_bar(12), Some(42));
+        assert_eq!(parse_time_signature("4/4").ticks_per_bar(12), Some(48));
+        assert_eq!(parse_time_signature("5/8").ticks_per_bar(12), Some(30));
+    }
+
+    #[test]
+    fn a_beat_finer_than_the_tick_grid_has_no_exact_length() {
+        // 32nd notes at 12 ticks to a quarter would be 1.5 ticks.
+        assert_eq!(parse_time_signature("4/32").ticks_per_beat(12), None);
+        assert_eq!(parse_time_signature("4/32").ticks_per_bar(12), None);
+        // A coarser grid can express them.
+        assert_eq!(parse_time_signature("4/32").ticks_per_beat(8), Some(1));
     }
 
     #[test]
