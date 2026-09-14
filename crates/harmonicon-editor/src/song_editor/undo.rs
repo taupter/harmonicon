@@ -32,6 +32,7 @@ struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
     phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
+    expression_intensities: std::collections::BTreeMap<u32, String>,
     // Changing harp kind can delete holes and sanitize techniques. It must
     // travel with the notes or undo can restore chromatic notes into a
     // diatonic document (and vice versa).
@@ -48,6 +49,7 @@ impl Snapshot {
         self.notes == state.notes
             && self.tempo_changes == state.tempo_changes
             && self.phrase_annotations == state.phrase_annotations
+            && self.expression_intensities == state.expression_intensities
             && self.harmonica_kind == state.harmonica_kind
     }
 
@@ -56,6 +58,7 @@ impl Snapshot {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
             phrase_annotations: state.phrase_annotations.clone(),
+            expression_intensities: state.expression_intensities.clone(),
             harmonica_kind: state.harmonica_kind,
         }
     }
@@ -65,6 +68,7 @@ impl Snapshot {
         state.notes = self.notes;
         state.tempo_changes = self.tempo_changes;
         state.phrase_annotations = self.phrase_annotations;
+        state.expression_intensities = self.expression_intensities;
         state.prune_selection();
     }
 }

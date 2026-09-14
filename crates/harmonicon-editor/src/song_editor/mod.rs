@@ -49,6 +49,7 @@ mod pitch_map;
 mod ranges;
 mod save_feedback;
 mod scroll;
+mod selected_metadata;
 // `pub(crate)`, not private like its neighbours: `gameplay::call_response`
 // shares this module's synth (`PhraseNote`/`render_pcm`/`encode_wav`) for
 // the call-and-response lesson feature's audio cue.

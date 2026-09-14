@@ -98,6 +98,11 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             let events: Vec<Value> = notes
                 .iter()
                 .map(|n| {
+                    let intensity = state
+                        .expression_intensities
+                        .get(&n.id)
+                        .and_then(|value| value.parse::<f64>().ok())
+                        .unwrap_or(0.5);
                     let action = match n.dir {
                         Dir::Blow => "blow",
                         Dir::Draw => "draw",
@@ -115,10 +120,10 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                     }
                     match n.expr {
                         Expr::Vibrato(hz) => modifiers.push(
-                            json!({ "type": "vibrato", "oscillation_hz": hz, "intensity": 0.5 }),
+                            json!({ "type": "vibrato", "oscillation_hz": hz, "intensity": intensity }),
                         ),
                         Expr::Wah(hz) => modifiers.push(
-                            json!({ "type": "wah-wah", "oscillation_hz": hz, "intensity": 0.5 }),
+                            json!({ "type": "wah-wah", "oscillation_hz": hz, "intensity": intensity }),
                         ),
                         Expr::None => {}
                     }
@@ -416,6 +421,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
 
     let mut notes: Vec<GridNote> = Vec::new();
     state.phrase_annotations.clear();
+    state.expression_intensities.clear();
     let mut next_id = 0u32;
     let empty = vec![];
     let hole_count = state.hole_count();
@@ -479,6 +485,16 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
                 let mods_empty = vec![];
                 let mods = event["modifiers"].as_array().unwrap_or(&mods_empty);
                 let (pitch, expr) = parse_pitch_expr(mods);
+                if let Some(intensity) = mods.iter().find_map(|modifier| {
+                    matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
+                        .then(|| modifier["intensity"].as_f64())
+                        .flatten()
+                }) && intensity != 0.5
+                {
+                    state
+                        .expression_intensities
+                        .insert(next_id, intensity.to_string());
+                }
                 notes.push(GridNote {
                     id: next_id,
                     hole,
@@ -575,18 +591,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
                     if pitch_count > 1 || expression_count > 1 {
                         found.push(format!(
                             "phrase {number}, event {} combines modifiers the editor models as mutually exclusive",
-                            event_index + 1
-                        ));
-                    }
-                    if modifiers.iter().any(|modifier| {
-                        let Some(intensity) = modifier.get("intensity") else {
-                            return false;
-                        };
-                        !matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
-                            || intensity.as_f64() != Some(0.5)
-                    }) {
-                        found.push(format!(
-                            "phrase {number}, event {} has modifier intensity",
                             event_index + 1
                         ));
                     }

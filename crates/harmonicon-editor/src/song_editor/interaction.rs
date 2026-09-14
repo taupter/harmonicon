@@ -130,6 +130,9 @@ pub(super) fn delete_selected(state: &mut EditorState) {
     }
     let ids = core::mem::take(&mut state.selected);
     state.notes.retain(|n| !ids.contains(&n.id));
+    state
+        .expression_intensities
+        .retain(|id, _| !ids.contains(id));
 }
 
 pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {

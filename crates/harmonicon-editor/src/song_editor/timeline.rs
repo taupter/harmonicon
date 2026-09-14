@@ -414,5 +414,6 @@ pub(super) fn handle_timeline_confirm(
             TimelineTool::Tempo => continue,
         };
         state.selected.clear();
+        state.prune_selection();
     }
 }

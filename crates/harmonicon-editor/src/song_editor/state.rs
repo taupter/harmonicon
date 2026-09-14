@@ -31,6 +31,8 @@ pub(super) enum Field {
     Chord,
     /// Feel or articulation guidance attached to the selected note's onset.
     Groove,
+    /// Vibrato/wah depth for the selected note, from zero to one.
+    ExpressionIntensity,
     /// Stable lesson identifier — the profile key/prerequisite target. Never
     /// rename one that's shipped; see `lesson_schema.dtd.json`.
     LessonId,
@@ -94,7 +96,7 @@ impl Field {
 /// impossible one like `4/3` can't be entered. Everything that writes it
 /// (Load, MIDI import, the picker) assigns `EditorState::time_signature`
 /// directly.
-pub(super) const FIELDS: [(Field, &str); 9] = [
+pub(super) const FIELDS: [(Field, &str); 10] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -104,6 +106,10 @@ pub(super) const FIELDS: [(Field, &str); 9] = [
     (Field::Section, "editor-field-section"),
     (Field::Chord, "editor-field-chord"),
     (Field::Groove, "editor-field-groove"),
+    (
+        Field::ExpressionIntensity,
+        "editor-field-expression-intensity",
+    ),
 ];
 
 /// The extra rows `lesson_form::spawn_lesson_form` shows only while
@@ -230,6 +236,9 @@ pub(super) struct EditorState {
     pub(super) tempo_changes: Vec<(usize, f32)>,
     /// Section labels and chord symbols keyed by their phrase onset tick.
     pub(super) phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
+    /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
+    /// the chart default of `0.5`.
+    pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     /// The song's meter, as it will be written to the chart (`"4/4"`,
     /// `"3/4"`, `"6/8"`). Everything that needs a bar length asks
     /// [`EditorState::beats_per_bar`] rather than assuming four — the grid's
@@ -326,6 +335,7 @@ impl Default for EditorState {
             tempo: "120".into(),
             tempo_changes: Vec::new(),
             phrase_annotations: Default::default(),
+            expression_intensities: Default::default(),
             time_signature: "4/4".into(),
             key: "C".into(),
             position: "2nd".into(),
@@ -477,6 +487,7 @@ impl EditorState {
             Field::Name => &self.name,
             Field::Author => &self.author,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
+            Field::ExpressionIntensity => self.selected_expression_intensity(),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
             Field::LessonPath => &self.lesson_path,
@@ -498,8 +509,8 @@ impl EditorState {
             Field::Music => &mut self.music,
             Field::Name => &mut self.name,
             Field::Author => &mut self.author,
-            Field::Section | Field::Chord | Field::Groove => {
-                unreachable!("annotation fields commit through set_selected_annotation")
+            Field::Section | Field::Chord | Field::Groove | Field::ExpressionIntensity => {
+                unreachable!("selected-note fields use their dedicated commit methods")
             }
             Field::LessonId => &mut self.lesson_id,
             Field::LessonUnit => &mut self.lesson_unit,
@@ -511,95 +522,6 @@ impl EditorState {
             Field::LessonTechnique => &mut self.lesson_technique,
             Field::LessonProgression => &mut self.lesson_progression,
             Field::LessonScale => &mut self.lesson_scale,
-        }
-    }
-
-    fn selected_annotation_text(&self, field: Field) -> &str {
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return "";
-        };
-        let Some(annotation) = self.phrase_annotations.get(&tick) else {
-            return "";
-        };
-        match field {
-            Field::Section => annotation.section.as_deref().unwrap_or(""),
-            Field::Chord => annotation.chord.as_deref().unwrap_or(""),
-            Field::Groove => annotation.groove.as_deref().unwrap_or(""),
-            _ => unreachable!(),
-        }
-    }
-
-    /// Sets an annotation on the selected note's onset. Empty text clears it.
-    pub(super) fn set_selected_annotation(&mut self, field: Field, value: String) {
-        if !matches!(field, Field::Section | Field::Chord | Field::Groove) {
-            return;
-        }
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return;
-        };
-        let value = (!value.trim().is_empty()).then_some(value);
-        let annotation = self.phrase_annotations.entry(tick).or_default();
-        match field {
-            Field::Section => annotation.section = value,
-            Field::Chord => annotation.chord = value,
-            Field::Groove => annotation.groove = value,
-            _ => unreachable!(),
-        }
-        if annotation.section.is_none()
-            && annotation.chord.is_none()
-            && annotation.groove.is_none()
-            && !annotation.call
-            && !annotation.split
-        {
-            self.phrase_annotations.remove(&tick);
-        }
-    }
-
-    pub(super) fn selected_call(&self) -> bool {
-        self.selected_note()
-            .and_then(|note| self.phrase_annotations.get(&note.tick))
-            .is_some_and(|annotation| annotation.call)
-    }
-
-    pub(super) fn set_selected_call(&mut self, call: bool) {
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return;
-        };
-        if call {
-            self.phrase_annotations.entry(tick).or_default().call = true;
-        } else if let Some(annotation) = self.phrase_annotations.get_mut(&tick) {
-            annotation.call = false;
-            if annotation.section.is_none()
-                && annotation.chord.is_none()
-                && annotation.groove.is_none()
-                && !annotation.split
-            {
-                self.phrase_annotations.remove(&tick);
-            }
-        }
-    }
-
-    pub(super) fn selected_split(&self) -> bool {
-        self.selected_note()
-            .and_then(|note| self.phrase_annotations.get(&note.tick))
-            .is_some_and(|annotation| annotation.split)
-    }
-
-    pub(super) fn set_selected_split(&mut self, split: bool) {
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return;
-        };
-        if split {
-            self.phrase_annotations.entry(tick).or_default().split = true;
-        } else if let Some(annotation) = self.phrase_annotations.get_mut(&tick) {
-            annotation.split = false;
-            if annotation.section.is_none()
-                && annotation.chord.is_none()
-                && annotation.groove.is_none()
-                && !annotation.call
-            {
-                self.phrase_annotations.remove(&tick);
-            }
         }
     }
 
@@ -651,6 +573,8 @@ impl EditorState {
     pub(super) fn prune_selection(&mut self) {
         let notes = &self.notes;
         self.selected.retain(|id| notes.iter().any(|n| n.id == *id));
+        self.expression_intensities
+            .retain(|id, _| notes.iter().any(|note| note.id == *id));
     }
 }
 

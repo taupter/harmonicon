@@ -90,6 +90,10 @@ name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such as
 `laid-back shuffle`. Notes that begin on the same tick share the annotation.
 Clearing the field removes that marker from the chart.
 
+When the selected note has vibrato or wah, **Vibrato / wah intensity** sets its
+depth from `0` to `1`; `0.5` is the default. The rate still comes from repeated
+clicks on the Vibrato or Wah technique button.
+
 Enable **Call and response at selected note** to make the phrase beginning
 there a response exercise. During gameplay Harmonicon demonstrates consecutive
 call-marked phrases, then waits for the player to perform them.
@@ -336,8 +340,8 @@ something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
 Loading also stops before changing the open chart when a file uses musical
-features the grid cannot preserve yet, such as meter changes or custom
-modifier intensities. The status bar names the unsupported feature;
+features the grid cannot preserve yet, such as meter changes or combinations
+of mutually exclusive technique modifiers. The status bar names the unsupported feature;
 the original file and the current editor contents remain untouched.
 
 For songs you want the game to discover automatically without editing the

@@ -138,6 +138,7 @@ editor-field-author = Autor
 editor-field-section = Seção na nota selecionada
 editor-field-chord = Acorde na nota selecionada
 editor-field-groove = Groove na nota selecionada
+editor-field-expression-intensity = Intensidade de vibrato / wah (0–1)
 editor-field-call-response = Pergunta e resposta na nota selecionada
 editor-field-split = Divisão com bloqueio de língua na nota selecionada
 editor-field-midi-track = Faixa MIDI

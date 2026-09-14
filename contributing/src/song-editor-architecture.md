@@ -346,6 +346,12 @@ including the `call` flag used by gameplay's call-and-response scheduler and
 the `split` flag that serializes the same-tick note group with split play mode;
 every note in a same-tick chord therefore resolves to the same phrase metadata.
 
+Expression rate stays in `GridNote::expr`; custom vibrato/wah intensity is a
+sparse note-id-keyed map on `EditorState`, with absent entries meaning `0.5`.
+This preserves old charts without expanding the expression enum used by every
+placement, recording, playback, and rendering path. Undo snapshots carry the
+map, and note-removal paths prune stale ids.
+
 The editor models standard Richter, Paddy Richter, natural minor, 12-hole
 chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
 variants. `playback::build_harp` supplies the matching core layout, and

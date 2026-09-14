@@ -1448,7 +1448,7 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
 }
 
 #[test]
-fn editor_load_validation_rejects_modifier_data_it_would_overwrite() {
+fn custom_expression_intensity_round_trips() {
     let mut state = EditorState::default();
     select_or_add(&mut state, 1, 0);
     apply_modifier(&mut state, ModButton::Vibrato);
@@ -1456,8 +1456,32 @@ fn editor_load_validation_rejects_modifier_data_it_would_overwrite() {
         serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
     value["track"][0]["events"][0]["modifiers"][0]["intensity"] = serde_json::json!(0.9);
 
-    let error = validated_harpchart(&value.to_string()).expect_err("intensity would be lost");
-    assert!(error.contains("modifier intensity"));
+    validated_harpchart(&value.to_string()).expect("custom intensity is preserved");
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    loaded.select_only(loaded.notes[0].id);
+    assert_eq!(loaded.field_text(Field::ExpressionIntensity), "0.9");
+
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&loaded)).unwrap();
+    assert_eq!(
+        saved["track"][0]["events"][0]["modifiers"][0]["intensity"],
+        0.9
+    );
+}
+
+#[test]
+fn expression_intensity_can_be_authored_only_on_an_expression_note() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    state.set_selected_expression_intensity("0.75".into());
+    assert!(state.expression_intensities.is_empty());
+
+    apply_modifier(&mut state, ModButton::Vibrato);
+    state.set_selected_expression_intensity("0.75".into());
+    assert_eq!(state.field_text(Field::ExpressionIntensity), "0.75");
+    state.set_selected_expression_intensity("0.5".into());
+    assert!(state.expression_intensities.is_empty());
 }
 
 #[test]
