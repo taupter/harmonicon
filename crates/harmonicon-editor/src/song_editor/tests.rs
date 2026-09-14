@@ -1756,6 +1756,125 @@ fn alternate_diatonic_tunings_round_trip_profile_and_layout() {
     }
 }
 
+/// A C diatonic chart whose blow-1 reed has been re-tuned — the smallest
+/// possible custom layout, enough to tell the loaded reeds from the preset.
+fn state_with_custom_layout() -> EditorState {
+    let mut source = EditorState::default();
+    select_or_add(&mut source, 1, 0);
+    let mut value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&source)).unwrap();
+    value["harmonica"]["layout"]["blow"][0] = serde_json::json!("F#3");
+    let mut loaded = EditorState::default();
+    load_harpchart(&value, &mut loaded, &mut Scroll::default());
+    assert!(
+        loaded.loaded_harmonica.is_some(),
+        "precondition: layout retained"
+    );
+    loaded
+}
+
+fn blow_one_of(state: &EditorState) -> String {
+    state
+        .effective_harp()
+        .wind_direction_label(1, &harmonicon_core::chart::Action::Blow)
+}
+
+#[test]
+fn the_loaded_layout_survives_reselecting_the_same_key_and_kind() {
+    // `set_key`/`set_harmonica_kind` are *intentional* instrument changes;
+    // re-picking what is already selected is not one, and must not throw
+    // the chart's reeds away.
+    let mut s = state_with_custom_layout();
+    let key = s.key.clone();
+    let kind = s.harmonica_kind;
+    s.set_key(key);
+    s.set_harmonica_kind(kind);
+    assert_eq!(blow_one_of(&s), "F#3");
+}
+
+#[test]
+fn changing_the_key_drops_the_loaded_layout_for_the_preset() {
+    let mut s = state_with_custom_layout();
+    s.set_key("D".into());
+    assert!(s.loaded_harmonica.is_none());
+    // The preset D harp's blow 1 — not the custom reed, and not C's.
+    assert_eq!(blow_one_of(&s), "D4");
+}
+
+#[test]
+fn changing_the_kind_drops_the_loaded_layout_for_the_preset() {
+    let mut s = state_with_custom_layout();
+    s.set_harmonica_kind(HarmonicaKind::PaddyRichter);
+    assert!(s.loaded_harmonica.is_none());
+    assert_ne!(blow_one_of(&s), "F#3");
+}
+
+#[test]
+fn a_layout_loaded_for_one_key_is_ignored_if_the_key_no_longer_matches() {
+    // Belt and braces for `effective_harp`'s own guard: even if something
+    // writes `key` directly rather than through `set_key`, reeds loaded
+    // for C must not be used as if they were an A harp's.
+    let mut s = state_with_custom_layout();
+    s.key = "A".into();
+    assert_eq!(blow_one_of(&s), "A3");
+}
+
+#[test]
+fn a_midi_import_drops_the_loaded_layout_even_when_the_key_matches() {
+    // Import resolves every pitch against the *preset* for the suggested
+    // key (`import_track_notes` builds that harp itself). If the suggested
+    // key happens to equal the chart's, `set_key` alone would keep the
+    // custom reeds — and the imported holes would then be read by a layout
+    // they weren't placed with.
+    let mut s = state_with_custom_layout();
+    let key = s.key.clone();
+    let imported = super::midi_import::ImportedTrack {
+        initial_bpm: 100.0,
+        time_signature: "4/4".into(),
+        tempo_changes: Vec::new(),
+        notes: Vec::new(),
+        diagnostics: Default::default(),
+    };
+    super::midi_import::apply_imported_track(&mut s, imported, &key);
+    assert!(s.loaded_harmonica.is_none());
+    assert_eq!(blow_one_of(&s), "C4");
+}
+
+#[test]
+fn custom_layouts_round_trip_for_every_named_harmonica() {
+    for kind in [
+        HarmonicaKind::Diatonic,
+        HarmonicaKind::PaddyRichter,
+        HarmonicaKind::CountryTuned,
+        HarmonicaKind::NaturalMinor,
+        HarmonicaKind::Chromatic,
+        HarmonicaKind::Chromatic16,
+    ] {
+        let mut source = EditorState {
+            harmonica_kind: kind,
+            ..Default::default()
+        };
+        select_or_add(&mut source, 1, 0);
+        let mut value: serde_json::Value =
+            serde_json::from_str(&serialize_harpchart(&source)).unwrap();
+        value["harmonica"]["layout"]["blow"][0] = serde_json::json!("F#3");
+        let expected = value["harmonica"]["layout"].clone();
+
+        let mut loaded = EditorState::default();
+        let mut scroll = Scroll::default();
+        load_harpchart(&value, &mut loaded, &mut scroll);
+        let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&loaded)).unwrap();
+
+        assert_eq!(saved["harmonica"]["layout"], expected, "{kind:?}");
+        assert_eq!(
+            loaded
+                .effective_harp()
+                .wind_direction_label(1, &harmonicon_core::chart::Action::Blow),
+            "F#3",
+            "{kind:?}"
+        );
+    }
+}
+
 #[test]
 fn country_tuned_editor_harp_raises_draw_five() {
     let harp = build_harp("C", HarmonicaKind::CountryTuned);

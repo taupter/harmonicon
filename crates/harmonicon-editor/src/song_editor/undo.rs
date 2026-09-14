@@ -19,7 +19,7 @@
 use bevy::prelude::*;
 
 use super::record::RecordState;
-use super::state::{EditorState, GridNote, HarmonicaKind, PhraseAnnotation};
+use super::state::{EditorState, GridNote, HarmonicaKind, LoadedHarmonica, PhraseAnnotation};
 
 /// History is limited by both edit count and retained allocation size.
 pub(super) const HISTORY_LIMIT: usize = 100;
@@ -37,6 +37,7 @@ struct Snapshot {
     // travel with the notes or undo can restore chromatic notes into a
     // diatonic document (and vice versa).
     harmonica_kind: HarmonicaKind,
+    loaded_harmonica: Option<LoadedHarmonica>,
 }
 
 impl Snapshot {
@@ -51,6 +52,7 @@ impl Snapshot {
             && self.phrase_annotations == state.phrase_annotations
             && self.expression_intensities == state.expression_intensities
             && self.harmonica_kind == state.harmonica_kind
+            && self.loaded_harmonica == state.loaded_harmonica
     }
 
     fn capture(state: &EditorState) -> Self {
@@ -60,11 +62,13 @@ impl Snapshot {
             phrase_annotations: state.phrase_annotations.clone(),
             expression_intensities: state.expression_intensities.clone(),
             harmonica_kind: state.harmonica_kind,
+            loaded_harmonica: state.loaded_harmonica.clone(),
         }
     }
 
     fn restore(self, state: &mut EditorState) {
         state.harmonica_kind = self.harmonica_kind;
+        state.loaded_harmonica = self.loaded_harmonica;
         state.notes = self.notes;
         state.tempo_changes = self.tempo_changes;
         state.phrase_annotations = self.phrase_annotations;

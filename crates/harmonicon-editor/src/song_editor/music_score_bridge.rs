@@ -16,7 +16,7 @@ use harmonicon_ui::music_score::{
 };
 
 use super::TICKS_PER_BEAT;
-use super::playback::{Playhead, build_harp, note_midi};
+use super::playback::{Playhead, note_midi};
 use super::state::EditorState;
 
 /// Rebuilds [`MusicScoreNotes`] from `EditorState::notes` whenever the
@@ -35,7 +35,7 @@ pub(super) fn sync_music_score(
     if *meter != editor_meter {
         *meter = editor_meter;
     }
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
     notes.0 = state
         .notes
         .iter()

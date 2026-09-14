@@ -283,7 +283,7 @@ pub fn hole_notes(harp: &Harmonica, hole: u8) -> HoleNotes {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Harmonica {
     Diatonic {

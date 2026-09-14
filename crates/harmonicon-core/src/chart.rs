@@ -309,7 +309,7 @@ pub struct TimeSigPoint {
     pub time_signature: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BendingProfile {
     RichterStandard,
@@ -346,7 +346,7 @@ pub enum Scale {
     Country,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiatonicLayout {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blow: Option<Vec<String>>,
@@ -354,7 +354,7 @@ pub struct DiatonicLayout {
     pub draw: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChromaticLayout {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blow: Option<Vec<String>>,

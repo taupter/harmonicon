@@ -3,7 +3,7 @@
 //! Grid invalidation tracks rendered content, independently of editor metadata
 //! and selection. Snapshots are copied only when a rebuild is required.
 use super::snap::SnapMode;
-use super::state::{EditorState, GridNote, HarmonicaKind, Mode, PhraseAnnotation};
+use super::state::{EditorState, GridNote, HarmonicaKind, LoadedHarmonica, Mode, PhraseAnnotation};
 use bevy::prelude::*;
 use harmonicon_core::chart::Scale;
 
@@ -20,6 +20,7 @@ struct Snapshot {
     key: String,
     time_signature: String,
     harmonica_kind: HarmonicaKind,
+    loaded_harmonica: Option<LoadedHarmonica>,
     mode: Mode,
     user_locked: bool,
     scale: Scale,
@@ -49,6 +50,7 @@ impl GridCache {
                     && old.key == state.key
                     && old.time_signature == state.time_signature
                     && old.harmonica_kind == state.harmonica_kind
+                    && old.loaded_harmonica == state.loaded_harmonica
                     && old.mode == state.mode
                     && old.user_locked == state.user_locked
                     && old.scale == state.scale
@@ -68,6 +70,7 @@ impl GridCache {
             key: state.key.clone(),
             time_signature: state.time_signature.clone(),
             harmonica_kind: state.harmonica_kind,
+            loaded_harmonica: state.loaded_harmonica.clone(),
             mode: state.mode,
             user_locked: state.user_locked,
             scale: state.scale,

@@ -53,8 +53,7 @@ use harmonicon_core::harmonica_constraints::{HarmonicaNoteTracker, NoteTrackerCo
 use super::TICKS_PER_BEAT;
 use super::pitch_map::map_pitch_playable;
 use super::playback::{
-    EditorAudio, PendingMusicSeek, Playhead, build_harp, secs_per_tick, spawn_background_music,
-    toggle_pause,
+    EditorAudio, PendingMusicSeek, Playhead, secs_per_tick, spawn_background_music, toggle_pause,
 };
 use super::state::{Dir, EditorState, Expr, GridNote, HarmonicaKind, Pitch};
 
@@ -158,7 +157,7 @@ pub(super) fn start_record(
     record.reset();
     record.active = true;
 
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
     record.table = build_pitch_table(&harp, state.harmonica_kind);
     record.tracker = Some(HarmonicaNoteTracker::new(
         harp.clone(),

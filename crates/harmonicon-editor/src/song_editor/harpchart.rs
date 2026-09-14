@@ -2,10 +2,10 @@
 
 use bevy::prelude::*;
 
-use super::playback::build_harp;
 use super::save_feedback::SaveFeedback;
 use super::state::{
-    Dir, EditorState, Expr, GridNote, HARP_KEYS, HarmonicaKind, POSITIONS, Pitch, Scroll,
+    Dir, EditorState, Expr, GridNote, HARP_KEYS, HarmonicaKind, LoadedHarmonica, POSITIONS, Pitch,
+    Scroll,
 };
 use super::{LOAD_PURPOSE, MUSIC_PURPOSE, SAVE_PURPOSE, TICKS_PER_BEAT};
 use bevy_fluent::prelude::Localization;
@@ -66,7 +66,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
 
     let bpm: f32 = state.tempo.parse().unwrap_or(120.0);
     let tempo_map = state.tempo_map();
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
 
     // A chart phrase has one duration shared by all of its events. Grouping
     // solely by onset would therefore lengthen every shorter chord tone to
@@ -399,6 +399,13 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             _ => HarmonicaKind::Diatonic,
         },
     };
+    state.loaded_harmonica = serde_json::from_value::<Harmonica>(v["harmonica"].clone())
+        .ok()
+        .map(|harp| LoadedHarmonica {
+            key: state.key.clone(),
+            kind: state.harmonica_kind,
+            harp,
+        });
     if let Some(meta) = v.get("metadata")
         && let Some(audio) = meta["audio_file"].as_str()
         && !audio.is_empty()

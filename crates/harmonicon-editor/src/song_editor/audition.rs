@@ -19,7 +19,7 @@ use harmonicon_core::harmonica::Harmonica;
 use harmonicon_core::synth::{PhraseNote, SAMPLE_RATE, render_pcm};
 use harmonicon_core::wav::encode_wav;
 
-use super::playback::{build_harp, note_freq};
+use super::playback::note_freq;
 use super::state::{EditorState, GridNote};
 
 /// Fixed audition length — long enough to judge pitch/tone, short enough
@@ -64,7 +64,7 @@ pub(super) fn audition_on_select(
         return;
     }
     last.0 = Some(note.id);
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
     let Some(wav) = audition_wav(note, &harp) else {
         return;
     };

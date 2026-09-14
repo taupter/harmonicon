@@ -223,6 +223,28 @@ fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> ImportDiagnost
 /// grid — a MIDI file's own tempo *map* (not just its first tempo) carries
 /// over via [`editor_tempo_map`], so a note lands at the right editor tick
 /// even after a mid-song tempo change.
+/// Replaces the document's notes and timing with an imported track's.
+///
+/// Also drops any `loaded_harmonica`, **unconditionally** — not via
+/// `set_key`, which only clears it when the key actually changes. Every
+/// imported pitch was resolved against the *preset* layout for `key`
+/// (`import_track_notes` builds that harp itself, since the key is chosen
+/// by scoring presets), so the preset is the only layout those hole
+/// numbers are correct for. Keeping a chart's custom reeds across an
+/// import whose suggested key happened to match would place notes by one
+/// layout and play them by another.
+pub(super) fn apply_imported_track(state: &mut EditorState, imported: ImportedTrack, key: &str) {
+    state.next_id = imported.notes.len() as u32;
+    state.notes = imported.notes;
+    state.selected.clear();
+    state.dragging = None;
+    state.tempo = format!("{}", imported.initial_bpm.round() as u32);
+    state.time_signature = imported.time_signature;
+    state.tempo_changes = imported.tempo_changes;
+    state.loaded_harmonica = None;
+    state.set_key(key.to_string());
+}
+
 pub(super) fn import_track_notes(
     bytes: &[u8],
     track_index: usize,
@@ -473,14 +495,7 @@ fn import_selected_track(
     match import_track_notes(&midi.bytes, info.index, &key, state.harmonica_kind) {
         Ok(imported) => {
             let diagnostics = imported.diagnostics;
-            state.next_id = imported.notes.len() as u32;
-            state.notes = imported.notes;
-            state.selected.clear();
-            state.dragging = None;
-            state.tempo = format!("{}", imported.initial_bpm.round() as u32);
-            state.time_signature = imported.time_signature;
-            state.tempo_changes = imported.tempo_changes;
-            state.key = key.clone();
+            apply_imported_track(state, imported, &key);
             midi.selected = Some(info.index);
             info!(
                 "Imported MIDI track {}: {} ({} notes), auto-picked key {key}",

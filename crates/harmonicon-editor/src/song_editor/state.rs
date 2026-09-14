@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use super::snap::SnapMode;
 use super::{HEADER_H, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
 use harmonicon_core::chart::Scale;
+use harmonicon_core::harmonica::Harmonica;
 
 // The note vocabulary lives in `note_model`; re-exported here because
 // `state` is the name every call site already reaches for, and the two are
@@ -289,6 +290,10 @@ pub(super) struct EditorState {
     /// User's own Lock toggle, independent of `mode`. See [`EditorState::locked`].
     pub(super) user_locked: bool,
     pub(super) harmonica_kind: HarmonicaKind,
+    /// A chart's authored reed layout, retained while its key and named
+    /// instrument identity still match the loaded values. Every pitch
+    /// consumer reaches it through [`EditorState::effective_harp`].
+    pub(super) loaded_harmonica: Option<LoadedHarmonica>,
     /// Which within-beat tick positions a click places a new note at — see
     /// [`SnapMode`]. A UI preference, not chart content or undo-tracked.
     pub(super) snap_mode: SnapMode,
@@ -370,6 +375,7 @@ impl Default for EditorState {
             legend_visible: true,
             user_locked: false,
             harmonica_kind: HarmonicaKind::default(),
+            loaded_harmonica: None,
             snap_mode: SnapMode::default(),
             twelve_bar_tint: false,
             timeline_tool: TimelineTool::default(),
@@ -383,11 +389,25 @@ impl Default for EditorState {
 }
 
 impl EditorState {
-    /// Quarter-note beats per bar, from [`time_signature`]. A 6/8 bar is
-    /// three quarter-note beats, not six — the grid, the metronome and the
-    /// staff all count in quarters.
-    ///
-    /// [`time_signature`]: EditorState::time_signature
+    /// The one harmonica used by grid labels, pitch mapping, playback,
+    /// audition, practice, recording, notation, and serialization.
+    pub(super) fn effective_harp(&self) -> Harmonica {
+        self.loaded_harmonica
+            .as_ref()
+            .filter(|loaded| loaded.key == self.key && loaded.kind == self.harmonica_kind)
+            .map(|loaded| loaded.harp.clone())
+            .unwrap_or_else(|| super::playback::build_harp(&self.key, self.harmonica_kind))
+    }
+
+    /// Selects a new harp key intentionally, replacing any layout loaded
+    /// for the previous instrument identity.
+    pub(super) fn set_key(&mut self, key: String) {
+        if self.key != key {
+            self.loaded_harmonica = None;
+            self.key = key;
+        }
+    }
+
     /// The chart's meter — the one thing every bar-shaped figure in the
     /// editor (grid ruler, timeline readout, metronome, count-in) derives
     /// from, so none of them can round or reinterpret it their own way.
@@ -557,6 +577,9 @@ impl EditorState {
     /// kind (bend/overblow/overdraw for diatonic, slide for chromatic) fall
     /// back to `Pitch::Normal` rather than being silently misinterpreted.
     pub(super) fn set_harmonica_kind(&mut self, kind: HarmonicaKind) {
+        if self.harmonica_kind != kind {
+            self.loaded_harmonica = None;
+        }
         self.harmonica_kind = kind;
         let hole_count = self.hole_count();
         self.notes.retain(|n| n.hole <= hole_count);
@@ -584,6 +607,14 @@ impl EditorState {
         self.expression_intensities
             .retain(|id, _| notes.iter().any(|note| note.id == *id));
     }
+}
+
+/// Identity and exact reeds of a harmonica loaded from a chart.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct LoadedHarmonica {
+    pub(super) key: String,
+    pub(super) kind: HarmonicaKind,
+    pub(super) harp: Harmonica,
 }
 
 /// Vertical scroll of the left tool sidebar, in logical pixels.

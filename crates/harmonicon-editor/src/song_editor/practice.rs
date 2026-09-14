@@ -15,8 +15,7 @@ use harmonicon_platform::localization::{LocalizationExt, LocalizedStr};
 #[cfg(test)]
 use super::TICKS_PER_BEAT;
 use super::playback::{
-    EditorAudio, Playhead, build_harp, note_freq, playhead_for, secs_per_tick,
-    spawn_background_music,
+    EditorAudio, Playhead, note_freq, playhead_for, secs_per_tick, spawn_background_music,
 };
 use super::state::EditorState;
 
@@ -96,7 +95,7 @@ impl PracticeState {
 
 fn build_schedule(state: &EditorState) -> Vec<PracticeNote> {
     let secs_per_tick = secs_per_tick(state);
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
 
     let mut notes: Vec<PracticeNote> = state
         .notes
@@ -425,6 +424,7 @@ pub(super) fn freq_to_name(freq: f32) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::super::playback::build_harp;
     use super::*;
     use crate::song_editor::interaction::select_or_add;
     use crate::song_editor::state::{Dir, Expr, GridNote, Pitch};

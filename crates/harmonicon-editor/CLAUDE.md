@@ -12,6 +12,39 @@ load-bearing about *this* crate.
 
 ## Architecture (load-bearing facts)
 
+- **`EditorState::effective_harp()` is the only harmonica the editor
+  plays, draws, maps or saves.** A chart's authored `harmonica.layout` is
+  kept on load as `loaded_harmonica: Option<LoadedHarmonica>` — the reeds
+  plus the key and `HarmonicaKind` they were loaded for — and
+  `effective_harp` returns it while `key` and `harmonica_kind` still match
+  that identity, else the named preset from `playback::build_harp`. Before
+  this, load identified the *kind* and threw the layout away, so saving a
+  chart with one re-tuned reed silently regenerated the preset. Every
+  pitch consumer (grid labels, audition, practice, playback, recording,
+  notation, `serialize_harpchart`) takes the harp from `effective_harp`;
+  **don't call `build_harp` from feature code** — its two legitimate
+  callers are `effective_harp`'s own fallback and `pitch_map::
+  suggest_key`, which scores every preset key as a *candidate*. Three
+  rules keep it safe:
+  - **Only an intentional instrument change drops the layout**:
+    `set_key` and `set_harmonica_kind`, and only when the value actually
+    changes — re-picking what's already selected keeps the reeds. Writing
+    `key` directly bypasses the drop, which is why `effective_harp` also
+    checks the identity itself rather than trusting the field to be
+    `None`.
+  - **MIDI import drops it unconditionally** (`apply_imported_track`),
+    not via `set_key`: every imported pitch was resolved against the
+    *preset* for the suggested key, so if that key happens to equal the
+    chart's, `set_key` would keep reeds the imported holes weren't placed
+    with.
+  - **It's undo-tracked and cache-tracked** (`undo::Snapshot`,
+    `grid_cache::Snapshot`) like `harmonica_kind`, for the same reason:
+    it changes which pitch every hole means.
+
+  Bend limits (`max_bend`/`overblow_ok`/`overdraw_ok`) are still
+  hole-indexed Richter constants, not derived from the layout — the same
+  simplification gameplay makes. A layout-backed instrument that derives
+  them is the audit plan's item 7, not this.
 - **The Song Editor can import a MIDI file** (`song_editor::midi_import`).
   The harmonica selector cycles through standard Richter, Paddy Richter,
   natural-minor, 12-hole chromatic, and 16-hole chromatic layouts. These use

@@ -208,7 +208,7 @@ pub(super) fn start_playback(
 
     let spt = secs_per_tick(state);
     if !state.notes.is_empty() {
-        let harp = build_harp(&state.key, state.harmonica_kind);
+        let harp = state.effective_harp();
         let phrase: Vec<PhraseNote> = state
             .notes
             .iter()

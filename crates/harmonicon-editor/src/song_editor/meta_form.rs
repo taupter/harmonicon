@@ -444,7 +444,8 @@ pub(super) fn spawn_field_row(
             if field == Field::Key {
                 btn.insert(Tooltip(String::from(loc.msg("editor-field-key-tooltip"))))
                     .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
-                        state.key = cycle_next(&HARP_KEYS, &state.key);
+                        let key = cycle_next(&HARP_KEYS, &state.key);
+                        state.set_key(key);
                     });
             } else if field == Field::Position {
                 btn.insert(Tooltip(String::from(

@@ -10,7 +10,7 @@ use bevy::ui_widgets::Button as WidgetButton;
 
 use super::interaction::{ctrl_held, select_or_add, select_or_add_ctrl};
 use super::material::EditorNoteMaterial;
-use super::playback::{build_harp, note_freq};
+use super::playback::note_freq;
 use super::ranges::silence_gaps;
 use super::snap::{
     GridlineKind, off_beat_labels, snap_absolute_tick, snap_tick_in_beat, sub_beat_gridlines,
@@ -152,7 +152,7 @@ pub(super) fn rebuild_grid(
     let colors = theme.song_editor_colors();
     let bar_colors = theme.twelve_bar_colors();
     let scale = state.scale.classes(&state.key);
-    let harp = build_harp(&state.key, state.harmonica_kind);
+    let harp = state.effective_harp();
     let hole_count = state.hole_count();
     // Locked (user Lock toggle, or Perform mode): grid cells, notes, and
     // resize handles are all spawned non-interactive via `Pickable::IGNORE`,
