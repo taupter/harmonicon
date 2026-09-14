@@ -8,7 +8,7 @@ use bevy::text::EditableText;
 use bevy::ui::{ComputedNode, RelativeCursorPosition};
 use bevy::ui_render::prelude::MaterialNode;
 
-use super::clipboard::{NoteClipboard, copy_selected, paste_targets};
+use super::clipboard::NoteClipboard;
 use super::grid::group_move_targets;
 use super::material::EditorNoteMaterial;
 use super::snap::snap_absolute_tick;
@@ -130,9 +130,7 @@ pub(super) fn delete_selected(state: &mut EditorState) {
     }
     let ids = core::mem::take(&mut state.selected);
     state.notes.retain(|n| !ids.contains(&n.id));
-    state
-        .expression_intensities
-        .retain(|id, _| !ids.contains(id));
+    state.prune_selection();
 }
 
 pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
@@ -421,9 +419,9 @@ pub(super) fn handle_copy_paste(
         return;
     }
     if keyboard.just_pressed(KeyCode::KeyC) && !state.selected.is_empty() {
-        clipboard.0 = copy_selected(&state.notes, &state.selected);
+        *clipboard = state.copy_selection();
     }
-    if keyboard.just_pressed(KeyCode::KeyV) && !clipboard.0.is_empty() {
+    if keyboard.just_pressed(KeyCode::KeyV) && !clipboard.is_empty() {
         let Ok((rel, computed)) = grid_area.single() else {
             return;
         };
@@ -433,14 +431,7 @@ pub(super) fn handle_copy_paste(
         let width_px = computed.size().x * computed.inverse_scale_factor();
         let frac = (normalized.x + 0.5).clamp(0.0, 1.0);
         let tick = ((scroll.px + frac * width_px) / TICK_W).round().max(0.0) as usize;
-        let hole_count = state.hole_count();
-        let (pasted, next_id) =
-            paste_targets(&clipboard.0, tick, hole_count, &state.notes, state.next_id);
-        if !pasted.is_empty() {
-            state.next_id = next_id;
-            state.selected = pasted.iter().map(|n| n.id).collect();
-            state.notes.extend(pasted);
-        }
+        state.paste(&clipboard, tick);
     }
 }
 

@@ -604,8 +604,9 @@ impl EditorState {
     pub(super) fn prune_selection(&mut self) {
         let notes = &self.notes;
         self.selected.retain(|id| notes.iter().any(|n| n.id == *id));
-        self.expression_intensities
-            .retain(|id, _| notes.iter().any(|note| note.id == *id));
+        // Anything that removed notes also stranded whatever metadata was
+        // keyed to them — see `metadata_sync`.
+        self.drop_orphaned_metadata();
     }
 }
 

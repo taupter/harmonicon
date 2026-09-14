@@ -40,7 +40,7 @@ use bevy::ui::RelativeCursorPosition;
 use bevy_fluent::prelude::Localization;
 
 use super::playback::{Playhead, secs_per_tick};
-use super::ranges::{erase_range, normalize_range, remove_range, split_side_range};
+use super::ranges::{normalize_range, split_side_range};
 use super::record::RecordState;
 use super::state::{
     EditorState, Mode, Scroll, Side, TimelineDrag, TimelineSelection, TimelineTool,
@@ -406,14 +406,10 @@ pub(super) fn handle_timeline_confirm(
         if !ev.confirmed {
             continue;
         }
-        state.notes = match tool {
-            TimelineTool::Erase => erase_range(&state.notes, start, end),
-            TimelineTool::Remove => remove_range(&state.notes, start, end),
-            TimelineTool::None => continue,
-            TimelineTool::Select => continue,
-            TimelineTool::Tempo => continue,
-        };
-        state.selected.clear();
-        state.prune_selection();
+        match tool {
+            TimelineTool::Erase => state.erase_notes_in(start, end),
+            TimelineTool::Remove => state.remove_range_closing_gap(start, end),
+            TimelineTool::None | TimelineTool::Select | TimelineTool::Tempo => continue,
+        }
     }
 }

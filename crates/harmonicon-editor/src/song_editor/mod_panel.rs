@@ -303,8 +303,7 @@ pub(super) fn spawn_mod_panel(
                      state: Res<EditorState>,
                      mut clipboard: ResMut<super::clipboard::NoteClipboard>| {
                         if !state.selected.is_empty() {
-                            clipboard.0 =
-                                super::clipboard::copy_selected(&state.notes, &state.selected);
+                            *clipboard = state.copy_selection();
                         }
                     },
                 );
@@ -318,23 +317,11 @@ pub(super) fn spawn_mod_panel(
                     |_: On<Activate>,
                      mut state: ResMut<EditorState>,
                      clipboard: Res<super::clipboard::NoteClipboard>| {
-                        if clipboard.0.is_empty() {
+                        if clipboard.is_empty() {
                             return;
                         }
                         let tick = state.scroll_beat * super::TICKS_PER_BEAT;
-                        let hole_count = state.hole_count();
-                        let (pasted, next_id) = super::clipboard::paste_targets(
-                            &clipboard.0,
-                            tick,
-                            hole_count,
-                            &state.notes,
-                            state.next_id,
-                        );
-                        if !pasted.is_empty() {
-                            state.next_id = next_id;
-                            state.selected = pasted.iter().map(|n| n.id).collect();
-                            state.notes.extend(pasted);
-                        }
+                        state.paste(&clipboard, tick);
                     },
                 );
 

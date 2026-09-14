@@ -38,6 +38,7 @@ mod legend;
 mod lesson_form;
 mod material;
 mod meta_form;
+mod metadata_sync;
 mod metronome;
 mod midi_import;
 mod mod_panel;

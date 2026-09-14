@@ -326,7 +326,10 @@ load-bearing about *this* crate.
   this) so `handle_copy_paste` can resolve a live hover position the
   same way a grid click already resolves its own tick, without needing
   a click first — and does nothing if the pointer isn't over the grid
-  at all, or the clipboard is empty. `clipboard::paste_targets` (pure)
+  at all, or the clipboard is empty. Both the keyboard path and the
+  mod panel's buttons go through `EditorState::copy_selection`/`paste`
+  (`metadata_sync`), not `clipboard` directly — see the metadata bullet
+  below for why. `clipboard::paste_targets_with_sources` (pure)
   lands the clipboard's own *earliest* note at that tick and shifts
   every other member by the same offset it had from that earliest one,
   preserving the copied shape; holes never change, since paste is
@@ -340,6 +343,38 @@ load-bearing about *this* crate.
   pasted notes become the new selection — ready to drag into place
   immediately, the same way a fresh `select_or_add` selects what it
   just placed.
+- **Every bulk edit to `notes` goes through `metadata_sync`, never a
+  direct mutation.** Two metadata stores live *beside* the notes rather
+  than on them: `phrase_annotations` (section/chord/groove/call/split),
+  keyed by onset tick because it describes a *phrase* — the notes that
+  start together — and `expression_intensities`, keyed by note id. A
+  move, paste, delete or range edit that only touched `notes` left them
+  pointing at ticks nothing starts on and ids nothing has; before
+  `metadata_sync` existed, none of those edits touched
+  `phrase_annotations` at all. The methods, and the rule each encodes:
+  - `move_notes(&[(id, hole, tick)])` — the grid's drag-end, anchor and
+    group in **one call**. An annotation moves with its phrase only when
+    the *whole* phrase moves (every note at that onset) and only onto a
+    tick with no phrase already; part of a phrase leaving keeps the label
+    with the part that stayed, and a phrase joining an existing one keeps
+    the existing label. Moving the group one note at a time would never
+    see an onset as vacated.
+  - `copy_selection()`/`paste(clip, tick)` — `NoteClipboard` carries
+    intensities by *source* id and annotations by *source* tick, and
+    paste re-keys them onto exactly what landed (a skipped note's
+    metadata is skipped with it), never overwriting an annotation the
+    destination already has.
+  - `erase_notes_in`/`remove_range_closing_gap` — the timeline tools.
+    Remove also shifts every later annotation back by the gap and drops
+    those inside it.
+  - `drop_orphaned_metadata()` — drops annotations at ticks nothing
+    starts on and intensities for ids nothing has. **`prune_selection`
+    calls it**, so every removal path that already pruned the selection
+    (delete, a harmonica-kind switch, a recording take punching out
+    overlaps, undo, the timeline tools) cleans metadata up for free —
+    which is also why a new removal path must call `prune_selection`.
+  Undo snapshots both stores alongside `notes`, so an undone delete
+  brings a phrase's label back with its notes.
 - **Ctrl+Z/Ctrl+Y undo and redo** (`song_editor::undo`; keyboard wired in
   `interaction::handle_undo_redo`, buttons in `mod_panel`). Snapshot-
   based, not command-based: `UndoHistory::record_if_changed` runs every

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-use super::clipboard::{copy_selected, paste_targets};
+use super::clipboard::paste_targets_with_sources;
 use super::grid::{
     group_move_targets, group_move_valid, mix_srgba, note_in_scale, ruler_label, visible_beats,
 };
 use super::harpchart::{
     load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
 };
-use super::interaction::{apply_modifier, resize_grip_position, select_or_add, select_or_add_ctrl};
+use super::interaction::{
+    apply_modifier, delete_selected, resize_grip_position, select_or_add, select_or_add_ctrl,
+};
 use super::lesson_form::{populate_from_lesson_manifest, serialize_lesson};
 use super::playback::{build_harp, note_freq, playhead_for, secs_per_tick};
 use super::ranges::{
@@ -413,13 +415,28 @@ fn group_move_valid_rejects_a_pitch_incompatible_with_its_target_hole() {
 
 // ── Copy/paste ────────────────────────────────────────────────────────────
 
+/// [`paste_targets_with_sources`] minus the source pairing, for the
+/// placement-rule tests below that only care where notes land.
+fn paste_targets(
+    clipboard: &[GridNote],
+    target_tick: usize,
+    hole_count: u8,
+    existing: &[GridNote],
+    next_id: u32,
+) -> (Vec<GridNote>, u32) {
+    let (pairs, next) =
+        paste_targets_with_sources(clipboard, target_tick, hole_count, existing, next_id);
+    (pairs.into_iter().map(|(_, p)| p).collect(), next)
+}
+
 #[test]
-fn copy_selected_returns_only_the_selected_notes_verbatim() {
+fn copy_selection_returns_only_the_selected_notes_verbatim() {
     let mut s = EditorState::default();
     select_or_add(&mut s, 2, 0);
     select_or_add(&mut s, 5, 4);
-    let copied = copy_selected(&s.notes, &[s.notes[0].id]);
-    assert_eq!(copied, vec![s.notes[0]]);
+    s.selected = vec![s.notes[0].id];
+    let copied = s.copy_selection();
+    assert_eq!(copied.notes, vec![s.notes[0]]);
 }
 
 #[test]
@@ -2993,6 +3010,241 @@ fn a_time_signature_round_trips_through_save_and_load() {
     load_harpchart(&v, &mut loaded, &mut scroll);
     assert_eq!(loaded.time_signature, "6/8");
     assert_eq!(loaded.meter().numerator, 6);
+}
+
+// ── metadata alignment through edits ─────────────────────────────────────────
+//
+// Phrase annotations are keyed by onset tick and expression intensities by
+// note id, both stored *beside* the notes. Every bulk edit below has to
+// carry them along or clean them up; these pin what "along" means.
+
+fn annotated(section: &str) -> PhraseAnnotation {
+    PhraseAnnotation {
+        section: Some(section.into()),
+        ..Default::default()
+    }
+}
+
+/// Two notes at tick 0 (a chord on holes 1 and 2), one at tick 24, with a
+/// section label on each onset and an intensity on the first note.
+fn state_with_metadata() -> EditorState {
+    let mut s = state_with_notes(vec![
+        timeline_note(0, 1, 0, 4),
+        timeline_note(1, 2, 0, 4),
+        timeline_note(2, 3, 24, 4),
+    ]);
+    s.next_id = 3;
+    s.phrase_annotations.insert(0, annotated("A"));
+    s.phrase_annotations.insert(24, annotated("B"));
+    s.expression_intensities.insert(0, "0.8".into());
+    s
+}
+
+fn section_at(s: &EditorState, tick: usize) -> Option<&str> {
+    s.phrase_annotations
+        .get(&tick)
+        .and_then(|a| a.section.as_deref())
+}
+
+#[test]
+fn moving_a_whole_onset_group_takes_its_annotation_along() {
+    let mut s = state_with_metadata();
+    // Both tick-0 notes move to tick 12: nothing is left at 0.
+    s.move_notes(&[(0, 1, 12), (1, 2, 12)]);
+    assert_eq!(section_at(&s, 0), None);
+    assert_eq!(section_at(&s, 12), Some("A"));
+    assert_eq!(
+        section_at(&s, 24),
+        Some("B"),
+        "an unrelated phrase is untouched"
+    );
+}
+
+#[test]
+fn moving_the_only_note_at_an_onset_takes_its_annotation_along() {
+    let mut s = state_with_metadata();
+    s.move_notes(&[(2, 3, 36)]);
+    assert_eq!(section_at(&s, 24), None);
+    assert_eq!(section_at(&s, 36), Some("B"));
+}
+
+#[test]
+fn moving_part_of_an_onset_group_leaves_the_annotation_with_the_phrase() {
+    let mut s = state_with_metadata();
+    // Only hole 1 moves; hole 2 still starts at tick 0, so the phrase — and
+    // its label — is still there.
+    s.move_notes(&[(0, 1, 12)]);
+    assert_eq!(section_at(&s, 0), Some("A"));
+    assert_eq!(section_at(&s, 12), None);
+}
+
+#[test]
+fn moving_a_phrase_onto_an_existing_one_keeps_the_destinations_annotation() {
+    let mut s = state_with_metadata();
+    // The tick-24 note joins the chord at tick 0 (on a free hole). Tick 0
+    // already has a phrase with its own label; that label wins and B is
+    // not carried in over it.
+    s.move_notes(&[(2, 3, 0)]);
+    assert_eq!(section_at(&s, 0), Some("A"));
+    assert_eq!(section_at(&s, 24), None, "nothing starts at 24 any more");
+}
+
+#[test]
+fn moving_a_note_keeps_its_expression_intensity() {
+    // Id-keyed, so this is free — but pin it, since a move that reassigned
+    // ids would silently lose it.
+    let mut s = state_with_metadata();
+    s.move_notes(&[(0, 1, 12), (1, 2, 12)]);
+    assert_eq!(
+        s.expression_intensities.get(&0).map(String::as_str),
+        Some("0.8")
+    );
+}
+
+#[test]
+fn copy_paste_carries_intensity_and_annotation_to_the_new_notes() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0, 1];
+    let clip = s.copy_selection();
+    assert!(!clip.is_empty());
+    assert!(s.paste(&clip, 48));
+    // The pasted notes are the new selection, with fresh ids.
+    let pasted: Vec<u32> = s.selected.clone();
+    assert_eq!(pasted.len(), 2);
+    assert!(pasted.iter().all(|&id| id >= 3));
+    // Hole 1's intensity followed it to its new id; hole 2 had none.
+    let new_hole_1 = s
+        .notes
+        .iter()
+        .find(|n| pasted.contains(&n.id) && n.hole == 1)
+        .unwrap();
+    let new_hole_2 = s
+        .notes
+        .iter()
+        .find(|n| pasted.contains(&n.id) && n.hole == 2)
+        .unwrap();
+    assert_eq!(
+        s.expression_intensities
+            .get(&new_hole_1.id)
+            .map(String::as_str),
+        Some("0.8")
+    );
+    assert!(!s.expression_intensities.contains_key(&new_hole_2.id));
+    // The onset's label came too; the originals are untouched.
+    assert_eq!(section_at(&s, 48), Some("A"));
+    assert_eq!(section_at(&s, 0), Some("A"));
+    assert_eq!(
+        s.expression_intensities.get(&0).map(String::as_str),
+        Some("0.8")
+    );
+}
+
+#[test]
+fn pasting_onto_an_existing_phrase_does_not_overwrite_its_annotation() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0]; // hole 1 at tick 0, labelled "A"
+    let clip = s.copy_selection();
+    // Paste at tick 24, where "B" already sits on hole 3 — hole 1 is free.
+    assert!(s.paste(&clip, 24));
+    assert_eq!(section_at(&s, 24), Some("B"));
+}
+
+#[test]
+fn a_paste_that_places_nothing_leaves_metadata_alone() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0];
+    let clip = s.copy_selection();
+    // Hole 1 at tick 0 is exactly where the copy came from — it collides.
+    assert!(!s.paste(&clip, 0));
+    assert_eq!(s.phrase_annotations.len(), 2);
+    assert_eq!(s.expression_intensities.len(), 1);
+}
+
+#[test]
+fn deleting_one_note_of_a_phrase_keeps_the_phrases_annotation() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0];
+    delete_selected(&mut s);
+    assert_eq!(section_at(&s, 0), Some("A"), "hole 2 still starts there");
+    assert!(
+        !s.expression_intensities.contains_key(&0),
+        "its intensity goes with it"
+    );
+}
+
+#[test]
+fn deleting_every_note_of_a_phrase_drops_its_annotation() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0, 1];
+    delete_selected(&mut s);
+    assert_eq!(section_at(&s, 0), None);
+    assert_eq!(section_at(&s, 24), Some("B"));
+}
+
+#[test]
+fn erase_range_drops_annotations_only_where_no_note_remains() {
+    let mut s = state_with_metadata();
+    // Erases the tick-24 note (24..28) and nothing else.
+    s.erase_notes_in(20, 30);
+    assert_eq!(section_at(&s, 24), None);
+    assert_eq!(section_at(&s, 0), Some("A"));
+    assert_eq!(s.notes.len(), 2);
+}
+
+#[test]
+fn remove_range_shifts_later_annotations_by_the_removed_length() {
+    let mut s = state_with_metadata();
+    // Removing 6..18 (nothing starts there) closes a 12-tick gap: the
+    // tick-24 phrase, label included, now starts at 12.
+    s.remove_range_closing_gap(6, 18);
+    assert_eq!(s.notes.iter().find(|n| n.id == 2).unwrap().tick, 12);
+    assert_eq!(section_at(&s, 12), Some("B"));
+    assert_eq!(section_at(&s, 24), None);
+    assert_eq!(section_at(&s, 0), Some("A"));
+}
+
+#[test]
+fn remove_range_drops_annotations_inside_the_cut() {
+    let mut s = state_with_metadata();
+    s.remove_range_closing_gap(20, 30);
+    assert_eq!(section_at(&s, 24), None);
+    assert!(s.notes.iter().all(|n| n.id != 2));
+    // Everything before the cut is where it was.
+    assert_eq!(section_at(&s, 0), Some("A"));
+}
+
+#[test]
+fn switching_harmonica_kind_drops_metadata_of_the_holes_it_removes() {
+    // A 12-hole chromatic chart with a phrase on hole 12 alone; going to a
+    // 10-hole diatonic removes that note and must take its label and
+    // intensity with it, not leave them pointing at nothing.
+    let mut s = state_with_notes(vec![timeline_note(0, 12, 0, 4), timeline_note(1, 1, 24, 4)]);
+    s.harmonica_kind = HarmonicaKind::Chromatic;
+    s.phrase_annotations.insert(0, annotated("high"));
+    s.phrase_annotations.insert(24, annotated("low"));
+    s.expression_intensities.insert(0, "0.9".into());
+    s.set_harmonica_kind(HarmonicaKind::Diatonic);
+    assert!(s.notes.iter().all(|n| n.hole <= 10));
+    assert_eq!(section_at(&s, 0), None);
+    assert!(!s.expression_intensities.contains_key(&0));
+    assert_eq!(section_at(&s, 24), Some("low"));
+}
+
+#[test]
+fn undo_restores_annotations_and_intensities_together_with_the_notes() {
+    let mut history = UndoHistory::default();
+    let mut s = state_with_metadata();
+    history.record_if_changed(&s);
+    s.selected = vec![0, 1];
+    delete_selected(&mut s);
+    history.record_if_changed(&s);
+    assert_eq!(section_at(&s, 0), None);
+    history.undo(&mut s);
+    assert_eq!(section_at(&s, 0), Some("A"));
+    assert_eq!(
+        s.expression_intensities.get(&0).map(String::as_str),
+        Some("0.8")
+    );
 }
 
 // ── two_finger_pan_delta ──────────────────────────────────────────────────

@@ -836,16 +836,16 @@ pub(super) fn spawn_note(
                     let tick_delta = drag.target_tick as i32 - drag.start_tick as i32;
                     let group_targets =
                         group_move_targets(&drag.group, hole_delta, tick_delta, hole_count);
-                    if let Some(n) = state.notes.iter_mut().find(|n| n.id == id) {
-                        n.hole = drag.target_hole;
-                        n.tick = drag.target_tick;
-                    }
-                    for &(gid, gh, gt, _, _) in &group_targets {
-                        if let Some(n) = state.notes.iter_mut().find(|n| n.id == gid) {
-                            n.hole = gh;
-                            n.tick = gt;
-                        }
-                    }
+                    // One call for anchor and group together, so an onset
+                    // the whole group vacates is seen as vacated — moving
+                    // them one at a time would leave its annotation behind.
+                    let mut moves = vec![(id, drag.target_hole, drag.target_tick)];
+                    moves.extend(
+                        group_targets
+                            .iter()
+                            .map(|&(gid, gh, gt, _, _)| (gid, gh, gt)),
+                    );
+                    state.move_notes(&moves);
                     enforce_direction(&mut state, id);
                     enforce_expr(&mut state, id);
                     for &(gid, _, _, _, _) in &group_targets {
