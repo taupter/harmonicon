@@ -304,6 +304,7 @@ pub(super) fn update_harmonica_kind_text(
     let key = match state.harmonica_kind {
         HarmonicaKind::Diatonic => "editor-harmonica-diatonic",
         HarmonicaKind::Chromatic => "editor-harmonica-chromatic",
+        HarmonicaKind::Chromatic16 => "editor-harmonica-chromatic-16",
     };
     let label = String::from(loc.msg(key));
     for mut text in &mut texts {

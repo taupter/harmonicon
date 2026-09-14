@@ -76,6 +76,26 @@ pub const C_DRAW_SLIDE_CHROMATIC: [&str; 12] = [
     "D#4", "F#4", "A#4", "C5", "D#5", "F#5", "A#5", "C6", "D#6", "F#6", "A#6", "C7",
 ];
 
+/// Standard 16-hole C chromatic blow notes — four-octave solo tuning from
+/// C3 through C7. The upper twelve holes are the ordinary 12-hole layout.
+pub const C_BLOW_CHROMATIC_16: [&str; 16] = [
+    "C3", "E3", "G3", "C4", "C4", "E4", "G4", "C5", "C5", "E5", "G5", "C6", "C6", "E6", "G6", "C7",
+];
+/// Standard 16-hole C chromatic draw notes.
+pub const C_DRAW_CHROMATIC_16: [&str; 16] = [
+    "D3", "F3", "A3", "B3", "D4", "F4", "A4", "B4", "D5", "F5", "A5", "B5", "D6", "F6", "A6", "B6",
+];
+/// Blow notes on a 16-hole chromatic with the slide pressed.
+pub const C_BLOW_SLIDE_CHROMATIC_16: [&str; 16] = [
+    "C#3", "F3", "G#3", "C#4", "C#4", "F4", "G#4", "C#5", "C#5", "F5", "G#5", "C#6", "C#6", "F6",
+    "G#6", "C#7",
+];
+/// Draw notes on a 16-hole chromatic with the slide pressed.
+pub const C_DRAW_SLIDE_CHROMATIC_16: [&str; 16] = [
+    "D#3", "F#3", "A#3", "C4", "D#4", "F#4", "A#4", "C5", "D#5", "F#5", "A#5", "C6", "D#6", "F#6",
+    "A#6", "C7",
+];
+
 /// Semitone shift from a C harp to `key`, choosing the octave the real harp
 /// sits in: keys up to F# pitch above C, G–B pitch below (the "low" harps) —
 /// e.g. a G harp's hole-1 blow is G3, not G4. Accepts either sharp or flat
@@ -156,6 +176,23 @@ pub fn chromatic_harp(key: &str) -> Harmonica {
             draw: Some(transpose_table(&C_DRAW_CHROMATIC, off)),
             blow_slide: Some(transpose_table(&C_BLOW_SLIDE_CHROMATIC, off)),
             draw_slide: Some(transpose_table(&C_DRAW_SLIDE_CHROMATIC, off)),
+        }),
+    }
+}
+
+/// A 16-hole chromatic harp for `key`, transposed from the four-octave solo
+/// tuning reference layout.
+pub fn chromatic_16_harp(key: &str) -> Harmonica {
+    let off = key_offset(key);
+    Harmonica::Chromatic {
+        holes: 16,
+        position: None,
+        scale: None,
+        layout: Some(ChromaticLayout {
+            blow: Some(transpose_table(&C_BLOW_CHROMATIC_16, off)),
+            draw: Some(transpose_table(&C_DRAW_CHROMATIC_16, off)),
+            blow_slide: Some(transpose_table(&C_BLOW_SLIDE_CHROMATIC_16, off)),
+            draw_slide: Some(transpose_table(&C_DRAW_SLIDE_CHROMATIC_16, off)),
         }),
     }
 }

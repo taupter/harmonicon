@@ -252,7 +252,8 @@ fn spawn_harmonica_kind_row(
         |_: On<Activate>, mut state: ResMut<EditorState>| {
             let next = match state.harmonica_kind {
                 HarmonicaKind::Diatonic => HarmonicaKind::Chromatic,
-                HarmonicaKind::Chromatic => HarmonicaKind::Diatonic,
+                HarmonicaKind::Chromatic => HarmonicaKind::Chromatic16,
+                HarmonicaKind::Chromatic16 => HarmonicaKind::Diatonic,
             };
             state.set_harmonica_kind(next);
         },

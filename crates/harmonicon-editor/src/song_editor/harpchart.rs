@@ -174,7 +174,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 "layout": { "blow": blow, "draw": draw }
             })
         }
-        HarmonicaKind::Chromatic => {
+        HarmonicaKind::Chromatic | HarmonicaKind::Chromatic16 => {
             let (blow, draw, blow_slide, draw_slide) = match &harp {
                 Harmonica::Chromatic {
                     layout: Some(l), ..
@@ -188,7 +188,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             };
             json!({
                 "type": "chromatic",
-                "holes": 12,
+                "holes": state.hole_count(),
                 "position": state.position,
                 "scale": state.scale,
                 "layout": {
@@ -323,14 +323,13 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
     if let Ok(scale) = serde_json::from_value::<Scale>(v["harmonica"]["scale"].clone()) {
         state.scale = scale;
     }
-    // The editor only models a 10-hole diatonic or 12-hole chromatic harp
-    // (`HarmonicaKind::hole_count`); a chart declaring a 16-hole chromatic
-    // harp still loads as 12-hole chromatic, so any of its holes 13–16 are
-    // dropped below rather than rejecting the whole chart.
-    state.harmonica_kind = if v["harmonica"]["type"].as_str() == Some("chromatic") {
-        HarmonicaKind::Chromatic
-    } else {
-        HarmonicaKind::Diatonic
+    state.harmonica_kind = match (
+        v["harmonica"]["type"].as_str(),
+        v["harmonica"]["holes"].as_u64(),
+    ) {
+        (Some("chromatic"), Some(16)) => HarmonicaKind::Chromatic16,
+        (Some("chromatic"), _) => HarmonicaKind::Chromatic,
+        _ => HarmonicaKind::Diatonic,
     };
     if let Some(meta) = v.get("metadata")
         && let Some(audio) = meta["audio_file"].as_str()
@@ -472,9 +471,9 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
     let harmonica = &value["harmonica"];
     let kind = harmonica["type"].as_str().unwrap_or("diatonic");
     let holes = harmonica["holes"].as_u64().unwrap_or(10);
-    if kind == "chromatic" && holes > 12 {
+    if kind == "chromatic" && holes > 16 {
         found.push(format!(
-            "{holes}-hole chromatic harmonica (maximum supported: 12)"
+            "{holes}-hole chromatic harmonica (maximum supported: 16)"
         ));
     }
     if kind == "diatonic"

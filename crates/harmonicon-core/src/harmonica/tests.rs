@@ -541,6 +541,28 @@ fn chromatic_harp_transposes_every_table() {
     assert_eq!(l.draw.unwrap()[0], "E4");
 }
 
+#[test]
+fn sixteen_hole_chromatic_spans_four_octaves_of_solo_tuning() {
+    let Harmonica::Chromatic {
+        holes,
+        layout: Some(l),
+        ..
+    } = chromatic_16_harp("C")
+    else {
+        panic!("expected chromatic");
+    };
+    assert_eq!(holes, 16);
+    let blow = l.blow.unwrap();
+    let draw = l.draw.unwrap();
+    assert_eq!((&blow[0], &draw[0]), (&"C3".to_string(), &"D3".to_string()));
+    assert_eq!(
+        (&blow[15], &draw[15]),
+        (&"C7".to_string(), &"B6".to_string())
+    );
+    assert_eq!(l.blow_slide.unwrap()[0], "C#3");
+    assert_eq!(l.draw_slide.unwrap()[15], "C7");
+}
+
 // ── paddy_richter_harp / natural_minor_harp ─────────────────────────────
 
 #[test]

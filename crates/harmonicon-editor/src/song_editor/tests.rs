@@ -832,6 +832,8 @@ fn hole_count_matches_the_harmonica_kind() {
     assert_eq!(s.hole_count(), 10);
     s.set_harmonica_kind(HarmonicaKind::Chromatic);
     assert_eq!(s.hole_count(), 12);
+    s.set_harmonica_kind(HarmonicaKind::Chromatic16);
+    assert_eq!(s.hole_count(), 16);
 }
 
 #[test]
@@ -1435,7 +1437,6 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
     value["track"][0]["call"] = serde_json::json!(true);
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
-    assert!(error.contains("16-hole chromatic harmonica"));
     assert!(error.contains("time-signature changes"));
     assert!(error.contains("call-and-response"));
 }
@@ -1545,6 +1546,35 @@ fn chromatic_chart_round_trips_kind_hole_count_and_slide() {
     load_harpchart(&v, &mut loaded, &mut scroll);
     assert_eq!(loaded.harmonica_kind, HarmonicaKind::Chromatic);
     assert_eq!(loaded.notes[0].hole, 11);
+    assert_eq!(loaded.notes[0].pitch, Pitch::Slide);
+}
+
+#[test]
+fn sixteen_hole_chromatic_round_trips_high_holes_and_slide() {
+    let mut state = EditorState {
+        harmonica_kind: HarmonicaKind::Chromatic16,
+        ..Default::default()
+    };
+    select_or_add(&mut state, 16, 0);
+    apply_modifier(&mut state, ModButton::Slide);
+
+    let text = serialize_harpchart(&state);
+    validated_harpchart(&text).expect("the editor must accept its 16-hole chart");
+    let value: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
+    assert_eq!(value["harmonica"]["holes"], 16);
+    assert_eq!(
+        value["harmonica"]["layout"]["blow"]
+            .as_array()
+            .unwrap()
+            .len(),
+        16
+    );
+
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    assert_eq!(loaded.harmonica_kind, HarmonicaKind::Chromatic16);
+    assert_eq!(loaded.notes[0].hole, 16);
     assert_eq!(loaded.notes[0].pitch, Pitch::Slide);
 }
 

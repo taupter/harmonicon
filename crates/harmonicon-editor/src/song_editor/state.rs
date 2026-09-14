@@ -470,13 +470,12 @@ impl EditorState {
         self.user_locked || self.mode != Mode::Edit
     }
 
-    /// The number of playable holes for the current [`HarmonicaKind`] — 10 for
-    /// diatonic, 12 for chromatic (the most common chromatic harp; the chart
-    /// format also allows 16, but the editor doesn't offer that layout).
+    /// The number of playable holes for the current [`HarmonicaKind`].
     pub(super) fn hole_count(&self) -> u8 {
         match self.harmonica_kind {
             HarmonicaKind::Diatonic => 10,
             HarmonicaKind::Chromatic => 12,
+            HarmonicaKind::Chromatic16 => 16,
         }
     }
 
@@ -491,9 +490,10 @@ impl EditorState {
         self.notes.retain(|n| n.hole <= hole_count);
         let sanitize = |kind: HarmonicaKind, pitch: Pitch| match (kind, pitch) {
             (HarmonicaKind::Diatonic, Pitch::Slide) => Pitch::Normal,
-            (HarmonicaKind::Chromatic, Pitch::Bend(_) | Pitch::Overblow | Pitch::Overdraw) => {
-                Pitch::Normal
-            }
+            (
+                HarmonicaKind::Chromatic | HarmonicaKind::Chromatic16,
+                Pitch::Bend(_) | Pitch::Overblow | Pitch::Overdraw,
+            ) => Pitch::Normal,
             (_, p) => p,
         };
         for n in &mut self.notes {

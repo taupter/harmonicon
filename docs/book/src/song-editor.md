@@ -79,7 +79,7 @@ resize lands — it never moves notes that are already sitting off-grid.
 ## Chart metadata
 
 The meta-form covers a chart's song-level fields: music tempo, harp key,
-playing position, harmonica type (diatonic/chromatic, and hole layout),
+playing position, harmonica type (10-hole diatonic or 12-/16-hole chromatic),
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 
@@ -320,8 +320,8 @@ something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
 Loading also stops before changing the open chart when a file uses musical
-features the grid cannot preserve yet, such as 16-hole chromatic layouts,
-alternate diatonic tunings, meter changes, split/call-and-response phrases,
+features the grid cannot preserve yet, such as alternate diatonic tunings,
+meter changes, split/call-and-response phrases,
 or custom modifier intensities. The status bar names the unsupported feature;
 the original file and the current editor contents remain untouched.
 

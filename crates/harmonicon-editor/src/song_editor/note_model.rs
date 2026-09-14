@@ -30,12 +30,13 @@ pub(super) enum Pitch {
 
 /// Which harmonica the chart is authored for. Diatonic gets the full
 /// bend/overblow/overdraw technique set on 10 holes; chromatic gets a slide
-/// button on 12 holes instead — see [`EditorState::hole_count`].
+/// button on either 12 or 16 holes — see [`EditorState::hole_count`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(super) enum HarmonicaKind {
     #[default]
     Diatonic,
     Chromatic,
+    Chromatic16,
 }
 
 /// An expression technique layered on top of the pitch. At most one at a

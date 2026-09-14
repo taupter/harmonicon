@@ -13,6 +13,10 @@ load-bearing about *this* crate.
 ## Architecture (load-bearing facts)
 
 - **The Song Editor can import a MIDI file** (`song_editor::midi_import`).
+  The harmonica selector cycles through 10-hole diatonic, 12-hole chromatic,
+  and 16-hole chromatic layouts. The two chromatic variants use separate
+  three- and four-octave solo-tuned core layouts, and `harmonica.holes`
+  round-trips the selected size.
   The actual MIDI-file *parsing* (tempo map, note on/off pairing, track
   names) is pure, shared code in `song::midi`, kept separate from any
   pitch-to-harp resolution: picking a `.mid`/`.midi` file lists its tracks in a
