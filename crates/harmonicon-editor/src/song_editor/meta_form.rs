@@ -9,8 +9,8 @@ use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
+use bevy::ui_widgets::{Activate, ValueChange};
 
 use super::grid::{OUT_OF_SCALE_MIX, OUT_OF_SCALE_TINT, TEMPO_MARKER_COLOR, mix_srgba};
 use super::state::{
@@ -30,6 +30,7 @@ use harmonicon_core::chart::Scale;
 use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::button::make_interactive;
+use harmonicon_ui::dialogs::checkbox::spawn_checkbox;
 use harmonicon_ui::dialogs::combobox::{ComboboxSelect, ComboboxValue, spawn_combobox};
 use harmonicon_ui::dialogs::file_dialog::{DialogMode, OpenFileDialog};
 use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
@@ -278,6 +279,29 @@ fn spawn_snap_mode_row(
         SnapModeText,
         |_: On<Activate>, mut state: ResMut<EditorState>| {
             state.snap_mode = state.snap_mode.next();
+        },
+    );
+}
+
+/// The opt-in 12-bar-blues background tint — see
+/// [`EditorState::twelve_bar_tint`]. A [`spawn_checkbox`] rather than
+/// another [`spawn_cycle_row`]: it's a plain boolean, and the checkbox
+/// widget carries its own keyboard handling. Spawned against `column` by
+/// entity because `spawn_checkbox` takes a `Commands`, so it appends to the
+/// column after everything the surrounding `with_children` closure built.
+fn spawn_twelve_bar_tint_row(
+    commands: &mut Commands,
+    column: Entity,
+    loc: &Localization,
+    checked: bool,
+) {
+    spawn_checkbox(
+        commands,
+        column,
+        &String::from(loc.msg("editor-field-twelve-bar-tint")),
+        checked,
+        |change: On<ValueChange<bool>>, mut state: ResMut<EditorState>| {
+            state.twelve_bar_tint = change.value;
         },
     );
 }
@@ -648,7 +672,7 @@ pub(super) fn spawn_meta_form(
         ..default()
     })
     .with_children(|form| {
-        spawn_form_column(form, |col| {
+        let first_col = spawn_form_column(form, |col| {
             spawn_content_kind_row(col, loc, colors);
             spawn_harmonica_kind_row(col, loc, colors);
             spawn_snap_mode_row(col, loc, colors);
@@ -656,6 +680,7 @@ pub(super) fn spawn_meta_form(
                 spawn_field_row(col, loc, colors, state, field, label);
             }
         });
+        spawn_twelve_bar_tint_row(&mut form.commands(), first_col, loc, state.twelve_bar_tint);
         spawn_form_column(form, |col| {
             for &(field, label) in &FIELDS[MID..] {
                 spawn_field_row(col, loc, colors, state, field, label);

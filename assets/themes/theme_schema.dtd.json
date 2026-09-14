@@ -125,6 +125,10 @@
               "description": "",
               "type": "string"
             },
+            "triplet_line": {
+              "description": "",
+              "type": "string"
+            },
             "accent": {
               "description": "",
               "type": "string"

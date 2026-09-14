@@ -152,6 +152,15 @@ editor-snap-mode-sixteenth = ‹ Semicorcheas rectas ›
 editor-snap-mode-shuffle = ‹ Shuffle (corcheas con swing) ›
 editor-snap-mode-triplet = ‹ Tresillos de corchea ›
 
+# Song Editor 2 — sílabas de conteo de la regla de tiempos. Se imprimen entre
+# los números de tiempo, en los ticks donde el ajuste activo puede colocar una
+# nota: "y" en la mitad del tiempo (semicorcheas rectas) o en la segunda parte
+# del tresillo, "a" en la tercera. El shuffle usa "a", no "y" — es la tercera
+# parte de un tresillo sin la segunda.
+editor-beat-count-and = y
+editor-beat-count-a = a
+editor-field-twelve-bar-tint = Fondo de Blues de 12 Compases
+
 # Song Editor 2 — leyenda de colores (tercera columna del formulario)
 editor-legend-toggle = Leyenda
 editor-legend-toggle-tooltip = Muestra u oculta la columna de leyenda de colores.

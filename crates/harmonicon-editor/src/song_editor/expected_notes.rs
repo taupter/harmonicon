@@ -49,10 +49,10 @@ use bevy::ui_widgets::Button as WidgetButton;
 use super::TICKS_PER_BEAT;
 use super::panel::mod_button_active;
 use super::state::{
-    Dir, DragKind, DragState, Edge, EditorState, Expr, GridNote, HarmonicaKind, Mode, Pitch,
-    VIBRATO_HZ_MAX, VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN, WAH_HZ_STEP,
-    apply_resize, max_bend, move_target, note_rect, overblow_ok, overdraw_ok, pitch_color,
-    pitch_compatible, pitch_forced_dir,
+    Dir, DragKind, DragState, Edge, EditorState, Expr, GridNote, Mode, Pitch, VIBRATO_HZ_MAX,
+    VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN, WAH_HZ_STEP, apply_resize, max_bend,
+    move_target, note_rect, overblow_ok, overdraw_ok, pitch_color, pitch_compatible,
+    pitch_forced_dir,
 };
 use super::ui::{ExpectedNotesGroup, GridContent, ModButton, ModeButton};
 use bevy_fluent::prelude::Localization;

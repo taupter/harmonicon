@@ -256,10 +256,13 @@ pub struct SongEditorColors {
     pub half_line: Color,
     #[serde(deserialize_with = "hex_color")]
     pub quarter_line: Color,
-    /// Triplet-subdivision gridlines (ticks 4/8 of a beat) — distinct from
-    /// `quarter_line`'s straight-16th positions (ticks 3/6/9) so the two
-    /// families of grid points read as visually different, not just
-    /// "more lines". See `song_editor::state::SnapMode`.
+    /// Triplet-subdivision gridlines (ticks 4/8 of a beat) — distinct in
+    /// *hue* from `quarter_line`'s straight-16th positions (ticks 3/6/9) so
+    /// which family the grid is currently drawing reads at a glance. Only
+    /// one family is on screen at a time, chosen by the active
+    /// `harmonicon_core::snap::SnapMode`, so this belongs at roughly
+    /// `half_line`'s weight rather than brighter: in Shuffle and Triplet it
+    /// *is* the beat's only sub-beat line, not an extra layered over one.
     #[serde(deserialize_with = "hex_color")]
     pub triplet_line: Color,
     #[serde(deserialize_with = "hex_color")]
@@ -313,11 +316,12 @@ impl Default for SongEditorColors {
             bar_line: Color::srgb(0.40, 0.40, 0.52),
             half_line: Color::srgb(0.17, 0.17, 0.23),
             quarter_line: Color::srgb(0.13, 0.13, 0.18),
-            // A warm amber, deliberately distinct in hue (not just
-            // brightness) from the cool blue-grey grid_line/half_line/
-            // quarter_line family, so triplet positions read as a different
-            // *kind* of grid point at a glance, not just "more lines".
-            triplet_line: Color::srgb(0.35, 0.24, 0.12),
+            // A warm brown, deliberately distinct in hue (not brightness)
+            // from the cool blue-grey grid_line/half_line/quarter_line
+            // family, so triplet positions read as a different *kind* of
+            // grid point. Kept a shade under `half_line` so it never
+            // out-weighs the beat lines it sits between.
+            triplet_line: Color::srgb(0.20, 0.149, 0.094),
             accent: Color::srgb(0.95, 0.80, 0.35),
             label: Color::srgb(0.75, 0.75, 0.82),
             panel_bg: Color::srgba(0.10, 0.10, 0.15, 1.0),

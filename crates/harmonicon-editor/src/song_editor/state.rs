@@ -10,8 +10,8 @@ use harmonicon_core::chart::Scale;
 // `state` is the name every call site already reaches for, and the two are
 // one concept split only for file size.
 pub(super) use super::note_model::{
-    ContentKind, Dir, DragKind, DragState, Edge, GridNote, HarmonicaKind, Mode, Pitch, Side,
-    TimelineDrag, TimelineTool,
+    ContentKind, Dir, DragKind, DragState, Edge, GridNote, HarmonicaKind, Mode, PhraseAnnotation,
+    Pitch, Side, TimelineDrag, TimelineTool,
 };
 pub(super) use harmonicon_core::synth::Expr;
 
@@ -219,6 +219,8 @@ pub(super) struct EditorState {
     /// necessarily sorted as edits land; [`EditorState::tempo_map`] sorts
     /// on read. Empty for the common single-tempo case.
     pub(super) tempo_changes: Vec<(usize, f32)>,
+    /// Section labels and chord symbols keyed by their phrase onset tick.
+    pub(super) phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     /// The song's meter, as it will be written to the chart (`"4/4"`,
     /// `"3/4"`, `"6/8"`). Everything that needs a bar length asks
     /// [`EditorState::beats_per_bar`] rather than assuming four — the grid's
@@ -266,6 +268,14 @@ pub(super) struct EditorState {
     /// Which within-beat tick positions a click places a new note at — see
     /// [`SnapMode`]. A UI preference, not chart content or undo-tracked.
     pub(super) snap_mode: SnapMode,
+    /// Whether the grid's lane backgrounds are tinted by 12-bar-blues
+    /// harmonic function (`grid::rebuild_grid`, via `twelve_bar_grid::
+    /// bar_bg`). Opt-in, and off by default: the tint tiles the standard
+    /// I/IV/V form every 12 bars unconditionally, so on a chart that is not
+    /// a 12-bar blues it colours the background with a progression the song
+    /// does not have. A UI preference, like [`EditorState::snap_mode`] —
+    /// not chart content, and not undo-tracked.
+    pub(super) twelve_bar_tint: bool,
     pub(super) timeline_tool: TimelineTool,
     /// A split point placed by a plain click-and-release on the timeline
     /// ruler — persists across frames (unlike `timeline_drag`, which only
@@ -306,6 +316,7 @@ impl Default for EditorState {
             dragging: None,
             tempo: "120".into(),
             tempo_changes: Vec::new(),
+            phrase_annotations: Default::default(),
             time_signature: "4/4".into(),
             key: "C".into(),
             position: "2nd".into(),
@@ -331,6 +342,7 @@ impl Default for EditorState {
             user_locked: false,
             harmonica_kind: HarmonicaKind::default(),
             snap_mode: SnapMode::default(),
+            twelve_bar_tint: false,
             timeline_tool: TimelineTool::default(),
             timeline_split: None,
             pending_timeline_op: None,

@@ -54,6 +54,62 @@ impl SnapMode {
     }
 }
 
+/// Which visual tier a sub-beat gridline is drawn in — a colour choice
+/// (`SongEditorColors`'s `half_line`/`quarter_line`/`triplet_line`), not a
+/// distinction the snapping itself makes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GridlineKind {
+    /// The mid-beat line (tick 6), the strongest sub-beat division.
+    Half,
+    /// A straight-16th position (ticks 3 and 9).
+    Sixteenth,
+    /// A triplet position (ticks 4 and 8).
+    Triplet,
+}
+
+/// The sub-beat gridlines to draw for `mode`: exactly the within-beat ticks
+/// it can snap a note to, minus tick 0 — already drawn as the beat/bar line.
+///
+/// Keyed off the *active* mode rather than drawing every subdivision the
+/// resolution can express. The union of the straight-16th and triplet
+/// families puts lines at ticks 3, 4, 6, 8 and 9, which leaves two of the
+/// six gaps in a beat one tick wide and the rest three ticks wide — a
+/// pattern that reads as neither a 2- nor a 3-way division — and half those
+/// lines mark positions the active mode cannot land a note on anyway.
+pub fn sub_beat_gridlines(mode: SnapMode) -> Vec<(usize, GridlineKind)> {
+    mode.grid_points()
+        .iter()
+        .copied()
+        .filter(|&tick| tick != 0)
+        .map(|tick| {
+            let kind = if tick * 2 == TICKS_PER_BEAT {
+                GridlineKind::Half
+            } else if tick.is_multiple_of(TICKS_PER_BEAT / 4) {
+                GridlineKind::Sixteenth
+            } else {
+                GridlineKind::Triplet
+            };
+            (tick, kind)
+        })
+        .collect()
+}
+
+/// The counting syllables the beat ruler prints between one beat number and
+/// the next, as (within-beat tick, localization key) pairs.
+///
+/// "&" and "a" name the same two ticks in every mode, which is what makes a
+/// shuffle legible as what it actually is: ticks 0 and 8 of an 8th-note
+/// triplet — the "1 … a" of "1 & a", with the "&" left out. Straight 16ths
+/// get a syllable at the halfway point only; naming ticks 3 and 9 too would
+/// need four labels inside one beat cell.
+pub fn off_beat_labels(mode: SnapMode) -> &'static [(usize, &'static str)] {
+    match mode {
+        SnapMode::Sixteenth => &[(6, "editor-beat-count-and")],
+        SnapMode::Shuffle => &[(8, "editor-beat-count-a")],
+        SnapMode::Triplet => &[(4, "editor-beat-count-and"), (8, "editor-beat-count-a")],
+    }
+}
+
 /// Snaps a fractional position within a beat (`0.0..1.0`, e.g. a click's
 /// normalized offset across a beat cell) to the nearest tick `mode` allows.
 /// Pure so it's unit-testable without spinning up a grid click.
@@ -163,6 +219,73 @@ mod tests {
         // Beat 2 starts at tick 24; Triplet's points there are 24, 28, 32.
         assert_eq!(snap_absolute_tick(29, SnapMode::Triplet), 28);
         assert_eq!(snap_absolute_tick(31, SnapMode::Triplet), 32);
+    }
+
+    #[test]
+    fn gridlines_are_exactly_the_modes_own_snap_points() {
+        // Never the union of both families: a straight-16th chart gets no
+        // triplet lines, and a triplet chart gets no 16th lines.
+        assert_eq!(
+            sub_beat_gridlines(SnapMode::Sixteenth),
+            vec![
+                (3, GridlineKind::Sixteenth),
+                (6, GridlineKind::Half),
+                (9, GridlineKind::Sixteenth),
+            ]
+        );
+        assert_eq!(
+            sub_beat_gridlines(SnapMode::Shuffle),
+            vec![(8, GridlineKind::Triplet)]
+        );
+        assert_eq!(
+            sub_beat_gridlines(SnapMode::Triplet),
+            vec![(4, GridlineKind::Triplet), (8, GridlineKind::Triplet)]
+        );
+    }
+
+    #[test]
+    fn no_gridline_marks_a_position_its_mode_cannot_snap_to() {
+        for mode in [SnapMode::Sixteenth, SnapMode::Shuffle, SnapMode::Triplet] {
+            for (tick, _) in sub_beat_gridlines(mode) {
+                assert!(
+                    mode.grid_points().contains(&tick),
+                    "{mode:?} draws a line at tick {tick}, which it cannot snap to"
+                );
+                assert_ne!(tick, 0, "tick 0 is the beat line, not a sub-beat line");
+            }
+        }
+    }
+
+    #[test]
+    fn a_counting_syllable_always_names_the_same_tick() {
+        // The shuffle's single off-beat is the triplet's *third* partial,
+        // tick 8 — the same "a" the triplet mode labels there, not an "&".
+        let tick_of = |mode, key| {
+            off_beat_labels(mode)
+                .iter()
+                .find(|(_, k)| *k == key)
+                .map(|(t, _)| *t)
+        };
+        assert_eq!(
+            tick_of(SnapMode::Sixteenth, "editor-beat-count-and"),
+            Some(6)
+        );
+        assert_eq!(tick_of(SnapMode::Triplet, "editor-beat-count-and"), Some(4));
+        assert_eq!(tick_of(SnapMode::Shuffle, "editor-beat-count-a"), Some(8));
+        assert_eq!(tick_of(SnapMode::Triplet, "editor-beat-count-a"), Some(8));
+        assert_eq!(tick_of(SnapMode::Shuffle, "editor-beat-count-and"), None);
+    }
+
+    #[test]
+    fn every_counting_syllable_sits_on_a_snap_point() {
+        for mode in [SnapMode::Sixteenth, SnapMode::Shuffle, SnapMode::Triplet] {
+            for &(tick, _) in off_beat_labels(mode) {
+                assert!(
+                    mode.grid_points().contains(&tick),
+                    "{mode:?} labels tick {tick}, which it cannot snap to"
+                );
+            }
+        }
     }
 
     #[test]

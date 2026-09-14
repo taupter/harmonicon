@@ -3,7 +3,7 @@
 //! Grid invalidation tracks rendered content, independently of editor metadata
 //! and selection. Snapshots are copied only when a rebuild is required.
 use super::snap::SnapMode;
-use super::state::{EditorState, GridNote, HarmonicaKind, Mode};
+use super::state::{EditorState, GridNote, HarmonicaKind, Mode, PhraseAnnotation};
 use bevy::prelude::*;
 use harmonicon_core::chart::Scale;
 
@@ -15,6 +15,7 @@ pub(super) struct GridCache {
 struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
+    phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     tempo: String,
     key: String,
     time_signature: String,
@@ -23,6 +24,7 @@ struct Snapshot {
     user_locked: bool,
     scale: Scale,
     snap_mode: SnapMode,
+    twelve_bar_tint: bool,
     scroll_beat: usize,
     cols: usize,
 }
@@ -42,6 +44,7 @@ impl GridCache {
             && self.snapshot.as_ref().is_some_and(|old| {
                 old.notes == state.notes
                     && old.tempo_changes == state.tempo_changes
+                    && old.phrase_annotations == state.phrase_annotations
                     && old.tempo == state.tempo
                     && old.key == state.key
                     && old.time_signature == state.time_signature
@@ -50,6 +53,7 @@ impl GridCache {
                     && old.user_locked == state.user_locked
                     && old.scale == state.scale
                     && old.snap_mode == state.snap_mode
+                    && old.twelve_bar_tint == state.twelve_bar_tint
                     && old.scroll_beat == state.scroll_beat
                     && old.cols == cols
             })
@@ -59,6 +63,7 @@ impl GridCache {
         self.snapshot = Some(Snapshot {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
+            phrase_annotations: state.phrase_annotations.clone(),
             tempo: state.tempo.clone(),
             key: state.key.clone(),
             time_signature: state.time_signature.clone(),
@@ -67,6 +72,7 @@ impl GridCache {
             user_locked: state.user_locked,
             scale: state.scale,
             snap_mode: state.snap_mode,
+            twelve_bar_tint: state.twelve_bar_tint,
             scroll_beat: state.scroll_beat,
             cols,
         });
@@ -91,6 +97,14 @@ mod tests {
         assert!(cache.update(&state, 10, false));
         state.scroll_beat = 4;
         assert!(cache.update(&state, 10, false));
+        // Both grid *view* options change what's drawn (which gridlines and
+        // counting syllables; whether lanes carry the 12-bar tint), so they
+        // have to invalidate even though neither is chart content.
+        state.snap_mode = state.snap_mode.next();
+        assert!(cache.update(&state, 10, false));
+        state.twelve_bar_tint = true;
+        assert!(cache.update(&state, 10, false));
+        assert!(!cache.update(&state, 10, false));
         assert!(cache.update(&state, 11, false));
         assert!(cache.update(&state, 11, true)); // theme/waveform
         assert!(!cache.update(&state, 11, false));

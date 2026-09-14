@@ -19,7 +19,7 @@
 use bevy::prelude::*;
 
 use super::record::RecordState;
-use super::state::{EditorState, GridNote, HarmonicaKind};
+use super::state::{EditorState, GridNote, HarmonicaKind, PhraseAnnotation};
 
 /// History is limited by both edit count and retained allocation size.
 pub(super) const HISTORY_LIMIT: usize = 100;
@@ -31,6 +31,7 @@ const HISTORY_BYTES: usize = 32 * 1024 * 1024;
 struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
+    phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     // Changing harp kind can delete holes and sanitize techniques. It must
     // travel with the notes or undo can restore chromatic notes into a
     // diatonic document (and vice versa).
@@ -46,6 +47,7 @@ impl Snapshot {
     fn matches(&self, state: &EditorState) -> bool {
         self.notes == state.notes
             && self.tempo_changes == state.tempo_changes
+            && self.phrase_annotations == state.phrase_annotations
             && self.harmonica_kind == state.harmonica_kind
     }
 
@@ -53,6 +55,7 @@ impl Snapshot {
         Self {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
+            phrase_annotations: state.phrase_annotations.clone(),
             harmonica_kind: state.harmonica_kind,
         }
     }
@@ -61,6 +64,7 @@ impl Snapshot {
         state.harmonica_kind = self.harmonica_kind;
         state.notes = self.notes;
         state.tempo_changes = self.tempo_changes;
+        state.phrase_annotations = self.phrase_annotations;
         state.prune_selection();
     }
 }

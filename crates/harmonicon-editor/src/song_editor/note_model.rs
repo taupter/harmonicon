@@ -154,6 +154,13 @@ pub(super) enum Side {
     Right,
 }
 
+/// Optional musical labels anchored to the first chart item at a grid tick.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct PhraseAnnotation {
+    pub(super) section: Option<String>,
+    pub(super) chord: Option<String>,
+}
+
 /// An in-progress press-drag gesture on the timeline ruler: `start` is
 /// fixed at the press position, `end` follows the pointer. Not normalized —
 /// `end` can be less than `start` — see [`normalize_range`]. Mirrors

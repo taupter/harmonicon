@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 use super::clipboard::{copy_selected, paste_targets};
-use super::grid::{group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats};
+use super::grid::{
+    beat_label, group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats,
+};
 use super::harpchart::{
     load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
 };
@@ -13,9 +15,9 @@ use super::ranges::{
 };
 use super::state::Scroll;
 use super::state::{
-    ContentKind, Dir, Edge, EditorState, Expr, GridNote, HarmonicaKind, Pitch, Side, TimelineTool,
-    apply_resize, build_tempo_map, cycle_next, enforce_direction, enforce_expr, move_target,
-    note_rect, toggle_tempo_point,
+    ContentKind, Dir, Edge, EditorState, Expr, GridNote, HarmonicaKind, PhraseAnnotation, Pitch,
+    Side, TimelineTool, apply_resize, build_tempo_map, cycle_next, enforce_direction, enforce_expr,
+    move_target, note_rect, toggle_tempo_point,
 };
 use super::timeline::{TimelineSurfaceGeometry, drag_end_tick};
 use super::ui::ModButton;
@@ -1508,6 +1510,30 @@ fn scale_round_trips_through_save_and_load() {
 }
 
 #[test]
+fn phrase_section_and_chord_annotations_round_trip() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 2, TICKS_PER_BEAT);
+    state.phrase_annotations.insert(
+        TICKS_PER_BEAT,
+        PhraseAnnotation {
+            section: Some("Verse A".into()),
+            chord: Some("G7alt".into()),
+        },
+    );
+
+    let text = serialize_harpchart(&state);
+    validated_harpchart(&text).expect("annotations are supported editor semantics");
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["track"][0]["phrase"], "Verse A");
+    assert_eq!(value["track"][0]["groove"], "G7alt");
+
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    assert_eq!(loaded.phrase_annotations, state.phrase_annotations);
+}
+
+#[test]
 fn loading_a_chart_without_a_scale_field_leaves_the_current_scale_untouched() {
     // Matches `position`'s existing precedent: a missing field doesn't
     // reset the editor's current selection, since `load_harpchart` never
@@ -1963,6 +1989,33 @@ fn visible_beats_never_goes_negative_for_a_narrow_window() {
     // Window narrower than the hole column alone: ceil() of a negative
     // fraction still produces a small, non-panicking usize.
     assert_eq!(visible_beats(HOLE_COL_W), 1);
+}
+
+// ── beat_label ────────────────────────────────────────────────────────────────
+
+#[test]
+fn beat_label_counts_bars_at_a_bar_line_and_beats_within_one() {
+    // 4/4: beats 0..7 are bar 1 beats 1-4, then bar 2 beats 1-4 — and the
+    // downbeat of each bar is labelled with the *bar* number, so scrolling
+    // away from the start still says where you are.
+    let labels: Vec<String> = (0..8).map(|b| beat_label(b, 4)).collect();
+    assert_eq!(labels, ["1", "2", "3", "4", "2", "2", "3", "4"]);
+    // Bar 37's downbeat reads "37", not another "1".
+    assert_eq!(beat_label(36 * 4, 4), "37");
+}
+
+#[test]
+fn beat_label_follows_the_time_signature() {
+    // 3/4: a bar line every three beats, not four.
+    let labels: Vec<String> = (0..6).map(|b| beat_label(b, 3)).collect();
+    assert_eq!(labels, ["1", "2", "3", "2", "2", "3"]);
+}
+
+#[test]
+fn beat_label_survives_a_zero_beats_per_bar() {
+    // `beats_per_bar()` clamps to 1, but the label must not divide by zero
+    // if some future caller doesn't.
+    assert_eq!(beat_label(5, 0), "6");
 }
 
 // ── envelope ──────────────────────────────────────────────────────────────────

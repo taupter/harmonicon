@@ -154,6 +154,15 @@ editor-snap-mode-sixteenth = ‹ Straight 16ths ›
 editor-snap-mode-shuffle = ‹ Shuffle (swing 8ths) ›
 editor-snap-mode-triplet = ‹ Triplet 8ths ›
 
+# Song Editor 2 — beat-ruler counting syllables. Printed between the beat
+# numbers, on whichever ticks the active grid snap can land a note on: "&"
+# at the half beat (straight 16ths) or the second triplet partial, "a" at
+# the third. A shuffle uses "a", not "&" — it is the third partial of a
+# triplet with the second left out.
+editor-beat-count-and = &
+editor-beat-count-a = a
+editor-field-twelve-bar-tint = 12-Bar Blues Tint
+
 # Song Editor 2 — color legend (third meta-form column)
 editor-legend-toggle = Legend
 editor-legend-toggle-tooltip = Show or hide the color-legend column.

@@ -12,7 +12,9 @@ use super::interaction::{ctrl_held, select_or_add, select_or_add_ctrl};
 use super::material::EditorNoteMaterial;
 use super::playback::{build_harp, note_freq};
 use super::ranges::silence_gaps;
-use super::snap::{snap_absolute_tick, snap_tick_in_beat};
+use super::snap::{
+    GridlineKind, off_beat_labels, snap_absolute_tick, snap_tick_in_beat, sub_beat_gridlines,
+};
 use super::state::{
     DragKind, DragState, Edge, EditorState, Expr, GridNote, Mode, Pitch, enforce_direction,
     enforce_expr, move_target, note_rect, pitch_color, pitch_compatible, pitch_deny_key,
@@ -36,8 +38,35 @@ pub(super) fn visible_beats(win_w: f32) -> usize {
 
 /// How strongly a bar's 12-bar-blues chord-function tint (see [`bar_bg`])
 /// shows through the lane's own alternating-row color. Low enough to keep
-/// the checkerboard readable and not compete with note blocks.
+/// the checkerboard readable and not compete with note blocks. Only applies
+/// when the tint is switched on — see [`EditorState::twelve_bar_tint`].
 const BAR_TINT_MIX: f32 = 0.35;
+
+/// The beat ruler's three text sizes: a bar number, a beat number within a
+/// bar, and a counting syllable between two beats. The bar number is the
+/// largest of the three because it and a beat number can read as the same
+/// digit (beat 3 of bar 1 vs. beat 1 of bar 3) — size and `colors.accent`
+/// are together what tell them apart.
+const BAR_LABEL_FONT: f32 = 13.0;
+const BEAT_LABEL_FONT: f32 = 11.5;
+const OFF_BEAT_LABEL_FONT: f32 = 11.0;
+
+/// The beat ruler's label for `beat`: the *bar* number at a bar line, the
+/// within-bar beat index everywhere else. Both are 1-based.
+///
+/// Labelling every beat with only its index within the bar made the ruler
+/// identical in every bar of a chart, with nothing to distinguish bar 1
+/// from bar 37 — which also left the 12-bar tint (`bar_bg`, keyed on a bar
+/// index) unreadable, since its colour cycle has no visible counter to
+/// anchor to.
+pub(super) fn beat_label(beat: usize, beats_per_bar: usize) -> String {
+    let beats_per_bar = beats_per_bar.max(1);
+    if beat.is_multiple_of(beats_per_bar) {
+        format!("{}", beat / beats_per_bar + 1)
+    } else {
+        format!("{}", beat % beats_per_bar + 1)
+    }
+}
 
 /// Blends `tint` into `base` by `t` (0 = pure `base`, 1 = pure `tint`),
 /// keeping `base`'s own alpha so lane cells stay fully opaque.
@@ -90,6 +119,7 @@ pub(super) fn rebuild_grid(
     windows: Query<&Window>,
     mut note_mats: ResMut<Assets<EditorNoteMaterial>>,
     theme: Res<LoadedTheme>,
+    loc: Res<Localization>,
 ) {
     // A note drag owns picking-captured note entities a rebuild would
     // despawn — but *only* a note drag: the timeline Select drag's surface
@@ -145,18 +175,20 @@ pub(super) fn rebuild_grid(
         let beat = state.scroll_beat + col;
         let x = beat as f32 * BEAT_W;
         let is_bar = beat.is_multiple_of(beats_per_bar);
-        // Tiles the standard 12-bar-blues form indefinitely as the user
-        // scrolls, so the grid reads as harmonic function (I/IV/V) even for
-        // charts longer than 12 bars.
-        let bar_index = (beat / beats_per_bar) % 12;
-        let bar_tint = bar_bg(
-            bar_index,
-            &state.key,
-            harmonicon_core::harmonica::Progression::Standard,
-            bar_colors,
-        );
+        // Opt-in (`EditorState::twelve_bar_tint`): tiles the standard
+        // 12-bar-blues form indefinitely as the user scrolls, so the grid
+        // reads as harmonic function (I/IV/V) even for charts longer than
+        // 12 bars. Off by default — a chart that isn't a 12-bar blues has
+        // no such progression for the background to be describing.
+        let bar_tint = state.twelve_bar_tint.then(|| {
+            bar_bg(
+                (beat / beats_per_bar) % 12,
+                &state.key,
+                harmonicon_core::harmonica::Progression::Standard,
+                bar_colors,
+            )
+        });
 
-        let in_bar = beat % beats_per_bar + 1;
         items.push(
             commands
                 .spawn((
@@ -167,9 +199,13 @@ pub(super) fn rebuild_grid(
                         top: Val::Px(6.0),
                         ..default()
                     },
-                    Text::new(format!("{in_bar}")),
+                    Text::new(beat_label(beat, beats_per_bar)),
                     TextFont {
-                        font_size: FontSize::Px(12.0),
+                        font_size: FontSize::Px(if is_bar {
+                            BAR_LABEL_FONT
+                        } else {
+                            BEAT_LABEL_FONT
+                        }),
                         ..default()
                     },
                     TextColor(if is_bar { colors.accent } else { colors.label }),
@@ -177,26 +213,31 @@ pub(super) fn rebuild_grid(
                 ))
                 .id(),
         );
-        items.push(
-            commands
-                .spawn((
-                    GridItem,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x + BEAT_W * 0.5 + 2.0),
-                        top: Val::Px(6.0),
-                        ..default()
-                    },
-                    Text::new("&"),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.45, 0.45, 0.55)),
-                    Pickable::IGNORE,
-                ))
-                .id(),
-        );
+        // Counting syllables between the beat numbers, placed on the ticks
+        // the *active* snap mode can land on — a fixed "&" at half a beat
+        // would name an unreachable position in Shuffle and Triplet.
+        for &(tick, key) in off_beat_labels(state.snap_mode) {
+            items.push(
+                commands
+                    .spawn((
+                        GridItem,
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(x + tick as f32 * TICK_W + 2.0),
+                            top: Val::Px(6.0),
+                            ..default()
+                        },
+                        Text::new(String::from(loc.msg(key))),
+                        TextFont {
+                            font_size: FontSize::Px(OFF_BEAT_LABEL_FONT),
+                            ..default()
+                        },
+                        TextColor(colors.label.with_alpha(0.55)),
+                        Pickable::IGNORE,
+                    ))
+                    .id(),
+            );
+        }
 
         for hole in 1..=hole_count {
             let y = HEADER_H + (hole as f32 - 1.0) * ROW_H;
@@ -205,7 +246,10 @@ pub(super) fn rebuild_grid(
             } else {
                 colors.lane_b
             };
-            let lane = mix_srgba(lane, bar_tint, BAR_TINT_MIX);
+            let lane = match bar_tint {
+                Some(tint) => mix_srgba(lane, tint, BAR_TINT_MIX),
+                None => lane,
+            };
             let mut cell = commands.spawn((
                 GridItem,
                 WidgetButton,
@@ -303,38 +347,29 @@ pub(super) fn rebuild_grid(
                 .id(),
         );
 
-        // Only draw a line at the tick positions a `SnapMode` can actually
-        // land on — straight 16ths (every `TICKS_PER_BEAT / 4` ticks) and
-        // triplet 8ths (every `TICKS_PER_BEAT / 3` ticks) — not one line per
-        // raw tick: at `TICKS_PER_BEAT = 12` that'd be 11 lines per beat,
-        // cluttered well past the point of being readable as a grid.
-        let sixteenth_step = TICKS_PER_BEAT / 4;
-        let triplet_step = TICKS_PER_BEAT / 3;
-        for s in 1..TICKS_PER_BEAT {
-            let is_half = s * 2 == TICKS_PER_BEAT;
-            let is_sixteenth = s % sixteenth_step == 0;
-            let is_triplet = s % triplet_step == 0;
-            if !is_sixteenth && !is_triplet {
-                continue;
-            }
+        // Only the positions the *active* snap mode can land a note on
+        // (`sub_beat_gridlines`, which also picks each line's tier). Drawing
+        // the straight-16th and triplet families together instead divides a
+        // beat at ticks 3, 4, 6, 8 and 9 — two near-coincident pairs one
+        // tick (5px) apart — which reads as neither a 2- nor a 3-way split,
+        // and marks positions the active mode can't reach anyway.
+        for (tick, kind) in sub_beat_gridlines(state.snap_mode) {
             items.push(
                 commands
                     .spawn((
                         GridItem,
                         Node {
                             position_type: PositionType::Absolute,
-                            left: Val::Px(x + s as f32 * TICK_W),
+                            left: Val::Px(x + tick as f32 * TICK_W),
                             top: Val::Px(HEADER_H),
                             width: Val::Px(1.0),
                             height: Val::Px(grid_height(hole_count) - HEADER_H),
                             ..default()
                         },
-                        BackgroundColor(if is_half {
-                            colors.half_line
-                        } else if is_triplet {
-                            colors.triplet_line
-                        } else {
-                            colors.quarter_line
+                        BackgroundColor(match kind {
+                            GridlineKind::Half => colors.half_line,
+                            GridlineKind::Sixteenth => colors.quarter_line,
+                            GridlineKind::Triplet => colors.triplet_line,
                         }),
                         Pickable::IGNORE,
                     ))

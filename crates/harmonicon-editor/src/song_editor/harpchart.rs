@@ -127,13 +127,22 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 })
                 .collect();
 
-            json!({
+            let mut phrase = json!({
                 "id": format!("phrase_{:02}", idx + 1),
                 "tick": tick,
                 "duration": (duration_secs * 1000.0).round() / 1000.0,
                 "play_mode": play_mode,
                 "events": events,
-            })
+            });
+            if let Some(annotation) = state.phrase_annotations.get(&tick) {
+                if let Some(section) = &annotation.section {
+                    phrase["phrase"] = json!(section);
+                }
+                if let Some(chord) = &annotation.chord {
+                    phrase["groove"] = json!(chord);
+                }
+            }
+            phrase
         })
         .collect();
 
@@ -393,6 +402,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
     let editor_tempo_map = state.tempo_map();
 
     let mut notes: Vec<GridNote> = Vec::new();
+    state.phrase_annotations.clear();
     let mut next_id = 0u32;
     let empty = vec![];
     let hole_count = state.hole_count();
@@ -406,6 +416,21 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             } else {
                 continue;
             };
+
+            let section = phrase["phrase"].as_str().map(str::to_owned);
+            let chord = phrase["groove"].as_str().map(str::to_owned);
+            if section.is_some() || chord.is_some() {
+                state
+                    .phrase_annotations
+                    .entry(start_tick)
+                    .or_default()
+                    .section = section;
+                if let Some(annotation) = state.phrase_annotations.get_mut(&start_tick)
+                    && chord.is_some()
+                {
+                    annotation.chord = chord;
+                }
+            }
 
             let start_secs =
                 tick_to_seconds(start_tick as u64, TICKS_PER_BEAT as u32, &editor_tempo_map);
@@ -508,12 +533,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
     if let Some(track) = value["track"].as_array() {
         for (index, phrase) in track.iter().enumerate() {
             let number = index + 1;
-            if phrase.get("phrase").is_some() {
-                found.push(format!("phrase {number} has a phrase label"));
-            }
-            if phrase.get("groove").is_some() {
-                found.push(format!("phrase {number} has a groove annotation"));
-            }
             if phrase["call"].as_bool() == Some(true) {
                 found.push(format!("phrase {number} is marked for call-and-response"));
             }

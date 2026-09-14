@@ -152,6 +152,15 @@ editor-snap-mode-sixteenth = ‹ Semicolcheias retas ›
 editor-snap-mode-shuffle = ‹ Shuffle (colcheias swingadas) ›
 editor-snap-mode-triplet = ‹ Tercinas de colcheia ›
 
+# Song Editor 2 — sílabas de contagem da régua de tempos. Impressas entre os
+# números dos tempos, nos ticks em que o encaixe ativo pode colocar uma nota:
+# "e" na metade do tempo (semicolcheias retas) ou na segunda parte da tercina,
+# "a" na terceira. O shuffle usa "a", não "e" — é a terceira parte de uma
+# tercina sem a segunda.
+editor-beat-count-and = e
+editor-beat-count-a = a
+editor-field-twelve-bar-tint = Fundo de Blues de 12 Compassos
+
 # Song Editor 2 — legenda de cores (terceira coluna do formulário)
 editor-legend-toggle = Legenda
 editor-legend-toggle-tooltip = Mostra ou esconde a coluna de legenda de cores.
