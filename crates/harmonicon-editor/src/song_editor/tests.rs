@@ -15,9 +15,9 @@ use super::ranges::{
 };
 use super::state::Scroll;
 use super::state::{
-    ContentKind, Dir, Edge, EditorState, Expr, GridNote, HarmonicaKind, PhraseAnnotation, Pitch,
-    Side, TimelineTool, apply_resize, build_tempo_map, cycle_next, enforce_direction, enforce_expr,
-    move_target, note_rect, toggle_tempo_point,
+    ContentKind, Dir, Edge, EditorState, Expr, Field, GridNote, HarmonicaKind, PhraseAnnotation,
+    Pitch, Side, TimelineTool, apply_resize, build_tempo_map, cycle_next, enforce_direction,
+    enforce_expr, move_target, note_rect, toggle_tempo_point,
 };
 use super::timeline::{TimelineSurfaceGeometry, drag_end_tick};
 use super::ui::ModButton;
@@ -1533,6 +1533,30 @@ fn phrase_section_and_chord_annotations_round_trip() {
     let mut scroll = Scroll::default();
     load_harpchart(&value, &mut loaded, &mut scroll);
     assert_eq!(loaded.phrase_annotations, state.phrase_annotations);
+}
+
+#[test]
+fn selected_phrase_annotation_fields_follow_selection_and_clear_cleanly() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 2, TICKS_PER_BEAT);
+    state.set_selected_annotation(Field::Section, "Verse".into());
+    state.set_selected_annotation(Field::Chord, "G7".into());
+    assert_eq!(state.field_text(Field::Section), "Verse");
+    assert_eq!(state.field_text(Field::Chord), "G7");
+
+    state.selected.clear();
+    assert_eq!(state.field_text(Field::Section), "");
+    state.select_only(state.notes[0].id);
+    state.set_selected_annotation(Field::Section, String::new());
+    state.set_selected_annotation(Field::Chord, "  ".into());
+    assert!(state.phrase_annotations.is_empty());
+}
+
+#[test]
+fn annotation_commit_without_a_selected_note_is_ignored() {
+    let mut state = EditorState::default();
+    state.set_selected_annotation(Field::Chord, "Cmaj7".into());
+    assert!(state.phrase_annotations.is_empty());
 }
 
 #[test]

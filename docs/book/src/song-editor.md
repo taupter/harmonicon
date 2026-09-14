@@ -84,6 +84,12 @@ playing position, harmonica type (standard, Paddy Richter, or natural-minor
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 
+**Section** and **Chord** describe the phrase that begins at the selected
+note. Select a note on the Chart tab, open Details, and enter a section name
+such as `Verse 2` or a chord symbol such as `G7`. Notes that begin on the same
+tick share the annotation. Clearing the field removes that marker from the
+chart.
+
 ### Tempo changes
 
 A song doesn't have to hold one flat tempo. Selecting the **Tempo** tool

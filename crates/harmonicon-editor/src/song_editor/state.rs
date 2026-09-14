@@ -25,6 +25,10 @@ pub(super) enum Field {
     Music,
     Name,
     Author,
+    /// Section label attached to the selected note's onset.
+    Section,
+    /// Chord symbol attached to the selected note's onset.
+    Chord,
     /// Stable lesson identifier — the profile key/prerequisite target. Never
     /// rename one that's shipped; see `lesson_schema.dtd.json`.
     LessonId,
@@ -88,13 +92,15 @@ impl Field {
 /// impossible one like `4/3` can't be entered. Everything that writes it
 /// (Load, MIDI import, the picker) assigns `EditorState::time_signature`
 /// directly.
-pub(super) const FIELDS: [(Field, &str); 6] = [
+pub(super) const FIELDS: [(Field, &str); 8] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
     (Field::Music, "editor-field-music"),
     (Field::Name, "editor-field-name"),
     (Field::Author, "editor-field-author"),
+    (Field::Section, "editor-field-section"),
+    (Field::Chord, "editor-field-chord"),
 ];
 
 /// The extra rows `lesson_form::spawn_lesson_form` shows only while
@@ -467,6 +473,8 @@ impl EditorState {
             Field::Music => &self.music,
             Field::Name => &self.name,
             Field::Author => &self.author,
+            Field::Section => self.selected_annotation_text(true),
+            Field::Chord => self.selected_annotation_text(false),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
             Field::LessonPath => &self.lesson_path,
@@ -488,6 +496,9 @@ impl EditorState {
             Field::Music => &mut self.music,
             Field::Name => &mut self.name,
             Field::Author => &mut self.author,
+            Field::Section | Field::Chord => {
+                unreachable!("annotation fields commit through set_selected_annotation")
+            }
             Field::LessonId => &mut self.lesson_id,
             Field::LessonUnit => &mut self.lesson_unit,
             Field::LessonPath => &mut self.lesson_path,
@@ -498,6 +509,40 @@ impl EditorState {
             Field::LessonTechnique => &mut self.lesson_technique,
             Field::LessonProgression => &mut self.lesson_progression,
             Field::LessonScale => &mut self.lesson_scale,
+        }
+    }
+
+    fn selected_annotation_text(&self, section: bool) -> &str {
+        let Some(tick) = self.selected_note().map(|note| note.tick) else {
+            return "";
+        };
+        let Some(annotation) = self.phrase_annotations.get(&tick) else {
+            return "";
+        };
+        if section {
+            annotation.section.as_deref().unwrap_or("")
+        } else {
+            annotation.chord.as_deref().unwrap_or("")
+        }
+    }
+
+    /// Sets an annotation on the selected note's onset. Empty text clears it.
+    pub(super) fn set_selected_annotation(&mut self, field: Field, value: String) {
+        if !matches!(field, Field::Section | Field::Chord) {
+            return;
+        }
+        let Some(tick) = self.selected_note().map(|note| note.tick) else {
+            return;
+        };
+        let value = (!value.trim().is_empty()).then_some(value);
+        let annotation = self.phrase_annotations.entry(tick).or_default();
+        match field {
+            Field::Section => annotation.section = value,
+            Field::Chord => annotation.chord = value,
+            _ => unreachable!(),
+        }
+        if annotation.section.is_none() && annotation.chord.is_none() {
+            self.phrase_annotations.remove(&tick);
         }
     }
 
