@@ -138,6 +138,7 @@ editor-field-author = Autor
 editor-field-section = Seção na nota selecionada
 editor-field-chord = Acorde na nota selecionada
 editor-field-call-response = Pergunta e resposta na nota selecionada
+editor-field-split = Divisão com bloqueio de língua na nota selecionada
 editor-field-midi-track = Faixa MIDI
 editor-field-midi-track-tooltip = Qual faixa do arquivo MIDI importado colocar na grade.
 editor-field-scale = Escala

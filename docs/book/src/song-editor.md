@@ -94,6 +94,11 @@ Enable **Call and response at selected note** to make the phrase beginning
 there a response exercise. During gameplay Harmonicon demonstrates consecutive
 call-marked phrases, then waits for the player to perform them.
 
+For an octave or tongue-block split, place the simultaneously sounding notes
+at the same tick with the same duration, select either note, and enable
+**Tongue-block split at selected note**. The chart then labels that group as a
+split rather than an ordinary chord.
+
 ### Tempo changes
 
 A song doesn't have to hold one flat tempo. Selecting the **Tempo** tool
@@ -331,8 +336,8 @@ something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
 Loading also stops before changing the open chart when a file uses musical
-features the grid cannot preserve yet, such as meter changes, split phrases,
-or custom modifier intensities. The status bar names the unsupported feature;
+features the grid cannot preserve yet, such as meter changes or custom
+modifier intensities. The status bar names the unsupported feature;
 the original file and the current editor contents remain untouched.
 
 For songs you want the game to discover automatically without editing the

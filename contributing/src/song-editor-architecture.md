@@ -342,8 +342,9 @@ the established `phrase` field, while harmonic analysis uses the dedicated
 optional `chord` field; `groove` remains reserved for performance feel. Both
 section, chord, and call annotations participate in undo and round-trip with
 notes. The Details form edits the annotation at the selected note's onset,
-including the `call` flag used by gameplay's call-and-response scheduler; every
-note in a same-tick chord therefore resolves to the same phrase metadata.
+including the `call` flag used by gameplay's call-and-response scheduler and
+the `split` flag that serializes the same-tick note group with split play mode;
+every note in a same-tick chord therefore resolves to the same phrase metadata.
 
 The editor models standard Richter, Paddy Richter, natural minor, 12-hole
 chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`

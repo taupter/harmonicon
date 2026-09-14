@@ -86,7 +86,14 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             let start_secs = tick_to_seconds(tick as u64, TICKS_PER_BEAT as u32, &tempo_map);
             let end_secs = tick_to_seconds((tick + len) as u64, TICKS_PER_BEAT as u32, &tempo_map);
             let duration_secs = end_secs - start_secs;
-            let play_mode = if notes.len() == 1 { "single" } else { "chord" };
+            let annotation = state.phrase_annotations.get(&tick);
+            let play_mode = if annotation.is_some_and(|annotation| annotation.split) {
+                "split"
+            } else if notes.len() == 1 {
+                "single"
+            } else {
+                "chord"
+            };
 
             let events: Vec<Value> = notes
                 .iter()
@@ -134,7 +141,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 "play_mode": play_mode,
                 "events": events,
             });
-            if let Some(annotation) = state.phrase_annotations.get(&tick) {
+            if let Some(annotation) = annotation {
                 if let Some(section) = &annotation.section {
                     phrase["phrase"] = json!(section);
                 }
@@ -423,7 +430,8 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             let section = phrase["phrase"].as_str().map(str::to_owned);
             let chord = phrase["chord"].as_str().map(str::to_owned);
             let call = phrase["call"].as_bool() == Some(true);
-            if section.is_some() || chord.is_some() || call {
+            let split = phrase["play_mode"].as_str() == Some("split");
+            if section.is_some() || chord.is_some() || call || split {
                 let annotation = state.phrase_annotations.entry(start_tick).or_default();
                 if section.is_some() {
                     annotation.section = section;
@@ -432,6 +440,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
                     annotation.chord = chord;
                 }
                 annotation.call |= call;
+                annotation.split |= split;
             }
 
             let start_secs =
@@ -537,9 +546,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
             let number = index + 1;
             if phrase.get("groove").is_some() {
                 found.push(format!("phrase {number} has a groove annotation"));
-            }
-            if phrase["play_mode"].as_str() == Some("split") {
-                found.push(format!("phrase {number} uses split play mode"));
             }
 
             if let Some(events) = phrase["events"].as_array() {

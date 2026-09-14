@@ -1438,11 +1438,13 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
         serde_json::json!([{ "tick": 0, "time_signature": "4/4" }]);
     value["track"][0]["groove"] = serde_json::json!("laid-back");
     value["track"][0]["call"] = serde_json::json!(true);
+    value["track"][0]["play_mode"] = serde_json::json!("split");
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
     assert!(error.contains("time-signature changes"));
     assert!(error.contains("groove annotation"));
     assert!(!error.contains("call-and-response"));
+    assert!(!error.contains("split play mode"));
 }
 
 #[test]
@@ -1521,6 +1523,7 @@ fn phrase_section_chord_and_call_annotations_round_trip() {
             section: Some("Verse A".into()),
             chord: Some("G7alt".into()),
             call: true,
+            split: true,
         },
     );
 
@@ -1530,6 +1533,7 @@ fn phrase_section_chord_and_call_annotations_round_trip() {
     assert_eq!(value["track"][0]["phrase"], "Verse A");
     assert_eq!(value["track"][0]["chord"], "G7alt");
     assert_eq!(value["track"][0]["call"], true);
+    assert_eq!(value["track"][0]["play_mode"], "split");
 
     let mut loaded = EditorState::default();
     let mut scroll = Scroll::default();
@@ -1572,6 +1576,21 @@ fn selected_call_annotation_follows_selection_and_clears_cleanly() {
     assert!(!state.selected_call());
     state.select_only(state.notes[0].id);
     state.set_selected_call(false);
+    assert!(state.phrase_annotations.is_empty());
+}
+
+#[test]
+fn selected_split_annotation_follows_selection_and_clears_cleanly() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    select_or_add(&mut state, 4, 0);
+    state.set_selected_split(true);
+    assert!(state.selected_split());
+
+    state.selected.clear();
+    assert!(!state.selected_split());
+    state.select_only(state.notes[0].id);
+    state.set_selected_split(false);
     assert!(state.phrase_annotations.is_empty());
 }
 

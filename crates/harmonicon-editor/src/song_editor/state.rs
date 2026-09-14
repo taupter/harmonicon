@@ -541,7 +541,11 @@ impl EditorState {
             Field::Chord => annotation.chord = value,
             _ => unreachable!(),
         }
-        if annotation.section.is_none() && annotation.chord.is_none() && !annotation.call {
+        if annotation.section.is_none()
+            && annotation.chord.is_none()
+            && !annotation.call
+            && !annotation.split
+        {
             self.phrase_annotations.remove(&tick);
         }
     }
@@ -560,7 +564,27 @@ impl EditorState {
             self.phrase_annotations.entry(tick).or_default().call = true;
         } else if let Some(annotation) = self.phrase_annotations.get_mut(&tick) {
             annotation.call = false;
-            if annotation.section.is_none() && annotation.chord.is_none() {
+            if annotation.section.is_none() && annotation.chord.is_none() && !annotation.split {
+                self.phrase_annotations.remove(&tick);
+            }
+        }
+    }
+
+    pub(super) fn selected_split(&self) -> bool {
+        self.selected_note()
+            .and_then(|note| self.phrase_annotations.get(&note.tick))
+            .is_some_and(|annotation| annotation.split)
+    }
+
+    pub(super) fn set_selected_split(&mut self, split: bool) {
+        let Some(tick) = self.selected_note().map(|note| note.tick) else {
+            return;
+        };
+        if split {
+            self.phrase_annotations.entry(tick).or_default().split = true;
+        } else if let Some(annotation) = self.phrase_annotations.get_mut(&tick) {
+            annotation.split = false;
+            if annotation.section.is_none() && annotation.chord.is_none() && !annotation.call {
                 self.phrase_annotations.remove(&tick);
             }
         }
