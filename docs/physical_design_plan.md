@@ -36,6 +36,11 @@ reviewable. Shims are removed in the same phase once callers are updated.
 Everything else ≤ ~1,100 lines with the same pattern repeating at smaller
 scale (`jam_session.rs`, `options.rs`, `calibration.rs`, `pitch_detect.rs`).
 
+`harmonicon-lessons/src/lesson_reader.rs` later crossed the budget as lesson
+widgets were added. Its tracked split is interactive widget state/update
+systems versus reader page assembly; it remains on the enforced allowlist
+until that mechanical move is complete.
+
 ### B. Layering inversions (things imported from the wrong place)
 
 - **`AppState` lives in `menu`** — so `gameplay` (7 files), `song_editor`,
