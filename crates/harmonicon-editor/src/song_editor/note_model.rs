@@ -159,6 +159,7 @@ pub(super) enum Side {
 pub(super) struct PhraseAnnotation {
     pub(super) section: Option<String>,
     pub(super) chord: Option<String>,
+    pub(super) groove: Option<String>,
     pub(super) call: bool,
     pub(super) split: bool,
 }

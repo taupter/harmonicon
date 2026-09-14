@@ -339,9 +339,9 @@ per-track-stem backing Jam Session can use instead.
 
 Phrase annotations are tick-keyed editor content. Section names serialize as
 the established `phrase` field, while harmonic analysis uses the dedicated
-optional `chord` field; `groove` remains reserved for performance feel. Both
-section, chord, and call annotations participate in undo and round-trip with
-notes. The Details form edits the annotation at the selected note's onset,
+optional `chord` field and performance feel uses `groove`. Section, chord,
+groove, and call annotations participate in undo and round-trip with notes. The
+Details form edits the annotation at the selected note's onset,
 including the `call` flag used by gameplay's call-and-response scheduler and
 the `split` flag that serializes the same-tick note group with split play mode;
 every note in a same-tick chord therefore resolves to the same phrase metadata.

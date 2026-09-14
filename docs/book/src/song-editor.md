@@ -84,11 +84,11 @@ playing position, harmonica type (standard, Paddy Richter, or natural-minor
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 
-**Section** and **Chord** describe the phrase that begins at the selected
-note. Select a note on the Chart tab, open Details, and enter a section name
-such as `Verse 2` or a chord symbol such as `G7`. Notes that begin on the same
-tick share the annotation. Clearing the field removes that marker from the
-chart.
+**Section**, **Chord**, and **Groove** describe the phrase that begins at the
+selected note. Select a note on the Chart tab, open Details, and enter a section
+name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such as
+`laid-back shuffle`. Notes that begin on the same tick share the annotation.
+Clearing the field removes that marker from the chart.
 
 Enable **Call and response at selected note** to make the phrase beginning
 there a response exercise. During gameplay Harmonicon demonstrates consecutive

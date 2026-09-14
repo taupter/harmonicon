@@ -511,7 +511,7 @@ pub(super) fn spawn_field_row(
                 colors.field_bg,
                 Color::srgb(0.30, 0.30, 0.40),
                 move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
-                    if matches!(field, Field::Section | Field::Chord) {
+                    if matches!(field, Field::Section | Field::Chord | Field::Groove) {
                         state.set_selected_annotation(field, ev.value.clone());
                     } else {
                         *state.field_text_mut(field) = ev.value.clone();

@@ -137,6 +137,7 @@ editor-field-name = Nombre
 editor-field-author = Autor
 editor-field-section = Sección en la nota seleccionada
 editor-field-chord = Acorde en la nota seleccionada
+editor-field-groove = Groove en la nota seleccionada
 editor-field-call-response = Llamada y respuesta en la nota seleccionada
 editor-field-split = División con bloqueo de lengua en la nota seleccionada
 editor-field-midi-track = Pista MIDI

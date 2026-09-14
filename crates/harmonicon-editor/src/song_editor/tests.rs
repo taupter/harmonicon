@@ -1442,7 +1442,7 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
     assert!(error.contains("time-signature changes"));
-    assert!(error.contains("groove annotation"));
+    assert!(!error.contains("groove annotation"));
     assert!(!error.contains("call-and-response"));
     assert!(!error.contains("split play mode"));
 }
@@ -1514,7 +1514,7 @@ fn scale_round_trips_through_save_and_load() {
 }
 
 #[test]
-fn phrase_section_chord_and_call_annotations_round_trip() {
+fn phrase_annotations_round_trip() {
     let mut state = EditorState::default();
     select_or_add(&mut state, 2, TICKS_PER_BEAT);
     state.phrase_annotations.insert(
@@ -1522,6 +1522,7 @@ fn phrase_section_chord_and_call_annotations_round_trip() {
         PhraseAnnotation {
             section: Some("Verse A".into()),
             chord: Some("G7alt".into()),
+            groove: Some("laid-back shuffle".into()),
             call: true,
             split: true,
         },
@@ -1532,6 +1533,7 @@ fn phrase_section_chord_and_call_annotations_round_trip() {
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(value["track"][0]["phrase"], "Verse A");
     assert_eq!(value["track"][0]["chord"], "G7alt");
+    assert_eq!(value["track"][0]["groove"], "laid-back shuffle");
     assert_eq!(value["track"][0]["call"], true);
     assert_eq!(value["track"][0]["play_mode"], "split");
 
@@ -1547,14 +1549,17 @@ fn selected_phrase_annotation_fields_follow_selection_and_clear_cleanly() {
     select_or_add(&mut state, 2, TICKS_PER_BEAT);
     state.set_selected_annotation(Field::Section, "Verse".into());
     state.set_selected_annotation(Field::Chord, "G7".into());
+    state.set_selected_annotation(Field::Groove, "behind the beat".into());
     assert_eq!(state.field_text(Field::Section), "Verse");
     assert_eq!(state.field_text(Field::Chord), "G7");
+    assert_eq!(state.field_text(Field::Groove), "behind the beat");
 
     state.selected.clear();
     assert_eq!(state.field_text(Field::Section), "");
     state.select_only(state.notes[0].id);
     state.set_selected_annotation(Field::Section, String::new());
     state.set_selected_annotation(Field::Chord, "  ".into());
+    state.set_selected_annotation(Field::Groove, String::new());
     assert!(state.phrase_annotations.is_empty());
 }
 

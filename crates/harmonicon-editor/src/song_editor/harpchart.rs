@@ -148,6 +148,9 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 if let Some(chord) = &annotation.chord {
                     phrase["chord"] = json!(chord);
                 }
+                if let Some(groove) = &annotation.groove {
+                    phrase["groove"] = json!(groove);
+                }
                 if annotation.call {
                     phrase["call"] = json!(true);
                 }
@@ -429,15 +432,19 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
 
             let section = phrase["phrase"].as_str().map(str::to_owned);
             let chord = phrase["chord"].as_str().map(str::to_owned);
+            let groove = phrase["groove"].as_str().map(str::to_owned);
             let call = phrase["call"].as_bool() == Some(true);
             let split = phrase["play_mode"].as_str() == Some("split");
-            if section.is_some() || chord.is_some() || call || split {
+            if section.is_some() || chord.is_some() || groove.is_some() || call || split {
                 let annotation = state.phrase_annotations.entry(start_tick).or_default();
                 if section.is_some() {
                     annotation.section = section;
                 }
                 if chord.is_some() {
                     annotation.chord = chord;
+                }
+                if groove.is_some() {
+                    annotation.groove = groove;
                 }
                 annotation.call |= call;
                 annotation.split |= split;
@@ -544,9 +551,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
     if let Some(track) = value["track"].as_array() {
         for (index, phrase) in track.iter().enumerate() {
             let number = index + 1;
-            if phrase.get("groove").is_some() {
-                found.push(format!("phrase {number} has a groove annotation"));
-            }
 
             if let Some(events) = phrase["events"].as_array() {
                 for (event_index, event) in events.iter().enumerate() {
