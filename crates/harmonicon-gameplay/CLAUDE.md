@@ -50,6 +50,40 @@ load-bearing about *this* crate.
     in one call — what `handle_loop_boundary` uses, and what any future A–B
     looping UI or practice-speed feature must use too).
 
+- **A chart's meter is read in exactly one place: `bars::chart_meter`.**
+  It returns a `harmonicon_ui::music_score::MusicScoreMeter`, applying the
+  `timing.time_signature_map`-at-tick-0-beats-`song.time_signature`
+  precedence, and every bar-shaped number in this crate, `harmonicon-jam`
+  and the metronome derives from that value through its methods —
+  `beats_per_bar()` for quarter-note beats (what `split_at_bar_lines` and
+  the tick clock want, 3.0 for 6/8), `numerator` for the meter's own beat
+  count (what the HUD's beat dots and the downbeat accent want, 6 for
+  6/8), `bar_secs(bpm)`/`beat_secs(bpm)` for seconds. **Don't derive one
+  of those yourself** — hold the meter and ask. `MetronomeTempo` and
+  `ScoringConfig` both carry the meter for exactly this reason, not a
+  number computed from it. Before this there were four independent
+  readings of the same string, two of which took the numerator alone and
+  called it a beat count, and they disagreed with each other on the same
+  chart: Greensleeves (6/8) had its metronome accenting every second bar
+  while the editor's ruler was right, and the gameplay bar tracker
+  honoured the map while the gameplay metronome ignored it. Three things
+  that follow:
+  - **The metronome clicks the meter's own beat, not a quarter note.**
+    `MusicScoreMeter::beat_secs` is `60 / bpm × 4 / denominator` — an
+    eighth's worth in 6/8. This is what makes odd meters accentable at
+    all: a 3/8 bar is one and a half quarter-note clicks, so no quarter
+    click ever lands on its downbeat. `bpm` itself still counts quarter
+    notes everywhere (`tick_to_seconds` defines it so).
+  - **`dialogs::metronome::tick_index` takes a beat *length*, not a
+    BPM.** Passing `60 / bpm` silently re-assumes x/4; the one caller that
+    does so (the lesson reader's metronome widget) does it on purpose and
+    says why — that widget has a BPM and a beat count and no meter, so
+    its beat genuinely is its BPM beat.
+  - **Compound-meter *feel* is still open.** 6/8 now accents the right
+    downbeat and clicks six eighths to the bar, but it does not group them
+    3+3 as two dotted-quarter pulses; that's a `MetronomeFeel`-shaped
+    design decision, not a bar-length one, and wasn't folded in here.
+
 - **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
   as `harmonicon_core::scoring`, shared by
   gameplay and the song editor's practice mode), driven by the

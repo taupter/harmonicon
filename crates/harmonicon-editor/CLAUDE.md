@@ -505,14 +505,17 @@ load-bearing about *this* crate.
     and the bar lines therefore run off their own tick loops after the
     column loop, not inside it. In 4/4 every position works out exactly
     where the column loop would have put it.
-  - **`EditorState::beats_per_bar` rounds and must not be used for
-    layout.** It measures a bar in whole quarter notes, which is exact
-    only when the meter's bar happens to be one; 7/8's 3.5 became 4 and
-    put every bar line half a beat out. It survives only for the
-    metronome, whose click really is driven by a quarter-note clock —
-    accenting an odd meter correctly there is a separate change.
-    `MusicScoreMeter::ticks_per_beat`/`ticks_per_bar` are the exact
-    versions, integer-or-`None`.
+  - **`EditorState::meter` is the only place the editor reads the time
+    signature**, and there is deliberately no `beats_per_bar` on it any
+    more. There used to be one that rounded a bar to whole quarter notes
+    — exact only when the meter's bar happens to be one; 7/8's 3.5 became
+    4 and put every bar line half a beat out, and 3/8's 1.5 became 2 and
+    made the metronome's accent walk around the bar. Everything bar-shaped
+    (`ticks_per_bar`/`ticks_per_signature_beat` for the grid and
+    timeline, `metronome::sync_tempo` and `count_in_secs` for the click)
+    asks the `MusicScoreMeter` it returns. Gameplay's counterpart is
+    `bars::chart_meter`; see that crate's notes for the four-way
+    disagreement this closed.
   - **Beat numbers count the meter's own beat**, so 7/8 reads 1–7 and
     6/8 reads 1–6. Counting syllables (`snap::off_beat_labels`) stay
     *quarter*-relative, because they mirror the snap grid rather than the
