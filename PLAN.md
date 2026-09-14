@@ -147,6 +147,26 @@ one-line index of what's landed.
 
 ## Current work
 
+### Song Editor correctness and composition pass
+
+Work in risk order:
+
+1. Make chart editing round-trip safe: preserve unequal simultaneous note
+   lengths, validate and migrate files on load, reject unsupported future
+   versions, and retain or clearly warn about chart fields the editor cannot
+   represent.
+2. Keep editor state valid across undo and instrument changes, including the
+   harmonica kind and any other settings that determine whether notes are
+   playable.
+3. Make score import harmonica-aware at the phrase level: import meter, detect
+   mixed-breath and duplicate-hole voicings, and report approximated or dropped
+   pitches instead of silently accepting them.
+4. Extend the document model for practical arranging: alternate tunings and
+   16-hole chromatic first, then section/chord markers, repeats and endings,
+   pickups/count-in, lyrics, transposition, and batch editing.
+5. Add focused round-trip and playability tests for each item, then update the
+   player and contributor documentation as behavior becomes available.
+
 Finishing 0.4:
 
 1. **Backing track variety, remainder** (0.4): recorded loops per style

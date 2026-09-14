@@ -45,6 +45,37 @@ pub enum SongLoadError {
     Validation(String),
 }
 
+/// Migrates and validates a raw chart using the same rules as the asset
+/// loader. Direct-file consumers such as the Song Editor call this before
+/// interpreting any fields, keeping failed loads atomic.
+pub fn validate_and_migrate_chart(
+    chart_value: &mut serde_json::Value,
+) -> Result<bool, SongLoadError> {
+    let migrated = migrate_chart_json(chart_value);
+    let errors: Vec<String> = chart_validator()
+        .iter_errors(chart_value)
+        .map(|e| format!("  - {e} (at /{path})", path = e.instance_path()))
+        .collect();
+    if !errors.is_empty() {
+        return Err(SongLoadError::Validation(errors.join("\n")));
+    }
+
+    let chart: HarpChart = serde_json::from_value(chart_value.clone())?;
+    let declared_version = chart
+        .metadata
+        .as_ref()
+        .and_then(|m| m.format_version.as_deref());
+    if !format_version_supported(declared_version, CURRENT_FORMAT_VERSION) {
+        return Err(SongLoadError::Validation(format!(
+            "chart declares metadata.format_version {declared:?}, which this build's loader \
+             (understands up to {CURRENT_FORMAT_VERSION}) can't load — update Harmonicon, or \
+             fix the chart's declared version if it was set in error",
+            declared = declared_version.unwrap_or("<missing>"),
+        )));
+    }
+    Ok(migrated)
+}
+
 #[derive(Default, TypePath)]
 pub struct SongChartLoader;
 
@@ -90,54 +121,18 @@ impl SongChartLoader {
         // Parse to a generic JSON value first so we can validate before deserializing.
         let mut chart_value: serde_json::Value = serde_json::from_slice(&bytes)?;
 
-        // Fix up any schema-breaking change from an older chart format
-        // (e.g. a stray pre-1.1.0 `fx_mapping`) before validation even
-        // runs — an old chart that still has a since-removed field fails
-        // `additionalProperties: false` outright, so this has to happen
-        // before, not after, the validation step below. See
-        // `chart::migrate_chart_json`'s own doc comment.
-        if migrate_chart_json(&mut chart_value) {
+        let migrated = {
+            let _span = info_span!("validate_and_parse_chart").entered();
+            validate_and_migrate_chart(&mut chart_value)?
+        };
+        if migrated {
             info!(
                 "Migrated chart at {} to format_version {CURRENT_FORMAT_VERSION}",
                 load_context.path()
             );
         }
 
-        // Validate against the embedded schema — compiling the schema and
-        // walking the whole chart value against it is real work on a big
-        // chart, worth separating out from the rest of the load.
-        let chart: HarpChart = {
-            let _span = info_span!("validate_and_parse_chart").entered();
-            let errors: Vec<String> = chart_validator()
-                .iter_errors(&chart_value)
-                .map(|e| format!("  - {e} (at /{path})", path = e.instance_path()))
-                .collect();
-
-            if !errors.is_empty() {
-                return Err(SongLoadError::Validation(errors.join("\n")));
-            }
-
-            // Validation passed — deserialize into typed structs.
-            serde_json::from_value(chart_value)?
-        };
-
-        // Catch a chart authored for a newer spec than this build's loader
-        // understands up front, with a clear message — rather than either
-        // silently misreading a field whose meaning later changed, or
-        // failing on some confusing downstream `additionalProperties`
-        // schema error instead. See `chart::format_version_supported`.
-        let declared_version = chart
-            .metadata
-            .as_ref()
-            .and_then(|m| m.format_version.as_deref());
-        if !format_version_supported(declared_version, CURRENT_FORMAT_VERSION) {
-            return Err(SongLoadError::Validation(format!(
-                "chart declares metadata.format_version {declared:?}, which this build's loader \
-                 (understands up to {CURRENT_FORMAT_VERSION}) can't load — update Harmonicon, or \
-                 fix the chart's declared version if it was set in error",
-                declared = declared_version.unwrap_or("<missing>"),
-            )));
-        }
+        let chart: HarpChart = serde_json::from_value(chart_value)?;
 
         assemble_manifest(chart, Vec::new(), None, load_context).await
     }

@@ -24,6 +24,25 @@ pub fn ticks_per_quarter(smf: &Smf) -> Result<u32, String> {
     }
 }
 
+/// The first time signature declared anywhere in a MIDI file. MIDI encodes
+/// the denominator as a power of two (`3` means `/8`).
+pub fn time_signature_of(smf: &Smf) -> Option<(u8, u8)> {
+    for track in &smf.tracks {
+        for event in track {
+            if let TrackEventKind::Meta(MetaMessage::TimeSignature(
+                numerator,
+                denominator_pow2,
+                _,
+                _,
+            )) = event.kind
+            {
+                return Some((numerator, 1u8.checked_shl(denominator_pow2 as u32)?));
+            }
+        }
+    }
+    None
+}
+
 pub fn track_name_of(track: &[midly::TrackEvent]) -> Option<String> {
     track.iter().find_map(|ev| match ev.kind {
         TrackEventKind::Meta(MetaMessage::TrackName(bytes)) => {
@@ -274,6 +293,13 @@ mod tests {
         let bytes = smf_bytes(vec![vec![note_on(0, 60, 100)]]);
         let smf = Smf::parse(&bytes).unwrap();
         assert_eq!(collect_tempo_map(&smf), vec![(0, DEFAULT_TEMPO_US)]);
+    }
+
+    #[test]
+    fn time_signature_converts_midis_power_of_two_denominator() {
+        let bytes = smf_bytes(vec![vec![meta(0, MetaMessage::TimeSignature(6, 3, 24, 8))]]);
+        let smf = Smf::parse(&bytes).unwrap();
+        assert_eq!(time_signature_of(&smf), Some((6, 8)));
     }
 
     #[test]

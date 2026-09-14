@@ -68,21 +68,23 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     let tempo_map = state.tempo_map();
     let harp = build_harp(&state.key, state.harmonica_kind);
 
-    let mut by_tick: BTreeMap<usize, Vec<&GridNote>> = BTreeMap::new();
+    // A chart phrase has one duration shared by all of its events. Grouping
+    // solely by onset would therefore lengthen every shorter chord tone to
+    // the longest member on save. Keep equal-duration simultaneous notes as
+    // a chord, and emit a separate same-tick phrase for each other duration.
+    let mut by_tick_and_len: BTreeMap<(usize, usize), Vec<&GridNote>> = BTreeMap::new();
     for n in notes {
-        by_tick.entry(n.tick).or_default().push(n);
+        by_tick_and_len.entry((n.tick, n.len)).or_default().push(n);
     }
 
-    let track: Vec<Value> = by_tick
+    let track: Vec<Value> = by_tick_and_len
         .iter()
         .enumerate()
-        .map(|(idx, (&tick, notes))| {
-            let max_len = notes.iter().map(|n| n.len).max().unwrap_or(1);
+        .map(|(idx, (&(tick, len), notes))| {
             // Via the real tempo map, not a flat bpm — correct even for the
             // rare phrase whose sustain crosses a tempo-change boundary.
             let start_secs = tick_to_seconds(tick as u64, TICKS_PER_BEAT as u32, &tempo_map);
-            let end_secs =
-                tick_to_seconds((tick + max_len) as u64, TICKS_PER_BEAT as u32, &tempo_map);
+            let end_secs = tick_to_seconds((tick + len) as u64, TICKS_PER_BEAT as u32, &tempo_map);
             let duration_secs = end_secs - start_secs;
             let play_mode = if notes.len() == 1 { "single" } else { "chord" };
 
@@ -447,6 +449,114 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
     scroll.px = 0.0;
 }
 
+/// Parses, migrates, and validates a chart before editor state is touched.
+/// A failed load therefore leaves the current document unchanged.
+pub(super) fn validated_harpchart(text: &str) -> Result<serde_json::Value, String> {
+    let mut value: serde_json::Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    harmonicon_song::song::validate_and_migrate_chart(&mut value).map_err(|e| e.to_string())?;
+    let unsupported = unsupported_chart_features(&value);
+    if !unsupported.is_empty() {
+        return Err(format!(
+            "this chart uses features the Song Editor cannot preserve:\n  - {}",
+            unsupported.join("\n  - ")
+        ));
+    }
+    Ok(value)
+}
+
+/// Features accepted by gameplay but not faithfully represented by the
+/// editor's current grid model. Refusing these charts is safer than opening
+/// them successfully and silently erasing their meaning on the next save.
+pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<String> {
+    let mut found = Vec::new();
+    let harmonica = &value["harmonica"];
+    let kind = harmonica["type"].as_str().unwrap_or("diatonic");
+    let holes = harmonica["holes"].as_u64().unwrap_or(10);
+    if kind == "chromatic" && holes > 12 {
+        found.push(format!(
+            "{holes}-hole chromatic harmonica (maximum supported: 12)"
+        ));
+    }
+    if kind == "diatonic"
+        && harmonica["bending_profile"]
+            .as_str()
+            .unwrap_or("richter_standard")
+            != "richter_standard"
+    {
+        found.push(format!(
+            "alternate diatonic tuning/profile {:?}",
+            harmonica["bending_profile"].as_str().unwrap_or("unknown")
+        ));
+    }
+
+    if value["timing"]["time_signature_map"]
+        .as_array()
+        .is_some_and(|map| !map.is_empty())
+    {
+        found.push("time-signature changes".to_string());
+    }
+
+    if let Some(track) = value["track"].as_array() {
+        for (index, phrase) in track.iter().enumerate() {
+            let number = index + 1;
+            if phrase.get("phrase").is_some() {
+                found.push(format!("phrase {number} has a phrase label"));
+            }
+            if phrase.get("groove").is_some() {
+                found.push(format!("phrase {number} has a groove annotation"));
+            }
+            if phrase["call"].as_bool() == Some(true) {
+                found.push(format!("phrase {number} is marked for call-and-response"));
+            }
+            if phrase["play_mode"].as_str() == Some("split") {
+                found.push(format!("phrase {number} uses split play mode"));
+            }
+
+            if let Some(events) = phrase["events"].as_array() {
+                for (event_index, event) in events.iter().enumerate() {
+                    let Some(modifiers) = event["modifiers"].as_array() else {
+                        continue;
+                    };
+                    let pitch_count = modifiers
+                        .iter()
+                        .filter(|modifier| {
+                            matches!(
+                                modifier["type"].as_str(),
+                                Some("bend" | "overblow" | "overdraw" | "slide")
+                            )
+                        })
+                        .count();
+                    let expression_count = modifiers
+                        .iter()
+                        .filter(|modifier| {
+                            matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
+                        })
+                        .count();
+                    if pitch_count > 1 || expression_count > 1 {
+                        found.push(format!(
+                            "phrase {number}, event {} combines modifiers the editor models as mutually exclusive",
+                            event_index + 1
+                        ));
+                    }
+                    if modifiers.iter().any(|modifier| {
+                        let Some(intensity) = modifier.get("intensity") else {
+                            return false;
+                        };
+                        !matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
+                            || intensity.as_f64() != Some(0.5)
+                    }) {
+                        found.push(format!(
+                            "phrase {number}, event {} has modifier intensity",
+                            event_index + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
 // ── Systems ───────────────────────────────────────────────────────────────────
 
 /// The `ContentKind::Song` half of loading — its `ContentKind::Lesson`
@@ -473,11 +583,11 @@ pub(super) fn handle_load_chosen(
                 continue;
             }
         };
-        let v: serde_json::Value = match serde_json::from_str(&text) {
+        let v = match validated_harpchart(&text) {
             Ok(v) => v,
             Err(e) => {
                 warn!(
-                    "Song editor: load failed (parse {}): {e}",
+                    "Song editor: load failed (validation {}): {e}",
                     ev.path.display()
                 );
                 feedback.set(loc.msg_args("editor-load-failed", &[("detail", e.to_string())]));

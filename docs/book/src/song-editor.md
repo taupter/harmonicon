@@ -201,7 +201,8 @@ purely a display — nothing on it is clickable.
 dropdown; picking one drops that track's notes onto the grid, mapped onto
 your currently selected harp key and type — an exact note where one exists,
 a bend or (on a chromatic harp) a slide where one doesn't, otherwise the
-nearest playable note — and sets the chart's tempo to match. Switching the
+nearest playable note — and sets the chart's tempo and time signature to
+match. Switching the
 dropdown to a different track re-imports from that track instead.
 
 Saving while a MIDI track is selected also writes two extra files next to
@@ -314,6 +315,12 @@ A saved chart is validated against Harmonicon's chart schema
 written against, so a chart saved by a newer Harmonicon that added
 something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
+
+Loading also stops before changing the open chart when a file uses musical
+features the grid cannot preserve yet, such as 16-hole chromatic layouts,
+alternate diatonic tunings, meter changes, split/call-and-response phrases,
+or custom modifier intensities. The status bar names the unsupported feature;
+the original file and the current editor contents remain untouched.
 
 For songs you want the game to discover automatically without editing the
 bundled assets, drop the finished chart folder into `~/Harmonicon/songs/`

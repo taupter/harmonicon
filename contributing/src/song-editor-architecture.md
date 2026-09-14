@@ -320,7 +320,8 @@ parsing primitives as — the *runtime* MIDI-backing feature described in
 its tracks in a combobox; picking a track quantizes its notes onto the
 editor's tick grid and resolves each pitch onto the currently selected
 harp key via `pitch_map::map_pitch` (an exact match, else a bend or
-slide, else the nearest playable note — reusing the exact same
+slide, else the nearest playable note — while carrying the source tempo map
+and time signature into the editor, and reusing the exact same
 compatibility check the editor's own UI enforces, so an import can never
 produce a note the grid wouldn't otherwise let you place by hand).
 Saving while a track is selected also writes a synthesized WAV mixdown

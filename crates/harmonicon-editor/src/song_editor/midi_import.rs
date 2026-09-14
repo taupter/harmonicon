@@ -33,6 +33,7 @@ use bevy_fluent::prelude::Localization;
 use harmonicon_core::chart::{TempoPoint, seconds_to_tick};
 use harmonicon_core::midi_file::{
     collect_tempo_map, extract_notes, notes_to_phrase, tick_to_seconds, ticks_per_quarter,
+    time_signature_of,
 };
 use harmonicon_core::synth::render_pcm;
 use harmonicon_platform::localization::LocalizationExt;
@@ -172,6 +173,7 @@ fn editor_tempo_map(midi_tempo: &[(u64, u32)], tpq: u32) -> Vec<TempoPoint> {
 
 pub(super) struct ImportedTrack {
     pub(super) initial_bpm: f32,
+    pub(super) time_signature: String,
     /// Every tempo change after the opening one, already in the editor's
     /// own tick unit — see [`editor_tempo_map`]. Empty for the common case
     /// of a MIDI file with no mid-song tempo automation.
@@ -203,6 +205,7 @@ pub(super) fn import_track_notes(
     let midi_tempo = collect_tempo_map(&smf);
     let editor_map = editor_tempo_map(&midi_tempo, tpq);
     let initial_bpm = editor_map[0].bpm;
+    let (numerator, denominator) = time_signature_of(&smf).unwrap_or((4, 4));
 
     let harp = build_harp(key, kind);
     let mut notes = Vec::with_capacity(raw_notes.len());
@@ -229,6 +232,7 @@ pub(super) fn import_track_notes(
         .collect();
     Ok(ImportedTrack {
         initial_bpm,
+        time_signature: format!("{numerator}/{denominator}"),
         tempo_changes,
         notes,
     })
@@ -421,6 +425,7 @@ fn import_selected_track(midi: &mut MidiImport, state: &mut EditorState, index: 
             state.selected.clear();
             state.dragging = None;
             state.tempo = format!("{}", imported.initial_bpm.round() as u32);
+            state.time_signature = imported.time_signature;
             state.tempo_changes = imported.tempo_changes;
             state.key = key.clone();
             midi.selected = Some(info.index);
@@ -621,6 +626,17 @@ mod tests {
         assert_eq!(imported.tempo_changes[0].1.round(), 240.0);
         // The second note starts right where the first one ends.
         assert_eq!(imported.notes[1].tick, TICKS_PER_BEAT);
+    }
+
+    #[test]
+    fn import_track_notes_carries_the_midis_meter() {
+        let bytes = smf_bytes(vec![vec![
+            meta(0, MetaMessage::TimeSignature(6, 3, 24, 8)),
+            note_on(0, 60, 100),
+            note_off(480, 60),
+        ]]);
+        let imported = import_track_notes(&bytes, 0, "C", HarmonicaKind::Diatonic).unwrap();
+        assert_eq!(imported.time_signature, "6/8");
     }
 
     #[test]

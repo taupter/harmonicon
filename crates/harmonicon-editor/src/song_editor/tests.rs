@@ -2,7 +2,9 @@
 
 use super::clipboard::{copy_selected, paste_targets};
 use super::grid::{group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats};
-use super::harpchart::{load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart};
+use super::harpchart::{
+    load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
+};
 use super::interaction::{apply_modifier, select_or_add, select_or_add_ctrl};
 use super::lesson_form::{populate_from_lesson_manifest, serialize_lesson};
 use super::playback::{build_harp, note_freq, playhead_for, secs_per_tick};
@@ -1270,6 +1272,43 @@ fn serialize_harpchart_is_valid_json_with_required_fields() {
 }
 
 #[test]
+fn unequal_simultaneous_note_lengths_round_trip_without_being_extended() {
+    let state = EditorState {
+        notes: vec![
+            GridNote {
+                id: 0,
+                hole: 1,
+                tick: 0,
+                len: TICKS_PER_BEAT,
+                dir: Dir::Blow,
+                pitch: Pitch::Normal,
+                expr: Expr::None,
+            },
+            GridNote {
+                id: 1,
+                hole: 2,
+                tick: 0,
+                len: TICKS_PER_BEAT / 2,
+                dir: Dir::Blow,
+                pitch: Pitch::Normal,
+                expr: Expr::None,
+            },
+        ],
+        ..Default::default()
+    };
+
+    let value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    assert_eq!(value["track"].as_array().unwrap().len(), 2);
+
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    assert_eq!(loaded.note_at(1, 0).unwrap().len, TICKS_PER_BEAT);
+    assert_eq!(loaded.note_at(2, 0).unwrap().len, TICKS_PER_BEAT / 2);
+}
+
+#[test]
 fn serialize_harpchart_omits_audio_file_when_no_music_is_picked() {
     let mut s = EditorState {
         name: "Test Song".into(),
@@ -1333,6 +1372,85 @@ fn serialize_harpchart_validates_against_the_song_schema() {
         "chart saved by the Song Editor must pass its own schema:\n{}",
         errors.join("\n")
     );
+}
+
+#[test]
+fn editor_load_validation_rejects_a_structurally_invalid_chart() {
+    let error = validated_harpchart("{}").expect_err("an empty object is not a chart");
+    assert!(error.contains("Chart validation failed"));
+    assert!(error.contains("song"));
+}
+
+#[test]
+fn editor_load_validation_rejects_a_future_chart_version() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    value["metadata"]["format_version"] = serde_json::json!("999.0.0");
+
+    let error = validated_harpchart(&value.to_string()).expect_err("future chart must fail");
+    assert!(error.contains("999.0.0"));
+    assert!(error.contains("can't load"));
+}
+
+#[test]
+fn editor_load_validation_applies_legacy_migrations() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    value["metadata"]["format_version"] = serde_json::json!("1.0.0");
+    value["fx_mapping"] = serde_json::json!({ "bend": "pitch_bend" });
+
+    let migrated = validated_harpchart(&value.to_string()).expect("legacy chart migrates");
+    assert!(migrated.get("fx_mapping").is_none());
+    assert_eq!(
+        migrated["metadata"]["format_version"],
+        harmonicon_core::chart::CURRENT_FORMAT_VERSION
+    );
+}
+
+#[test]
+fn editor_load_validation_accepts_its_own_expression_intensity() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    apply_modifier(&mut state, ModButton::Vibrato);
+    validated_harpchart(&serialize_harpchart(&state))
+        .expect("the editor must accept a chart it wrote itself");
+}
+
+#[test]
+fn editor_load_validation_lists_semantics_it_cannot_preserve() {
+    let mut state = EditorState {
+        harmonica_kind: HarmonicaKind::Chromatic,
+        ..Default::default()
+    };
+    select_or_add(&mut state, 1, 0);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    value["harmonica"]["holes"] = serde_json::json!(16);
+    value["timing"]["time_signature_map"] =
+        serde_json::json!([{ "tick": 0, "time_signature": "4/4" }]);
+    value["track"][0]["call"] = serde_json::json!(true);
+
+    let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
+    assert!(error.contains("16-hole chromatic harmonica"));
+    assert!(error.contains("time-signature changes"));
+    assert!(error.contains("call-and-response"));
+}
+
+#[test]
+fn editor_load_validation_rejects_modifier_data_it_would_overwrite() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    apply_modifier(&mut state, ModButton::Vibrato);
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    value["track"][0]["events"][0]["modifiers"][0]["intensity"] = serde_json::json!(0.9);
+
+    let error = validated_harpchart(&value.to_string()).expect_err("intensity would be lost");
+    assert!(error.contains("modifier intensity"));
 }
 
 #[test]

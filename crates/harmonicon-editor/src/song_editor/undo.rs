@@ -2,9 +2,9 @@
 
 //! Undo/redo for the note grid — `Ctrl+Z`/`Ctrl+Y` (see
 //! `interaction::handle_undo_redo`) step through a history of the editor's
-//! *content*: [`EditorState::notes`]/[`EditorState::tempo_changes`], the
-//! two places a mistake is destructive rather than trivially undone by
-//! clicking again (unlike a click-to-cycle meta field or a plain toggle).
+//! *content*: [`EditorState::notes`], [`EditorState::tempo_changes`], and
+//! the harmonica kind that constrains which notes are valid. Other fields
+//! remain excluded so undoing a note edit does not rewind unrelated UI state.
 //! Every other `EditorState` field is deliberately excluded — undoing a
 //! note edit shouldn't rewind an unrelated scroll position or field.
 //!
@@ -19,7 +19,7 @@
 use bevy::prelude::*;
 
 use super::record::RecordState;
-use super::state::{EditorState, GridNote};
+use super::state::{EditorState, GridNote, HarmonicaKind};
 
 /// History is limited by both edit count and retained allocation size.
 pub(super) const HISTORY_LIMIT: usize = 100;
@@ -31,6 +31,10 @@ const HISTORY_BYTES: usize = 32 * 1024 * 1024;
 struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
+    // Changing harp kind can delete holes and sanitize techniques. It must
+    // travel with the notes or undo can restore chromatic notes into a
+    // diatonic document (and vice versa).
+    harmonica_kind: HarmonicaKind,
 }
 
 impl Snapshot {
@@ -40,17 +44,21 @@ impl Snapshot {
     }
 
     fn matches(&self, state: &EditorState) -> bool {
-        self.notes == state.notes && self.tempo_changes == state.tempo_changes
+        self.notes == state.notes
+            && self.tempo_changes == state.tempo_changes
+            && self.harmonica_kind == state.harmonica_kind
     }
 
     fn capture(state: &EditorState) -> Self {
         Self {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
+            harmonica_kind: state.harmonica_kind,
         }
     }
 
     fn restore(self, state: &mut EditorState) {
+        state.harmonica_kind = self.harmonica_kind;
         state.notes = self.notes;
         state.tempo_changes = self.tempo_changes;
         state.prune_selection();
@@ -170,6 +178,7 @@ pub(super) fn track_changes(
 
 #[cfg(test)]
 mod tests {
+    use super::super::state::{Dir, Expr, Pitch};
     use super::*;
 
     #[test]
@@ -205,5 +214,35 @@ mod tests {
         state.tempo_changes.push((10, 90.0));
         history.record_if_changed(&state);
         assert!(history.can_undo());
+    }
+
+    #[test]
+    fn undoing_a_harp_kind_change_restores_the_kind_with_its_notes() {
+        let mut state = EditorState {
+            harmonica_kind: HarmonicaKind::Chromatic,
+            notes: vec![GridNote {
+                id: 1,
+                hole: 12,
+                tick: 0,
+                len: 4,
+                dir: Dir::Blow,
+                pitch: Pitch::Slide,
+                expr: Expr::None,
+            }],
+            next_id: 2,
+            ..Default::default()
+        };
+        let mut history = UndoHistory::default();
+        history.record_if_changed(&state);
+
+        state.set_harmonica_kind(HarmonicaKind::Diatonic);
+        history.record_if_changed(&state);
+        assert!(state.notes.is_empty());
+
+        history.undo(&mut state);
+        assert_eq!(state.harmonica_kind, HarmonicaKind::Chromatic);
+        assert_eq!(state.notes.len(), 1);
+        assert_eq!(state.notes[0].hole, 12);
+        assert_eq!(state.notes[0].pitch, Pitch::Slide);
     }
 }

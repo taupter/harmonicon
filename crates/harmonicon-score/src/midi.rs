@@ -56,7 +56,7 @@ impl MidiScore {
             .map(|&(_, micros_per_quarter)| 60_000_000.0 / micros_per_quarter as f32)
             .unwrap_or(120.0);
 
-        let time_signature = time_signature_of(&smf).unwrap_or((4, 4));
+        let time_signature = midi_file::time_signature_of(&smf).unwrap_or((4, 4));
 
         Ok(Self {
             bytes,
@@ -65,28 +65,6 @@ impl MidiScore {
             time_signature,
         })
     }
-}
-
-/// The file's first time signature, if it declares one.
-///
-/// MIDI stores the denominator as a power of two (`3` meaning /8), which is
-/// the kind of detail worth converting once here rather than at each call
-/// site.
-fn time_signature_of(smf: &Smf) -> Option<(u8, u8)> {
-    for track in &smf.tracks {
-        for event in track {
-            if let midly::TrackEventKind::Meta(midly::MetaMessage::TimeSignature(
-                numerator,
-                denominator_pow2,
-                _,
-                _,
-            )) = event.kind
-            {
-                return Some((numerator, 1u8.checked_shl(denominator_pow2 as u32)?));
-            }
-        }
-    }
-    None
 }
 
 impl ScoreFile for MidiScore {

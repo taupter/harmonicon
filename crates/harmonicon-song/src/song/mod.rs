@@ -14,7 +14,7 @@ pub use harmonicon_core::chart::HarpChart;
 pub use harmonicon_core::harmonica::Harmonica;
 mod score_song;
 
-pub use loader::SongChartLoader;
+pub use loader::{SongChartLoader, SongLoadError, validate_and_migrate_chart};
 pub use score_song::ScoreSongLoader;
 
 pub use harmonicon_score::ScoreTrack;
