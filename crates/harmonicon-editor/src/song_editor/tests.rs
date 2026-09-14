@@ -2784,32 +2784,31 @@ fn undo_skips_recording_while_a_take_is_active() {
 // ── time signature ────────────────────────────────────────────────────────
 
 #[test]
-fn beats_per_bar_reads_the_chart_meter_not_a_fixed_four() {
+fn meter_reads_the_chart_meter_not_a_fixed_four() {
     let mut s = EditorState::default();
-    assert_eq!(s.beats_per_bar(), 4); // the 4/4 default
+    let m = s.meter();
+    assert_eq!((m.numerator, m.denominator), (4, 4)); // the 4/4 default
     s.time_signature = "3/4".into();
-    assert_eq!(s.beats_per_bar(), 3);
+    assert_eq!(s.meter().beats_per_bar(), 3.0);
     // 6/8 is six eighths — three quarter-note beats, which is the unit
-    // the grid and the staff both count in.
+    // the staff counts in — and six of its own beats, which the ruler and
+    // the metronome count in. Both answers come off the same meter.
     s.time_signature = "6/8".into();
-    assert_eq!(s.beats_per_bar(), 3);
+    assert_eq!(s.meter().beats_per_bar(), 3.0);
+    assert_eq!(s.meter().numerator, 6);
 }
 
 #[test]
-fn ticks_per_bar_is_exact_where_beats_per_bar_has_to_round() {
+fn ticks_per_bar_is_exact_where_a_whole_quarter_count_has_to_round() {
     let mut s = EditorState::default();
-    // 4/4: four quarters, 48 ticks. Both agree.
+    // 4/4: four quarters, 48 ticks.
     assert_eq!(s.ticks_per_bar(), 4 * TICKS_PER_BEAT);
     assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT);
 
-    // 7/8: seven eighths. `beats_per_bar` rounds 3.5 quarters up to 4 and
-    // so claims a 48-tick bar; the real one is 42.
+    // 7/8: seven eighths, 3.5 quarters — which rounded to whole quarters
+    // would claim a 48-tick bar; the real one is 42.
     s.time_signature = "7/8".into();
-    assert_eq!(
-        s.beats_per_bar(),
-        4,
-        "precondition: the rounded value is wrong"
-    );
+    assert_eq!(s.meter().beats_per_bar(), 3.5);
     assert_eq!(s.ticks_per_bar(), 42);
     assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT / 2);
 
@@ -2851,13 +2850,15 @@ fn a_meter_too_fine_for_the_tick_grid_falls_back_rather_than_panicking() {
 }
 
 #[test]
-fn beats_per_bar_survives_a_half_typed_signature() {
-    // The field is free text, so it is mid-edit garbage for a keystroke or
-    // two; that must not wedge the grid or divide by zero.
+fn meter_survives_a_malformed_signature() {
+    // The meter is picked, not typed, but a chart on disk can still carry
+    // anything; that must not wedge the grid or divide by zero.
     let mut s = EditorState::default();
-    for partial in ["", "3", "3/", "3/0", "x/y"] {
-        s.time_signature = partial.into();
-        assert!(s.beats_per_bar() >= 1, "{partial:?}");
+    for junk in ["", "3", "3/", "3/0", "x/y"] {
+        s.time_signature = junk.into();
+        assert!(s.ticks_per_bar() >= 1, "{junk:?}");
+        assert!(s.ticks_per_signature_beat() >= 1, "{junk:?}");
+        assert!(s.meter().bar_secs(120.0) > 0.0, "{junk:?}");
     }
 }
 
@@ -2872,7 +2873,7 @@ fn a_time_signature_round_trips_through_save_and_load() {
     let mut scroll = Scroll::default();
     load_harpchart(&v, &mut loaded, &mut scroll);
     assert_eq!(loaded.time_signature, "6/8");
-    assert_eq!(loaded.beats_per_bar(), 3);
+    assert_eq!(loaded.meter().numerator, 6);
 }
 
 // ── two_finger_pan_delta ──────────────────────────────────────────────────

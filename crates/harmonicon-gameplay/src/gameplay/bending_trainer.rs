@@ -574,7 +574,7 @@ pub fn setup(
 ) {
     clock.set_free(0.0);
     *pitch_range = pitch_range_for_key(&key.0);
-    tempo.beats_per_bar = 4;
+    tempo.meter = harmonicon_ui::music_score::MusicScoreMeter::default();
     // Keep whatever BPM was last set; default to a comfortable practice tempo.
     if tempo.bpm < MIN_BPM || tempo.bpm > MAX_BPM {
         tempo.bpm = 90.0;
@@ -842,7 +842,7 @@ pub fn setup(
                     ..default()
                 })
                 .with_children(|metro| {
-                    spawn_metronome(metro, &loc, tempo.beats_per_bar, tempo.bpm);
+                    spawn_metronome(metro, &loc, tempo.beats_per_bar(), tempo.bpm);
                 });
                 row.spawn_empty()
                     .apply_scene(button::small(

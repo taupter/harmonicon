@@ -12,7 +12,7 @@ use harmonicon_audio::audio_input::AudioCapture;
 use harmonicon_audio::pitch_detect::{PITCH_RANGE_MARGIN_SEMITONES, PitchRange};
 use harmonicon_song::song::SongManifest;
 
-use super::bars::parse_beats;
+use super::bars::chart_meter;
 use super::clock::GameplayClock;
 use super::notes::{last_note_end, resolve_item_time};
 use super::state::{
@@ -88,14 +88,7 @@ pub(crate) fn setup_scoring_config(
     config.good_window = s.good_window_ms as f64 / 1000.0;
     config.miss_window = s.miss_window_ms as f64 / 1000.0;
 
-    // Resolve beats per bar: time_signature_map at tick=0 takes precedence over song field.
-    let beats_str = chart
-        .timing
-        .time_signature_map
-        .as_deref()
-        .and_then(|m| harmonicon_core::chart::time_sig_at_tick(0, m))
-        .or(chart.song.time_signature.as_deref());
-    config.beats_per_bar = parse_beats(beats_str);
+    config.meter = chart_meter(chart);
 
     if let Some(combo) = &s.combo {
         config.combo_enabled = combo.enabled;
@@ -141,7 +134,7 @@ pub(crate) fn setup_scoring_config(
         config.good_window * 1000.0,
         config.miss_window * 1000.0,
         config.combo_enabled,
-        config.beats_per_bar,
+        config.meter.beats_per_bar(),
     );
 }
 

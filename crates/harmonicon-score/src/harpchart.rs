@@ -125,9 +125,9 @@ impl ScoreFile for HarpChartScore {
     }
 }
 
-/// `"6/8"` as `(6, 8)`. Every existing caller in the tree throws the
-/// denominator away (`split('/').next()`); a score file's own meter is the
-/// first thing that needs both halves.
+/// `"6/8"` as `(6, 8)`, for reading a score file's own meter. This crate
+/// sits below `harmonicon-ui`, so it can't use that crate's
+/// `MusicScoreMeter`; the tuple is converted into one at the boundary.
 pub fn parse_time_signature(text: &str) -> Option<(u8, u8)> {
     let (numerator, denominator) = text.split_once('/')?;
     Some((

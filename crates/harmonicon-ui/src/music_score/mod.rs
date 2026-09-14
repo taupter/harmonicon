@@ -292,6 +292,26 @@ impl MusicScoreMeter {
         self.ticks_per_beat(quarter_ticks)?
             .checked_mul(u32::from(self.numerator))
     }
+
+    /// Seconds spanned by one beat *of this meter* at `bpm` quarter notes a
+    /// minute — an eighth's worth in 7/8, a quarter's in 4/4, a half's in
+    /// 2/2.
+    ///
+    /// `bpm` counts quarter notes because that's what a chart's `tempo_bpm`
+    /// means everywhere else (`harmonicon_core::chart::tick_to_seconds`
+    /// converts `ticks / resolution` quarters at `60 / bpm` seconds each).
+    /// This is the one place a metronome should get its beat length from:
+    /// a click driven by `60 / bpm` directly clicks quarters whatever the
+    /// meter, and a 3/8 bar is one and a half of those — its downbeat
+    /// never lands on a click at all.
+    pub fn beat_secs(self, bpm: f64) -> f64 {
+        60.0 / bpm.max(f64::EPSILON) * 4.0 / f64::from(self.denominator.max(1))
+    }
+
+    /// Seconds spanned by one bar at `bpm` quarter notes a minute.
+    pub fn bar_secs(self, bpm: f64) -> f64 {
+        self.beat_secs(bpm) * f64::from(self.numerator)
+    }
 }
 
 /// The meters the Song Editor offers, commonest first.
@@ -313,14 +333,19 @@ pub const TIME_SIGNATURES: [&str; 10] = [
     "4/4", "3/4", "2/4", "2/2", "6/8", "9/8", "12/8", "5/4", "7/8", "5/8",
 ];
 
-/// Parses `"6/8"` into its two halves.
+/// Parses `"6/8"` into its two halves — **the only place in the tree that
+/// reads a time-signature string.** Everything that needs a bar length,
+/// beat count or beat duration asks the returned [`MusicScoreMeter`]
+/// rather than parsing the string itself: `gameplay::bars::chart_meter`
+/// for a chart, `EditorState::meter` for the editor. There used to be four
+/// independent readings, two of which took the numerator alone and called
+/// it a beat count — six for a 6/8 bar that is three quarters long — and
+/// they disagreed with each other on the same file.
 ///
-/// The denominator matters here and nowhere else yet: every other reader
-/// of this field (`gameplay::bars::parse_beats`, both music-score bridges)
-/// takes `split('/').next()` and throws it away, because all they wanted
-/// was a bar length in quarter notes. A drawn time signature needs both
-/// digits. Anything unparseable falls back to 4/4 rather than failing —
-/// a malformed signature should cost a wrong staff head, not a crash.
+/// Anything unparseable falls back to 4/4 rather than failing — a chart
+/// already on disk with a malformed signature should still open, costing
+/// a wrong staff head rather than a crash. What a *user* can enter is
+/// constrained upstream by [`TIME_SIGNATURES`].
 pub fn parse_time_signature(s: &str) -> MusicScoreMeter {
     let mut parts = s.split('/');
     let numerator = parts.next().and_then(|n| n.trim().parse().ok());
@@ -990,6 +1015,40 @@ mod tests {
         assert_eq!(parse_time_signature("4/32").ticks_per_bar(12), None);
         // A coarser grid can express them.
         assert_eq!(parse_time_signature("4/32").ticks_per_beat(8), Some(1));
+    }
+
+    #[test]
+    fn beat_secs_is_the_meters_own_beat_not_a_quarter() {
+        // 120 quarters a minute: a quarter is 0.5 s.
+        let q = 0.5;
+        assert!((parse_time_signature("4/4").beat_secs(120.0) - q).abs() < 1e-9);
+        // In 6/8 the beat is an eighth — half that.
+        assert!((parse_time_signature("6/8").beat_secs(120.0) - q / 2.0).abs() < 1e-9);
+        // In 2/2 it's a half — twice.
+        assert!((parse_time_signature("2/2").beat_secs(120.0) - q * 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bar_secs_matches_the_tick_length_of_the_bar() {
+        // The two exact representations must agree: a bar's seconds at
+        // `bpm` equals its ticks at `60 / bpm` seconds per quarter.
+        for s in TIME_SIGNATURES {
+            let m = parse_time_signature(s);
+            let via_ticks = f64::from(m.ticks_per_bar(12).unwrap()) / 12.0 * (60.0 / 180.0);
+            assert!(
+                (m.bar_secs(180.0) - via_ticks).abs() < 1e-9,
+                "{s}: bar_secs {} vs ticks {via_ticks}",
+                m.bar_secs(180.0)
+            );
+        }
+        // The two bundled odd-meter charts, concretely.
+        assert!((parse_time_signature("6/8").bar_secs(180.0) - 1.0).abs() < 1e-9);
+        assert!((parse_time_signature("3/8").bar_secs(120.0) - 0.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn beat_secs_survives_a_zero_bpm() {
+        assert!(parse_time_signature("4/4").beat_secs(0.0).is_finite());
     }
 
     #[test]

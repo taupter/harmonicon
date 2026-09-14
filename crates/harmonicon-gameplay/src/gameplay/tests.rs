@@ -13,6 +13,7 @@ use harmonicon_core::scoring::{combo_label, compute_multiplier};
 
 use super::lifecycle::cleanup_gameplay;
 use super::*;
+use harmonicon_core::chart::HarpChart;
 
 // ── TechniqueStats / SongStats::record_technique ───────────────────────
 
@@ -97,34 +98,67 @@ fn record_technique_with_two_modifiers_credits_both() {
     assert_eq!(stats.vibrato.hits, 1);
 }
 
-#[test]
-fn parse_beats_4_4() {
-    assert_eq!(parse_beats(Some("4/4")), 4.0);
+// ── chart_meter ───────────────────────────────────────────────────────────────
+
+/// A minimal chart with the given `song`-level and `timing`-level meter
+/// fields, for exercising `chart_meter`'s precedence.
+fn chart_with_meter(song_sig: Option<&str>, map_sig_at_zero: Option<&str>) -> HarpChart {
+    let song_field = song_sig.map_or(String::new(), |s| format!(r#", "time_signature": "{s}""#));
+    let map_field = map_sig_at_zero.map_or(String::new(), |s| {
+        format!(r#", "time_signature_map": [{{"tick": 0, "time_signature": "{s}"}}]"#)
+    });
+    serde_json::from_str(&format!(
+        r#"{{
+            "song": {{ "title": "T", "artist": "A", "tempo_bpm": 120.0,
+                      "key": "C", "difficulty": "easy"{song_field} }},
+            "timing": {{ "resolution": 480, "tempo_map": [{{"tick": 0, "bpm": 120.0}}]{map_field} }},
+            "harmonica": {{
+                "type": "diatonic", "holes": 10,
+                "bending_profile": "richter_standard",
+                "layout": {{
+                    "blow": ["C4","E4","G4","C5","E5","G5","C6","E6","G6","C7"],
+                    "draw": ["D4","G4","B4","D5","F5","A5","B5","D6","F6","A6"]
+                }}
+            }},
+            "track": [],
+            "scoring": {{ "perfect_window_ms": 50, "good_window_ms": 100,
+                         "miss_window_ms": 130 }}
+        }}"#
+    ))
+    .unwrap()
 }
 
 #[test]
-fn parse_beats_3_4() {
-    assert_eq!(parse_beats(Some("3/4")), 3.0);
+fn chart_meter_reads_the_song_field() {
+    let m = chart_meter(&chart_with_meter(Some("3/4"), None));
+    assert_eq!((m.numerator, m.denominator), (3, 4));
 }
 
 #[test]
-fn parse_beats_none_defaults_to_4() {
-    assert_eq!(parse_beats(None), 4.0);
+fn chart_meter_defaults_to_common_time() {
+    let m = chart_meter(&chart_with_meter(None, None));
+    assert_eq!((m.numerator, m.denominator), (4, 4));
+    // Unparseable falls back the same way rather than failing to load.
+    let m = chart_meter(&chart_with_meter(Some("invalid"), None));
+    assert_eq!((m.numerator, m.denominator), (4, 4));
 }
 
 #[test]
-fn parse_beats_malformed_defaults_to_4() {
-    assert_eq!(parse_beats(Some("invalid")), 4.0);
+fn chart_meter_lets_the_map_at_tick_zero_win() {
+    // The precedence `setup_scoring_config` always applied — and that the
+    // metronome used to skip, so the two could disagree on one chart.
+    let m = chart_meter(&chart_with_meter(Some("4/4"), Some("6/8")));
+    assert_eq!((m.numerator, m.denominator), (6, 8));
 }
 
 #[test]
-fn secs_per_bar_120bpm_4beats() {
-    assert!((secs_per_bar(120.0, 4.0) - 2.0).abs() < 1e-9);
-}
-
-#[test]
-fn secs_per_bar_60bpm_4beats() {
-    assert!((secs_per_bar(60.0, 4.0) - 4.0).abs() < 1e-9);
+fn chart_meter_keeps_the_denominator() {
+    // The bug the numerator-only readings had: 6/8 is six *eighths*, three
+    // quarter-note beats — reading "6" as a beat count made a bar twice as
+    // long as the music.
+    let m = chart_meter(&chart_with_meter(Some("6/8"), None));
+    assert_eq!(m.beats_per_bar(), 3.0);
+    assert!((m.bar_secs(180.0) - 1.0).abs() < 1e-9);
 }
 
 // `advance_clock`'s own tests live in `clock.rs` alongside the type.

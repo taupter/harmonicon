@@ -664,13 +664,9 @@ pub fn setup(
         &model_cfg,
     );
 
-    let beats_per_bar = {
-        let ts = chart.song.time_signature.as_deref().unwrap_or("4/4");
-        ts.split('/')
-            .next()
-            .and_then(|n| n.parse::<usize>().ok())
-            .unwrap_or(4)
-    };
+    // The meter's own beat count, for the HUD's beat dots — from the one
+    // reading of the chart's meter gameplay has (`bars::chart_meter`).
+    let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
     spawn_hud_overlay(
         &mut commands,
         chart,

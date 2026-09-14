@@ -129,8 +129,11 @@ pub(crate) fn update_rhythm_guide(
         return;
     }
 
-    let secs_per_beat = 60.0 / (tempo.bpm as f64).max(1.0);
-    let bar_secs = secs_per_beat * 4.0;
+    // Off `MetronomeTempo` rather than `60 / bpm` and a hard-coded four:
+    // a generated jam is always 4/4 today, so those agreed by luck, but
+    // this is the same beat the click is ticking and must stay so.
+    let secs_per_beat = tempo.beat_secs();
+    let bar_secs = tempo.bar_secs();
     let bar_pos = clock.get().rem_euclid(bar_secs);
     let (pattern, swung) = genre_pattern(genre.0);
     let (current, phase) = active_slot(bar_pos, secs_per_beat, swung);

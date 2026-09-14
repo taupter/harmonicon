@@ -291,7 +291,10 @@ pub(crate) fn update_lesson_metronomes(
         let feel = pattern.clock_feel();
         let tick = metronome
             .clock
-            .advance(time.delta_secs_f64(), f64::from(bpm), feel);
+            // A lesson's metronome widget has a BPM and a beat count and
+            // no meter, so its beat is its BPM beat — `60 / bpm` is the
+            // honest answer here, not an x/4 assumption.
+            .advance(time.delta_secs_f64(), 60.0 / f64::from(bpm), feel);
         if let Ok(mut text) = labels.get_mut(metronome.label) {
             *text = Text::new(format!("\u{2669} = {}", bpm as u32));
         }

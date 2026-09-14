@@ -25,6 +25,7 @@ use harmonicon_audio::pitch_detect::PitchRange;
 use harmonicon_gameplay::gameplay::metronome_overlay::{
     MetronomeFeel, MetronomeMuted, MetronomeSounds, MetronomeTempo, play_click_if_due,
 };
+use harmonicon_ui::music_score::MusicScoreMeter;
 
 use super::TICKS_PER_BEAT;
 use super::playback::{EditorAudio, PendingMusicSeek, Playhead, secs_per_tick};
@@ -80,11 +81,12 @@ impl CountIn {
     }
 }
 
-/// Seconds of count-in for one bar at `bpm` — one bar of the chart's own
-/// meter, converted the same way any other beat-to-seconds figure in this
-/// crate is. A 3/4 chart counts in three beats, not four.
-pub(super) fn count_in_secs(bpm: f32, beats_per_bar: usize) -> f32 {
-    beats_per_bar as f32 * 60.0 / bpm.max(1.0)
+/// Seconds of count-in: one bar of the chart's own meter, off the same
+/// `MusicScoreMeter` the click and the ruler use. A 3/4 chart counts in
+/// three quarters; a 6/8 chart counts in six eighths — one second at 180,
+/// not the two a quarter-note reading gave.
+pub(super) fn count_in_secs(bpm: f32, meter: MusicScoreMeter) -> f32 {
+    meter.bar_secs(f64::from(bpm.max(1.0))) as f32
 }
 
 /// `EditorState::tempo`'s flat nominal BPM, recovered from `playback::
@@ -98,7 +100,7 @@ pub(super) fn tempo_bpm(state: &EditorState) -> f32 {
 /// button instead of `record::start_record` directly when there's no take
 /// already in flight to resume. See [`CountIn`]'s own doc comment.
 pub(super) fn begin_count_in(state: &EditorState, count_in: &mut CountIn) {
-    count_in.start(count_in_secs(tempo_bpm(state), state.beats_per_bar()));
+    count_in.start(count_in_secs(tempo_bpm(state), state.meter()));
 }
 
 /// Keeps `MetronomeTempo` in step with the chart currently being edited —
@@ -110,7 +112,7 @@ pub(super) fn begin_count_in(state: &EditorState, count_in: &mut CountIn) {
 /// shared resource — whichever context is entered next reseeds it.
 pub(super) fn sync_tempo(state: Res<EditorState>, mut tempo: ResMut<MetronomeTempo>) {
     tempo.bpm = tempo_bpm(&state);
-    tempo.beats_per_bar = state.beats_per_bar();
+    tempo.meter = state.meter();
 }
 
 /// Plays the metronome clicks for the editor's own clock (`Playhead`)
@@ -253,30 +255,40 @@ mod tests {
 
     // ── count_in_secs ─────────────────────────────────────────────────────
 
+    fn meter(s: &str) -> MusicScoreMeter {
+        harmonicon_ui::music_score::parse_time_signature(s)
+    }
+
     #[test]
     fn count_in_secs_is_one_bar_at_the_given_bpm() {
         // 4 beats at 120bpm (0.5s/beat) = 2.0s.
-        assert_eq!(count_in_secs(120.0, 4), 2.0);
+        assert_eq!(count_in_secs(120.0, meter("4/4")), 2.0);
     }
 
     #[test]
     fn count_in_secs_scales_inversely_with_bpm() {
-        assert_eq!(count_in_secs(60.0, 4), 4.0);
-        assert_eq!(count_in_secs(240.0, 4), 1.0);
+        assert_eq!(count_in_secs(60.0, meter("4/4")), 4.0);
+        assert_eq!(count_in_secs(240.0, meter("4/4")), 1.0);
     }
 
     #[test]
     fn count_in_secs_counts_one_bar_of_the_charts_own_meter() {
         // A 3/4 chart counts in three beats, not four.
-        assert_eq!(count_in_secs(120.0, 3), 1.5);
+        assert_eq!(count_in_secs(120.0, meter("3/4")), 1.5);
+        // And a 6/8 chart six *eighths* — one second at 180, where reading
+        // the meter as whole quarters gave 3 × (60/180) = 1 s by luck but
+        // 3/8 (1.5 quarters, rounded to 2) counted in 1 s for a 0.75 s bar.
+        assert!((count_in_secs(180.0, meter("6/8")) - 1.0).abs() < 1e-6);
+        assert!((count_in_secs(120.0, meter("3/8")) - 0.75).abs() < 1e-6);
     }
 
     #[test]
     fn count_in_secs_clamps_a_nonpositive_bpm() {
         // Falls back to treating bpm as 1, rather than dividing by zero or
         // going negative.
-        assert_eq!(count_in_secs(0.0, 4), count_in_secs(1.0, 4));
-        assert_eq!(count_in_secs(-10.0, 4), count_in_secs(1.0, 4));
+        let m = meter("4/4");
+        assert_eq!(count_in_secs(0.0, m), count_in_secs(1.0, m));
+        assert_eq!(count_in_secs(-10.0, m), count_in_secs(1.0, m));
     }
 
     // ── tempo_bpm ─────────────────────────────────────────────────────────

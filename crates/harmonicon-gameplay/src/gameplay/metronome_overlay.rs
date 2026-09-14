@@ -18,24 +18,52 @@ use harmonicon_song::song::{SongManifest, chart::Feel};
 pub use harmonicon_ui::dialogs::metronome::{
     MetronomeFeel, click_for_tick, is_downbeat, tick_index,
 };
+use harmonicon_ui::music_score::MusicScoreMeter;
+
+use super::bars::chart_meter;
 
 use super::{GameplayClock, GameplayLogic, Paused};
 
 /// The metronome's tempo, decoupled from the song so it can be driven by the
 /// gameplay screens (set from the chart) or the standalone Bending Trainer (set
 /// from its key/BPM controls).
+///
+/// Holds the *meter*, not a beat count: every figure a click or a bar
+/// tracker needs — how many beats to a bar, how long each is, how long the
+/// bar is — comes off it through the methods below, so no caller can
+/// derive one of them its own way. The metronome clicks the meter's own
+/// beat: an eighth in 6/8, a half in 2/2. `bpm` still counts quarter
+/// notes, the same unit a chart's `tempo_bpm` is in everywhere else.
 #[derive(Resource)]
 pub struct MetronomeTempo {
     pub bpm: f32,
-    pub beats_per_bar: usize,
+    pub meter: MusicScoreMeter,
 }
 
 impl Default for MetronomeTempo {
     fn default() -> Self {
         Self {
             bpm: 90.0,
-            beats_per_bar: 4,
+            meter: MusicScoreMeter::default(),
         }
+    }
+}
+
+impl MetronomeTempo {
+    /// Beats in a bar, in the meter's own beat — the count the HUD's beat
+    /// dots and the downbeat accent use.
+    pub fn beats_per_bar(&self) -> usize {
+        usize::from(self.meter.numerator.max(1))
+    }
+
+    /// Seconds per beat of the meter — what [`tick_index`] wants.
+    pub fn beat_secs(&self) -> f64 {
+        self.meter.beat_secs(f64::from(self.bpm))
+    }
+
+    /// Seconds per bar.
+    pub fn bar_secs(&self) -> f64 {
+        self.meter.bar_secs(f64::from(self.bpm))
     }
 }
 
@@ -243,9 +271,8 @@ pub fn update_metronome(
         return;
     }
 
-    let bpm = tempo.bpm as f64;
-    let beat_dur = 60.0 / bpm;
-    let beats_per_bar = tempo.beats_per_bar;
+    let beat_dur = tempo.beat_secs();
+    let beats_per_bar = tempo.beats_per_bar();
     let beat_pos = clock.get() / beat_dur;
     let current = beat_pos.floor() as usize % beats_per_bar;
     let t = beat_pos.fract() as f32;
@@ -299,7 +326,7 @@ pub fn play_click_if_due(
     last: &mut Option<i64>,
     commands: &mut Commands,
 ) {
-    let Some(current) = tick_index(clock, tempo.bpm as f64, feel) else {
+    let Some(current) = tick_index(clock, tempo.beat_secs(), feel) else {
         return;
     };
     if *last == Some(current) {
@@ -311,7 +338,7 @@ pub fn play_click_if_due(
         return;
     }
     // Silent subdivisions (the skipped middle triplet of a shuffle) play nothing.
-    let Some((accent, gain)) = click_for_tick(current, tempo.beats_per_bar as f64, feel) else {
+    let Some((accent, gain)) = click_for_tick(current, tempo.beats_per_bar() as f64, feel) else {
         return;
     };
     let sample = if accent {
@@ -410,17 +437,7 @@ fn set_tempo_from_song(
         return;
     };
     tempo.bpm = manifest.chart.song.tempo_bpm;
-    let ts = manifest
-        .chart
-        .song
-        .time_signature
-        .as_deref()
-        .unwrap_or("4/4");
-    tempo.beats_per_bar = ts
-        .split('/')
-        .next()
-        .and_then(|n| n.parse::<usize>().ok())
-        .unwrap_or(4);
+    tempo.meter = chart_meter(&manifest.chart);
     if let Some(chart_feel) = feel_from_chart(manifest.chart.song.feel) {
         *feel = chart_feel;
     }
@@ -535,38 +552,83 @@ mod tests {
         assert_eq!(feel_from_chart(None), None);
     }
 
+    /// The beat length at 120 quarter notes a minute in x/4: half a second.
+    const Q120: f64 = 0.5;
+
     #[test]
     fn no_tick_before_the_song_starts() {
-        assert_eq!(tick_index(-0.5, 120.0, MetronomeFeel::Straight), None);
-        assert_eq!(tick_index(-3.0, 60.0, MetronomeFeel::Straight), None);
+        assert_eq!(tick_index(-0.5, Q120, MetronomeFeel::Straight), None);
+        assert_eq!(tick_index(-3.0, 1.0, MetronomeFeel::Straight), None);
     }
 
     #[test]
     fn tick_zero_at_clock_zero() {
-        assert_eq!(tick_index(0.0, 120.0, MetronomeFeel::Straight), Some(0));
+        assert_eq!(tick_index(0.0, Q120, MetronomeFeel::Straight), Some(0));
     }
 
     #[test]
     fn straight_feel_ticks_advance_every_beat_at_120bpm() {
-        // In Straight feel a tick is a whole beat, so at 120bpm (0.5s/beat):
-        assert_eq!(tick_index(0.49, 120.0, MetronomeFeel::Straight), Some(0));
-        assert_eq!(tick_index(0.5, 120.0, MetronomeFeel::Straight), Some(1));
-        assert_eq!(tick_index(1.99, 120.0, MetronomeFeel::Straight), Some(3));
+        // In Straight feel a tick is a whole beat, so at 0.5s/beat:
+        assert_eq!(tick_index(0.49, Q120, MetronomeFeel::Straight), Some(0));
+        assert_eq!(tick_index(0.5, Q120, MetronomeFeel::Straight), Some(1));
+        assert_eq!(tick_index(1.99, Q120, MetronomeFeel::Straight), Some(3));
     }
 
     #[test]
-    fn invalid_bpm_gives_no_tick() {
+    fn invalid_beat_length_gives_no_tick() {
         assert_eq!(tick_index(1.0, 0.0, MetronomeFeel::Straight), None);
-        assert_eq!(tick_index(1.0, -60.0, MetronomeFeel::Straight), None);
+        assert_eq!(tick_index(1.0, -1.0, MetronomeFeel::Straight), None);
     }
 
     #[test]
     fn shuffle_feel_ticks_three_times_per_beat() {
-        // At 120bpm a beat is 0.5s, so a shuffle tick (triplet-eighth) is
-        // 1/6s — three ticks land within the same beat.
-        assert_eq!(tick_index(0.0, 120.0, MetronomeFeel::Shuffle), Some(0));
-        assert_eq!(tick_index(0.49, 120.0, MetronomeFeel::Shuffle), Some(2));
-        assert_eq!(tick_index(0.5, 120.0, MetronomeFeel::Shuffle), Some(3));
+        // A beat of 0.5s, so a shuffle tick (triplet-eighth) is 1/6s —
+        // three ticks land within the same beat.
+        assert_eq!(tick_index(0.0, Q120, MetronomeFeel::Shuffle), Some(0));
+        assert_eq!(tick_index(0.49, Q120, MetronomeFeel::Shuffle), Some(2));
+        assert_eq!(tick_index(0.5, Q120, MetronomeFeel::Shuffle), Some(3));
+    }
+
+    #[test]
+    fn the_metronome_clicks_the_meters_own_beat() {
+        use harmonicon_ui::music_score::parse_time_signature;
+        // Greensleeves: 6/8 at 180. The old click ran at 60/180 = a third
+        // of a second — a quarter — and accented every 6 of them: every
+        // second bar. The beat is an eighth, six to a 1 s bar.
+        let t = MetronomeTempo {
+            bpm: 180.0,
+            meter: parse_time_signature("6/8"),
+        };
+        assert_eq!(t.beats_per_bar(), 6);
+        assert!((t.beat_secs() - 1.0 / 6.0).abs() < 1e-9);
+        assert!((t.bar_secs() - 1.0).abs() < 1e-9);
+        // So the click at the start of bar 2 (1 s in) is tick 6, a downbeat.
+        let tick = tick_index(1.0, t.beat_secs(), MetronomeFeel::Straight).unwrap();
+        assert_eq!(tick, 6);
+        assert!(is_downbeat(tick, t.beats_per_bar() as f64));
+
+        // Für Elise: 3/8 at 120. A bar is 1.5 quarters, which no whole
+        // number of quarter-note clicks could ever accent; three eighths
+        // can.
+        let t = MetronomeTempo {
+            bpm: 120.0,
+            meter: parse_time_signature("3/8"),
+        };
+        assert_eq!(t.beats_per_bar(), 3);
+        assert!((t.bar_secs() - 0.75).abs() < 1e-9);
+        let tick = tick_index(0.75, t.beat_secs(), MetronomeFeel::Straight).unwrap();
+        assert!(is_downbeat(tick, 3.0));
+    }
+
+    #[test]
+    fn in_common_time_nothing_changes() {
+        let t = MetronomeTempo {
+            bpm: 120.0,
+            ..Default::default()
+        };
+        assert_eq!(t.beats_per_bar(), 4);
+        assert!((t.beat_secs() - Q120).abs() < 1e-9);
+        assert!((t.bar_secs() - 2.0).abs() < 1e-9);
     }
 
     #[test]

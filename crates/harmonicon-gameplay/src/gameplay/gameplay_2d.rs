@@ -144,13 +144,9 @@ pub fn setup(
         .and_then(|m| m.description.as_deref());
     let chart_author = chart.metadata.as_ref().and_then(|m| m.author.as_deref());
 
-    let beats_per_bar = {
-        let ts = chart.song.time_signature.as_deref().unwrap_or("4/4");
-        ts.split('/')
-            .next()
-            .and_then(|n| n.parse::<usize>().ok())
-            .unwrap_or(4)
-    };
+    // The meter's own beat count, for the HUD's beat dots — from the one
+    // reading of the chart's meter gameplay has (`bars::chart_meter`).
+    let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
 
     let compact = display.compact.0;
     commands

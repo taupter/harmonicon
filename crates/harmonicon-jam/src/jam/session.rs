@@ -87,13 +87,13 @@ pub fn setup(
         .map(|(root, _)| root)
         .collect();
     let title = format!("{} \u{2014} {}", chart.song.artist, chart.song.title);
-    let beats_per_bar = {
-        let ts = chart.song.time_signature.as_deref().unwrap_or("4/4");
-        ts.split('/')
-            .next()
-            .and_then(|n| n.parse::<usize>().ok())
-            .unwrap_or(4)
-    };
+    // From gameplay's one reading of a chart's meter (`bars::chart_meter`),
+    // so the HUD's beat dots can't disagree with the click they animate.
+    let beats_per_bar = usize::from(
+        harmonicon_gameplay::gameplay::chart_meter(chart)
+            .numerator
+            .max(1),
+    );
 
     // Per-hole note labels + the lookup the live feedback system uses to light
     // the hole(s) the player is currently sounding, coloured by scale fit and

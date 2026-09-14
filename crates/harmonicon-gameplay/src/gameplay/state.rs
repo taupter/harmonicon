@@ -5,6 +5,7 @@
 //! small marker components (`HoleCell`/`HoleState`, `GameplayRoot`,
 //! `MusicPlayer`) other gameplay modules key their systems on.
 
+use harmonicon_ui::music_score::MusicScoreMeter;
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
@@ -323,8 +324,11 @@ pub struct ScoringConfig {
     pub max_multiplier: f32,
     /// Seconds without a hit before the combo resets. `None` = never decays.
     pub decay_secs: Option<f64>,
-    /// Beats per bar resolved from `timing.time_signature_map` (or `song.time_signature`).
-    pub beats_per_bar: f64,
+    /// The chart's meter, from `bars::chart_meter` — held as the meter
+    /// itself rather than a pre-derived beat count, so every consumer
+    /// (bar tracking, the notation staff's bar lines) asks it the same
+    /// question the same way.
+    pub meter: MusicScoreMeter,
     /// Bonus points per technique (keyed by technique name) awarded on a hit,
     /// from the chart's `scoring.style_bonus`. Empty = no style points.
     pub style_bonus: HashMap<String, f32>,
@@ -341,7 +345,7 @@ impl Default for ScoringConfig {
             step_multiplier: 0.1,
             max_multiplier: 4.0,
             decay_secs: None,
-            beats_per_bar: 4.0,
+            meter: MusicScoreMeter::default(),
             style_bonus: HashMap::new(),
         }
     }

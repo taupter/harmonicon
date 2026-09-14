@@ -1,28 +1,44 @@
 // SPDX-License-Identifier: MIT
 
-//! Bar-position math: time-signature parsing, bar-index arithmetic, and the
-//! per-frame [`CurrentBar`]/[`AbsoluteBar`] tracker shared by
+//! Bar-position math: which meter a chart is in, bar-index arithmetic, and
+//! the per-frame [`CurrentBar`]/[`AbsoluteBar`] tracker shared by
 //! `twelve_bar_blues_overlay` and `jam::session`.
 
 use bevy::prelude::*;
 
 use harmonicon_app::app::SelectedSong;
+use harmonicon_core::chart::{HarpChart, time_sig_at_tick};
 use harmonicon_song::song::SongManifest;
+use harmonicon_ui::music_score::{MusicScoreMeter, parse_time_signature};
 
 use super::clock::GameplayClock;
 use super::state::ScoringConfig;
 
-/// Parse the beat count from an optional "N/D" time-signature string.
-pub fn parse_beats(time_sig: Option<&str>) -> f64 {
-    time_sig
-        .and_then(|s| s.split('/').next())
-        .and_then(|n| n.parse::<f64>().ok())
-        .unwrap_or(4.0)
-}
-
-/// Seconds per bar given BPM and beat count.
-pub fn secs_per_bar(bpm: f64, beats: f64) -> f64 {
-    (60.0 / bpm) * beats
+/// The meter a chart is in — **the one place gameplay reads it from.**
+///
+/// Every bar-length figure in gameplay, Jam Session and the metronome
+/// derives from the `MusicScoreMeter` this returns, through its own
+/// methods (`beats_per_bar` for quarter-note beats, `numerator` for the
+/// meter's own, `bar_secs` for seconds). Before this there were four
+/// independent readings of the same field — two took the numerator alone
+/// and called it a beat count, one rounded to whole quarters, one assumed
+/// 4/4 outright — and they disagreed with each other on the same chart:
+/// in 6/8 the metronome accented every second bar while the ruler was
+/// right, and in 3/8 the accent walked around the bar and never settled.
+///
+/// A `timing.time_signature_map` entry at tick 0 wins over the song-level
+/// field, the same precedence `setup_scoring_config` always applied — the
+/// metronome used to skip the map and could disagree with scoring on a
+/// chart that had one.
+pub fn chart_meter(chart: &HarpChart) -> MusicScoreMeter {
+    let sig = chart
+        .timing
+        .time_signature_map
+        .as_deref()
+        .and_then(|m| time_sig_at_tick(0, m))
+        .or(chart.song.time_signature.as_deref())
+        .unwrap_or("4/4");
+    parse_time_signature(sig)
 }
 
 /// How many whole bars have elapsed since the clock last hit 0 (song/jam
@@ -81,7 +97,7 @@ pub(crate) fn track_current_bar(
         return;
     };
     let bpm = manifest.chart.song.tempo_bpm as f64;
-    let spb = secs_per_bar(bpm, config.beats_per_bar);
+    let spb = config.meter.bar_secs(bpm);
     let bar = current_bar_index(clock.get(), spb);
     current.0 = bar;
     absolute.0 = absolute_bar_index(clock.get(), spb);

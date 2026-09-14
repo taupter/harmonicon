@@ -388,14 +388,11 @@ impl EditorState {
     /// staff all count in quarters.
     ///
     /// [`time_signature`]: EditorState::time_signature
-    /// **Rounded**, and kept only for the callers that genuinely count in
-    /// whole quarters — the metronome's click track and its count-in, both
-    /// driven by a quarter-note clock. Anything laying out bars should use
-    /// [`EditorState::ticks_per_bar`] instead: a 7/8 bar is 3.5 quarters,
-    /// and rounding that to 4 puts its bar line half a beat out.
-    pub(super) fn beats_per_bar(&self) -> usize {
-        let m = harmonicon_ui::music_score::parse_time_signature(&self.time_signature);
-        (m.beats_per_bar().round() as usize).max(1)
+    /// The chart's meter — the one thing every bar-shaped figure in the
+    /// editor (grid ruler, timeline readout, metronome, count-in) derives
+    /// from, so none of them can round or reinterpret it their own way.
+    pub(super) fn meter(&self) -> harmonicon_ui::music_score::MusicScoreMeter {
+        harmonicon_ui::music_score::parse_time_signature(&self.time_signature)
     }
 
     /// Ticks in one beat of the chart's meter — the unit its upper number
@@ -403,19 +400,19 @@ impl EditorState {
     /// quarter for a meter too fine to divide the tick grid evenly, which
     /// the picker (`music_score::TIME_SIGNATURES`) never offers.
     pub(super) fn ticks_per_signature_beat(&self) -> usize {
-        harmonicon_ui::music_score::parse_time_signature(&self.time_signature)
+        self.meter()
             .ticks_per_beat(TICKS_PER_BEAT as u32)
             .map_or(TICKS_PER_BEAT, |t| t as usize)
             .max(1)
     }
 
-    /// Ticks in one bar — exact for every meter the picker offers, unlike
-    /// [`EditorState::beats_per_bar`]. This is what the grid's bar lines,
+    /// Ticks in one bar — exact for every meter the picker offers. This is
+    /// what the grid's bar lines,
     /// bar numbers and 12-bar tint are laid out from, so a bar boundary
     /// that falls *between* two quarter-note columns (as every 7/8 and 5/8
     /// bar line does) still lands where the music actually puts it.
     pub(super) fn ticks_per_bar(&self) -> usize {
-        harmonicon_ui::music_score::parse_time_signature(&self.time_signature)
+        self.meter()
             .ticks_per_bar(TICKS_PER_BEAT as u32)
             .map_or(TICKS_PER_BEAT * 4, |t| t as usize)
             .max(1)

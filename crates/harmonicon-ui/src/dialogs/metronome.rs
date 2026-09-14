@@ -35,12 +35,19 @@ impl MetronomeClock {
         *self = Self::default();
     }
 
-    pub fn advance(&mut self, delta_seconds: f64, bpm: f64, feel: MetronomeFeel) -> Option<i64> {
+    /// `beat_secs` is the length of one beat — see [`tick_index`] for why
+    /// that is a duration rather than a BPM.
+    pub fn advance(
+        &mut self,
+        delta_seconds: f64,
+        beat_secs: f64,
+        feel: MetronomeFeel,
+    ) -> Option<i64> {
         if !self.running {
             return None;
         }
         self.elapsed += delta_seconds.max(0.0);
-        let tick = tick_index(self.elapsed, bpm, feel)?;
+        let tick = tick_index(self.elapsed, beat_secs, feel)?;
         if self.last_tick == Some(tick) {
             return None;
         }
@@ -54,14 +61,22 @@ pub const fn is_downbeat(beat: i64, beats_per_bar: f64) -> bool {
     beat.rem_euclid(beats) == 0
 }
 
-pub const fn tick_index(clock: f64, bpm: f64, feel: MetronomeFeel) -> Option<i64> {
-    if clock < 0.0 || bpm <= 0.0 {
+/// Which tick `clock` seconds falls in: one tick per beat in straight feel,
+/// three per beat in shuffle.
+///
+/// Takes the beat's *length*, `beat_secs`, not a BPM. A BPM counts quarter
+/// notes, and a beat is only a quarter note in x/4 meters — in 6/8 it's an
+/// eighth, in 2/2 a half. Deriving `60 / bpm` in here would bake the x/4
+/// assumption into every caller; instead each supplies the beat it means
+/// (`MusicScoreMeter::beat_secs` for a chart's meter, or plainly `60 /
+/// bpm` for a lesson widget whose beat *is* its BPM beat).
+pub const fn tick_index(clock: f64, beat_secs: f64, feel: MetronomeFeel) -> Option<i64> {
+    if clock < 0.0 || beat_secs <= 0.0 {
         return None;
     }
-    let beat_duration = 60.0 / bpm;
     let subdivision = match feel {
-        MetronomeFeel::Straight => beat_duration,
-        MetronomeFeel::Shuffle => beat_duration / 3.0,
+        MetronomeFeel::Straight => beat_secs,
+        MetronomeFeel::Shuffle => beat_secs / 3.0,
     };
     Some((clock / subdivision).floor() as i64)
 }
@@ -101,11 +116,12 @@ mod tests {
             running: true,
             ..Default::default()
         };
-        assert_eq!(clock.advance(0.0, 60.0, MetronomeFeel::Straight), Some(0));
-        assert_eq!(clock.advance(0.5, 60.0, MetronomeFeel::Straight), None);
-        assert_eq!(clock.advance(0.5, 60.0, MetronomeFeel::Straight), Some(1));
+        // One-second beats.
+        assert_eq!(clock.advance(0.0, 1.0, MetronomeFeel::Straight), Some(0));
+        assert_eq!(clock.advance(0.5, 1.0, MetronomeFeel::Straight), None);
+        assert_eq!(clock.advance(0.5, 1.0, MetronomeFeel::Straight), Some(1));
         clock.running = false;
-        assert_eq!(clock.advance(2.0, 60.0, MetronomeFeel::Straight), None);
+        assert_eq!(clock.advance(2.0, 1.0, MetronomeFeel::Straight), None);
         assert_eq!(clock.elapsed, 1.0);
     }
 
