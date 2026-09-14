@@ -167,6 +167,7 @@ editor-snap-mode-triplet = ‹ Tresillos de corchea ›
 # parte de un tresillo sin la segunda.
 editor-beat-count-and = y
 editor-beat-count-a = a
+editor-phrase-marker-tooltip = Frase en el pulso {$tick}: {$details}
 editor-field-twelve-bar-tint = Fondo de Blues de 12 Compases
 
 # Song Editor 2 — leyenda de colores (tercera columna del formulario)

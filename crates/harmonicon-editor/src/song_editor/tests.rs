@@ -3342,3 +3342,28 @@ fn the_sticky_bend_cap_is_the_deepest_any_hole_allows() {
         .fold(0.0f32, f32::max);
     assert_eq!(super::interaction::DEEPEST_BEND, deepest);
 }
+
+#[test]
+fn phrase_marker_prioritizes_section_chord_and_compact_technique_icons() {
+    let annotation = PhraseAnnotation {
+        section: Some("Bridge".into()),
+        chord: Some("G7alt".into()),
+        groove: Some("laid back".into()),
+        call: true,
+        split: true,
+    };
+    assert_eq!(
+        super::annotation_lane::label(&annotation),
+        "§ Bridge · ♬ G7alt · ↩ · TB · laid back"
+    );
+}
+
+#[test]
+fn dense_phrase_markers_clip_before_the_next_anchor() {
+    assert_eq!(super::annotation_lane::width(100, Some(100)), 4.0);
+    assert!(
+        super::annotation_lane::width(100, Some(101))
+            < super::annotation_lane::width(100, Some(200))
+    );
+    assert_eq!(super::annotation_lane::width(100, None), 150.0);
+}

@@ -19,6 +19,7 @@ use harmonicon_app::app::AppState;
 use harmonicon_app::app::tour_active;
 use harmonicon_platform::theme::LoadedTheme;
 
+mod annotation_lane;
 mod audition;
 mod clipboard;
 // Dev-only ("--features dev") debugging aid — see its own module docs.
@@ -78,12 +79,11 @@ const MIDI_PURPOSE: DialogId = DialogId("song_editor_2_midi");
 // ── Geometry ──────────────────────────────────────────────────────────────────
 
 const HOLE_COL_W: f32 = 78.0;
-// Beat/bar number labels occupy the top of the header (unchanged, `top: 6.0`
-// in `grid.rs`); the waveform reference strip (`waveform::MusicWaveform`)
-// occupies the rest of it, so growing `HEADER_H` alone is all that's needed
-// to make room for it — every other module that reads `HEADER_H` (as "where
-// hole row 1 starts") adjusts automatically.
-const WAVEFORM_TOP: f32 = 20.0;
+// Beat/bar numbers occupy the first 20 px. Phrase markers get their own lane
+// below them, then the waveform occupies the rest.
+const ANNOTATION_TOP: f32 = 20.0;
+const ANNOTATION_H: f32 = 18.0;
+const WAVEFORM_TOP: f32 = ANNOTATION_TOP + ANNOTATION_H + 4.0;
 const WAVEFORM_H: f32 = 36.0;
 const HEADER_H: f32 = WAVEFORM_TOP + WAVEFORM_H + 4.0;
 const ROW_H: f32 = 34.0;

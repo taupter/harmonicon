@@ -30,6 +30,7 @@ last commit.
 | `80f0090` | Read a chart's meter in one place; the metronome clicks the meter's own beat. |
 | `ffdee1c` | Preserve a chart's custom harmonica layout via `EditorState::effective_harp`. |
 | `23d131b` | Carry phrase annotations and expression intensities through every bulk edit (`metadata_sync`). |
+| Phrase annotation lane | Show section, chord, groove, call-response, and split markers above the chart. |
 
 User changes made during the same effort are also part of the current base:
 snap-aware grid backgrounds, reachable external resize grips, a meter picker,
@@ -52,21 +53,7 @@ Do not casually add new allowlist entries. `state.rs` was reduced below the
 
 ## Remaining work, in priority order
 
-### 1. Display phrase information on the chart
-
-Section, chord, groove, call-response, and split values can be edited in
-Details but are not visibly reviewable across the chart. Add compact markers to
-the ruler or a dedicated annotation lane. Requirements:
-
-- Markers remain aligned during horizontal scrolling and zooming.
-- Chord symbols and section boundaries are readable without selecting notes.
-- Call/split markers have distinguishable icons or short labels and tooltips.
-- Dense annotations degrade gracefully instead of covering resize grips or
-  notes.
-- Reuse the tick-keyed annotation data; do not duplicate content in ECS
-  components.
-
-### 2. Support time-signature maps
+### 1. Support time-signature maps
 
 `timing.time_signature_map` is the main remaining valid chart feature rejected
 by `unsupported_chart_features`. This is a larger vertical slice:
@@ -84,7 +71,7 @@ Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at 
 non-480 source resolution. Remove the unsupported rejection only after every
 consumer preserves the map.
 
-### 3. Add controls for preserved song settings
+### 2. Add controls for preserved song settings
 
 Commit `18be7af` prevents data loss by retaining settings as JSON, but authors
 still cannot edit them. Add typed state and Details controls for:
@@ -99,7 +86,7 @@ When loop indices refer to phrase ordering, note insertion/deletion must keep
 the loop meaningful or show a clear validation error. Replace preserved JSON
 with typed fields incrementally, maintaining old-file round trips throughout.
 
-### 4. Decide valid modifier combinations
+### 3. Decide valid modifier combinations
 
 The editor represents one pitch technique plus one expression technique. It
 already supports combinations such as bend + vibrato, but rejects multiple
@@ -111,14 +98,14 @@ schema and gameplay semantics before broadening this:
   opaque modifier list that the grid cannot edit.
 - Ensure playback, scoring, labels, and serialization agree.
 
-### 5. Instrument extensibility
+### 4. Instrument extensibility
 
 Unknown future diatonic profiles and chromatics above 16 holes remain rejected.
 Custom layouts are now retained (`ffdee1c`); consider a generic layout-backed instrument
 variant. Avoid adding named variants without complete reed, bend, playback,
 import, and save/load behavior.
 
-### 6. Final usability and integration pass
+### 5. Final usability and integration pass
 
 - Run the editor manually at desktop and short landscape/mobile dimensions.
 - Verify Details remains scrollable after the added fields and checkboxes.
@@ -136,7 +123,7 @@ import, and save/load behavior.
 1. Read the root and `crates/harmonicon-editor/CLAUDE.md` instructions.
 2. Run `git status --short` and inspect recent commits; preserve any new user
    work in the song editor.
-3. Start with displaying phrase information on the chart unless the user reprioritizes.
+3. Start with time-signature maps unless the user reprioritizes.
 4. Keep each vertical slice small, fully tested, documented, and committed.
 5. Before each commit run:
 

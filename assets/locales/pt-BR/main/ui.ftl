@@ -167,6 +167,7 @@ editor-snap-mode-triplet = ‹ Tercinas de colcheia ›
 # tercina sem a segunda.
 editor-beat-count-and = e
 editor-beat-count-a = a
+editor-phrase-marker-tooltip = Frase no pulso {$tick}: {$details}
 editor-field-twelve-bar-tint = Fundo de Blues de 12 Compassos
 
 # Song Editor 2 — legenda de cores (terceira coluna do formulário)

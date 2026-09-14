@@ -90,6 +90,12 @@ name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such as
 `laid-back shuffle`. Notes that begin on the same tick share the annotation.
 Clearing the field removes that marker from the chart.
 
+These phrase values are also visible in the header above the notes. Section
+boundaries use `§`, chords use `♬`, call-and-response uses `↩`, and a
+tongue-block split uses `TB`; hover a clipped marker to read its full contents.
+Markers stop at the next phrase anchor, so dense annotations do not cover the
+note lanes or resize handles.
+
 When the selected note has vibrato or wah, **Vibrato / wah intensity** sets its
 depth from `0` to `1`; `0.5` is the default. The rate still comes from repeated
 clicks on the Vibrato or Wah technique button.

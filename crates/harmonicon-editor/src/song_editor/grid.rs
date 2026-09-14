@@ -384,6 +384,16 @@ pub(super) fn rebuild_grid(
         tick += ticks_per_signature_beat;
     }
 
+    super::annotation_lane::spawn(
+        &mut commands,
+        &mut items,
+        &state,
+        first_tick,
+        last_tick,
+        colors,
+        &loc,
+    );
+
     // Bar lines, at their true tick positions — heavier than the beat lines
     // the column loop drew, and drawn after them so they win where the two
     // coincide.

@@ -592,7 +592,14 @@ load-bearing about *this* crate.
     "&" position *is* a beat.
 
   `timeline::describe_tick` shares the same tick math, or the confirm
-  dialog would name a different bar than the ruler behind it.
+    dialog would name a different bar than the ruler behind it.
+- **Phrase metadata is visible in a dedicated header lane**
+  (`annotation_lane.rs`). It reads `EditorState::phrase_annotations` directly
+  and positions markers in the same absolute tick coordinate as notes. Section
+  and chord text precede the compact call (`↩`) and tongue-block (`TB`) marks;
+  marker width ends at the next anchor and clips overflow, with the full value
+  available in a tooltip. Keep the lane separate from note rows so dense
+  annotations cannot cover notes or their external resize grips.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

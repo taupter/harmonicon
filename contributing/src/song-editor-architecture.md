@@ -45,6 +45,7 @@ package "Document model" {
 
 package "Grid interaction" {
   [grid.rs\n(rendering, click/drag observers)] as grid
+  [annotation_lane.rs\n(phrase markers)] as annotations
   [interaction.rs\n(keyboard, selection helpers)] as interaction
   [ranges.rs\n(silence-gap detection)] as ranges
   [timeline.rs / timeline_overlay.rs\n(Select/Erase/Remove/Tempo tools)] as timeline
@@ -76,6 +77,7 @@ package "UI shell" {
 }
 
 grid ..> state
+annotations ..> state
 interaction ..> state
 undo ..> state
 timeline ..> state
@@ -344,7 +346,10 @@ groove, and call annotations participate in undo and round-trip with notes. The
 Details form edits the annotation at the selected note's onset,
 including the `call` flag used by gameplay's call-and-response scheduler and
 the `split` flag that serializes the same-tick note group with split play mode;
-every note in a same-tick chord therefore resolves to the same phrase metadata.
+`annotation_lane.rs` renders that same map directly in a dedicated header lane.
+Markers use absolute tick positions inside the scrolling `GridContent`, clip at
+the next annotation anchor, and never copy their content into ECS components.
+Every note in a same-tick chord therefore resolves to the same phrase metadata.
 
 Expression rate stays in `GridNote::expr`; custom vibrato/wah intensity is a
 sparse note-id-keyed map on `EditorState`, with absent entries meaning `0.5`.
