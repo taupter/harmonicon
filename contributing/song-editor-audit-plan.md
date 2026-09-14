@@ -67,6 +67,10 @@ by `unsupported_chart_features`. This is a larger vertical slice:
 5. Add a timeline tool or marker editor for inserting/removing meter changes.
 6. Import MIDI meter changes rather than retaining only one meter.
 
+The editor representation and resolution-aware load/save portion of step 1 is
+implemented. The validator deliberately continues rejecting meter maps until
+steps 2–6 are complete.
+
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
 non-480 source resolution. Remove the unsupported rejection only after every
 consumer preserves the map.

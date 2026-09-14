@@ -1987,6 +1987,47 @@ fn a_multi_point_tempo_map_round_trips_through_save_and_load() {
 }
 
 #[test]
+fn a_meter_map_round_trips_and_rescales_from_a_foreign_resolution() {
+    let mut source = EditorState::default();
+    select_or_add(&mut source, 1, 0);
+    let mut value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&source)).unwrap();
+    value["timing"]["resolution"] = serde_json::json!(960);
+    value["timing"]["time_signature_map"] = serde_json::json!([
+        { "tick": 0, "time_signature": "6/8" },
+        { "tick": 3360, "time_signature": "7/8" }
+    ]);
+
+    let mut loaded = EditorState::default();
+    let mut scroll = Scroll::default();
+    load_harpchart(&value, &mut loaded, &mut scroll);
+    assert_eq!(loaded.time_signature, "6/8");
+    assert_eq!(loaded.meter_changes, vec![(42, "7/8".into())]);
+
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&loaded)).unwrap();
+    assert_eq!(
+        saved["timing"]["time_signature_map"],
+        serde_json::json!([
+            { "tick": 0, "time_signature": "6/8" },
+            { "tick": 42, "time_signature": "7/8" }
+        ])
+    );
+}
+
+#[test]
+fn editor_meter_map_always_has_tick_zero_and_sorts_later_changes() {
+    let state = EditorState {
+        time_signature: "4/4".into(),
+        meter_changes: vec![(84, "7/8".into()), (48, "3/4".into())],
+        ..Default::default()
+    };
+    let map = state.time_signature_map();
+    assert_eq!(map[0].tick, 0);
+    assert_eq!(map[0].time_signature, "4/4");
+    assert_eq!(map[1].tick, 48);
+    assert_eq!(map[2].tick, 84);
+}
+
+#[test]
 fn a_note_placed_after_a_tempo_change_keeps_its_tick_across_save_and_load() {
     let mut s = EditorState {
         tempo: "120".into(),

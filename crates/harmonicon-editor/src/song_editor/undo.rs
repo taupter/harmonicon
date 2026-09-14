@@ -31,6 +31,7 @@ const HISTORY_BYTES: usize = 32 * 1024 * 1024;
 struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
+    meter_changes: Vec<(usize, String)>,
     phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     expression_intensities: std::collections::BTreeMap<u32, String>,
     // Changing harp kind can delete holes and sanitize techniques. It must
@@ -49,6 +50,7 @@ impl Snapshot {
     fn matches(&self, state: &EditorState) -> bool {
         self.notes == state.notes
             && self.tempo_changes == state.tempo_changes
+            && self.meter_changes == state.meter_changes
             && self.phrase_annotations == state.phrase_annotations
             && self.expression_intensities == state.expression_intensities
             && self.harmonica_kind == state.harmonica_kind
@@ -59,6 +61,7 @@ impl Snapshot {
         Self {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
+            meter_changes: state.meter_changes.clone(),
             phrase_annotations: state.phrase_annotations.clone(),
             expression_intensities: state.expression_intensities.clone(),
             harmonica_kind: state.harmonica_kind,
@@ -71,6 +74,7 @@ impl Snapshot {
         state.loaded_harmonica = self.loaded_harmonica;
         state.notes = self.notes;
         state.tempo_changes = self.tempo_changes;
+        state.meter_changes = self.meter_changes;
         state.phrase_annotations = self.phrase_annotations;
         state.expression_intensities = self.expression_intensities;
         state.prune_selection();

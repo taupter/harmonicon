@@ -600,6 +600,12 @@ load-bearing about *this* crate.
   marker width ends at the next anchor and clips overflow, with the full value
   available in a tooltip. Keep the lane separate from note rows so dense
   annotations cannot cover notes or their external resize grips.
+- **Meter maps mirror tempo maps in editor state.** `time_signature` is the
+  tick-zero value and `meter_changes` holds later `(tick, signature)` points;
+  `EditorState::time_signature_map()` returns the sorted map with an explicit
+  tick-zero point. Load and save rescale its anchors with the chart resolution,
+  and undo/grid caching track the later points. The load validator still
+  rejects charts containing a map until every bar-shaped consumer uses it.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

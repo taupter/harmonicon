@@ -15,6 +15,7 @@ pub(super) struct GridCache {
 struct Snapshot {
     notes: Vec<GridNote>,
     tempo_changes: Vec<(usize, f32)>,
+    meter_changes: Vec<(usize, String)>,
     phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     tempo: String,
     key: String,
@@ -45,6 +46,7 @@ impl GridCache {
             && self.snapshot.as_ref().is_some_and(|old| {
                 old.notes == state.notes
                     && old.tempo_changes == state.tempo_changes
+                    && old.meter_changes == state.meter_changes
                     && old.phrase_annotations == state.phrase_annotations
                     && old.tempo == state.tempo
                     && old.key == state.key
@@ -65,6 +67,7 @@ impl GridCache {
         self.snapshot = Some(Snapshot {
             notes: state.notes.clone(),
             tempo_changes: state.tempo_changes.clone(),
+            meter_changes: state.meter_changes.clone(),
             phrase_annotations: state.phrase_annotations.clone(),
             tempo: state.tempo.clone(),
             key: state.key.clone(),

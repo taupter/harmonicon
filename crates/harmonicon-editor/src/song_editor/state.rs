@@ -235,6 +235,9 @@ pub(super) struct EditorState {
     /// necessarily sorted as edits land; [`EditorState::tempo_map`] sorts
     /// on read. Empty for the common single-tempo case.
     pub(super) tempo_changes: Vec<(usize, f32)>,
+    /// Time-signature changes after tick zero. The opening signature remains
+    /// in `time_signature`, mirroring the tempo/tempo_changes representation.
+    pub(super) meter_changes: Vec<(usize, String)>,
     /// Section labels and chord symbols keyed by their phrase onset tick.
     pub(super) phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
@@ -345,6 +348,7 @@ impl Default for EditorState {
             dragging: None,
             tempo: "120".into(),
             tempo_changes: Vec::new(),
+            meter_changes: Vec::new(),
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
             preserved_metadata: None,
@@ -503,6 +507,24 @@ impl EditorState {
     /// tick_to_seconds`/`seconds_to_tick`. See [`build_tempo_map`].
     pub(super) fn tempo_map(&self) -> Vec<harmonicon_core::chart::TempoPoint> {
         build_tempo_map(&self.tempo, &self.tempo_changes)
+    }
+
+    /// Sorted meter map with an explicit tick-zero effective signature.
+    pub(super) fn time_signature_map(&self) -> Vec<harmonicon_core::chart::TimeSigPoint> {
+        let mut changes = self.meter_changes.clone();
+        changes.sort_by_key(|(tick, _)| *tick);
+        changes.dedup_by(|later, earlier| later.0 == earlier.0);
+        let mut map = vec![harmonicon_core::chart::TimeSigPoint {
+            tick: 0,
+            time_signature: self.time_signature.clone(),
+        }];
+        map.extend(changes.into_iter().filter(|(tick, _)| *tick > 0).map(
+            |(tick, time_signature)| harmonicon_core::chart::TimeSigPoint {
+                tick: tick as u64,
+                time_signature,
+            },
+        ));
+        map
     }
 
     pub(super) fn field_text(&self, field: Field) -> &str {

@@ -298,16 +298,20 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
         })
     });
 
+    let mut timing = json!({
+        "resolution": TICKS_PER_BEAT,
+        "tempo_map": tempo_map
+            .iter()
+            .map(|p| json!({ "tick": p.tick, "bpm": p.bpm }))
+            .collect::<Vec<_>>()
+    });
+    if !state.meter_changes.is_empty() {
+        timing["time_signature_map"] = json!(state.time_signature_map());
+    }
     let chart = json!({
         "metadata": metadata,
         "song": song,
-        "timing": {
-            "resolution": TICKS_PER_BEAT,
-            "tempo_map": tempo_map
-                .iter()
-                .map(|p| json!({ "tick": p.tick, "bpm": p.bpm }))
-                .collect::<Vec<_>>()
-        },
+        "timing": timing,
         "harmonica": harmonica,
         "track": track,
         "loop": loop_settings,
@@ -455,6 +459,24 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         .iter()
         .map(|p| ((p.tick as f64 * scale).round() as usize, p.bpm))
         .collect();
+    state.meter_changes.clear();
+    if let Some(points) = v["timing"]["time_signature_map"].as_array() {
+        for point in points {
+            let Some(file_tick) = point["tick"].as_u64() else {
+                continue;
+            };
+            let Some(signature) = point["time_signature"].as_str() else {
+                continue;
+            };
+            let tick = (file_tick as f64 * scale).round() as usize;
+            if tick == 0 {
+                state.time_signature = signature.to_string();
+            } else {
+                state.meter_changes.push((tick, signature.to_string()));
+            }
+        }
+        state.meter_changes.sort_by_key(|(tick, _)| *tick);
+    }
     let editor_tempo_map = state.tempo_map();
 
     let mut notes: Vec<GridNote> = Vec::new();
