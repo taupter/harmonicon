@@ -270,6 +270,25 @@ impl MusicScoreMeter {
     }
 }
 
+/// The meters the Song Editor offers, commonest first.
+///
+/// A fixed list rather than a free-text field because a time signature is
+/// not two arbitrary numbers: the lower one names a *note value*, and note
+/// values come from halving a whole note (1, 2, 4, 8, 16, …), so only a
+/// power of two can appear there. Typing `4/3` asks for four thirds of a
+/// whole note, which standard notation has no symbol for — and since
+/// [`parse_time_signature`] only rejects what won't parse at all, such a
+/// string used to sail through and be silently rounded into a bar length
+/// that matched nothing. Offering the real ones makes that unrepresentable
+/// instead of merely detected.
+///
+/// Not exhaustive, and not meant to be — an exhaustive list is every
+/// numerator crossed with five denominators, far too many to pick from.
+/// `meters_are_all_well_formed` is what keeps this honest.
+pub const TIME_SIGNATURES: [&str; 10] = [
+    "4/4", "3/4", "2/4", "2/2", "6/8", "9/8", "12/8", "5/4", "7/8", "5/8",
+];
+
 /// Parses `"6/8"` into its two halves.
 ///
 /// The denominator matters here and nowhere else yet: every other reader
@@ -883,6 +902,41 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn meters_are_all_well_formed() {
+        for s in TIME_SIGNATURES {
+            let m = parse_time_signature(s);
+            assert_ne!(
+                (m.numerator, m.denominator),
+                (0, 0),
+                "{s} did not parse at all"
+            );
+            assert!(m.numerator > 0, "{s} has no beats in a bar");
+            assert!(
+                m.denominator.is_power_of_two(),
+                "{s}: the lower number must name a note value, so a power of two"
+            );
+            assert!(
+                m.denominator <= 16,
+                "{s} is finer than the editor's tick grid can place"
+            );
+            assert_eq!(
+                format!("{}/{}", m.numerator, m.denominator),
+                s,
+                "{s} does not round-trip, so a picked value would not match"
+            );
+        }
+    }
+
+    #[test]
+    fn the_meter_list_has_no_duplicates() {
+        let mut seen: Vec<&str> = TIME_SIGNATURES.to_vec();
+        seen.sort_unstable();
+        let before = seen.len();
+        seen.dedup();
+        assert_eq!(before, seen.len(), "duplicate entry in TIME_SIGNATURES");
+    }
+
     #[test]
     fn beats_per_bar_counts_quarter_notes_not_signature_beats() {
         // A 6/8 bar is six *eighths* — three quarter-note beats, which is

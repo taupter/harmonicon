@@ -128,6 +128,7 @@ editor-tool-tempo = Tempo
 # Song Editor 2 — etiquetas de los campos de metadatos
 editor-field-tempo = Tempo de la Música
 editor-field-time-signature = Compás
+editor-field-time-signature-tooltip = Cuántos tiempos hay en un compás. El número inferior indica una duración de nota, por eso siempre es 1, 2, 4, 8 o 16.
 editor-field-key = Tono de la Armónica
 editor-field-position = Posición
 editor-field-harmonica = Armónica

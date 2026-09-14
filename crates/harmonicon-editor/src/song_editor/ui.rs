@@ -277,6 +277,13 @@ pub(super) struct MidiTrackComboboxSlot;
 #[derive(Component)]
 pub(super) struct ScaleComboboxSlot;
 
+/// Empty container [`super::meta_form::spawn_time_signature_combobox`]
+/// spawns the meter picker under, once — a fixed option list like
+/// [`ScaleComboboxSlot`]'s, and in the fixed chrome for the same
+/// dropdown-clipping reason.
+#[derive(Component)]
+pub(super) struct TimeSignatureComboboxSlot;
+
 // ── Lifecycle systems ─────────────────────────────────────────────────────────
 
 pub(super) fn init_state(mut commands: Commands, existing: Option<Res<EditorState>>) {
@@ -762,6 +769,13 @@ fn spawn_fixed_chrome(
         });
         row.spawn((
             ScaleComboboxSlot,
+            Node {
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+        ));
+        row.spawn((
+            TimeSignatureComboboxSlot,
             Node {
                 flex_direction: FlexDirection::Column,
                 ..default()

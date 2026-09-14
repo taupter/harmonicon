@@ -34,6 +34,7 @@ mod grid;
 mod grid_cache;
 mod harpchart;
 mod interaction;
+mod legend;
 mod lesson_form;
 mod material;
 mod meta_form;
@@ -252,7 +253,7 @@ impl Plugin for SongEditor2Plugin {
                     ),
                     panel::update_mode_visibility
                         .run_if(resource_exists_and_changed::<state::EditorState>),
-                    meta_form::update_legend_visibility
+                    legend::update_legend_visibility
                         .run_if(resource_exists_and_changed::<state::EditorState>),
                     panel::update_technique_button_visibility
                         .run_if(resource_exists_and_changed::<state::EditorState>),
@@ -300,7 +301,9 @@ impl Plugin for SongEditor2Plugin {
                     )
                         .chain(),
                     meta_form::spawn_scale_combobox,
-                    meta_form::sync_scale_combobox_value
+                    meta_form::spawn_time_signature_combobox,
+                    meta_form::sync_scale_combobox_value,
+                    meta_form::sync_time_signature_combobox_value
                         .run_if(resource_exists_and_changed::<state::EditorState>),
                     timeline::sync_timeline_surface,
                     timeline::sync_selection_with_scroll

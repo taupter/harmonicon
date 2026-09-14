@@ -12,18 +12,15 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Button as WidgetButton;
 use bevy::ui_widgets::{Activate, ValueChange};
 
-use super::grid::{OUT_OF_SCALE_MIX, OUT_OF_SCALE_TINT, TEMPO_MARKER_COLOR, mix_srgba};
 use super::state::{
-    ContentKind, Dir, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS,
-    LESSON_SCALES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, Pitch, TECHNIQUE_NAMES,
-    cycle_next, pitch_color,
+    ContentKind, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS, LESSON_SCALES,
+    PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, TECHNIQUE_NAMES, cycle_next,
 };
-use super::timeline_overlay::{RANGE_HIGHLIGHT_COLOR, SPLIT_LINE_COLOR};
 use super::ui::{
     ContentKindText, EditorRoot, HarmonicaKindText, HoleColumnContent, LegendColumn, MetaFieldBox,
     MetaFieldText, MidiTrackComboboxSlot, ScaleComboboxSlot, SnapModeText,
+    TimeSignatureComboboxSlot,
 };
-use super::view_scroll::{SCROLLBAR_BLOW_COLOR, SCROLLBAR_DRAW_COLOR};
 use super::{HEADER_H, MIDI_PURPOSE, MUSIC_PURPOSE, ROW_H, SILENCE_ROW_H, grid_height};
 use bevy_fluent::prelude::Localization;
 use harmonicon_core::chart::Scale;
@@ -35,6 +32,7 @@ use harmonicon_ui::dialogs::combobox::{ComboboxSelect, ComboboxValue, spawn_comb
 use harmonicon_ui::dialogs::file_dialog::{DialogMode, OpenFileDialog};
 use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
+use harmonicon_ui::music_score::TIME_SIGNATURES;
 
 pub(super) fn spawn_hole_column(
     row: &mut ChildSpawnerCommands,
@@ -644,6 +642,75 @@ pub(super) fn sync_scale_combobox_value(
     }
 }
 
+/// Fills in [`TimeSignatureComboboxSlot`] the first time it's seen empty —
+/// the same spawn-once gate, fixed option list and fixed-chrome placement
+/// [`spawn_scale_combobox`] documents in full.
+///
+/// Replaces what used to be a free-text row in [`FIELDS`]. A time
+/// signature's lower number names a note value — whole, half, quarter,
+/// eighth, sixteenth — so only a power of two can appear there; typed,
+/// `4/3` parsed fine and then got rounded into a bar length that matched
+/// no meter at all. Picking from `music_score::TIME_SIGNATURES` makes that
+/// unrepresentable rather than merely detectable, and saves a
+/// validate-and-revert path that would have had to fight
+/// `panel::sync_meta_field_text`'s deliberate skip of the focused box.
+pub(super) fn spawn_time_signature_combobox(
+    mut commands: Commands,
+    state: Res<EditorState>,
+    loc: Res<Localization>,
+    slot: Query<Entity, (With<TimeSignatureComboboxSlot>, Without<Children>)>,
+    editor_root: Query<Entity, With<EditorRoot>>,
+) {
+    let Ok(slot_entity) = slot.single() else {
+        return;
+    };
+    let Ok(backdrop) = editor_root.single() else {
+        return;
+    };
+    let options: Vec<String> = TIME_SIGNATURES.iter().map(|s| s.to_string()).collect();
+    let combo = spawn_combobox(
+        &mut commands,
+        slot_entity,
+        backdrop,
+        &loc.msg("editor-field-time-signature"),
+        &options,
+        &state.time_signature,
+        on_time_signature_selected,
+    );
+    commands.entity(combo).insert(Tooltip(String::from(
+        loc.msg("editor-field-time-signature-tooltip"),
+    )));
+}
+
+fn on_time_signature_selected(ev: On<ComboboxSelect>, mut state: ResMut<EditorState>) {
+    state.time_signature = ev.value.clone();
+}
+
+/// Keeps the meter combobox's displayed value in step with
+/// `EditorState::time_signature` when something other than the widget
+/// writes it — Load, or a MIDI import carrying the file's own meter.
+///
+/// A chart may legitimately hold a meter that isn't in `TIME_SIGNATURES`
+/// (the list is the common ones, not every valid meter). Writing
+/// [`ComboboxValue`] directly displays it faithfully rather than snapping
+/// it to a nearby option; only *re-picking* is limited to the list.
+pub(super) fn sync_time_signature_combobox_value(
+    state: Res<EditorState>,
+    slot: Query<&Children, With<TimeSignatureComboboxSlot>>,
+    mut values: Query<&mut ComboboxValue>,
+) {
+    let Ok(children) = slot.single() else {
+        return;
+    };
+    for &child in children {
+        if let Ok(mut value) = values.get_mut(child)
+            && value.0 != state.time_signature
+        {
+            value.0 = state.time_signature.clone();
+        }
+    }
+}
+
 /// The chart metadata form: two side-by-side field columns plus a third,
 /// [`spawn_color_legend`], explaining what every color the grid/mod-panel/
 /// scrollbar means. Split evenly (`FIELDS.len() / 2`): harmonica kind +
@@ -688,7 +755,7 @@ pub(super) fn spawn_meta_form(
             spawn_midi_track_row(col, loc, colors);
         });
         let legend_col = spawn_form_column(form, |col| {
-            spawn_color_legend(col, loc, colors);
+            super::legend::spawn_color_legend(col, loc, colors);
         });
         form.commands().entity(legend_col).insert((
             LegendColumn,
@@ -705,252 +772,4 @@ pub(super) fn spawn_meta_form(
             },
         ));
     });
-}
-
-/// Shows/hides the meta form's third (legend) column to match
-/// `EditorState::legend_visible` — toggled by the mod panel's "ℹ Legend"
-/// button (`mod_panel.rs`).
-pub(super) fn update_legend_visibility(
-    state: Res<EditorState>,
-    mut columns: Query<&mut Node, With<LegendColumn>>,
-) {
-    if !state.is_changed() {
-        return;
-    }
-    for mut node in &mut columns {
-        node.display = if state.legend_visible {
-            Display::Flex
-        } else {
-            Display::None
-        };
-    }
-}
-
-// ── Color legend ──────────────────────────────────────────────────────────────
-
-/// A legend swatch's fixed size — small enough to sit beside its label like
-/// a bullet, big enough that the color itself (not just its position) reads
-/// clearly.
-const SWATCH_SIZE: f32 = 16.0;
-
-/// One legend entry: a color swatch (a plain filled box, or — via
-/// `border_only` — an unfilled box with just a colored border, for the
-/// entries that are actually borders in the real UI, not fills) plus its
-/// explanation.
-fn spawn_legend_row(
-    col: &mut ChildSpawnerCommands,
-    colors: SongEditorColors,
-    swatch: Color,
-    border_only: bool,
-    text: String,
-) {
-    col.spawn(Node {
-        width: Val::Percent(100.0),
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        column_gap: Val::Px(8.0),
-        ..default()
-    })
-    .with_children(|line| {
-        line.spawn((
-            Node {
-                width: Val::Px(SWATCH_SIZE),
-                height: Val::Px(SWATCH_SIZE),
-                flex_shrink: 0.0,
-                border: UiRect::all(Val::Px(if border_only { 2.0 } else { 1.0 })),
-                ..default()
-            },
-            BackgroundColor(if border_only { Color::NONE } else { swatch }),
-            BorderColor::all(if border_only {
-                swatch
-            } else {
-                Color::srgb(0.30, 0.30, 0.40)
-            }),
-        ));
-        line.spawn((
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(12.5),
-                ..default()
-            },
-            TextColor(colors.label),
-        ));
-    });
-}
-
-/// A small section heading within the legend column — same accent color
-/// the rest of the editor uses for anything meant to draw the eye.
-fn spawn_legend_heading(col: &mut ChildSpawnerCommands, colors: SongEditorColors, text: String) {
-    col.spawn((
-        Text::new(text),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(colors.accent),
-        Node {
-            margin: UiRect::top(Val::Px(4.0)),
-            ..default()
-        },
-    ));
-}
-
-/// Explains every color the song editor uses, grouped by where it shows up.
-/// A grid note's *fill* color is its playing technique (blow vs. draw is
-/// the small ↑/↓ arrow, not a color), while the scrollbar minimap's
-/// blue/orange markers mean blow/draw specifically — the same blue means
-/// two different things in two different places, worth spelling out rather
-/// than making the player reverse-engineer `theme.json`.
-fn spawn_color_legend(
-    col: &mut ChildSpawnerCommands,
-    loc: &Localization,
-    colors: SongEditorColors,
-) {
-    spawn_legend_heading(col, colors, loc.msg("editor-legend-notes").to_string());
-    spawn_legend_row(
-        col,
-        colors,
-        pitch_color(Pitch::Normal),
-        false,
-        loc.msg("editor-legend-normal").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        pitch_color(Pitch::Bend(1.0)),
-        false,
-        loc.msg("editor-legend-bend").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        pitch_color(Pitch::Overblow),
-        false,
-        loc.msg("editor-legend-overblow").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        pitch_color(Pitch::Overdraw),
-        false,
-        loc.msg("editor-legend-overdraw").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        pitch_color(Pitch::Slide),
-        false,
-        loc.msg("editor-legend-slide").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        mix_srgba(
-            pitch_color(Pitch::Normal),
-            OUT_OF_SCALE_TINT,
-            OUT_OF_SCALE_MIX,
-        ),
-        false,
-        loc.msg("editor-legend-out-of-scale").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        colors.accent,
-        true,
-        loc.msg("editor-legend-selected").to_string(),
-    );
-    col.spawn((
-        Text::new(format!(
-            "{}  {} / {}  {}",
-            Dir::Blow.arrow(),
-            loc.msg("editor-legend-blow"),
-            loc.msg("editor-legend-draw"),
-            Dir::Draw.arrow(),
-        )),
-        TextFont {
-            font_size: FontSize::Px(12.5),
-            ..default()
-        },
-        TextColor(colors.label),
-    ));
-
-    spawn_legend_heading(col, colors, loc.msg("editor-legend-dragging").to_string());
-    spawn_legend_row(
-        col,
-        colors,
-        colors.ghost_ok.with_alpha(0.30),
-        false,
-        loc.msg("editor-legend-drag-ok").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        colors.ghost_bad.with_alpha(0.30),
-        false,
-        loc.msg("editor-legend-drag-bad").to_string(),
-    );
-
-    spawn_legend_heading(col, colors, loc.msg("editor-legend-elsewhere").to_string());
-    spawn_legend_row(
-        col,
-        colors,
-        TEMPO_MARKER_COLOR,
-        false,
-        loc.msg("editor-legend-tempo-marker").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        colors.triplet_line,
-        false,
-        loc.msg("editor-legend-triplet-line").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        SPLIT_LINE_COLOR,
-        false,
-        loc.msg("editor-legend-split-point").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        RANGE_HIGHLIGHT_COLOR,
-        false,
-        loc.msg("editor-legend-range-preview").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        colors.btn_active,
-        false,
-        loc.msg("editor-legend-active-button").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        SCROLLBAR_BLOW_COLOR,
-        false,
-        loc.msg("editor-legend-scrollbar-blow").to_string(),
-    );
-    spawn_legend_row(
-        col,
-        colors,
-        SCROLLBAR_DRAW_COLOR,
-        false,
-        loc.msg("editor-legend-scrollbar-draw").to_string(),
-    );
-    col.spawn((
-        Text::new(loc.msg("editor-legend-scrollbar-note").to_string()),
-        TextFont {
-            font_size: FontSize::Px(10.0),
-            ..default()
-        },
-        TextColor(colors.label.with_alpha(0.75)),
-        Node {
-            max_width: Val::Px(220.0),
-            ..default()
-        },
-    ));
 }

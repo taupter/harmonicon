@@ -20,12 +20,6 @@ pub(super) use harmonicon_core::synth::Expr;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Field {
     Tempo,
-    /// The chart's meter, typed as `"4/4"`. Free text rather than a cycle
-    /// button because the useful set is open-ended (4/4, 3/4, 6/8, 5/4,
-    /// 7/8, ...); anything unparseable falls back to 4/4 at read time
-    /// rather than being rejected, so a half-typed value can't wedge the
-    /// grid mid-edit.
-    TimeSignature,
     Key,
     Position,
     Music,
@@ -87,9 +81,15 @@ impl Field {
 }
 
 /// Each entry pairs a [`Field`] with the localization key used for its label.
-pub(super) const FIELDS: [(Field, &str); 7] = [
+///
+/// The meter is deliberately not among them, and has no [`Field`] variant
+/// at all: it's picked from `music_score::TIME_SIGNATURES`
+/// (`meta_form::spawn_time_signature_combobox`) rather than typed, so an
+/// impossible one like `4/3` can't be entered. Everything that writes it
+/// (Load, MIDI import, the picker) assigns `EditorState::time_signature`
+/// directly.
+pub(super) const FIELDS: [(Field, &str); 6] = [
     (Field::Tempo, "editor-field-tempo"),
-    (Field::TimeSignature, "editor-field-time-signature"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
     (Field::Music, "editor-field-music"),
@@ -434,7 +434,6 @@ impl EditorState {
     pub(super) fn field_text(&self, field: Field) -> &str {
         match field {
             Field::Tempo => &self.tempo,
-            Field::TimeSignature => &self.time_signature,
             Field::Key => &self.key,
             Field::Position => &self.position,
             Field::Music => &self.music,
@@ -456,7 +455,6 @@ impl EditorState {
     pub(super) fn field_text_mut(&mut self, field: Field) -> &mut String {
         match field {
             Field::Tempo => &mut self.tempo,
-            Field::TimeSignature => &mut self.time_signature,
             Field::Key => &mut self.key,
             Field::Position => &mut self.position,
             Field::Music => &mut self.music,
