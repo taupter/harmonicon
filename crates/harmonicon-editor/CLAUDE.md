@@ -253,6 +253,37 @@ load-bearing about *this* crate.
   (`GroupMoveGhost`/`update_group_move_ghosts`, rebuilt every frame like
   `update_scrollbar_markers`) previews the group during the drag, next
   to the anchor's own persistent `MoveGhost`.
+- **A note is resized by two grips *outside* it, not handles inside it**
+  (`ui::ResizeGrip`, spawned by `interaction::spawn_resize_grips` and
+  positioned by `update_resize_grips`/the pure `resize_grip_position`):
+  small circles centred on the note's vertical middle, just beyond its
+  left and right edges. **The note's own body is never a resize target**,
+  which is the whole reason for the design — in-note handles and the note
+  compete for the same pixels, and a 16th note (`3 * TICK_W - 2.0` =
+  13px) has nowhere near enough for two grab targets plus a strip to drag
+  it by. Two fixed 8px handles covered such a note whole, leaving it
+  unmovable; capping them at a third of the note gave 4px targets nobody
+  can hit. Out here a grip is `GRIP_D` px whatever the note's length.
+  Three things this relies on:
+  - **They're persistent, spawned once in `ui::setup`** — same reason
+    `timeline_overlay::TimelineSurface` is (a rebuild mid-gesture
+    despawns the entity `bevy_picking` captured the drag on). Exactly two
+    exist for the session; they carry no note id and resolve one from
+    `EditorState::selected_note` at `DragStart`. `rebuild_grid` only
+    despawns `With<GridItem>`, which they deliberately are not.
+  - **Shown only for a selection of exactly one note**, and never while
+    `locked()`. With several selected a drag moves the group as a rigid
+    shape (`DragState::group`), so "which note's edge" has no answer.
+  - **A hidden grip is not a dead zone**: `bevy_ui`'s picking backend
+    skips anything whose `InheritedVisibility` isn't true ("Nodes that
+    are not rendered should not be interactable"), unlike tab navigation,
+    which *does* reach invisible nodes and is why modals need
+    `TabGroup::modal()`. The two subsystems differ here — don't assume
+    one's rule from the other.
+
+  The dev-only expected-notes layer keeps its own in-note handles
+  (`expected_notes::EXPECTED_HANDLE_W`): its notes are authored at
+  whole-beat lengths, so it never hits this.
 - **Ctrl+C/Ctrl+V copy and paste the current selection**
   (`song_editor::clipboard`; wired in `interaction::handle_copy_paste`).
   `NoteClipboard` holds the last Ctrl+C'd notes verbatim — copying with
@@ -425,8 +456,9 @@ load-bearing about *this* crate.
   move-drag observer snaps the anchor's tick immediately after computing
   it (`grid::move_target`), before deriving the multi-select group's
   shared tick delta from it, so a dragged group moves onto the grid
-  together, not just its anchor; the resize-drag observer snaps whichever
-  edge moved after `grid::apply_resize` computes it, then re-clamps to
+  together, not just its anchor; the resize-grip drag observer
+  (`interaction::spawn_resize_grips`) snaps whichever
+  edge moved after `state::apply_resize` computes it, then re-clamps to
   the same left/right-neighbor bounds `apply_resize` itself already
   enforced (snapping can push a value back out of them — e.g. snap the
   right edge forward past a following note it was already clamped
