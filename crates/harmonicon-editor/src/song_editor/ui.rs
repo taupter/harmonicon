@@ -10,7 +10,7 @@ use bevy::window::WindowResized;
 use super::meta_form::{spawn_hole_column, spawn_hole_column_rows};
 use super::mod_panel::spawn_mod_panel;
 use super::playback::{EditorAudio, EditorProgressFill, Playhead, PlayheadLine};
-use super::state::{EditorState, Scroll, TimelineTool};
+use super::state::{Edge, EditorState, Scroll, TimelineTool};
 use super::view_scroll::drag_grid_scrollbar;
 use super::{BEAT_W, HOLE_COL_W, NOTE_PAD, ROW_H, grid_height};
 use bevy_fluent::prelude::Localization;
@@ -121,6 +121,27 @@ pub(super) struct NoteView(pub(super) u32);
 
 #[derive(Component)]
 pub(super) struct MoveGhost;
+
+/// One of the selected note's two resize grips: a small circle centred on
+/// the note's vertical middle, just *outside* its left or right edge.
+///
+/// Outside rather than inside because in there the grips and the note
+/// compete for the same pixels. A 16th note is `3 * TICK_W - 2.0` = 13px
+/// wide, which cannot host two grab targets *and* leave a strip to drag the
+/// note by — at a fixed 8px each the two covered it whole, and shrinking
+/// them to fit produced 4px targets nobody can hit. Out here a grip is
+/// always `GRIP_D` px however short the note is, and the note's whole body
+/// stays the move target.
+///
+/// Persistent — spawned once by `interaction::spawn_resize_grips`, then
+/// moved and shown/hidden by `interaction::update_resize_grips` — rather
+/// than respawned per selection, for the same reason
+/// `timeline_overlay::TimelineSurface` is: a rebuild mid-gesture would
+/// despawn the very entity `bevy_picking` captured the drag on. Two exist
+/// for the whole session, and they carry no note id; a drag resolves the
+/// note from the current selection when it starts.
+#[derive(Component)]
+pub(super) struct ResizeGrip(pub(super) Edge);
 
 /// One rectangle per *non-anchor* note being moved together in a
 /// multi-select group drag — [`MoveGhost`] alone only shows the anchor's
@@ -640,6 +661,7 @@ fn spawn_fixed_chrome(
                     Visibility::Hidden,
                     Pickable::IGNORE,
                 ));
+                super::interaction::spawn_resize_grips(content, colors);
                 super::timeline_overlay::spawn_persistent_entities(content, hole_count);
             });
         });

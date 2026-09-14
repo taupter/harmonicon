@@ -2,13 +2,12 @@
 
 use super::clipboard::{copy_selected, paste_targets};
 use super::grid::{
-    beat_label, group_move_targets, group_move_valid, mix_srgba, note_in_scale,
-    resize_handle_width, visible_beats,
+    beat_label, group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats,
 };
 use super::harpchart::{
     load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
 };
-use super::interaction::{apply_modifier, select_or_add, select_or_add_ctrl};
+use super::interaction::{apply_modifier, resize_grip_position, select_or_add, select_or_add_ctrl};
 use super::lesson_form::{populate_from_lesson_manifest, serialize_lesson};
 use super::playback::{build_harp, note_freq, playhead_for, secs_per_tick};
 use super::ranges::{
@@ -23,7 +22,7 @@ use super::state::{
 use super::timeline::{TimelineSurfaceGeometry, drag_end_tick};
 use super::ui::ModButton;
 use super::undo::{HISTORY_LIMIT, UndoHistory};
-use super::{BEAT_W, HANDLE_W, HEADER_H, HOLE_COL_W, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
+use super::{BEAT_W, GRIP_D, HEADER_H, HOLE_COL_W, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::blues_scale_classes;
 use harmonicon_core::synth::{PhraseNote, SAMPLE_RATE, envelope, render_pcm};
@@ -2019,55 +2018,67 @@ fn beat_label_survives_a_zero_beats_per_bar() {
     assert_eq!(beat_label(5, 0), "6");
 }
 
-// ── resize_handle_width ───────────────────────────────────────────────────────
+// ── resize_grip_position ──────────────────────────────────────────────────────
 
-/// The width `note_rect` gives a note `len` ticks long.
-fn note_width(len: usize) -> f32 {
-    len as f32 * TICK_W - 2.0
-}
-
-#[test]
-fn a_comfortably_long_note_keeps_the_full_handle_width() {
-    // A quarter note is 58px wide — a third of it is well over HANDLE_W,
-    // so nothing is clamped and the handles stay the size they were.
-    assert_eq!(resize_handle_width(note_width(TICKS_PER_BEAT)), HANDLE_W);
-}
-
-#[test]
-fn both_handles_and_a_move_zone_fit_inside_any_note() {
-    // Every length from one tick up to two beats: the two handles must
-    // leave a nonzero strip between them, or the note can't be dragged to
-    // move at all (the handles' own drag observers own whatever they cover).
-    for len in 1..=(TICKS_PER_BEAT * 2) {
-        let width = note_width(len);
-        let handle = resize_handle_width(width);
-        assert!(
-            handle > 0.0,
-            "len {len}: handle collapsed to nothing, edge undraggable"
-        );
-        assert!(
-            2.0 * handle < width,
-            "len {len}: handles ({handle}px each) cover the whole {width}px note"
-        );
+fn grid_note(tick: usize, len: usize) -> GridNote {
+    GridNote {
+        id: 1,
+        hole: 1,
+        tick,
+        len,
+        dir: Dir::Blow,
+        pitch: Pitch::Normal,
+        expr: Expr::None,
     }
 }
 
 #[test]
-fn a_sixteenth_note_splits_evenly_into_grab_move_grab() {
-    // The case a fixed 8px handle got wrong: 3 ticks is 13px, so two 8px
-    // handles overlapped by 3px and left no move zone.
-    let width = note_width(TICKS_PER_BEAT / 4);
-    assert!(
-        width < 2.0 * HANDLE_W,
-        "precondition: narrower than 2 handles"
-    );
-    assert!((resize_handle_width(width) - width / 3.0).abs() < f32::EPSILON);
+fn grips_sit_entirely_outside_the_note_at_every_length() {
+    // The whole point of moving them out of the note: however short the
+    // note gets, neither grip eats into the body that drags it. One beat in
+    // (tick 12) so the left grip isn't up against the clamp.
+    for len in 1..=(TICKS_PER_BEAT * 2) {
+        let note = grid_note(TICKS_PER_BEAT, len);
+        let (left, _, width, _) = note_rect(&note);
+        let (lx, _) = resize_grip_position(&note, Edge::Left);
+        let (rx, _) = resize_grip_position(&note, Edge::Right);
+        assert!(
+            lx + GRIP_D <= left,
+            "len {len}: left grip overlaps the note body"
+        );
+        assert!(rx >= left + width, "len {len}: right grip overlaps it");
+        assert!(rx > lx, "len {len}: grips crossed over");
+    }
 }
 
 #[test]
-fn a_degenerate_note_width_does_not_produce_a_negative_handle() {
-    assert_eq!(resize_handle_width(0.0), 0.0);
-    assert_eq!(resize_handle_width(-5.0), 0.0);
+fn a_grip_is_the_same_size_however_short_the_note_is() {
+    // A 16th note and a half note put their grips exactly as far apart as
+    // their own widths differ — the grips never shrink to fit.
+    let short = grid_note(TICKS_PER_BEAT, TICKS_PER_BEAT / 4);
+    let long = grid_note(TICKS_PER_BEAT, TICKS_PER_BEAT * 2);
+    let span = |n: &GridNote| {
+        resize_grip_position(n, Edge::Right).0 - resize_grip_position(n, Edge::Left).0
+    };
+    let widths = note_rect(&long).2 - note_rect(&short).2;
+    assert!((span(&long) - span(&short) - widths).abs() < 0.001);
+}
+
+#[test]
+fn grips_are_centred_on_the_notes_vertical_middle() {
+    let note = grid_note(TICKS_PER_BEAT, TICKS_PER_BEAT);
+    let (_, top, _, height) = note_rect(&note);
+    let want = top + (height - GRIP_D) / 2.0;
+    assert_eq!(resize_grip_position(&note, Edge::Left).1, want);
+    assert_eq!(resize_grip_position(&note, Edge::Right).1, want);
+}
+
+#[test]
+fn the_left_grip_of_a_note_at_tick_zero_stays_on_screen() {
+    // `GridArea` clips its overflow and the grid can't scroll left of 0, so
+    // an unclamped grip there would never be reachable.
+    let note = grid_note(0, TICKS_PER_BEAT);
+    assert_eq!(resize_grip_position(&note, Edge::Left).0, 0.0);
 }
 
 // ── envelope ──────────────────────────────────────────────────────────────────

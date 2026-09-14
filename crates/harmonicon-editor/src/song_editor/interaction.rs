@@ -2,6 +2,7 @@
 
 use bevy::input_focus::InputFocus;
 use bevy::picking::Pickable;
+use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::{ComputedNode, RelativeCursorPosition};
@@ -10,15 +11,18 @@ use bevy::ui_render::prelude::MaterialNode;
 use super::clipboard::{NoteClipboard, copy_selected, paste_targets};
 use super::grid::group_move_targets;
 use super::material::EditorNoteMaterial;
+use super::snap::snap_absolute_tick;
 use super::state::{
-    Dir, DragKind, EditorState, Expr, GridNote, Pitch, Scroll, TimelineSelection, VIBRATO_HZ_MAX,
-    VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN, WAH_HZ_STEP, enforce_direction,
-    enforce_expr, max_bend, note_rect, overblow_ok, overdraw_ok, pitch_compatible,
-    pitch_forced_dir,
+    Dir, DragKind, DragState, Edge, EditorState, Expr, GridNote, Pitch, Scroll, TimelineSelection,
+    VIBRATO_HZ_MAX, VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN, WAH_HZ_STEP,
+    apply_resize, enforce_direction, enforce_expr, max_bend, note_rect, overblow_ok, overdraw_ok,
+    pitch_compatible, pitch_forced_dir,
 };
-use super::ui::{GridArea, GridContent, GroupMoveGhost, ModButton, MoveGhost, NoteView};
-use super::{AppState, HEADER_H, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
-use harmonicon_platform::theme::LoadedTheme;
+use super::ui::{
+    GridArea, GridContent, GroupMoveGhost, ModButton, MoveGhost, NoteView, ResizeGrip,
+};
+use super::{AppState, GRIP_D, HEADER_H, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
+use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 use harmonicon_ui::dialogs::file_dialog::FileDialog;
 
 // ── Note interaction ─────────────────────────────────────────────────────────
@@ -456,6 +460,170 @@ pub(super) fn handle_undo_redo(
         history.undo(&mut state);
     } else if keyboard.just_pressed(KeyCode::KeyY) {
         history.redo(&mut state);
+    }
+}
+
+// ── Resize grips ──────────────────────────────────────────────────────────────
+
+/// Where the selected note's `edge` grip sits, as `(left, top)` in
+/// `GridContent`'s coordinate space — see [`ResizeGrip`] for why the grips
+/// live outside the note instead of inside it.
+///
+/// The left grip is clamped to the content origin so a note at tick 0 keeps
+/// a reachable one: `GridArea` clips its overflow, and the grid can't scroll
+/// left of 0, so an unclamped grip there would be permanently off-screen.
+/// That one note trades part of its body for the grip; every other note
+/// keeps all of it.
+pub(super) fn resize_grip_position(note: &GridNote, edge: Edge) -> (f32, f32) {
+    let (left, top, width, height) = note_rect(note);
+    let x = match edge {
+        Edge::Left => (left - GRIP_D).max(0.0),
+        Edge::Right => left + width,
+    };
+    (x, top + (height - GRIP_D) / 2.0)
+}
+
+/// Spawns the two persistent grips into `GridContent`. Called once from
+/// `ui::setup`, alongside the other persistent overlay entities.
+pub(super) fn spawn_resize_grips(
+    content: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>,
+    colors: SongEditorColors,
+) {
+    for edge in [Edge::Left, Edge::Right] {
+        content
+            .spawn((
+                ResizeGrip(edge),
+                // Above the notes (`ZIndex(1)`) so a grip overlapping a
+                // neighbouring note is still what the pointer hits.
+                ZIndex(4),
+                Node {
+                    position_type: PositionType::Absolute,
+                    width: Val::Px(GRIP_D),
+                    height: Val::Px(GRIP_D),
+                    border: UiRect::all(Val::Px(2.0)),
+                    // Half of a square node's side is a circle.
+                    border_radius: BorderRadius::all(Val::Px(GRIP_D / 2.0)),
+                    ..default()
+                },
+                BackgroundColor(colors.accent),
+                BorderColor::all(Color::BLACK),
+                Visibility::Hidden,
+            ))
+            // Not `On<Activate>` on a real widget: this is a drag surface,
+            // not a button — it has no click behaviour to give a keyboard
+            // user, and `bevy_ui_widgets::Button` would only add one.
+            // not-a-widget-button: resize grip, drag-only
+            .observe(
+                move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
+                    if state.dragging.is_some() || state.locked() {
+                        return;
+                    }
+                    let Some(note) = state.selected_note().copied() else {
+                        return;
+                    };
+                    state.dragging = Some(DragState::new(note.id, DragKind::Resize(edge), &note));
+                },
+            )
+            .observe(
+                move |ev: On<Pointer<Drag>>,
+                      mut state: ResMut<EditorState>,
+                      ui_scale: Res<UiScale>| {
+                    let Some(drag) = state.dragging.clone() else {
+                        return;
+                    };
+                    if drag.kind != DragKind::Resize(edge) {
+                        return;
+                    }
+                    let id = drag.id;
+                    let hole = drag.start_hole;
+                    let mut left_bound = 0usize;
+                    let mut right_bound: Option<usize> = None;
+                    for n in &state.notes {
+                        if n.id == id || n.hole != hole {
+                            continue;
+                        }
+                        if n.tick < drag.start_tick {
+                            left_bound = left_bound.max(n.tick + n.len);
+                        } else {
+                            right_bound = Some(right_bound.map_or(n.tick, |r| r.min(n.tick)));
+                        }
+                    }
+                    // `ev.distance` is raw window pixels but `TICK_W` is a
+                    // logical size `UiScale` multiplies up — same correction
+                    // the move drag applies.
+                    let steps = ((ev.distance.x / ui_scale.0) / TICK_W).round() as i32;
+                    let (tick, len) = apply_resize(
+                        drag.start_tick,
+                        drag.start_len,
+                        edge,
+                        steps,
+                        left_bound,
+                        right_bound,
+                    );
+                    // Snap whichever edge moved, then re-clamp to the bounds
+                    // `apply_resize` already enforced — snapping can push a
+                    // value back out of them.
+                    let mode = state.snap_mode;
+                    let (tick, len) = match edge {
+                        Edge::Right => {
+                            let mut end = snap_absolute_tick(tick + len, mode).max(tick + 1);
+                            if let Some(rb) = right_bound {
+                                end = end.min(rb);
+                            }
+                            (tick, end - tick)
+                        }
+                        Edge::Left => {
+                            let end = tick + len;
+                            let start = snap_absolute_tick(tick, mode).min(end - 1).max(left_bound);
+                            (start, end - start)
+                        }
+                    };
+                    if let Some(n) = state.notes.iter_mut().find(|n| n.id == id) {
+                        n.tick = tick;
+                        n.len = len;
+                    }
+                },
+            )
+            .observe(
+                move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
+                    let Some(drag) = state.dragging.clone() else {
+                        return;
+                    };
+                    if drag.kind != DragKind::Resize(edge) {
+                        return;
+                    }
+                    state.dragging = None;
+                    enforce_direction(&mut state, drag.id);
+                    enforce_expr(&mut state, drag.id);
+                },
+            );
+    }
+}
+
+/// Moves the two grips onto the selected note every frame, and hides them
+/// when there is nothing to resize.
+///
+/// Shown only for a selection of *exactly one* note: with several selected a
+/// drag moves the whole group as a rigid shape (`DragState::group`), so
+/// "which note's edge is this" has no answer. Hidden while the grid is
+/// locked (Perform/Record, or the user's Lock toggle) for the same reason
+/// `rebuild_grid` spawns notes `Pickable::IGNORE` there.
+pub(super) fn update_resize_grips(
+    state: Res<EditorState>,
+    mut grips: Query<(&ResizeGrip, &mut Node, &mut Visibility)>,
+) {
+    let target = (state.selected.len() == 1 && !state.locked())
+        .then(|| state.selected_note().copied())
+        .flatten();
+    for (grip, mut node, mut vis) in &mut grips {
+        let Some(note) = target else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        let (left, top) = resize_grip_position(&note, grip.0);
+        node.left = Val::Px(left);
+        node.top = Val::Px(top);
+        *vis = Visibility::Inherited;
     }
 }
 

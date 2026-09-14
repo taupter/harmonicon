@@ -16,13 +16,13 @@ use super::snap::{
     GridlineKind, off_beat_labels, snap_absolute_tick, snap_tick_in_beat, sub_beat_gridlines,
 };
 use super::state::{
-    DragKind, DragState, Edge, EditorState, Expr, GridNote, Mode, Pitch, enforce_direction,
-    enforce_expr, move_target, note_rect, pitch_color, pitch_compatible, pitch_deny_key,
+    DragKind, DragState, EditorState, Expr, GridNote, Mode, Pitch, enforce_direction, enforce_expr,
+    move_target, note_rect, pitch_color, pitch_compatible, pitch_deny_key,
 };
 use super::ui::{GridContent, GridItem, NoteView};
 use super::{
-    BEAT_W, HANDLE_W, HEADER_H, ROW_H, SILENCE_ROW_H, TICK_W, TICKS_PER_BEAT, WAVEFORM_H,
-    WAVEFORM_TOP, grid_height, silence_row_top,
+    BEAT_W, HEADER_H, ROW_H, SILENCE_ROW_H, TICK_W, TICKS_PER_BEAT, WAVEFORM_H, WAVEFORM_TOP,
+    grid_height, silence_row_top,
 };
 use bevy_fluent::prelude::Localization;
 use harmonicon_core::harmonica::Harmonica;
@@ -822,111 +822,9 @@ pub(super) fn spawn_note(
             TextColor(Color::WHITE),
             Pickable::IGNORE,
         ));
-        spawn_resize_handle(r, id, Edge::Left, locked, width);
-        spawn_resize_handle(r, id, Edge::Right, locked, width);
     });
 
     root
-}
-
-/// Each resize handle's width on a note `note_width` px wide: [`HANDLE_W`],
-/// but never more than a third of the note.
-///
-/// The handles are absolutely positioned at the note's two edges and own
-/// their own drag observers, so whatever they cover is *not* draggable to
-/// move the note. At a fixed 8px each they cover a 16th note whole — 3
-/// ticks is `3 * TICK_W - 2.0` = 13px, less than the 16px two handles want
-/// — leaving no move zone at all, and overlapping by 3px in the middle
-/// where only the later-spawned (right) handle is actually reachable.
-/// Splitting in thirds keeps both edges and the move zone between them
-/// reachable at every note length.
-pub(super) fn resize_handle_width(note_width: f32) -> f32 {
-    (note_width / 3.0).clamp(0.0, HANDLE_W)
-}
-
-fn spawn_resize_handle(
-    parent: &mut ChildSpawnerCommands,
-    id: u32,
-    edge: Edge,
-    locked: bool,
-    note_width: f32,
-) {
-    use super::state::apply_resize;
-    let mut node = Node {
-        position_type: PositionType::Absolute,
-        top: Val::Px(0.0),
-        bottom: Val::Px(0.0),
-        width: Val::Px(resize_handle_width(note_width)),
-        ..default()
-    };
-    match edge {
-        Edge::Left => node.left = Val::Px(0.0),
-        Edge::Right => node.right = Val::Px(0.0),
-    }
-    let pick = if locked {
-        Pickable::IGNORE
-    } else {
-        Pickable::default()
-    };
-    parent
-        .spawn((node, BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.25)), pick))
-        .observe(move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
-            if let Some(n) = state.note_by_id(id).copied() {
-                state.select_only(id);
-                state.dragging = Some(DragState::new(id, DragKind::Resize(edge), &n));
-            }
-        })
-        .observe(move |ev: On<Pointer<Drag>>, mut state: ResMut<EditorState>, ui_scale: Res<UiScale>| {
-            let Some(drag) = state.dragging.clone() else { return };
-            if drag.id != id || drag.kind != DragKind::Resize(edge) { return; }
-            let hole = drag.start_hole;
-            let mut left_bound = 0usize;
-            let mut right_bound: Option<usize> = None;
-            for n in &state.notes {
-                if n.id == id || n.hole != hole { continue; }
-                if n.tick < drag.start_tick {
-                    left_bound = left_bound.max(n.tick + n.len);
-                } else {
-                    right_bound = Some(right_bound.map_or(n.tick, |r| r.min(n.tick)));
-                }
-            }
-            // Same `UiScale` correction as the move-drag observer above —
-            // `ev.distance` is raw window pixels, `TICK_W` is a logical
-            // size `UiScale` multiplies up for display.
-            let steps = ((ev.distance.x / ui_scale.0) / TICK_W).round() as i32;
-            let (tick, len) =
-                apply_resize(drag.start_tick, drag.start_len, edge, steps, left_bound, right_bound);
-            // Snap the edge that actually moved, then re-clamp to the same
-            // bounds `apply_resize` itself already enforced — snapping can
-            // push a value back out of them (e.g. snap the right edge
-            // forward past a following note it was already clamped against).
-            let mode = state.snap_mode;
-            let (tick, len) = match edge {
-                Edge::Right => {
-                    let mut end = snap_absolute_tick(tick + len, mode).max(tick + 1);
-                    if let Some(rb) = right_bound {
-                        end = end.min(rb);
-                    }
-                    (tick, end - tick)
-                }
-                Edge::Left => {
-                    let end = tick + len;
-                    let start = snap_absolute_tick(tick, mode).min(end - 1).max(left_bound);
-                    (start, end - start)
-                }
-            };
-            if let Some(n) = state.notes.iter_mut().find(|n| n.id == id) {
-                n.tick = tick;
-                n.len = len;
-            }
-        })
-        .observe(move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
-            if matches!(&state.dragging, Some(d) if d.id == id && matches!(d.kind, DragKind::Resize(_))) {
-                state.dragging = None;
-                enforce_direction(&mut state, id);
-                enforce_expr(&mut state, id);
-            }
-        });
 }
 
 /// Selection only changes borders; keep note entities and observers alive.

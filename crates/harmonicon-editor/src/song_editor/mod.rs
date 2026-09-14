@@ -86,7 +86,12 @@ const HEADER_H: f32 = WAVEFORM_TOP + WAVEFORM_H + 4.0;
 const ROW_H: f32 = 34.0;
 const BEAT_W: f32 = 60.0;
 const NOTE_PAD: f32 = 4.0;
-const HANDLE_W: f32 = 8.0;
+// Diameter of the selected note's two resize grips (`ui::ResizeGrip`). They
+// sit *outside* the note rather than inside it, so this is a free choice —
+// it doesn't have to fit within the shortest note the grid can draw, and a
+// 16th note (13px) couldn't have hosted two grab targets and a strip to
+// drag the note by.
+const GRIP_D: f32 = 12.0;
 // Defined in `audio_system::synth` (shared tick-grid vocabulary: the same
 // resolution `gameplay::call_response` uses to convert chart-time call
 // phrases into the ticks `render_pcm` expects); re-exported here under its
@@ -223,6 +228,7 @@ impl Plugin for SongEditor2Plugin {
                         interaction::live_resize,
                         interaction::update_move_ghost,
                         interaction::update_group_move_ghosts,
+                        interaction::update_resize_grips,
                     ),
                     panel::update_mod_panel.run_if(
                         resource_exists_and_changed::<state::EditorState>

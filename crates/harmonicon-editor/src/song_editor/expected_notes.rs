@@ -616,12 +616,19 @@ fn rebuild_expected_notes_overlay(
     });
 }
 
-/// The move-drag sibling for resizing — mirrors `grid::spawn_resize_handle`,
-/// but writes into `expected_notes`/`expected_dragging` and has no
-/// neighboring-note bound to respect (`apply_resize`'s `left_bound: 0,
-/// right_bound: None` — this layer never collision-checks, see the module
-/// docs), so unlike the ordinary grid's version it needs no per-hole scan
-/// of other notes before resizing.
+/// Width of this layer's in-note resize handles. Local to the module
+/// because it's the only user: the ordinary note grid puts its grips
+/// *outside* the note instead (`ui::ResizeGrip`), since in-note handles
+/// cover a short note whole. This layer keeps them because it's a
+/// dev-only benchmark-authoring surface whose expected notes are written
+/// at whole-beat lengths, not 16ths.
+const EXPECTED_HANDLE_W: f32 = 8.0;
+
+/// The move-drag sibling for resizing: writes into
+/// `expected_notes`/`expected_dragging` and has no neighboring-note bound
+/// to respect (`apply_resize`'s `left_bound: 0, right_bound: None` — this
+/// layer never collision-checks, see the module docs), so it needs no
+/// per-hole scan of other notes before resizing.
 fn spawn_expected_resize_handle(
     parent: &mut ChildSpawnerCommands,
     id: u32,
@@ -632,7 +639,7 @@ fn spawn_expected_resize_handle(
         position_type: PositionType::Absolute,
         top: Val::Px(0.0),
         bottom: Val::Px(0.0),
-        width: Val::Px(super::HANDLE_W),
+        width: Val::Px(EXPECTED_HANDLE_W),
         ..default()
     };
     match edge {
