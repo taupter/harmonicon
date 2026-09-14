@@ -340,9 +340,10 @@ per-track-stem backing Jam Session can use instead.
 Phrase annotations are tick-keyed editor content. Section names serialize as
 the established `phrase` field, while harmonic analysis uses the dedicated
 optional `chord` field; `groove` remains reserved for performance feel. Both
-section and chord annotations participate in undo and round-trip with notes.
-The Details form edits the annotation at the selected note's onset; every note
-in a same-tick chord therefore resolves to the same phrase metadata.
+section, chord, and call annotations participate in undo and round-trip with
+notes. The Details form edits the annotation at the selected note's onset,
+including the `call` flag used by gameplay's call-and-response scheduler; every
+note in a same-tick chord therefore resolves to the same phrase metadata.
 
 The editor models standard Richter, Paddy Richter, natural minor, 12-hole
 chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`

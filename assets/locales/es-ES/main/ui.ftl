@@ -137,6 +137,7 @@ editor-field-name = Nombre
 editor-field-author = Autor
 editor-field-section = Sección en la nota seleccionada
 editor-field-chord = Acorde en la nota seleccionada
+editor-field-call-response = Llamada y respuesta en la nota seleccionada
 editor-field-midi-track = Pista MIDI
 editor-field-midi-track-tooltip = Qué pista del archivo MIDI importado colocar en la cuadrícula.
 editor-field-scale = Escala

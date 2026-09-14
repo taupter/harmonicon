@@ -1442,7 +1442,7 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
     assert!(error.contains("time-signature changes"));
     assert!(error.contains("groove annotation"));
-    assert!(error.contains("call-and-response"));
+    assert!(!error.contains("call-and-response"));
 }
 
 #[test]
@@ -1512,7 +1512,7 @@ fn scale_round_trips_through_save_and_load() {
 }
 
 #[test]
-fn phrase_section_and_chord_annotations_round_trip() {
+fn phrase_section_chord_and_call_annotations_round_trip() {
     let mut state = EditorState::default();
     select_or_add(&mut state, 2, TICKS_PER_BEAT);
     state.phrase_annotations.insert(
@@ -1520,6 +1520,7 @@ fn phrase_section_and_chord_annotations_round_trip() {
         PhraseAnnotation {
             section: Some("Verse A".into()),
             chord: Some("G7alt".into()),
+            call: true,
         },
     );
 
@@ -1528,6 +1529,7 @@ fn phrase_section_and_chord_annotations_round_trip() {
     let value: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert_eq!(value["track"][0]["phrase"], "Verse A");
     assert_eq!(value["track"][0]["chord"], "G7alt");
+    assert_eq!(value["track"][0]["call"], true);
 
     let mut loaded = EditorState::default();
     let mut scroll = Scroll::default();
@@ -1556,6 +1558,20 @@ fn selected_phrase_annotation_fields_follow_selection_and_clear_cleanly() {
 fn annotation_commit_without_a_selected_note_is_ignored() {
     let mut state = EditorState::default();
     state.set_selected_annotation(Field::Chord, "Cmaj7".into());
+    assert!(state.phrase_annotations.is_empty());
+}
+
+#[test]
+fn selected_call_annotation_follows_selection_and_clears_cleanly() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 2, TICKS_PER_BEAT);
+    state.set_selected_call(true);
+    assert!(state.selected_call());
+
+    state.selected.clear();
+    assert!(!state.selected_call());
+    state.select_only(state.notes[0].id);
+    state.set_selected_call(false);
     assert!(state.phrase_annotations.is_empty());
 }
 

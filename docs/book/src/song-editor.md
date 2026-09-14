@@ -90,6 +90,10 @@ such as `Verse 2` or a chord symbol such as `G7`. Notes that begin on the same
 tick share the annotation. Clearing the field removes that marker from the
 chart.
 
+Enable **Call and response at selected note** to make the phrase beginning
+there a response exercise. During gameplay Harmonicon demonstrates consecutive
+call-marked phrases, then waits for the player to perform them.
+
 ### Tempo changes
 
 A song doesn't have to hold one flat tempo. Selecting the **Tempo** tool
@@ -327,8 +331,7 @@ something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
 Loading also stops before changing the open chart when a file uses musical
-features the grid cannot preserve yet, such as meter changes,
-split/call-and-response phrases,
+features the grid cannot preserve yet, such as meter changes, split phrases,
 or custom modifier intensities. The status bar names the unsupported feature;
 the original file and the current editor contents remain untouched.
 

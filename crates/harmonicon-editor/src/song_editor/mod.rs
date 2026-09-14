@@ -303,6 +303,8 @@ impl Plugin for SongEditor2Plugin {
                     meta_form::spawn_scale_combobox,
                     meta_form::spawn_time_signature_combobox,
                     meta_form::sync_scale_combobox_value,
+                    meta_form::sync_call_response_checkbox
+                        .run_if(resource_exists_and_changed::<state::EditorState>),
                     meta_form::sync_time_signature_combobox_value
                         .run_if(resource_exists_and_changed::<state::EditorState>),
                     timeline::sync_timeline_surface,

@@ -541,8 +541,28 @@ impl EditorState {
             Field::Chord => annotation.chord = value,
             _ => unreachable!(),
         }
-        if annotation.section.is_none() && annotation.chord.is_none() {
+        if annotation.section.is_none() && annotation.chord.is_none() && !annotation.call {
             self.phrase_annotations.remove(&tick);
+        }
+    }
+
+    pub(super) fn selected_call(&self) -> bool {
+        self.selected_note()
+            .and_then(|note| self.phrase_annotations.get(&note.tick))
+            .is_some_and(|annotation| annotation.call)
+    }
+
+    pub(super) fn set_selected_call(&mut self, call: bool) {
+        let Some(tick) = self.selected_note().map(|note| note.tick) else {
+            return;
+        };
+        if call {
+            self.phrase_annotations.entry(tick).or_default().call = true;
+        } else if let Some(annotation) = self.phrase_annotations.get_mut(&tick) {
+            annotation.call = false;
+            if annotation.section.is_none() && annotation.chord.is_none() {
+                self.phrase_annotations.remove(&tick);
+            }
         }
     }
 

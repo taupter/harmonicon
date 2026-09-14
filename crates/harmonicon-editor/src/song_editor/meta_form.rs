@@ -9,8 +9,9 @@ use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
+use bevy::ui::Checked;
 use bevy::ui_widgets::Button as WidgetButton;
-use bevy::ui_widgets::{Activate, ValueChange};
+use bevy::ui_widgets::{Activate, Checkbox, ValueChange};
 
 use super::state::{
     ContentKind, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS, LESSON_SCALES,
@@ -33,6 +34,9 @@ use harmonicon_ui::dialogs::file_dialog::{DialogMode, OpenFileDialog};
 use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 use harmonicon_ui::music_score::TIME_SIGNATURES;
+
+#[derive(Component)]
+pub(super) struct CallResponseRow;
 
 pub(super) fn spawn_hole_column(
     row: &mut ChildSpawnerCommands,
@@ -302,6 +306,44 @@ fn spawn_twelve_bar_tint_row(
             state.twelve_bar_tint = change.value;
         },
     );
+}
+
+fn spawn_call_response_row(
+    commands: &mut Commands,
+    column: Entity,
+    loc: &Localization,
+    checked: bool,
+) {
+    let row = spawn_checkbox(
+        commands,
+        column,
+        &String::from(loc.msg("editor-field-call-response")),
+        checked,
+        |change: On<ValueChange<bool>>, mut state: ResMut<EditorState>| {
+            state.set_selected_call(change.value);
+        },
+    );
+    commands.entity(row).insert(CallResponseRow);
+}
+
+pub(super) fn sync_call_response_checkbox(
+    mut commands: Commands,
+    state: Res<EditorState>,
+    rows: Query<&Children, With<CallResponseRow>>,
+    boxes: Query<(), With<Checkbox>>,
+) {
+    let checked = state.selected_call();
+    for children in &rows {
+        for child in children {
+            if boxes.get(*child).is_ok() {
+                if checked {
+                    commands.entity(*child).insert(Checked);
+                } else {
+                    commands.entity(*child).remove::<Checked>();
+                }
+            }
+        }
+    }
 }
 
 /// Spawns one labelled field row and returns its own entity — so a caller
@@ -752,12 +794,13 @@ pub(super) fn spawn_meta_form(
             }
         });
         spawn_twelve_bar_tint_row(&mut form.commands(), first_col, loc, state.twelve_bar_tint);
-        spawn_form_column(form, |col| {
+        let second_col = spawn_form_column(form, |col| {
             for &(field, label) in &FIELDS[MID..] {
                 spawn_field_row(col, loc, colors, state, field, label);
             }
             spawn_midi_track_row(col, loc, colors);
         });
+        spawn_call_response_row(&mut form.commands(), second_col, loc, state.selected_call());
         let legend_col = spawn_form_column(form, |col| {
             super::legend::spawn_color_legend(col, loc, colors);
         });

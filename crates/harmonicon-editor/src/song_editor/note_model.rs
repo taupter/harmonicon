@@ -159,6 +159,7 @@ pub(super) enum Side {
 pub(super) struct PhraseAnnotation {
     pub(super) section: Option<String>,
     pub(super) chord: Option<String>,
+    pub(super) call: bool,
 }
 
 /// An in-progress press-drag gesture on the timeline ruler: `start` is

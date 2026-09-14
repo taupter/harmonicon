@@ -141,6 +141,9 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 if let Some(chord) = &annotation.chord {
                     phrase["chord"] = json!(chord);
                 }
+                if annotation.call {
+                    phrase["call"] = json!(true);
+                }
             }
             phrase
         })
@@ -419,17 +422,16 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
 
             let section = phrase["phrase"].as_str().map(str::to_owned);
             let chord = phrase["chord"].as_str().map(str::to_owned);
-            if section.is_some() || chord.is_some() {
-                state
-                    .phrase_annotations
-                    .entry(start_tick)
-                    .or_default()
-                    .section = section;
-                if let Some(annotation) = state.phrase_annotations.get_mut(&start_tick)
-                    && chord.is_some()
-                {
+            let call = phrase["call"].as_bool() == Some(true);
+            if section.is_some() || chord.is_some() || call {
+                let annotation = state.phrase_annotations.entry(start_tick).or_default();
+                if section.is_some() {
+                    annotation.section = section;
+                }
+                if chord.is_some() {
                     annotation.chord = chord;
                 }
+                annotation.call |= call;
             }
 
             let start_secs =
@@ -535,9 +537,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
             let number = index + 1;
             if phrase.get("groove").is_some() {
                 found.push(format!("phrase {number} has a groove annotation"));
-            }
-            if phrase["call"].as_bool() == Some(true) {
-                found.push(format!("phrase {number} is marked for call-and-response"));
             }
             if phrase["play_mode"].as_str() == Some("split") {
                 found.push(format!("phrase {number} uses split play mode"));
