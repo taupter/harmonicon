@@ -29,7 +29,7 @@ last commit.
 | `18be7af` | Preserve metadata, difficulty/feel, scoring, and loop settings that lack editor controls. |
 | `80f0090` | Read a chart's meter in one place; the metronome clicks the meter's own beat. |
 | `ffdee1c` | Preserve a chart's custom harmonica layout via `EditorState::effective_harp`. |
-| (next)    | Carry phrase annotations and expression intensities through every bulk edit (`metadata_sync`). |
+| `23d131b` | Carry phrase annotations and expression intensities through every bulk edit (`metadata_sync`). |
 
 User changes made during the same effort are also part of the current base:
 snap-aware grid backgrounds, reachable external resize grips, a meter picker,
