@@ -323,7 +323,12 @@ harp key via `pitch_map::map_pitch` (an exact match, else a bend or
 slide, else the nearest playable note — while carrying the source tempo map
 and time signature into the editor, and reusing the exact same
 compatibility check the editor's own UI enforces, so an import can never
-produce a note the grid wouldn't otherwise let you place by hand).
+produce a note the grid wouldn't otherwise let you place by hand). The import
+also computes phrase-level diagnostics before replacing the grid: pitches that
+needed nearest-note fallback, same-onset groups mixing blow and draw, and
+same-onset groups mapping multiple pitches to one hole. These counts appear in
+the status bar through `SaveFeedback`; the importer keeps the notes visible so
+the author can resolve the musical ambiguity instead of silently dropping them.
 Saving while a track is selected also writes a synthesized WAV mixdown
 of every *other* track as `song/music.wav`, via the same additive synth
 [The Audio Input Pipeline](audio-pipeline.md) describes — this predates,

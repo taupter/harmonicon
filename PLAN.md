@@ -151,14 +151,14 @@ one-line index of what's landed.
 
 Work in risk order:
 
-1. Make chart editing round-trip safe: preserve unequal simultaneous note
+1. **Done:** Make chart editing round-trip safe: preserve unequal simultaneous note
    lengths, validate and migrate files on load, reject unsupported future
    versions, and retain or clearly warn about chart fields the editor cannot
    represent.
-2. Keep editor state valid across undo and instrument changes, including the
+2. **Done:** Keep editor state valid across undo and instrument changes, including the
    harmonica kind and any other settings that determine whether notes are
    playable.
-3. Make score import harmonica-aware at the phrase level: import meter, detect
+3. **Done:** Make score import harmonica-aware at the phrase level: import meter, detect
    mixed-breath and duplicate-hole voicings, and report approximated or dropped
    pitches instead of silently accepting them.
 4. Extend the document model for practical arranging: alternate tunings and

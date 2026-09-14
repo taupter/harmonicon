@@ -225,6 +225,9 @@ editor-save-warning = ‼ Guardado con avisos: {$detail}
 editor-save-failed = ✗ Error al guardar: {$detail}
 editor-load-success = ✓ Cargado: {$path}
 editor-load-failed = ✗ Error al cargar: {$detail}
+editor-midi-import-success = ✓ Se importaron {$count} notas MIDI para armónica en {$key}
+editor-midi-import-warning = ‼ Se importaron {$count} notas MIDI para armónica en {$key} — {$approximated} aproximadas, {$mixed} acordes con respiración mixta, {$duplicate} acordes con agujero duplicado
+editor-midi-import-failed = ✗ Error al importar MIDI: {$detail}
 
 # Song Editor 2 — descripciones de los botones
 editor-back-tooltip = Salir del editor y volver al menú principal

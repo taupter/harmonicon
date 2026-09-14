@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! Surfaces the outcome of a Save/Load (`harpchart.rs`/`lesson_form.rs`) in
-//! the status bar, visible in a non-terminal launch of a packaged build —
+//! Surfaces file-operation outcomes (`harpchart.rs`/`lesson_form.rs`/
+//! `midi_import.rs`) in the status bar, visible in a non-terminal launch —
 //! the same "one more priority tier" shape `panel::update_status_bar`
 //! already uses for drag/record/practice messages. Every outcome is also
 //! still logged via `info!`/`warn!`, structured and filterable for a
@@ -11,17 +11,16 @@ use bevy::prelude::*;
 
 use harmonicon_platform::localization::LocalizedStr;
 
-/// How long a save/load outcome stays in the status bar before falling
+/// How long a file-operation outcome stays in the status bar before falling
 /// back to whatever it would otherwise show (drag/record/practice) — long
 /// enough to actually read, short enough not to linger indefinitely over
 /// unrelated later status messages.
 const DISPLAY_SECS: f32 = 4.0;
 
-/// The most recent save/load outcome, if still within its display window.
-/// `set` (called from `harpchart`/`lesson_form`'s Save/Load systems)
-/// always (re)starts the countdown, so a second save shortly after the
-/// first gets its own full display window instead of inheriting the
-/// first's leftover time.
+/// The most recent file-operation outcome, if still within its display window.
+/// `set` always (re)starts the countdown, so a second operation shortly after
+/// the first gets its own full display window instead of inheriting the first's
+/// leftover time.
 #[derive(Resource, Default)]
 pub(super) struct SaveFeedback {
     message: Option<LocalizedStr>,

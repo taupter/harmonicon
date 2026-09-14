@@ -227,6 +227,9 @@ editor-save-warning = ‼ Saved with warnings: {$detail}
 editor-save-failed = ✗ Save failed: {$detail}
 editor-load-success = ✓ Loaded: {$path}
 editor-load-failed = ✗ Load failed: {$detail}
+editor-midi-import-success = ✓ Imported {$count} MIDI notes on {$key} harp
+editor-midi-import-warning = ‼ Imported {$count} MIDI notes on {$key} harp — {$approximated} approximated, {$mixed} mixed-breath chords, {$duplicate} duplicate-hole chords
+editor-midi-import-failed = ✗ MIDI import failed: {$detail}
 
 # Song Editor 2 — button tooltips
 editor-back-tooltip = Leave the editor and return to the main menu

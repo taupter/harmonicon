@@ -225,6 +225,9 @@ editor-save-warning = ‼ Salvo com avisos: {$detail}
 editor-save-failed = ✗ Falha ao salvar: {$detail}
 editor-load-success = ✓ Carregado: {$path}
 editor-load-failed = ✗ Falha ao carregar: {$detail}
+editor-midi-import-success = ✓ {$count} notas MIDI importadas para gaita em {$key}
+editor-midi-import-warning = ‼ {$count} notas MIDI importadas para gaita em {$key} — {$approximated} aproximadas, {$mixed} acordes com respiração mista, {$duplicate} acordes com furo duplicado
+editor-midi-import-failed = ✗ Falha ao importar MIDI: {$detail}
 
 # Editor de Músicas 2 — dicas dos botões
 editor-back-tooltip = Sair do editor e voltar ao menu principal

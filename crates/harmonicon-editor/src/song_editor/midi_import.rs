@@ -25,8 +25,9 @@
 use bevy::prelude::*;
 use midly::Smf;
 
-use super::pitch_map::{map_pitch, suggest_key};
+use super::pitch_map::{map_pitch, map_pitch_playable, suggest_key};
 use super::playback::build_harp;
+use super::save_feedback::SaveFeedback;
 use super::state::{EditorState, Expr, GridNote, HarmonicaKind};
 use super::{MIDI_PURPOSE, TICKS_PER_BEAT};
 use bevy_fluent::prelude::Localization;
@@ -179,6 +180,43 @@ pub(super) struct ImportedTrack {
     /// of a MIDI file with no mid-song tempo automation.
     pub(super) tempo_changes: Vec<(usize, f32)>,
     pub(super) notes: Vec<GridNote>,
+    pub(super) diagnostics: ImportDiagnostics,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ImportDiagnostics {
+    /// Source pitches moved to a nearest natural note because the selected
+    /// harp cannot produce them exactly.
+    pub(super) approximated: usize,
+    /// Same-onset groups requiring both inhale and exhale.
+    pub(super) mixed_breath_groups: usize,
+    /// Same-onset groups mapping more than one source pitch onto one hole.
+    pub(super) duplicate_hole_groups: usize,
+}
+
+fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> ImportDiagnostics {
+    use std::collections::{BTreeMap, HashSet};
+
+    let mut by_tick: BTreeMap<usize, Vec<&GridNote>> = BTreeMap::new();
+    for note in notes {
+        by_tick.entry(note.tick).or_default().push(note);
+    }
+    let mut diagnostics = ImportDiagnostics {
+        approximated,
+        ..Default::default()
+    };
+    for group in by_tick.values().filter(|group| group.len() > 1) {
+        if group.iter().any(|note| note.dir == super::state::Dir::Blow)
+            && group.iter().any(|note| note.dir == super::state::Dir::Draw)
+        {
+            diagnostics.mixed_breath_groups += 1;
+        }
+        let unique_holes: HashSet<u8> = group.iter().map(|note| note.hole).collect();
+        if unique_holes.len() != group.len() {
+            diagnostics.duplicate_hole_groups += 1;
+        }
+    }
+    diagnostics
 }
 
 /// Extracts `track_index`'s notes, quantized onto the editor's own tick
@@ -209,7 +247,11 @@ pub(super) fn import_track_notes(
 
     let harp = build_harp(key, kind);
     let mut notes = Vec::with_capacity(raw_notes.len());
+    let mut approximated = 0;
     for (id, n) in raw_notes.into_iter().enumerate() {
+        if map_pitch_playable(n.key, &harp, kind).is_none() {
+            approximated += 1;
+        }
         let (hole, dir, pitch) = map_pitch(n.key, &harp, kind);
         let start_secs = tick_to_seconds(n.start_tick, tpq, &midi_tempo);
         let end_secs = tick_to_seconds(n.start_tick + n.dur_ticks, tpq, &midi_tempo);
@@ -234,6 +276,7 @@ pub(super) fn import_track_notes(
         initial_bpm,
         time_signature: format!("{numerator}/{denominator}"),
         tempo_changes,
+        diagnostics: phrase_diagnostics(&notes, approximated),
         notes,
     })
 }
@@ -331,6 +374,7 @@ pub(super) fn rebuild_midi_track_combobox(
     slot: Query<(Entity, Option<&Children>), With<super::ui::MidiTrackComboboxSlot>>,
     editor_root: Query<Entity, With<super::ui::EditorRoot>>,
     loc: Res<Localization>,
+    mut feedback: ResMut<SaveFeedback>,
 ) {
     if loaded.read().next().is_none() {
         return;
@@ -378,7 +422,7 @@ pub(super) fn rebuild_midi_track_combobox(
     // unnamed file is left alone deliberately: the default above is a guess
     // worth showing, not one worth acting on.
     if let Some(index) = pick_harmonica_track(&score_tracks(&midi.tracks)) {
-        import_selected_track(&mut midi, &mut state, index);
+        import_selected_track(&mut midi, &mut state, index, &mut feedback, &loc);
     }
 }
 
@@ -386,6 +430,8 @@ fn on_midi_track_selected(
     ev: On<ComboboxSelect>,
     mut midi: ResMut<MidiImport>,
     mut state: ResMut<EditorState>,
+    mut feedback: ResMut<SaveFeedback>,
+    loc: Res<Localization>,
 ) {
     let Some(index) = midi
         .tracks
@@ -395,7 +441,7 @@ fn on_midi_track_selected(
     else {
         return;
     };
-    import_selected_track(&mut midi, &mut state, index);
+    import_selected_track(&mut midi, &mut state, index, &mut feedback, &loc);
 }
 
 /// Imports one track into the grid, replacing whatever is there.
@@ -403,7 +449,13 @@ fn on_midi_track_selected(
 /// Split out of [`on_midi_track_selected`] so a track the file *names* as
 /// the harmonica can be imported the moment the file loads, without
 /// synthesizing a combobox selection the user never made.
-fn import_selected_track(midi: &mut MidiImport, state: &mut EditorState, index: usize) {
+fn import_selected_track(
+    midi: &mut MidiImport,
+    state: &mut EditorState,
+    index: usize,
+    feedback: &mut SaveFeedback,
+    loc: &Localization,
+) {
     let Some(info) = midi.tracks.iter().find(|t| t.index == index).cloned() else {
         return;
     };
@@ -420,6 +472,7 @@ fn import_selected_track(midi: &mut MidiImport, state: &mut EditorState, index: 
     };
     match import_track_notes(&midi.bytes, info.index, &key, state.harmonica_kind) {
         Ok(imported) => {
+            let diagnostics = imported.diagnostics;
             state.next_id = imported.notes.len() as u32;
             state.notes = imported.notes;
             state.selected.clear();
@@ -429,12 +482,29 @@ fn import_selected_track(midi: &mut MidiImport, state: &mut EditorState, index: 
             state.tempo_changes = imported.tempo_changes;
             state.key = key.clone();
             midi.selected = Some(info.index);
-            println!(
+            info!(
                 "Imported MIDI track {}: {} ({} notes), auto-picked key {key}",
                 info.index, info.name, info.note_count
             );
+            let args = [
+                ("count", info.note_count.to_string()),
+                ("key", key),
+                ("approximated", diagnostics.approximated.to_string()),
+                ("mixed", diagnostics.mixed_breath_groups.to_string()),
+                ("duplicate", diagnostics.duplicate_hole_groups.to_string()),
+            ];
+            let message = if diagnostics == ImportDiagnostics::default() {
+                loc.msg_args("editor-midi-import-success", &args)
+            } else {
+                warn!("MIDI import diagnostics: {diagnostics:?}");
+                loc.msg_args("editor-midi-import-warning", &args)
+            };
+            feedback.set(message);
         }
-        Err(e) => println!("MIDI track import failed: {e}"),
+        Err(e) => {
+            warn!("MIDI track import failed: {e}");
+            feedback.set(loc.msg_args("editor-midi-import-failed", &[("detail", e)]));
+        }
     }
 }
 
@@ -637,6 +707,36 @@ mod tests {
         ]]);
         let imported = import_track_notes(&bytes, 0, "C", HarmonicaKind::Diatonic).unwrap();
         assert_eq!(imported.time_signature, "6/8");
+    }
+
+    #[test]
+    fn import_reports_a_pitch_that_needed_nearest_note_fallback() {
+        let bytes = smf_bytes(vec![vec![note_on(0, 0, 100), note_off(480, 0)]]);
+        let imported = import_track_notes(&bytes, 0, "C", HarmonicaKind::Diatonic).unwrap();
+        assert_eq!(imported.diagnostics.approximated, 1);
+    }
+
+    #[test]
+    fn phrase_diagnostics_find_mixed_breath_and_duplicate_hole_chords() {
+        let note = |id, hole, dir| GridNote {
+            id,
+            hole,
+            tick: 0,
+            len: TICKS_PER_BEAT,
+            dir,
+            pitch: Pitch::Normal,
+            expr: Expr::None,
+        };
+        let diagnostics = phrase_diagnostics(
+            &[
+                note(0, 1, Dir::Blow),
+                note(1, 1, Dir::Draw),
+                note(2, 2, Dir::Blow),
+            ],
+            0,
+        );
+        assert_eq!(diagnostics.mixed_breath_groups, 1);
+        assert_eq!(diagnostics.duplicate_hole_groups, 1);
     }
 
     #[test]
