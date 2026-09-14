@@ -21,6 +21,10 @@ use std::collections::HashSet;
 pub const C_BLOW: [&str; 10] = ["C4", "E4", "G4", "C5", "E5", "G5", "C6", "E6", "G6", "C7"];
 /// Standard Richter-tuned C-harp draw notes, holes 1–10.
 pub const C_DRAW: [&str; 10] = ["D4", "G4", "B4", "D5", "F5", "A5", "B5", "D6", "F6", "A6"];
+/// Country tuning raises draw 5 by one semitone, supplying the major seventh
+/// in second position without an overblow.
+pub const C_DRAW_COUNTRY: [&str; 10] =
+    ["D4", "G4", "B4", "D5", "F#5", "A5", "B5", "D6", "F6", "A6"];
 
 /// Standard 12-hole C chromatic blow notes — solo tuning, the layout every
 /// 12-hole chromatic actually ships with: `C E G C` repeating up three
@@ -125,6 +129,22 @@ pub fn richter_harp(key: &str) -> Harmonica {
         layout: Some(DiatonicLayout {
             blow: Some(transpose_table(&C_BLOW, off)),
             draw: Some(transpose_table(&C_DRAW, off)),
+        }),
+    }
+}
+
+/// A country-tuned diatonic: standard Richter except draw 5 is raised a
+/// semitone.
+pub fn country_tuned_harp(key: &str) -> Harmonica {
+    let off = key_offset(key);
+    Harmonica::Diatonic {
+        holes: 10,
+        bending_profile: BendingProfile::CountryTuned,
+        position: None,
+        scale: None,
+        layout: Some(DiatonicLayout {
+            blow: Some(transpose_table(&C_BLOW, off)),
+            draw: Some(transpose_table(&C_DRAW_COUNTRY, off)),
         }),
     }
 }

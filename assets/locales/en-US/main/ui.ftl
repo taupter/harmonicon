@@ -150,6 +150,7 @@ editor-field-scale-tooltip = Which scale the out-of-scale red tint on the grid i
 editor-field-text-tooltip = Click to edit; type a value, then click away or press Enter to confirm.
 editor-harmonica-diatonic = ‹ Diatonic (10 holes) ›
 editor-harmonica-paddy-richter = ‹ Paddy Richter (10 holes) ›
+editor-harmonica-country-tuned = ‹ Country Tuned (10 holes) ›
 editor-harmonica-natural-minor = ‹ Natural Minor (10 holes) ›
 editor-harmonica-chromatic = ‹ Chromatic (12 holes) ›
 editor-harmonica-chromatic-16 = ‹ Chromatic (16 holes) ›

@@ -535,9 +535,10 @@ impl EditorState {
     /// The number of playable holes for the current [`HarmonicaKind`].
     pub(super) fn hole_count(&self) -> u8 {
         match self.harmonica_kind {
-            HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
-                10
-            }
+            HarmonicaKind::Diatonic
+            | HarmonicaKind::CountryTuned
+            | HarmonicaKind::PaddyRichter
+            | HarmonicaKind::NaturalMinor => 10,
             HarmonicaKind::Chromatic => 12,
             HarmonicaKind::Chromatic16 => 16,
         }

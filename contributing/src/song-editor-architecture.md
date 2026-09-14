@@ -352,8 +352,8 @@ This preserves old charts without expanding the expression enum used by every
 placement, recording, playback, and rendering path. Undo snapshots carry the
 map, and note-removal paths prune stale ids.
 
-The editor models standard Richter, Paddy Richter, natural minor, 12-hole
-chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
+The editor models standard Richter, Paddy Richter, country tuned, natural
+minor, 12-hole chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
 variants. `playback::build_harp` supplies the matching core layout, and
 `EditorState::hole_count` is the shared authority for grid lanes, note bounds,
 import, and save/load. The serialized `bending_profile` or `harmonica.holes`

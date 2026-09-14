@@ -182,7 +182,10 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     // song's layout now actually matches its key instead of always reading
     // as a plain, untransposed C harp.
     let harmonica = match state.harmonica_kind {
-        HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
+        HarmonicaKind::Diatonic
+        | HarmonicaKind::CountryTuned
+        | HarmonicaKind::PaddyRichter
+        | HarmonicaKind::NaturalMinor => {
             let (blow, draw) = match &harp {
                 Harmonica::Diatonic {
                     layout: Some(l), ..
@@ -195,6 +198,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             let bending_profile = match state.harmonica_kind {
                 HarmonicaKind::Diatonic => "richter_standard",
                 HarmonicaKind::PaddyRichter => "paddy_richter",
+                HarmonicaKind::CountryTuned => "country_tuned",
                 HarmonicaKind::NaturalMinor => "natural_minor",
                 _ => unreachable!("matched diatonic variants above"),
             };
@@ -364,6 +368,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         (Some("chromatic"), _) => HarmonicaKind::Chromatic,
         _ => match v["harmonica"]["bending_profile"].as_str() {
             Some("paddy_richter") => HarmonicaKind::PaddyRichter,
+            Some("country_tuned") => HarmonicaKind::CountryTuned,
             Some("natural_minor") => HarmonicaKind::NaturalMinor,
             _ => HarmonicaKind::Diatonic,
         },
@@ -551,7 +556,7 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
     if kind == "diatonic"
         && !matches!(
             profile,
-            "richter_standard" | "paddy_richter" | "natural_minor"
+            "richter_standard" | "country_tuned" | "paddy_richter" | "natural_minor"
         )
     {
         found.push(format!("alternate diatonic tuning/profile {:?}", profile));

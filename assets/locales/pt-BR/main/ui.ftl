@@ -148,6 +148,7 @@ editor-field-scale-tooltip = Contra qual escala o tom vermelho de "fora da escal
 editor-field-text-tooltip = Clique para editar; digite um valor e depois clique fora ou pressione Enter para confirmar.
 editor-harmonica-diatonic = ‹ Diatônica (10 buracos) ›
 editor-harmonica-paddy-richter = ‹ Paddy Richter (10 buracos) ›
+editor-harmonica-country-tuned = ‹ Afinação country (10 buracos) ›
 editor-harmonica-natural-minor = ‹ Menor natural (10 buracos) ›
 editor-harmonica-chromatic = ‹ Cromática (12 buracos) ›
 editor-harmonica-chromatic-16 = ‹ Cromática (16 buracos) ›

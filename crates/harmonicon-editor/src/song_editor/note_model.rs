@@ -35,6 +35,7 @@ pub(super) enum Pitch {
 pub(super) enum HarmonicaKind {
     #[default]
     Diatonic,
+    CountryTuned,
     PaddyRichter,
     NaturalMinor,
     Chromatic,
@@ -45,7 +46,7 @@ impl HarmonicaKind {
     pub(super) fn is_diatonic(self) -> bool {
         matches!(
             self,
-            Self::Diatonic | Self::PaddyRichter | Self::NaturalMinor
+            Self::Diatonic | Self::CountryTuned | Self::PaddyRichter | Self::NaturalMinor
         )
     }
 

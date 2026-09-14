@@ -148,6 +148,7 @@ editor-field-scale-tooltip = Contra qué escala se mide el tinte rojo de "fuera 
 editor-field-text-tooltip = Haz clic para editar; escribe un valor y luego haz clic fuera o pulsa Intro para confirmar.
 editor-harmonica-diatonic = ‹ Diatónica (10 orificios) ›
 editor-harmonica-paddy-richter = ‹ Paddy Richter (10 orificios) ›
+editor-harmonica-country-tuned = ‹ Afinación country (10 orificios) ›
 editor-harmonica-natural-minor = ‹ Menor natural (10 orificios) ›
 editor-harmonica-chromatic = ‹ Cromática (12 orificios) ›
 editor-harmonica-chromatic-16 = ‹ Cromática (16 orificios) ›

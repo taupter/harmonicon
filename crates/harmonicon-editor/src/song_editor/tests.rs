@@ -1696,9 +1696,10 @@ fn sixteen_hole_chromatic_round_trips_high_holes_and_slide() {
 
 #[test]
 fn alternate_diatonic_tunings_round_trip_profile_and_layout() {
-    for (kind, profile, hole_three_blow) in [
-        (HarmonicaKind::PaddyRichter, "paddy_richter", "A4"),
-        (HarmonicaKind::NaturalMinor, "natural_minor", "G4"),
+    for (kind, profile, hole_three_blow, hole_five_draw) in [
+        (HarmonicaKind::PaddyRichter, "paddy_richter", "A4", "F5"),
+        (HarmonicaKind::CountryTuned, "country_tuned", "G4", "F#5"),
+        (HarmonicaKind::NaturalMinor, "natural_minor", "G4", "F5"),
     ] {
         let mut state = EditorState {
             harmonica_kind: kind,
@@ -1710,12 +1711,22 @@ fn alternate_diatonic_tunings_round_trip_profile_and_layout() {
         let value: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
         assert_eq!(value["harmonica"]["bending_profile"], profile);
         assert_eq!(value["harmonica"]["layout"]["blow"][2], hole_three_blow);
+        assert_eq!(value["harmonica"]["layout"]["draw"][4], hole_five_draw);
 
         let mut loaded = EditorState::default();
         let mut scroll = Scroll::default();
         load_harpchart(&value, &mut loaded, &mut scroll);
         assert_eq!(loaded.harmonica_kind, kind);
     }
+}
+
+#[test]
+fn country_tuned_editor_harp_raises_draw_five() {
+    let harp = build_harp("C", HarmonicaKind::CountryTuned);
+    assert_eq!(
+        harp.wind_direction_label(5, &harmonicon_core::chart::Action::Draw),
+        "F#5"
+    );
 }
 
 #[test]

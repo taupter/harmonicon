@@ -79,8 +79,8 @@ resize lands — it never moves notes that are already sitting off-grid.
 ## Chart metadata
 
 The meta-form covers a chart's song-level fields: music tempo, harp key,
-playing position, harmonica type (standard, Paddy Richter, or natural-minor
-10-hole diatonic; 12-/16-hole chromatic),
+playing position, harmonica type (standard, Paddy Richter, country-tuned, or
+natural-minor 10-hole diatonic; 12-/16-hole chromatic),
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 

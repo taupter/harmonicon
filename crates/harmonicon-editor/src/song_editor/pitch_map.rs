@@ -107,6 +107,10 @@ mod tests {
         assert_eq!(suggest_key(&midi, HarmonicaKind::NaturalMinor), "C");
         let harp = build_harp("C", HarmonicaKind::NaturalMinor);
         assert_eq!(pitch_map::key_fit_score_for_harp(&midi, &harp), 1.0);
+
+        let country =
+            ["D5", "F#5", "A5"].map(|note| u8::try_from(note_to_midi(note).unwrap()).unwrap());
+        assert_eq!(suggest_key(&country, HarmonicaKind::CountryTuned), "C");
     }
 
     #[test]
