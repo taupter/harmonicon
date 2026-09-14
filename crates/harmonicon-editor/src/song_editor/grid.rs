@@ -822,20 +822,41 @@ pub(super) fn spawn_note(
             TextColor(Color::WHITE),
             Pickable::IGNORE,
         ));
-        spawn_resize_handle(r, id, Edge::Left, locked);
-        spawn_resize_handle(r, id, Edge::Right, locked);
+        spawn_resize_handle(r, id, Edge::Left, locked, width);
+        spawn_resize_handle(r, id, Edge::Right, locked, width);
     });
 
     root
 }
 
-fn spawn_resize_handle(parent: &mut ChildSpawnerCommands, id: u32, edge: Edge, locked: bool) {
+/// Each resize handle's width on a note `note_width` px wide: [`HANDLE_W`],
+/// but never more than a third of the note.
+///
+/// The handles are absolutely positioned at the note's two edges and own
+/// their own drag observers, so whatever they cover is *not* draggable to
+/// move the note. At a fixed 8px each they cover a 16th note whole — 3
+/// ticks is `3 * TICK_W - 2.0` = 13px, less than the 16px two handles want
+/// — leaving no move zone at all, and overlapping by 3px in the middle
+/// where only the later-spawned (right) handle is actually reachable.
+/// Splitting in thirds keeps both edges and the move zone between them
+/// reachable at every note length.
+pub(super) fn resize_handle_width(note_width: f32) -> f32 {
+    (note_width / 3.0).clamp(0.0, HANDLE_W)
+}
+
+fn spawn_resize_handle(
+    parent: &mut ChildSpawnerCommands,
+    id: u32,
+    edge: Edge,
+    locked: bool,
+    note_width: f32,
+) {
     use super::state::apply_resize;
     let mut node = Node {
         position_type: PositionType::Absolute,
         top: Val::Px(0.0),
         bottom: Val::Px(0.0),
-        width: Val::Px(HANDLE_W),
+        width: Val::Px(resize_handle_width(note_width)),
         ..default()
     };
     match edge {
