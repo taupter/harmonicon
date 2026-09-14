@@ -1579,6 +1579,43 @@ fn sixteen_hole_chromatic_round_trips_high_holes_and_slide() {
 }
 
 #[test]
+fn alternate_diatonic_tunings_round_trip_profile_and_layout() {
+    for (kind, profile, hole_three_blow) in [
+        (HarmonicaKind::PaddyRichter, "paddy_richter", "A4"),
+        (HarmonicaKind::NaturalMinor, "natural_minor", "G4"),
+    ] {
+        let mut state = EditorState {
+            harmonica_kind: kind,
+            ..Default::default()
+        };
+        select_or_add(&mut state, 1, 0);
+        let text = serialize_harpchart(&state);
+        validated_harpchart(&text).expect("the editor must accept its alternate tuning");
+        let value: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
+        assert_eq!(value["harmonica"]["bending_profile"], profile);
+        assert_eq!(value["harmonica"]["layout"]["blow"][2], hole_three_blow);
+
+        let mut loaded = EditorState::default();
+        let mut scroll = Scroll::default();
+        load_harpchart(&value, &mut loaded, &mut scroll);
+        assert_eq!(loaded.harmonica_kind, kind);
+    }
+}
+
+#[test]
+fn natural_minor_editor_harp_uses_minor_reeds() {
+    let harp = build_harp("C", HarmonicaKind::NaturalMinor);
+    assert_eq!(
+        harp.wind_direction_label(2, &harmonicon_core::chart::Action::Blow),
+        "D#4"
+    );
+    assert_eq!(
+        harp.wind_direction_label(3, &harmonicon_core::chart::Action::Draw),
+        "A#4"
+    );
+}
+
+#[test]
 fn loading_a_diatonic_chart_drops_holes_beyond_ten() {
     // A hand-edited or malformed chart claiming diatonic with an
     // out-of-range hole shouldn't produce an invalid GridNote.

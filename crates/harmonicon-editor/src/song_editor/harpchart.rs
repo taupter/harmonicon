@@ -155,7 +155,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     // song's layout now actually matches its key instead of always reading
     // as a plain, untransposed C harp.
     let harmonica = match state.harmonica_kind {
-        HarmonicaKind::Diatonic => {
+        HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
             let (blow, draw) = match &harp {
                 Harmonica::Diatonic {
                     layout: Some(l), ..
@@ -165,12 +165,18 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 ),
                 _ => (Vec::new(), Vec::new()),
             };
+            let bending_profile = match state.harmonica_kind {
+                HarmonicaKind::Diatonic => "richter_standard",
+                HarmonicaKind::PaddyRichter => "paddy_richter",
+                HarmonicaKind::NaturalMinor => "natural_minor",
+                _ => unreachable!("matched diatonic variants above"),
+            };
             json!({
                 "type": "diatonic",
                 "holes": 10,
                 "position": state.position,
                 "scale": state.scale,
-                "bending_profile": "richter_standard",
+                "bending_profile": bending_profile,
                 "layout": { "blow": blow, "draw": draw }
             })
         }
@@ -329,7 +335,11 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
     ) {
         (Some("chromatic"), Some(16)) => HarmonicaKind::Chromatic16,
         (Some("chromatic"), _) => HarmonicaKind::Chromatic,
-        _ => HarmonicaKind::Diatonic,
+        _ => match v["harmonica"]["bending_profile"].as_str() {
+            Some("paddy_richter") => HarmonicaKind::PaddyRichter,
+            Some("natural_minor") => HarmonicaKind::NaturalMinor,
+            _ => HarmonicaKind::Diatonic,
+        },
     };
     if let Some(meta) = v.get("metadata")
         && let Some(audio) = meta["audio_file"].as_str()
@@ -476,16 +486,16 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
             "{holes}-hole chromatic harmonica (maximum supported: 16)"
         ));
     }
+    let profile = harmonica["bending_profile"]
+        .as_str()
+        .unwrap_or("richter_standard");
     if kind == "diatonic"
-        && harmonica["bending_profile"]
-            .as_str()
-            .unwrap_or("richter_standard")
-            != "richter_standard"
+        && !matches!(
+            profile,
+            "richter_standard" | "paddy_richter" | "natural_minor"
+        )
     {
-        found.push(format!(
-            "alternate diatonic tuning/profile {:?}",
-            harmonica["bending_profile"].as_str().unwrap_or("unknown")
-        ));
+        found.push(format!("alternate diatonic tuning/profile {:?}", profile));
     }
 
     if value["timing"]["time_signature_map"]

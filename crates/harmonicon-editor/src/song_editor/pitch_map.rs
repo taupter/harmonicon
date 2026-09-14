@@ -23,7 +23,9 @@ use harmonicon_core::pitch_map::{self, HarpKind, HoleAssignment, Technique};
 /// The editor's `HarmonicaKind` as core's `HarpKind`.
 pub(super) fn harp_kind(kind: HarmonicaKind) -> HarpKind {
     match kind {
-        HarmonicaKind::Diatonic => HarpKind::Diatonic,
+        HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
+            HarpKind::Diatonic
+        }
         HarmonicaKind::Chromatic | HarmonicaKind::Chromatic16 => HarpKind::Chromatic,
     }
 }

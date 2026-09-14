@@ -164,6 +164,8 @@ Work in risk order:
 4. Extend the document model for practical arranging: alternate tunings and
    16-hole chromatic first, then section/chord markers, repeats and endings,
    pickups/count-in, lyrics, transposition, and batch editing.
+   **Alternate tunings and 16-hole chromatic are done; arranging annotations
+   and editing operations remain.**
 5. Add focused round-trip and playability tests for each item, then update the
    player and contributor documentation as behavior becomes available.
 

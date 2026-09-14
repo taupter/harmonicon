@@ -335,9 +335,10 @@ of every *other* track as `song/music.wav`, via the same additive synth
 and is a different design point from, the newer `song/music.mid`
 per-track-stem backing Jam Session can use instead.
 
-The editor models 12- and 16-hole chromatics as distinct
-`HarmonicaKind` variants. `playback::build_harp` supplies the matching
-three- or four-octave solo-tuned layout, and `EditorState::hole_count` is
-the shared authority for grid lanes, note bounds, import, and save/load.
-The serialized `harmonica.holes` value restores the same variant on load,
-so holes 13–16 and their slide notes survive a round trip.
+The editor models standard Richter, Paddy Richter, natural minor, 12-hole
+chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
+variants. `playback::build_harp` supplies the matching core layout, and
+`EditorState::hole_count` is the shared authority for grid lanes, note bounds,
+import, and save/load. The serialized `bending_profile` or `harmonica.holes`
+value restores the same variant on load, so alternate reed layouts and holes
+13–16 survive a round trip.

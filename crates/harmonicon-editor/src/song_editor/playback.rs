@@ -7,7 +7,8 @@ use super::state::{Dir, GridNote, HarmonicaKind, Pitch};
 use super::{TICK_W, TICKS_PER_BEAT};
 use harmonicon_audio::AudioSettings;
 use harmonicon_core::harmonica::{
-    Harmonica, chromatic_16_harp, chromatic_harp, hole_notes, richter_harp,
+    Harmonica, chromatic_16_harp, chromatic_harp, hole_notes, natural_minor_harp,
+    paddy_richter_harp, richter_harp,
 };
 use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::synth::{PhraseNote, SAMPLE_RATE, render_pcm};
@@ -77,6 +78,8 @@ pub(super) struct Playhead {
 pub(super) fn build_harp(key: &str, kind: HarmonicaKind) -> Harmonica {
     match kind {
         HarmonicaKind::Diatonic => richter_harp(key),
+        HarmonicaKind::PaddyRichter => paddy_richter_harp(key),
+        HarmonicaKind::NaturalMinor => natural_minor_harp(key),
         HarmonicaKind::Chromatic => chromatic_harp(key),
         HarmonicaKind::Chromatic16 => chromatic_16_harp(key),
     }

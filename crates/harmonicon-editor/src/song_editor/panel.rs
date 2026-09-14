@@ -280,7 +280,7 @@ pub(super) fn update_technique_button_visibility(
     state: Res<EditorState>,
     mut buttons: Query<(&ModButton, &mut Node)>,
 ) {
-    let diatonic_only = matches!(state.harmonica_kind, HarmonicaKind::Diatonic);
+    let diatonic_only = state.harmonica_kind.is_diatonic();
     for (kind, mut node) in &mut buttons {
         let visible = match kind {
             ModButton::Bend | ModButton::Overblow | ModButton::Overdraw => diatonic_only,
@@ -303,6 +303,8 @@ pub(super) fn update_harmonica_kind_text(
 ) {
     let key = match state.harmonica_kind {
         HarmonicaKind::Diatonic => "editor-harmonica-diatonic",
+        HarmonicaKind::PaddyRichter => "editor-harmonica-paddy-richter",
+        HarmonicaKind::NaturalMinor => "editor-harmonica-natural-minor",
         HarmonicaKind::Chromatic => "editor-harmonica-chromatic",
         HarmonicaKind::Chromatic16 => "editor-harmonica-chromatic-16",
     };

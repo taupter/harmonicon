@@ -473,7 +473,9 @@ impl EditorState {
     /// The number of playable holes for the current [`HarmonicaKind`].
     pub(super) fn hole_count(&self) -> u8 {
         match self.harmonica_kind {
-            HarmonicaKind::Diatonic => 10,
+            HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
+                10
+            }
             HarmonicaKind::Chromatic => 12,
             HarmonicaKind::Chromatic16 => 16,
         }
@@ -488,13 +490,11 @@ impl EditorState {
         self.harmonica_kind = kind;
         let hole_count = self.hole_count();
         self.notes.retain(|n| n.hole <= hole_count);
-        let sanitize = |kind: HarmonicaKind, pitch: Pitch| match (kind, pitch) {
-            (HarmonicaKind::Diatonic, Pitch::Slide) => Pitch::Normal,
-            (
-                HarmonicaKind::Chromatic | HarmonicaKind::Chromatic16,
-                Pitch::Bend(_) | Pitch::Overblow | Pitch::Overdraw,
-            ) => Pitch::Normal,
-            (_, p) => p,
+        let sanitize = |kind: HarmonicaKind, pitch: Pitch| {
+            let incompatible = (kind.is_diatonic() && pitch == Pitch::Slide)
+                || (kind.is_chromatic()
+                    && matches!(pitch, Pitch::Bend(_) | Pitch::Overblow | Pitch::Overdraw));
+            if incompatible { Pitch::Normal } else { pitch }
         };
         for n in &mut self.notes {
             n.pitch = sanitize(kind, n.pitch);

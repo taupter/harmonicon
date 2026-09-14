@@ -444,7 +444,7 @@ fn update_expected_technique_button_visibility(
     state: Res<EditorState>,
     mut buttons: Query<(&ExpectedModButton, &mut Node)>,
 ) {
-    let diatonic_only = matches!(state.harmonica_kind, HarmonicaKind::Diatonic);
+    let diatonic_only = state.harmonica_kind.is_diatonic();
     for (ExpectedModButton(kind), mut node) in &mut buttons {
         let visible = match kind {
             ModButton::Bend | ModButton::Overblow | ModButton::Overdraw => diatonic_only,

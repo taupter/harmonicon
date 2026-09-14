@@ -35,8 +35,23 @@ pub(super) enum Pitch {
 pub(super) enum HarmonicaKind {
     #[default]
     Diatonic,
+    PaddyRichter,
+    NaturalMinor,
     Chromatic,
     Chromatic16,
+}
+
+impl HarmonicaKind {
+    pub(super) fn is_diatonic(self) -> bool {
+        matches!(
+            self,
+            Self::Diatonic | Self::PaddyRichter | Self::NaturalMinor
+        )
+    }
+
+    pub(super) fn is_chromatic(self) -> bool {
+        matches!(self, Self::Chromatic | Self::Chromatic16)
+    }
 }
 
 /// An expression technique layered on top of the pitch. At most one at a
