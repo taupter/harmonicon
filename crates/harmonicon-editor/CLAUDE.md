@@ -491,13 +491,50 @@ load-bearing about *this* crate.
   and `assets/themes/theme_schema.dtd.json` is `additionalProperties:
   false`, so a new colour needs an entry there too or every theme fails
   `asset_layout::theme_json_validates_against_schema`.
-- **The grid's beat ruler numbers bars, not just beats**
-  (`grid::beat_label`): a bar line's label is the 1-based *bar* number in
-  `colors.accent` at `BAR_LABEL_FONT`, every other beat its index within
-  the bar in `colors.label` at the smaller `BEAT_LABEL_FONT`. The two can
-  read as the same digit (beat 3 of bar 1 vs. bar 3's downbeat), so colour
-  and size are what tell them apart — labelling only the within-bar index
-  made every bar of a chart render an identical ruler.
+- **The grid's beat ruler is laid out in ticks, and numbers bars**
+  (`grid::ruler_label`, driven by `EditorState::ticks_per_bar`/
+  `ticks_per_signature_beat`). A bar line's label is the 1-based *bar*
+  number in `colors.accent` at `BAR_LABEL_FONT`, every other beat its
+  index within the bar in `colors.label` at the smaller
+  `BEAT_LABEL_FONT` — the two can read as the same digit (beat 3 of bar 1
+  vs. bar 3's downbeat), so colour and size are what tell them apart.
+  Three things worth knowing:
+  - **A bar boundary is not assumed to be a column boundary.** Lane cells
+    are one *quarter note* wide, but a 7/8 bar is 42 ticks — three and a
+    half of them — so its bar line genuinely falls mid-column. The ruler
+    and the bar lines therefore run off their own tick loops after the
+    column loop, not inside it. In 4/4 every position works out exactly
+    where the column loop would have put it.
+  - **`EditorState::beats_per_bar` rounds and must not be used for
+    layout.** It measures a bar in whole quarter notes, which is exact
+    only when the meter's bar happens to be one; 7/8's 3.5 became 4 and
+    put every bar line half a beat out. It survives only for the
+    metronome, whose click really is driven by a quarter-note clock —
+    accenting an odd meter correctly there is a separate change.
+    `MusicScoreMeter::ticks_per_beat`/`ticks_per_bar` are the exact
+    versions, integer-or-`None`.
+  - **Beat numbers count the meter's own beat**, so 7/8 reads 1–7 and
+    6/8 reads 1–6. Counting syllables (`snap::off_beat_labels`) stay
+    *quarter*-relative, because they mirror the snap grid rather than the
+    meter — and are skipped wherever one would collide with a numbered
+    beat, which is all of them in a meter counted in eighths, where the
+    "&" position *is* a beat.
+
+  `timeline::describe_tick` shares the same tick math, or the confirm
+  dialog would name a different bar than the ruler behind it.
+- **The meter is picked, never typed**
+  (`meta_form::spawn_time_signature_combobox`, from
+  `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A
+  time signature's lower number names a note value, so only a power of
+  two belongs there — `parse_time_signature` only rejects what won't
+  parse at all, so as free text `4/3` sailed through and was rounded into
+  a bar length matching no meter. A list makes that unrepresentable
+  rather than merely detectable. The slot lives in the *fixed chrome*
+  beside the Scale picker for the dropdown-clipping reason
+  `spawn_scale_combobox` documents. A chart on disk may hold a meter
+  outside the list (it's the common ones, not all valid ones), so
+  `sync_time_signature_combobox_value` writes `ComboboxValue` directly
+  and displays it faithfully instead of snapping to a nearby option.
 - **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
   a `dialogs::checkbox` in the meta form; off by default). When on,
   `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at
