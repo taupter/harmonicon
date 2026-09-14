@@ -392,9 +392,10 @@ load-bearing about *this* crate.
     fresh each frame as a local value rather than writing it anywhere,
     so previewing can't trigger rebuilds.
 - **The Song Editor's grid supports a swing/triplet-aware snap mode**
-  (`song_editor::snap`, split out of `state.rs` purely for that file's
-  line budget — `EditorState::snap_mode` is still `state.rs`'s own
-  field). `TICKS_PER_BEAT` (`harmonicon_core::synth`) is 12, not 4 — the
+  (`harmonicon_core::snap`, re-exported as `song_editor::snap` by
+  `mod.rs` — Bevy-free and unit-tested there; `EditorState::snap_mode` is
+  still `state.rs`'s own field). `TICKS_PER_BEAT` (`harmonicon_core::
+  synth`) is 12, not 4 — the
   lowest resolution divisible by both 4 (straight 16ths, the old
   resolution) and 3 (triplets): a true triplet position doesn't exist as
   an integer tick on a 4-ticks-per-beat grid at all, which is why this
@@ -433,12 +434,48 @@ load-bearing about *this* crate.
   pure pixel-to-tick conversions — snapping is a post-processing step
   applied at the call site, not a parameter threaded through them, so
   their own existing tests didn't need touching. `snap_mode` is a UI
-  preference, not chart content or undo-tracked. The grid's own sub-beat
-  gridlines are tiered by color rather than one line per raw tick (which
-  at resolution 12 would be 11 lines per beat, unreadably cluttered):
-  straight-16th positions keep `quarter_line`/`half_line`, triplet
-  positions get a new, hue-distinct `SongEditorColors::triplet_line` —
-  also called out in the color legend (`meta_form::spawn_color_legend`).
+  preference, not chart content or undo-tracked. **`snap_mode` also
+  decides what the grid's background draws**, not just where a click
+  lands: `snap::sub_beat_gridlines` returns the active mode's own
+  `grid_points()` (minus tick 0, already the beat/bar line) with a
+  `GridlineKind` tier for each, so only reachable positions get a line —
+  `Half`/`Sixteenth` take `quarter_line`/`half_line`, `Triplet` takes the
+  hue-distinct `SongEditorColors::triplet_line` (also in the color legend,
+  `meta_form::spawn_color_legend`). Drawing *both* families at once
+  instead divides a beat at ticks 3, 4, 6, 8 and 9 — two of the six gaps
+  one tick (5px) wide and the rest three — which reads as neither a 2- nor
+  a 3-way split, and marks positions the active mode can't reach.
+  `snap::off_beat_labels` applies the same rule to the beat ruler's
+  counting syllables, returning *localization keys* (not glyphs) since
+  "&"/"a" are language-specific: `e`/`a` in pt-BR, `y`/`a` in es-ES. The
+  two syllables name the same ticks in every mode, which is what makes a
+  shuffle read as the triplet it is — ticks 0 and 8, the "1 … a" of
+  "1 & a". Note `triplet_line` is the one `SongEditorColors` field whose
+  weight matters *relative to nothing else on screen*: in Shuffle and
+  Triplet it is the beat's only sub-beat line, so it belongs a shade under
+  `half_line`, not brighter. Both bundled `theme.json`s must define it —
+  `SongEditorColors` is `#[serde(default)]`, so a field a theme file omits
+  silently takes the Rust default while its siblings come from the file,
+  and `assets/themes/theme_schema.dtd.json` is `additionalProperties:
+  false`, so a new colour needs an entry there too or every theme fails
+  `asset_layout::theme_json_validates_against_schema`.
+- **The grid's beat ruler numbers bars, not just beats**
+  (`grid::beat_label`): a bar line's label is the 1-based *bar* number in
+  `colors.accent` at `BAR_LABEL_FONT`, every other beat its index within
+  the bar in `colors.label` at the smaller `BEAT_LABEL_FONT`. The two can
+  read as the same digit (beat 3 of bar 1 vs. bar 3's downbeat), so colour
+  and size are what tell them apart — labelling only the within-bar index
+  made every bar of a chart render an identical ruler.
+- **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
+  a `dialogs::checkbox` in the meta form; off by default). When on,
+  `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at
+  `BAR_TINT_MIX`, tiling the standard I/IV/V form every 12 bars as the
+  user scrolls. It is unconditionally `Progression::Standard`, which is
+  why it defaults off: on a chart that isn't a 12-bar blues it colours the
+  background with a progression the song doesn't have. Like `snap_mode`
+  it's a UI preference — not chart content, not undo-tracked — but both
+  **must be tracked in `grid_cache::Snapshot`**, since each changes what
+  `rebuild_grid` draws and the cache is what decides whether it runs.
 - **The Song Editor's silence track** is a read-only summary strip
   (`SILENCE_ROW_H`, below the last hole lane — `grid_height` folds it into
   every height that already derives from hole count, so the row container/
