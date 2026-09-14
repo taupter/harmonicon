@@ -15,20 +15,11 @@
 //! [`map_pitch_playable`]) still name the same pair of functions they always
 //! did.
 
-use super::state::{Dir, HarmonicaKind, Pitch};
+use super::playback::build_harp;
+use super::state::{Dir, HARP_KEYS, HarmonicaKind, Pitch};
 use harmonicon_core::chart::Action;
 use harmonicon_core::harmonica::Harmonica;
-use harmonicon_core::pitch_map::{self, HarpKind, HoleAssignment, Technique};
-
-/// The editor's `HarmonicaKind` as core's `HarpKind`.
-pub(super) fn harp_kind(kind: HarmonicaKind) -> HarpKind {
-    match kind {
-        HarmonicaKind::Diatonic | HarmonicaKind::PaddyRichter | HarmonicaKind::NaturalMinor => {
-            HarpKind::Diatonic
-        }
-        HarmonicaKind::Chromatic | HarmonicaKind::Chromatic16 => HarpKind::Chromatic,
-    }
-}
+use harmonicon_core::pitch_map::{self, HoleAssignment, Technique};
 
 /// Core's resolution in the editor's own terms.
 ///
@@ -72,13 +63,23 @@ pub(super) fn map_pitch(target: u8, harp: &Harmonica, _kind: HarmonicaKind) -> (
 
 /// The harp key needing the fewest bends, overblows and fallbacks.
 pub(super) fn suggest_key(midi_keys: &[u8], kind: HarmonicaKind) -> &'static str {
-    pitch_map::suggest_key(midi_keys, harp_kind(kind))
+    let mut best_key = HARP_KEYS[0];
+    let mut best_score = -1.0;
+    for &key in &HARP_KEYS {
+        let score = pitch_map::key_fit_score_for_harp(midi_keys, &build_harp(key, kind));
+        if score > best_score {
+            best_score = score;
+            best_key = key;
+        }
+    }
+    best_key
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use harmonicon_core::harmonica::{chromatic_harp, richter_harp};
+    use harmonicon_core::midi::note_to_midi;
 
     /// The translation, not the resolution — core owns and tests the latter.
     #[test]
@@ -97,6 +98,24 @@ mod tests {
             });
             assert_eq!(pitch, expected);
         }
+    }
+
+    #[test]
+    fn key_suggestion_scores_the_selected_alternate_layout() {
+        let midi = ["C4", "D#4", "G4", "A#4"]
+            .map(|note| u8::try_from(note_to_midi(note).unwrap()).unwrap());
+        assert_eq!(suggest_key(&midi, HarmonicaKind::NaturalMinor), "C");
+        let harp = build_harp("C", HarmonicaKind::NaturalMinor);
+        assert_eq!(pitch_map::key_fit_score_for_harp(&midi, &harp), 1.0);
+    }
+
+    #[test]
+    fn key_suggestion_scores_the_low_octave_of_a_sixteen_hole_harp() {
+        let midi =
+            ["C3", "E3", "G3"].map(|note| u8::try_from(note_to_midi(note).unwrap()).unwrap());
+        assert_eq!(suggest_key(&midi, HarmonicaKind::Chromatic16), "C");
+        let harp = build_harp("C", HarmonicaKind::Chromatic16);
+        assert_eq!(pitch_map::key_fit_score_for_harp(&midi, &harp), 1.0);
     }
 
     #[test]

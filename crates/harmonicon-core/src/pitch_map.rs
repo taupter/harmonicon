@@ -255,10 +255,17 @@ pub fn map_pitch(target: u8, harp: &Harmonica) -> HoleAssignment {
 /// blow/draw — the fitness [`suggest_key`] maximises. Empty input scores
 /// `0.0` rather than dividing by zero.
 pub fn key_fit_score(midi_keys: &[u8], key: &str, kind: HarpKind) -> f32 {
+    let harp = harp_for_key(key, kind);
+    key_fit_score_for_harp(midi_keys, &harp)
+}
+
+/// Fraction of `midi_keys` matching natural reeds on an already-built harp.
+/// This variant lets alternate tunings and non-default hole counts use the
+/// same scoring rule without pretending they are a standard instrument.
+pub fn key_fit_score_for_harp(midi_keys: &[u8], harp: &Harmonica) -> f32 {
     if midi_keys.is_empty() {
         return 0.0;
     }
-    let harp = harp_for_key(key, kind);
     let exact = midi_keys
         .iter()
         .filter(|&&target| {

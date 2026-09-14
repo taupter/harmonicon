@@ -46,8 +46,9 @@ load-bearing about *this* crate.
   import could silently relocate a note the harp could actually have
   played.) The key itself isn't just whatever was
   already selected: `on_midi_track_selected` first scores every
-  `state::HARP_KEYS` entry via `suggest_key`/`key_fit_score` (the fraction
-  of the track's raw MIDI pitches landing on an exact blow/draw match —
+  `state::HARP_KEYS` entry via `suggest_key`/`key_fit_score_for_harp`, built
+  with the selected tuning and hole count (the fraction of the track's raw
+  MIDI pitches landing on an exact blow/draw match —
   no bend/slide/fallback needed) and imports onto whichever key scores
   highest, updating `EditorState::key` to match; the harmonica *kind*
   (diatonic/chromatic) is left alone regardless, since flipping that is a

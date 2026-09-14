@@ -329,6 +329,8 @@ needed nearest-note fallback, same-onset groups mixing blow and draw, and
 same-onset groups mapping multiple pitches to one hole. These counts appear in
 the status bar through `SaveFeedback`; the importer keeps the notes visible so
 the author can resolve the musical ambiguity instead of silently dropping them.
+Key suggestion scores each candidate against the selected instrument's actual
+layout, including alternate diatonic reeds and a 16-hole chromatic's low octave.
 Saving while a track is selected also writes a synthesized WAV mixdown
 of every *other* track as `song/music.wav`, via the same additive synth
 [The Audio Input Pipeline](audio-pipeline.md) describes — this predates,
