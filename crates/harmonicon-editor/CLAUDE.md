@@ -404,7 +404,8 @@ load-bearing about *this* crate.
     destination already has.
   - `erase_notes_in`/`remove_range_closing_gap` — the timeline tools.
     Remove also shifts every later annotation back by the gap and drops
-    those inside it.
+    those inside it. Tempo and meter points follow the same cut; the timing
+    active at the old end is restored at the new join.
   - `drop_orphaned_metadata()` — drops annotations at ticks nothing
     starts on and intensities for ids nothing has. **`prune_selection`
     calls it**, so every removal path that already pruned the selection

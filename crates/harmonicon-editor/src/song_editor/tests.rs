@@ -3354,6 +3354,40 @@ fn remove_range_shifts_later_annotations_by_the_removed_length() {
 }
 
 #[test]
+fn remove_range_shifts_timing_points_and_preserves_the_end_state() {
+    let mut s = EditorState {
+        tempo: "120".into(),
+        tempo_changes: vec![(8, 140.0), (24, 160.0), (36, 180.0)],
+        time_signature: "4/4".into(),
+        meter_changes: vec![(8, "3/4".into()), (24, "7/8".into()), (36, "6/8".into())],
+        ..Default::default()
+    };
+
+    s.remove_range_closing_gap(6, 30);
+
+    assert_eq!(s.tempo_changes, vec![(6, 160.0), (12, 180.0)]);
+    assert_eq!(s.meter_changes, vec![(6, "7/8".into()), (12, "6/8".into())]);
+}
+
+#[test]
+fn removing_from_tick_zero_promotes_the_timing_at_the_cut_end() {
+    let mut s = EditorState {
+        tempo: "120".into(),
+        tempo_changes: vec![(8, 140.0), (24, 160.0)],
+        time_signature: "4/4".into(),
+        meter_changes: vec![(8, "3/4".into()), (24, "7/8".into())],
+        ..Default::default()
+    };
+
+    s.remove_range_closing_gap(0, 12);
+
+    assert_eq!(s.tempo, "140");
+    assert_eq!(s.tempo_changes, vec![(12, 160.0)]);
+    assert_eq!(s.time_signature, "3/4");
+    assert_eq!(s.meter_changes, vec![(12, "7/8".into())]);
+}
+
+#[test]
 fn remove_range_drops_annotations_inside_the_cut() {
     let mut s = state_with_metadata();
     s.remove_range_closing_gap(20, 30);

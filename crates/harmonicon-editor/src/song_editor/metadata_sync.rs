@@ -26,13 +26,64 @@
 //!   `EditorState::prune_selection` runs, so every existing removal path
 //!   (delete, a harmonica-kind switch, a recording take punching out what
 //!   it overlaps, undo) gets it without a call of its own.
-//! - **Closing a gap shifts** every annotation after it back by the gap's
-//!   length, and drops those inside it.
+//! - **Closing a gap shifts** every annotation and timing-map point after it
+//!   back by the gap's length, and drops those inside it. The tempo and meter
+//!   active at the cut's end are restored at its start.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::clipboard::{NoteClipboard, paste_targets_with_sources};
 use super::state::{EditorState, PhraseAnnotation};
+
+fn close_timing_gap<T: Clone + PartialEq>(
+    opening: &mut T,
+    changes: &mut Vec<(usize, T)>,
+    start: usize,
+    end: usize,
+) {
+    if start >= end {
+        return;
+    }
+    let active_after_cut = changes
+        .iter()
+        .filter(|(tick, _)| *tick <= end)
+        .max_by_key(|(tick, _)| *tick)
+        .map(|(_, value)| value.clone())
+        .unwrap_or_else(|| opening.clone());
+    let span = end - start;
+    changes.retain(|(tick, _)| !(start..end).contains(tick));
+    for (tick, _) in changes.iter_mut().filter(|(tick, _)| *tick >= end) {
+        *tick -= span;
+    }
+    changes.sort_by_key(|(tick, _)| *tick);
+    changes.dedup_by(|later, earlier| {
+        if later.0 == earlier.0 {
+            earlier.1 = later.1.clone();
+            true
+        } else {
+            false
+        }
+    });
+
+    if start == 0 {
+        *opening = active_after_cut;
+        changes.retain(|(tick, _)| *tick > 0);
+        return;
+    }
+    let active_before_cut = changes
+        .iter()
+        .filter(|(tick, _)| *tick < start)
+        .max_by_key(|(tick, _)| *tick)
+        .map(|(_, value)| value)
+        .unwrap_or(opening);
+    if *active_before_cut != active_after_cut {
+        changes.retain(|(tick, _)| *tick != start);
+        changes.push((start, active_after_cut));
+        changes.sort_by_key(|(tick, _)| *tick);
+    } else {
+        changes.retain(|(tick, _)| *tick != start);
+    }
+}
 
 impl EditorState {
     /// Opens the phrase editor on the phrase at `tick` and selects every
@@ -189,6 +240,17 @@ impl EditorState {
     pub(super) fn remove_range_closing_gap(&mut self, start: usize, end: usize) {
         let span = end.saturating_sub(start);
         self.notes = super::ranges::remove_range(&self.notes, start, end);
+        let mut opening_tempo = self.tempo.parse::<f32>().unwrap_or(120.0).max(1.0);
+        close_timing_gap(&mut opening_tempo, &mut self.tempo_changes, start, end);
+        if start == 0 && start < end {
+            self.tempo = format!("{opening_tempo}");
+        }
+        close_timing_gap(
+            &mut self.time_signature,
+            &mut self.meter_changes,
+            start,
+            end,
+        );
         let shifted: BTreeMap<usize, PhraseAnnotation> =
             std::mem::take(&mut self.phrase_annotations)
                 .into_iter()

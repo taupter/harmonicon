@@ -240,7 +240,9 @@ The selection itself changes nothing. With a range selected, the **Erase**
 and **Remove** buttons act on it — a confirmation dialog names the exact
 range before anything happens. **Erase** deletes the notes in that range
 and leaves a gap; **Remove** deletes them *and* shifts every note after the
-range earlier to close the gap, shortening the song. Escape clears a
+range earlier to close the gap, shortening the song. Tempo and meter changes
+move with the later notes, and the timing active at the end of the cut remains
+active at the new join. Escape clears a
 selection or pending split marker.
 
 ## Silence track
