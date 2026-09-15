@@ -180,6 +180,10 @@ pub(super) struct EditorState {
     pub(super) music: String,
     pub(super) name: String,
     pub(super) author: String,
+    /// The chart file's authorship credit. The Details form's `Author`
+    /// field edits `song.artist`; keep this separate so loading a chart does
+    /// not replace `metadata.author` with the performing artist on save.
+    pub(super) chart_author: String,
     pub(super) difficulty: String,
     /// `default` omits the optional chart field; otherwise a schema value.
     pub(super) song_feel: String,
@@ -294,6 +298,7 @@ impl Default for EditorState {
             music: String::new(),
             name: String::new(),
             author: String::new(),
+            chart_author: String::new(),
             difficulty: "intermediate".into(),
             song_feel: "default".into(),
             source: String::new(),

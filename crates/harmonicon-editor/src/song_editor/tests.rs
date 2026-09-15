@@ -1519,6 +1519,265 @@ fn every_bundled_chart_loads_and_resaves_as_a_valid_chart() {
     }
 }
 
+// ── semantic round-trip of every bundled chart ────────────────────────────────
+//
+// `every_bundled_chart_loads_and_resaves_as_a_valid_chart` above proves the
+// resave is *valid* and keeps the note count. This proves it keeps the
+// *meaning*: every event's onset, duration, hole, breath, pitch and
+// modifiers, every phrase label, and every song/harmonica/scoring/loop
+// field — allowing only the normalisation the editor does on purpose:
+//
+// - phrase `id`s are regenerated;
+// - onsets are converted from `time` (seconds) or a foreign `tick`
+//   resolution to the editor's own ticks, so both are compared in *beats*;
+// - durations are seconds in both, re-derived from ticks on save, so they
+//   are compared in beats at the grid's own precision;
+// - numbers may change representation (`180` vs `180.0`);
+// - phrases may be regrouped (the editor groups by onset *and* duration),
+//   so the track is compared as a flat set of events, with each phrase's
+//   own labels carried down onto its events;
+// - `format_version` is bumped.
+//
+// Anything else that differs is data the editor silently rewrote, which is
+// the one thing the audit set out to make impossible.
+
+/// One event as it means to a player, in units that survive the editor's
+/// representation changes.
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+struct CanonicalEvent {
+    onset_beats: f64,
+    duration_beats: f64,
+    hole: u64,
+    action: String,
+    modifiers: Vec<String>,
+    section: Option<String>,
+    chord: Option<String>,
+    groove: Option<String>,
+    call: bool,
+    play_mode: String,
+}
+
+/// Rounds to the editor's grid (a twelfth of a beat) so a value that
+/// survives quantisation compares equal, and one that doesn't shows up.
+fn grid_beats(beats: f64) -> f64 {
+    (beats * TICKS_PER_BEAT as f64).round() / TICKS_PER_BEAT as f64
+}
+
+fn canonical_events(chart: &serde_json::Value) -> Vec<CanonicalEvent> {
+    use harmonicon_core::chart::{TempoPoint, seconds_to_tick, tick_to_seconds};
+    let resolution = chart["timing"]["resolution"].as_u64().unwrap_or(480) as u32;
+    let tempo_map: Vec<TempoPoint> =
+        serde_json::from_value(chart["timing"]["tempo_map"].clone()).unwrap_or_default();
+    let onset_ticks = |phrase: &serde_json::Value| -> u64 {
+        if let Some(t) = phrase["tick"].as_u64() {
+            t
+        } else {
+            seconds_to_tick(
+                phrase["time"].as_f64().unwrap_or(0.0),
+                resolution,
+                &tempo_map,
+            )
+        }
+    };
+    let mut out = Vec::new();
+    for phrase in chart["track"].as_array().into_iter().flatten() {
+        let tick = onset_ticks(phrase);
+        let onset_secs = tick_to_seconds(tick, resolution, &tempo_map);
+        let end_secs = onset_secs + phrase["duration"].as_f64().unwrap_or(0.0);
+        let end_tick = seconds_to_tick(end_secs, resolution, &tempo_map);
+        let onset_beats = grid_beats(tick as f64 / resolution as f64);
+        let duration_beats = grid_beats(end_tick.saturating_sub(tick) as f64 / resolution as f64);
+        for event in phrase["events"].as_array().into_iter().flatten() {
+            let mut modifiers: Vec<String> = event["modifiers"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|m| {
+                    // Numbers inside a modifier (bend semitones, hz,
+                    // intensity) go through the same representation
+                    // normalisation as everything else.
+                    let mut modifier = m.clone();
+                    if matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
+                        && modifier.get("intensity").is_none()
+                    {
+                        modifier["intensity"] = serde_json::json!(0.5);
+                    }
+                    normalize_numbers(&modifier).to_string()
+                })
+                .collect();
+            modifiers.sort();
+            out.push(CanonicalEvent {
+                onset_beats,
+                duration_beats,
+                hole: event["hole"].as_u64().unwrap_or(0),
+                action: event["action"].as_str().unwrap_or("").to_string(),
+                modifiers,
+                section: phrase["phrase"].as_str().map(str::to_owned),
+                chord: phrase["chord"].as_str().map(str::to_owned),
+                groove: phrase["groove"].as_str().map(str::to_owned),
+                call: phrase["call"].as_bool() == Some(true),
+                play_mode: phrase["play_mode"].as_str().unwrap_or("single").to_string(),
+            });
+        }
+    }
+    out.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    out
+}
+
+/// Every number as an `f64` rounded to six places, so `180` and `180.0`
+/// (and `0.6667` re-derived as `0.666667`) compare equal.
+fn normalize_numbers(v: &serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match v {
+        Value::Number(n) => {
+            let f = n.as_f64().unwrap_or(0.0);
+            serde_json::json!((f * 1e6).round() / 1e6)
+        }
+        Value::Array(items) => Value::Array(items.iter().map(normalize_numbers).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), normalize_numbers(v)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// The tempo/meter maps with their ticks in beats, since the two charts
+/// are at different resolutions.
+fn canonical_timing(chart: &serde_json::Value) -> serde_json::Value {
+    let resolution = chart["timing"]["resolution"].as_f64().unwrap_or(480.0);
+    let in_beats = |points: &serde_json::Value, value_key: &str| -> serde_json::Value {
+        let mut v: Vec<(f64, serde_json::Value)> = points
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| {
+                (
+                    grid_beats(p["tick"].as_f64().unwrap_or(0.0) / resolution),
+                    normalize_numbers(&p[value_key]),
+                )
+            })
+            .collect();
+        v.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        serde_json::json!(v)
+    };
+    serde_json::json!({
+        "tempo_map": in_beats(&chart["timing"]["tempo_map"], "bpm"),
+        "time_signature_map": in_beats(&chart["timing"]["time_signature_map"], "time_signature"),
+    })
+}
+
+/// Everything about a chart that isn't the track, minus what the editor
+/// rewrites on purpose.
+fn canonical_rest(chart: &serde_json::Value) -> serde_json::Value {
+    let mut metadata = normalize_numbers(&chart["metadata"]);
+    if let Some(m) = metadata.as_object_mut() {
+        m.remove("format_version");
+    }
+    let mut harmonica = normalize_numbers(&chart["harmonica"]);
+    if harmonica.get("scale").is_none() {
+        harmonica["scale"] = serde_json::json!("first_position");
+    }
+    if harmonica.get("position").is_none() {
+        harmonica["position"] = serde_json::json!("2nd");
+    }
+    let mut scoring = normalize_numbers(&chart["scoring"]);
+    if scoring.get("combo").is_none() {
+        scoring["combo"] = serde_json::json!({
+            "enabled": true,
+            "base_multiplier": 1.0,
+            "step_multiplier": 0.1,
+            "max_multiplier": 4.0,
+            "decay_ms": 2000.0,
+        });
+    }
+    let mut loop_settings = normalize_numbers(&chart["loop"]);
+    if loop_settings.is_null() {
+        loop_settings = serde_json::json!({"type": "full", "repeat": false});
+    }
+    if loop_settings["type"] == "full" && loop_settings["repeat"] == false {
+        loop_settings.as_object_mut().unwrap().remove("start_index");
+        loop_settings.as_object_mut().unwrap().remove("end_index");
+    }
+    serde_json::json!({
+        "song": normalize_numbers(&chart["song"]),
+        "harmonica": harmonica,
+        "scoring": scoring,
+        "loop": loop_settings,
+        "metadata": metadata,
+    })
+}
+
+/// Loads `source` into a fresh editor, saves it, and describes every way
+/// the result differs in meaning from the source — empty when none.
+fn round_trip_differences(source: &serde_json::Value) -> Vec<String> {
+    let mut state = EditorState::default();
+    load_harpchart(source, &mut state, &mut Scroll::default());
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    let mut diffs = Vec::new();
+
+    let before = canonical_events(source);
+    let after = canonical_events(&saved);
+    for e in before.iter().filter(|e| !after.contains(e)) {
+        diffs.push(format!("event lost or changed on save: {e:?}"));
+    }
+    for e in after.iter().filter(|e| !before.contains(e)) {
+        diffs.push(format!("event invented or changed on save: {e:?}"));
+    }
+    let (t0, t1) = (canonical_timing(source), canonical_timing(&saved));
+    if t0 != t1 {
+        diffs.push(format!("timing changed: {t0} -> {t1}"));
+    }
+    let (r0, r1) = (canonical_rest(source), canonical_rest(&saved));
+    for key in ["song", "harmonica", "scoring", "loop", "metadata"] {
+        if r0[key] != r1[key] {
+            diffs.push(format!("{key} changed: {} -> {}", r0[key], r1[key]));
+        }
+    }
+    diffs
+}
+
+#[test]
+fn every_bundled_chart_means_the_same_after_a_round_trip() {
+    fn charts_below(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                charts_below(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "harpchart") {
+                out.push(path);
+            }
+        }
+    }
+    let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+    let mut paths = Vec::new();
+    charts_below(&assets.join("lessons"), &mut paths);
+    charts_below(&assets.join("songs"), &mut paths);
+    assert!(!paths.is_empty());
+
+    let mut report = String::new();
+    for path in &paths {
+        let text = std::fs::read_to_string(path).unwrap();
+        let source = validated_harpchart(&text)
+            .unwrap_or_else(|error| panic!("{} cannot be edited: {error}", path.display()));
+        let diffs = round_trip_differences(&source);
+        if !diffs.is_empty() {
+            report.push_str(&format!(
+                "\n{}:\n",
+                path.strip_prefix(&assets).unwrap().display()
+            ));
+            for d in diffs {
+                report.push_str(&format!("  - {d}\n"));
+            }
+        }
+    }
+    assert!(
+        report.is_empty(),
+        "charts whose meaning changed on a round trip:{report}"
+    );
+}
+
 #[test]
 fn non_grid_chart_settings_survive_load_and_save() {
     let mut source = EditorState::default();
@@ -1576,6 +1835,21 @@ fn non_grid_chart_settings_survive_load_and_save() {
     assert_eq!(saved["loop"]["type"], "chorus");
     assert_eq!(saved["loop"]["repeat"], false);
     validated_harpchart(&saved.to_string()).expect("preserved settings remain valid");
+}
+
+#[test]
+fn chart_author_survives_when_it_differs_from_the_artist() {
+    let mut source: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&EditorState::default())).unwrap();
+    source["metadata"]["author"] = serde_json::json!("Chart Transcriber");
+    source["song"]["artist"] = serde_json::json!("Performing Artist");
+
+    let mut state = EditorState::default();
+    load_harpchart(&source, &mut state, &mut Scroll::default());
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+
+    assert_eq!(saved["metadata"]["author"], "Chart Transcriber");
+    assert_eq!(saved["song"]["artist"], "Performing Artist");
 }
 
 #[test]

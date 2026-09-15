@@ -242,9 +242,14 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     // round-trip convenience (gameplay always loads `song/*.ogg` by
     // convention, never this field) — omit it entirely rather than writing
     // an empty string when no audio file has been picked yet.
+    let chart_author = if state.chart_author.is_empty() {
+        artist
+    } else {
+        state.chart_author.as_str()
+    };
     let mut metadata = json!({
         "format_version": CURRENT_FORMAT_VERSION,
-        "author": artist,
+        "author": chart_author,
         "description": state.description
     });
     if !state.source.trim().is_empty() {
@@ -428,6 +433,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         state.combo.decay_ms = combo["decay_ms"].as_u64().unwrap_or(2000).to_string();
     }
     if let Some(metadata) = v.get("metadata") {
+        state.chart_author = metadata["author"].as_str().unwrap_or("").to_string();
         state.source = metadata["source"].as_str().unwrap_or("").to_string();
         state.license = metadata["license"].as_str().unwrap_or("").to_string();
         state.description = metadata["description"]
