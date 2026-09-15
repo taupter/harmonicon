@@ -5,6 +5,14 @@ Companion to `TODO.md` (the open checklist) and `ROADMAP.md` (the
 destination). Once a phase ships, its detail belongs to git history, not
 this file — prune it back to a one-line summary under "Shipped" below.
 
+## In flight
+
+- **Scored-gameplay experience pass** — refocus Play 2D/3D on the highway
+  and hit line, remove unauthored contextual clutter, add actionable judgment
+  feedback, integrate practice controls with the live HUD, and turn results
+  into coaching. Execution phases and invariants are in
+  `docs/gameplay_improvement_plan.md`.
+
 ## Shipped
 
 Full design detail for anything below lives in `CLAUDE.md` (architecture)
