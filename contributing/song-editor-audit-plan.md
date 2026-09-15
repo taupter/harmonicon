@@ -73,7 +73,7 @@ and displays the active meter. MIDI import now preserves the full meter map.
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
 non-480 source resolution. The unsupported-feature rejection has been removed.
 
-### 2. Add controls for preserved song settings
+### 2. Add controls for preserved song settings — complete
 
 Commit `18be7af` prevents data loss by retaining settings as JSON, but authors
 still cannot edit them. Add typed state and Details controls for:
@@ -91,17 +91,17 @@ When loop indices refer to phrase ordering, note insertion/deletion must keep
 the loop meaningful or show a clear validation error. Replace preserved JSON
 with typed fields incrementally, maintaining old-file round trips throughout.
 
-### 3. Decide valid modifier combinations
+### 3. Decide valid modifier combinations — complete
 
 The editor represents one pitch technique plus one expression technique. It
-already supports combinations such as bend + vibrato, but rejects multiple
-pitch modifiers or multiple expression modifiers in one event. Review the
-schema and gameplay semantics before broadening this:
+supports combinations such as bend + vibrato and rejects multiple pitch
+modifiers or multiple expression modifiers in one event.
 
-- Keep musically contradictory combinations invalid with a clear diagnostic.
-- Model any meaningful combinations explicitly rather than preserving an
-  opaque modifier list that the grid cannot edit.
-- Ensure playback, scoring, labels, and serialization agree.
+This remains the deliberate model: pitch techniques determine the target pitch
+and tab label, expressions determine sustained rendering, and scoring credits
+both categories. Multiple pitch techniques have no unambiguous target; multiple
+expressions cannot be reproduced by the single-expression synth. Load errors
+name the conflicting category and phrase/event location.
 
 ### 4. Instrument extensibility
 

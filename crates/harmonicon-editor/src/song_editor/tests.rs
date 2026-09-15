@@ -1579,12 +1579,28 @@ fn editor_load_validation_lists_only_semantics_it_cannot_preserve() {
         { "type": "bend", "semitones": -1.0 },
         { "type": "overblow" }
     ]);
+    let mut expression_event = value["track"][0]["events"][0].clone();
+    expression_event["modifiers"] = serde_json::json!([
+        { "type": "vibrato", "oscillation_hz": 5.0 },
+        { "type": "wah-wah", "oscillation_hz": 4.0 }
+    ]);
+    value["track"][0]["events"]
+        .as_array_mut()
+        .unwrap()
+        .push(expression_event);
     value["track"][0]["groove"] = serde_json::json!("laid-back");
     value["track"][0]["call"] = serde_json::json!(true);
     value["track"][0]["play_mode"] = serde_json::json!("split");
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
-    assert!(error.contains("mutually exclusive"));
+    assert!(
+        error.contains("multiple mutually exclusive pitch techniques"),
+        "{error}"
+    );
+    assert!(
+        error.contains("multiple mutually exclusive expressions"),
+        "{error}"
+    );
     assert!(!error.contains("time-signature changes"));
     assert!(!error.contains("groove annotation"));
     assert!(!error.contains("call-and-response"));

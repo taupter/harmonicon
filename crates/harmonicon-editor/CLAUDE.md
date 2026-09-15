@@ -715,6 +715,11 @@ load-bearing about *this* crate.
   combo enabled/base/step/maximum/decay values are typed beside them. Invalid
   combo numbers fall back to schema-valid new-chart defaults. Style bonuses
   remain preserved JSON.
+- **A note has at most one pitch technique and one expression.** A pair such
+  as bend + vibrato is supported end to end and both earn scoring credit.
+  Multiple pitch techniques have an ambiguous target, and multiple expressions
+  cannot be reproduced by the synth, so load validation rejects each category
+  with its phrase and event location.
 - **Loop settings are typed Details fields.** Type/repeat cycle through schema
   values; start/end accept inclusive phrase indices. Serialization clamps both
   to the current track and orders end at or after start, so note edits cannot

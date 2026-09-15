@@ -722,9 +722,15 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
                             matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
                         })
                         .count();
-                    if pitch_count > 1 || expression_count > 1 {
+                    if pitch_count > 1 {
                         found.push(format!(
-                            "phrase {number}, event {} combines modifiers the editor models as mutually exclusive",
+                            "phrase {number}, event {} combines multiple mutually exclusive pitch techniques",
+                            event_index + 1
+                        ));
+                    }
+                    if expression_count > 1 {
+                        found.push(format!(
+                            "phrase {number}, event {} combines multiple mutually exclusive expressions",
                             event_index + 1
                         ));
                     }
