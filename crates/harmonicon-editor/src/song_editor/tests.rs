@@ -1843,16 +1843,19 @@ fn a_midi_import_drops_the_loaded_layout_even_when_the_key_matches() {
     // custom reeds — and the imported holes would then be read by a layout
     // they weren't placed with.
     let mut s = state_with_custom_layout();
+    s.meter_changes.push((24, "7/8".into()));
     let key = s.key.clone();
     let imported = super::midi_import::ImportedTrack {
         initial_bpm: 100.0,
         time_signature: "4/4".into(),
+        meter_changes: Vec::new(),
         tempo_changes: Vec::new(),
         notes: Vec::new(),
         diagnostics: Default::default(),
     };
     super::midi_import::apply_imported_track(&mut s, imported, &key);
     assert!(s.loaded_harmonica.is_none());
+    assert!(s.meter_changes.is_empty());
     assert_eq!(blow_one_of(&s), "C4");
 }
 

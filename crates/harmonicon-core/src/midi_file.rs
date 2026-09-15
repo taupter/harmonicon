@@ -43,6 +43,34 @@ pub fn time_signature_of(smf: &Smf) -> Option<(u8, u8)> {
     None
 }
 
+/// All time-signature changes across the file as `(absolute_tick, numerator,
+/// denominator)`, sorted, with an implicit 4/4 entry at tick 0 when none is
+/// declared there. Invalid denominator exponents are ignored.
+pub fn collect_time_signature_map(smf: &Smf) -> Vec<(u64, u8, u8)> {
+    let mut changes = Vec::new();
+    for track in &smf.tracks {
+        let mut tick = 0u64;
+        for event in track {
+            tick += event.delta.as_int() as u64;
+            if let TrackEventKind::Meta(MetaMessage::TimeSignature(
+                numerator,
+                denominator_pow2,
+                _,
+                _,
+            )) = event.kind
+                && let Some(denominator) = 1u8.checked_shl(denominator_pow2 as u32)
+            {
+                changes.push((tick, numerator, denominator));
+            }
+        }
+    }
+    changes.sort_by_key(|&(tick, _, _)| tick);
+    if changes.first().map(|&(tick, _, _)| tick) != Some(0) {
+        changes.insert(0, (0, 4, 4));
+    }
+    changes
+}
+
 pub fn track_name_of(track: &[midly::TrackEvent]) -> Option<String> {
     track.iter().find_map(|ev| match ev.kind {
         TrackEventKind::Meta(MetaMessage::TrackName(bytes)) => {
@@ -300,6 +328,32 @@ mod tests {
         let bytes = smf_bytes(vec![vec![meta(0, MetaMessage::TimeSignature(6, 3, 24, 8))]]);
         let smf = Smf::parse(&bytes).unwrap();
         assert_eq!(time_signature_of(&smf), Some((6, 8)));
+    }
+
+    #[test]
+    fn collect_time_signature_map_sorts_changes_across_tracks() {
+        let bytes = smf_bytes(vec![
+            vec![meta(480, MetaMessage::TimeSignature(3, 2, 24, 8))],
+            vec![meta(0, MetaMessage::TimeSignature(6, 3, 24, 8))],
+        ]);
+        let smf = Smf::parse(&bytes).unwrap();
+        assert_eq!(
+            collect_time_signature_map(&smf),
+            vec![(0, 6, 8), (480, 3, 4)]
+        );
+    }
+
+    #[test]
+    fn collect_time_signature_map_supplies_opening_four_four() {
+        let bytes = smf_bytes(vec![vec![meta(
+            480,
+            MetaMessage::TimeSignature(7, 3, 24, 8),
+        )]]);
+        let smf = Smf::parse(&bytes).unwrap();
+        assert_eq!(
+            collect_time_signature_map(&smf),
+            vec![(0, 4, 4), (480, 7, 8)]
+        );
     }
 
     #[test]

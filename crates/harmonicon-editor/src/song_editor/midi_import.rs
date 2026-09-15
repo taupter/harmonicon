@@ -11,8 +11,8 @@
 //! MIDI *parsing* (tempo map, note extraction, track names) is shared,
 //! low-level code in `harmonicon_core::midi_file`; this module adds the
 //! editor-specific pieces: pitch-to-harp resolution ([`map_pitch`]), key
-//! suggestion ([`suggest_key`]), and tempo-map conversion
-//! ([`editor_tempo_map`]).
+//! suggestion ([`suggest_key`]), and tempo/meter-map conversion
+//! ([`editor_tempo_map`], [`editor_meter_map`]).
 //!
 //! *Which* track is a harmonica part is not an editor question, so the
 //! answer comes from `harmonicon_score`: [`default_track`] defers to
@@ -33,8 +33,8 @@ use super::{MIDI_PURPOSE, TICKS_PER_BEAT};
 use bevy_fluent::prelude::Localization;
 use harmonicon_core::chart::{TempoPoint, seconds_to_tick};
 use harmonicon_core::midi_file::{
-    collect_tempo_map, extract_notes, notes_to_phrase, tick_to_seconds, ticks_per_quarter,
-    time_signature_of,
+    collect_tempo_map, collect_time_signature_map, extract_notes, notes_to_phrase, tick_to_seconds,
+    ticks_per_quarter,
 };
 use harmonicon_core::synth::render_pcm;
 use harmonicon_platform::localization::LocalizationExt;
@@ -172,9 +172,30 @@ fn editor_tempo_map(midi_tempo: &[(u64, u32)], tpq: u32) -> Vec<TempoPoint> {
     editor_map
 }
 
+fn editor_meter_map(midi_meter: &[(u64, u8, u8)], tpq: u32) -> Vec<(usize, String)> {
+    let mut editor_map: Vec<(usize, String)> = Vec::with_capacity(midi_meter.len());
+    for &(tick, numerator, denominator) in midi_meter {
+        let editor_tick = tick
+            .saturating_mul(TICKS_PER_BEAT as u64)
+            .saturating_add(u64::from(tpq) / 2)
+            / u64::from(tpq);
+        let signature = format!("{numerator}/{denominator}");
+        if let Some(last) = editor_map.last_mut()
+            && last.0 == editor_tick as usize
+        {
+            last.1 = signature;
+        } else {
+            editor_map.push((editor_tick as usize, signature));
+        }
+    }
+    editor_map
+}
+
 pub(super) struct ImportedTrack {
     pub(super) initial_bpm: f32,
     pub(super) time_signature: String,
+    /// Every meter change after the opening one, in editor ticks.
+    pub(super) meter_changes: Vec<(usize, String)>,
     /// Every tempo change after the opening one, already in the editor's
     /// own tick unit — see [`editor_tempo_map`]. Empty for the common case
     /// of a MIDI file with no mid-song tempo automation.
@@ -240,6 +261,7 @@ pub(super) fn apply_imported_track(state: &mut EditorState, imported: ImportedTr
     state.dragging = None;
     state.tempo = format!("{}", imported.initial_bpm.round() as u32);
     state.time_signature = imported.time_signature;
+    state.meter_changes = imported.meter_changes;
     state.tempo_changes = imported.tempo_changes;
     state.loaded_harmonica = None;
     state.set_key(key.to_string());
@@ -265,7 +287,7 @@ pub(super) fn import_track_notes(
     let midi_tempo = collect_tempo_map(&smf);
     let editor_map = editor_tempo_map(&midi_tempo, tpq);
     let initial_bpm = editor_map[0].bpm;
-    let (numerator, denominator) = time_signature_of(&smf).unwrap_or((4, 4));
+    let editor_meter = editor_meter_map(&collect_time_signature_map(&smf), tpq);
 
     let harp = build_harp(key, kind);
     let mut notes = Vec::with_capacity(raw_notes.len());
@@ -296,7 +318,8 @@ pub(super) fn import_track_notes(
         .collect();
     Ok(ImportedTrack {
         initial_bpm,
-        time_signature: format!("{numerator}/{denominator}"),
+        time_signature: editor_meter[0].1.clone(),
+        meter_changes: editor_meter[1..].to_vec(),
         tempo_changes,
         diagnostics: phrase_diagnostics(&notes, approximated),
         notes,
@@ -722,6 +745,25 @@ mod tests {
         ]]);
         let imported = import_track_notes(&bytes, 0, "C", HarmonicaKind::Diatonic).unwrap();
         assert_eq!(imported.time_signature, "6/8");
+    }
+
+    #[test]
+    fn import_track_notes_carries_mid_song_meter_changes_from_the_conductor_track() {
+        let bytes = smf_bytes(vec![
+            vec![
+                meta(0, MetaMessage::TimeSignature(4, 2, 24, 8)),
+                meta(480, MetaMessage::TimeSignature(3, 2, 24, 8)),
+            ],
+            vec![note_on(0, 60, 100), note_off(960, 60)],
+        ]);
+
+        let imported = import_track_notes(&bytes, 1, "C", HarmonicaKind::Diatonic).unwrap();
+
+        assert_eq!(imported.time_signature, "4/4");
+        assert_eq!(
+            imported.meter_changes,
+            vec![(TICKS_PER_BEAT, "3/4".to_string())]
+        );
     }
 
     #[test]

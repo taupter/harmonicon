@@ -259,8 +259,8 @@ purely a display — nothing on it is clickable.
 dropdown; picking one drops that track's notes onto the grid, mapped onto
 your currently selected harp key and type — an exact note where one exists,
 a bend or (on a chromatic harp) a slide where one doesn't, otherwise the
-nearest playable note — and sets the chart's tempo and time signature to
-match. After import, the status bar reports notes that had to be approximated,
+nearest playable note — and sets the chart's tempo and time-signature maps to
+match, including changes later in the song. After import, the status bar reports notes that had to be approximated,
 same-onset chords that mix blow and draw, and chords that map multiple notes to
 one hole. The notes stay on the grid so you can inspect and rewrite those
 phrases. Switching the dropdown to a different track re-imports from that track

@@ -77,7 +77,7 @@ to use the map before the validator guard can be removed.
 
 The live editor metronome and Record count-in now use the meter segment active
 at the playhead. Notation splits sustained notes at meter-map bar boundaries
-and displays the active meter. MIDI meter-map import remains.
+and displays the active meter. MIDI import now preserves the full meter map.
 
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
 non-480 source resolution. Remove the unsupported rejection only after every
