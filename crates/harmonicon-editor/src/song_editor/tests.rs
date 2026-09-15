@@ -1447,6 +1447,33 @@ fn editor_load_validation_rejects_a_future_chart_version() {
 }
 
 #[test]
+fn chart_schema_rejects_unknown_diatonic_profiles_before_editor_loading() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    let mut value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    value["harmonica"]["bending_profile"] = serde_json::json!("future_tuning");
+
+    let error = validated_harpchart(&value.to_string()).expect_err("unknown profile must fail");
+    assert!(error.contains("Chart validation failed"));
+    assert!(error.contains("bending_profile"));
+}
+
+#[test]
+fn chart_schema_rejects_chromatics_above_sixteen_holes_before_editor_loading() {
+    let mut state = EditorState {
+        harmonica_kind: HarmonicaKind::Chromatic16,
+        ..Default::default()
+    };
+    select_or_add(&mut state, 1, 0);
+    let mut value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    value["harmonica"]["holes"] = serde_json::json!(17);
+
+    let error = validated_harpchart(&value.to_string()).expect_err("17 holes must fail");
+    assert!(error.contains("Chart validation failed"));
+    assert!(error.contains("holes"));
+}
+
+#[test]
 fn editor_load_validation_applies_legacy_migrations() {
     let mut state = EditorState::default();
     select_or_add(&mut state, 1, 0);

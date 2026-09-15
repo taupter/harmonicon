@@ -684,26 +684,6 @@ pub(super) fn validated_harpchart(text: &str) -> Result<serde_json::Value, Strin
 /// them successfully and silently erasing their meaning on the next save.
 pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<String> {
     let mut found = Vec::new();
-    let harmonica = &value["harmonica"];
-    let kind = harmonica["type"].as_str().unwrap_or("diatonic");
-    let holes = harmonica["holes"].as_u64().unwrap_or(10);
-    if kind == "chromatic" && holes > 16 {
-        found.push(format!(
-            "{holes}-hole chromatic harmonica (maximum supported: 16)"
-        ));
-    }
-    let profile = harmonica["bending_profile"]
-        .as_str()
-        .unwrap_or("richter_standard");
-    if kind == "diatonic"
-        && !matches!(
-            profile,
-            "richter_standard" | "country_tuned" | "paddy_richter" | "natural_minor"
-        )
-    {
-        found.push(format!("alternate diatonic tuning/profile {:?}", profile));
-    }
-
     if let Some(track) = value["track"].as_array() {
         for (index, phrase) in track.iter().enumerate() {
             let number = index + 1;

@@ -105,7 +105,10 @@ name the conflicting category and phrase/event location.
 
 ### 4. Instrument extensibility
 
-Unknown future diatonic profiles and chromatics above 16 holes remain rejected.
+The current schema limits diatonics to ten holes and four named profiles, and
+chromatics to 10, 12, or 16 holes. Tests pin those boundaries before editor
+loading; duplicate post-schema checks were removed because no schema-valid
+chart could reach them.
 Custom layouts are retained (`ffdee1c`), and **bend depth is now derived from
 the reeds** rather than a Richter table — which had disagreed with the
 alternate tunings on nine holes, forbidding country tuning's hole-5 bend and
