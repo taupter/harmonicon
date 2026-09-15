@@ -84,7 +84,8 @@ still cannot edit them. Add typed state and Details controls for:
 - Source, license, and description — typed Details text fields are implemented
 - Perfect/good/miss scoring windows and combo behavior — typed Details fields
   are implemented; style bonuses remain preserved
-- Loop type, repeat, and range
+- Loop type, repeat, and range — typed Details controls are implemented and
+  indices clamp to the current phrase range on save
 
 When loop indices refer to phrase ordering, note insertion/deletion must keep
 the loop meaningful or show a clear validation error. Replace preserved JSON

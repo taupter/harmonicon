@@ -10,6 +10,7 @@ use harmonicon_core::harmonica::Harmonica;
 // The note vocabulary lives in `note_model`; re-exported here because
 // `state` is the name every call site already reaches for, and the two are
 // one concept split only for file size.
+pub(super) use super::loop_settings::{LOOP_TYPES, LoopSettings};
 pub(super) use super::note_model::{
     ContentKind, Dir, DragKind, DragState, Edge, GridNote, HarmonicaKind, Mode, PhraseAnnotation,
     Pitch, Side, TimelineDrag, TimelineTool,
@@ -17,93 +18,7 @@ pub(super) use super::note_model::{
 pub(super) use super::scoring_settings::ComboSettings;
 pub(super) use harmonicon_core::synth::Expr;
 
-// ── Metadata field types ─────────────────────────────────────────────────────
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(super) enum Field {
-    Tempo,
-    Key,
-    Position,
-    Music,
-    Name,
-    Author,
-    Difficulty,
-    SongFeel,
-    Source,
-    License,
-    Description,
-    PerfectWindow,
-    GoodWindow,
-    MissWindow,
-    ComboEnabled,
-    ComboBase,
-    ComboStep,
-    ComboMax,
-    ComboDecay,
-    /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
-    /// the phrase's onset tick, not a form row (see [`FIELDS`]).
-    Section,
-    /// Chord symbol of a phrase — likewise.
-    Chord,
-    /// Feel or articulation guidance for a phrase — likewise.
-    Groove,
-    /// Stable lesson identifier — the profile key/prerequisite target. Never
-    /// rename one that's shipped; see `lesson_schema.dtd.json`.
-    LessonId,
-    /// Curriculum unit grouping this lesson in the menu (`lesson-unit-
-    /// <unit>` is its own separate Fluent key, not authored here).
-    LessonUnit,
-    /// Whether this lesson belongs to the required core or an elective branch.
-    LessonPath,
-    /// Raw display text for the lesson's instructional body — `Name` above
-    /// doubles as the lesson's title text the same way. Neither is written
-    /// into `lesson.json` directly (which only stores Fluent *keys*, per
-    /// this codebase's localization convention); `lesson_form::
-    /// serialize_lesson` derives `title_key`/`body_key` from `LessonId` and
-    /// prints the key/text pairs an author still needs to add to the
-    /// locale files by hand — the same manual step authoring any bundled
-    /// lesson already requires.
-    LessonExplanation,
-    /// Comma-separated lesson ids that must be passed first.
-    LessonPrerequisites,
-    /// One of [`PASS_CRITERIA_KINDS`] — click-to-cycle, like `Key`/
-    /// `Position`, not a free-text field a player types into.
-    LessonPassCriteria,
-    /// The active pass criterion's threshold (0..1), as typed text —
-    /// ignored when `LessonPassCriteria` is `"none"`.
-    LessonThreshold,
-    /// One of [`TECHNIQUE_NAMES`] — only meaningful (and only written) when
-    /// `LessonPassCriteria` is `"technique"`; click-to-cycle like `Key`.
-    LessonTechnique,
-    /// One of [`PROGRESSIONS`] (`"none"` omits the field) — click-to-cycle
-    /// like `Key`.
-    LessonProgression,
-    /// Jam scale written to the lesson manifest; `"none"` omits it.
-    LessonScale,
-}
-
-impl Field {
-    /// True for fields that cycle through a fixed set of values on
-    /// click (`Key`, `Position`, song enums, and lesson enums) rather than
-    /// accepting typed text. `meta_form::spawn_field_row` branches on this
-    /// to decide whether to spawn a click-to-cycle button or a real text
-    /// input (`dialogs::text_input::spawn_text_input`).
-    pub(super) fn is_cycle(self) -> bool {
-        matches!(
-            self,
-            Field::Key
-                | Field::Position
-                | Field::Difficulty
-                | Field::SongFeel
-                | Field::ComboEnabled
-                | Field::LessonPassCriteria
-                | Field::LessonTechnique
-                | Field::LessonProgression
-                | Field::LessonScale
-                | Field::LessonPath
-        )
-    }
-}
+pub(super) use super::details_fields::{FIELDS, Field};
 
 /// Song-level Details fields paired with localization keys.
 ///
@@ -118,8 +33,6 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) use super::details_fields::FIELDS;
-
 pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
 pub(super) const SONG_FEELS: [&str; 3] = ["default", "straight", "shuffle"];
 
@@ -254,7 +167,7 @@ pub(super) struct EditorState {
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     pub(super) preserved_scoring: Option<serde_json::Value>,
-    pub(super) preserved_loop: Option<serde_json::Value>,
+    pub(super) loop_settings: LoopSettings,
     pub(super) time_signature: String,
     pub(super) key: String,
     pub(super) position: String,
@@ -373,7 +286,7 @@ impl Default for EditorState {
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
             preserved_scoring: None,
-            preserved_loop: None,
+            loop_settings: LoopSettings::default(),
             time_signature: "4/4".into(),
             key: "C".into(),
             position: "2nd".into(),
@@ -571,6 +484,10 @@ impl EditorState {
             Field::ComboStep => &self.combo.step,
             Field::ComboMax => &self.combo.max,
             Field::ComboDecay => &self.combo.decay_ms,
+            Field::LoopType => &self.loop_settings.kind,
+            Field::LoopRepeat => &self.loop_settings.repeat,
+            Field::LoopStart => &self.loop_settings.start,
+            Field::LoopEnd => &self.loop_settings.end,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -606,6 +523,10 @@ impl EditorState {
             Field::ComboStep => &mut self.combo.step,
             Field::ComboMax => &mut self.combo.max,
             Field::ComboDecay => &mut self.combo.decay_ms,
+            Field::LoopType => &mut self.loop_settings.kind,
+            Field::LoopRepeat => &mut self.loop_settings.repeat,
+            Field::LoopStart => &mut self.loop_settings.start,
+            Field::LoopEnd => &mut self.loop_settings.end,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }

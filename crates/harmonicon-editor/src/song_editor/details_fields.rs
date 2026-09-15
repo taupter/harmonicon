@@ -4,9 +4,67 @@
 //! backing values remain in `state`/`meta_form`; this module only owns their
 //! display order and localization keys.
 
-use super::state::Field;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum Field {
+    Tempo,
+    Key,
+    Position,
+    Music,
+    Name,
+    Author,
+    Difficulty,
+    SongFeel,
+    Source,
+    License,
+    Description,
+    PerfectWindow,
+    GoodWindow,
+    MissWindow,
+    ComboEnabled,
+    ComboBase,
+    ComboStep,
+    ComboMax,
+    ComboDecay,
+    LoopType,
+    LoopRepeat,
+    LoopStart,
+    LoopEnd,
+    Section,
+    Chord,
+    Groove,
+    LessonId,
+    LessonUnit,
+    LessonPath,
+    LessonExplanation,
+    LessonPrerequisites,
+    LessonPassCriteria,
+    LessonThreshold,
+    LessonTechnique,
+    LessonProgression,
+    LessonScale,
+}
 
-pub(super) const FIELDS: [(Field, &str); 19] = [
+impl Field {
+    pub(super) fn is_cycle(self) -> bool {
+        matches!(
+            self,
+            Self::Key
+                | Self::Position
+                | Self::Difficulty
+                | Self::SongFeel
+                | Self::ComboEnabled
+                | Self::LoopType
+                | Self::LoopRepeat
+                | Self::LessonPassCriteria
+                | Self::LessonTechnique
+                | Self::LessonProgression
+                | Self::LessonScale
+                | Self::LessonPath
+        )
+    }
+}
+
+pub(super) const FIELDS: [(Field, &str); 23] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -26,4 +84,8 @@ pub(super) const FIELDS: [(Field, &str); 19] = [
     (Field::ComboStep, "editor-field-combo-step"),
     (Field::ComboMax, "editor-field-combo-max"),
     (Field::ComboDecay, "editor-field-combo-decay"),
+    (Field::LoopType, "editor-field-loop-type"),
+    (Field::LoopRepeat, "editor-field-loop-repeat"),
+    (Field::LoopStart, "editor-field-loop-start"),
+    (Field::LoopEnd, "editor-field-loop-end"),
 ];

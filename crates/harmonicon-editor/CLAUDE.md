@@ -715,6 +715,11 @@ load-bearing about *this* crate.
   combo enabled/base/step/maximum/decay values are typed beside them. Invalid
   combo numbers fall back to schema-valid new-chart defaults. Style bonuses
   remain preserved JSON.
+- **Loop settings are typed Details fields.** Type/repeat cycle through schema
+  values; start/end accept inclusive phrase indices. Serialization clamps both
+  to the current track and orders end at or after start, so note edits cannot
+  leave a saved loop pointing outside the phrase list. `last` is the new-chart
+  end sentinel and resolves to the final phrase at save time.
 - **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
   a `dialogs::checkbox` in the meta form; off by default). When on,
   `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at

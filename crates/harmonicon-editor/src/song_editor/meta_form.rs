@@ -14,8 +14,8 @@ use bevy::ui_widgets::{Activate, ValueChange};
 
 use super::state::{
     ContentKind, DIFFICULTIES, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS,
-    LESSON_SCALES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, SONG_FEELS, TECHNIQUE_NAMES,
-    cycle_next,
+    LESSON_SCALES, LOOP_TYPES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, SONG_FEELS,
+    TECHNIQUE_NAMES, cycle_next,
 };
 use super::ui::{
     ContentKindText, EditorRoot, HarmonicaKindText, HoleColumnContent, LegendColumn, MetaFieldBox,
@@ -398,6 +398,15 @@ pub(super) fn spawn_field_row(
                 btn.observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
                     state.combo.enabled =
                         cycle_next(&["enabled", "disabled"], &state.combo.enabled);
+                });
+            } else if field == Field::LoopType {
+                btn.observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
+                    state.loop_settings.kind = cycle_next(&LOOP_TYPES, &state.loop_settings.kind);
+                });
+            } else if field == Field::LoopRepeat {
+                btn.observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
+                    state.loop_settings.repeat =
+                        cycle_next(&["no", "yes"], &state.loop_settings.repeat);
                 });
             } else if field == Field::LessonPassCriteria {
                 btn.insert(Tooltip(String::from(

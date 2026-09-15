@@ -386,9 +386,10 @@ choice untouched. Source, license, and description are editable text fields in
 the same form. Perfect, Good, and Miss Window fields edit the scoring timing in
 milliseconds; blank, zero, or invalid values fall back to 60, 120, and 220 ms.
 Combo controls set whether streak multipliers are enabled and their base,
-increment, maximum, and decay time. Style-bonus scoring rules and loop
-configuration are retained from a loaded chart. Editing its notes therefore
-does not reset them.
+increment, maximum, and decay time. Loop controls choose its section type,
+repeat behavior, and inclusive start/end phrase indices; out-of-range indices
+are clamped to the phrases that currently exist. Style-bonus scoring rules are
+retained from a loaded chart.
 
 Loading also stops before changing the open chart when a file uses musical
 features the grid cannot preserve yet, such as combinations of mutually

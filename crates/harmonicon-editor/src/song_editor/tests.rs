@@ -1469,6 +1469,8 @@ fn non_grid_chart_settings_survive_load_and_save() {
     assert_eq!(loaded.perfect_window_ms, "90");
     assert_eq!(loaded.good_window_ms, "180");
     assert_eq!(loaded.miss_window_ms, "360");
+    assert_eq!(loaded.loop_settings.kind, "verse");
+    assert_eq!(loaded.loop_settings.repeat, "yes");
     loaded.difficulty = "advanced".into();
     loaded.song_feel = "straight".into();
     loaded.source = "Field recording".into();
@@ -1477,6 +1479,8 @@ fn non_grid_chart_settings_survive_load_and_save() {
     loaded.perfect_window_ms = "70".into();
     loaded.good_window_ms = "140".into();
     loaded.miss_window_ms = "280".into();
+    loaded.loop_settings.kind = "chorus".into();
+    loaded.loop_settings.repeat = "no".into();
     let saved: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&loaded)).expect("saved chart JSON");
 
@@ -1488,8 +1492,22 @@ fn non_grid_chart_settings_survive_load_and_save() {
     assert_eq!(saved["scoring"]["perfect_window_ms"], 70);
     assert_eq!(saved["scoring"]["good_window_ms"], 140);
     assert_eq!(saved["scoring"]["miss_window_ms"], 280);
-    assert_eq!(saved["loop"], value["loop"]);
+    assert_eq!(saved["loop"]["type"], "chorus");
+    assert_eq!(saved["loop"]["repeat"], false);
     validated_harpchart(&saved.to_string()).expect("preserved settings remain valid");
+}
+
+#[test]
+fn loop_indices_are_clamped_to_the_current_phrase_range() {
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 1, 0);
+    state.loop_settings.start = "99".into();
+    state.loop_settings.end = "before".into();
+
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    assert_eq!(saved["loop"]["start_index"], 0);
+    assert_eq!(saved["loop"]["end_index"], 0);
+    validated_harpchart(&saved.to_string()).expect("clamped loop satisfies the schema");
 }
 
 #[test]

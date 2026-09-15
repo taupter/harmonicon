@@ -38,6 +38,7 @@ mod harpchart;
 mod interaction;
 mod legend;
 mod lesson_form;
+mod loop_settings;
 mod material;
 mod meta_form;
 mod metadata_sync;

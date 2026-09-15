@@ -269,13 +269,23 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     if state.song_feel != "default" {
         song["feel"] = json!(state.song_feel);
     }
-    let loop_settings = state.preserved_loop.clone().unwrap_or_else(|| {
-        json!({
-            "type": "full",
-            "repeat": false,
-            "start_index": 0,
-            "end_index": last_phrase
-        })
+    let loop_start = state
+        .loop_settings
+        .start
+        .parse::<usize>()
+        .unwrap_or(0)
+        .min(last_phrase);
+    let loop_end = state
+        .loop_settings
+        .end
+        .parse::<usize>()
+        .unwrap_or(last_phrase)
+        .clamp(loop_start, last_phrase);
+    let loop_settings = json!({
+        "type": state.loop_settings.kind,
+        "repeat": state.loop_settings.repeat == "yes",
+        "start_index": loop_start,
+        "end_index": loop_end
     });
     let mut scoring = state.preserved_scoring.clone().unwrap_or_else(|| {
         json!({
@@ -376,7 +386,22 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
 
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
     state.preserved_scoring = v.get("scoring").cloned();
-    state.preserved_loop = v.get("loop").cloned();
+    if let Some(loop_settings) = v.get("loop") {
+        state.loop_settings.kind = loop_settings["type"].as_str().unwrap_or("full").to_string();
+        state.loop_settings.repeat = if loop_settings["repeat"].as_bool().unwrap_or(false) {
+            "yes"
+        } else {
+            "no"
+        }
+        .into();
+        state.loop_settings.start = loop_settings["start_index"]
+            .as_u64()
+            .unwrap_or(0)
+            .to_string();
+        state.loop_settings.end = loop_settings["end_index"]
+            .as_u64()
+            .map_or_else(|| "last".into(), |value| value.to_string());
+    }
     if let Some(scoring) = v.get("scoring") {
         state.perfect_window_ms = scoring["perfect_window_ms"]
             .as_u64()
