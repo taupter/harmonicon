@@ -2,6 +2,13 @@
 
 Guidance for Claude Code when working in this repository.
 
+## Git history safety
+
+Treat every commit reachable from `origin/main` as immutable. Never amend,
+rebase, reset, force-push, or otherwise rewrite published history: doing so can
+break other contributors' local branches. Add a new commit on top when a
+published change needs correction, including a commit-message correction.
+
 ## What this is
 
 Harmonicon: a rhythm game for diatonic and chromatic harmonica (Rust + Bevy
