@@ -52,6 +52,7 @@ mod phrase_editor;
 mod pitch_map;
 mod ranges;
 mod save_feedback;
+mod scoring_settings;
 mod scroll;
 mod selected_metadata;
 // `pub(crate)`, not private like its neighbours: `gameplay::call_response`

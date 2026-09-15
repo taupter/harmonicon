@@ -82,8 +82,8 @@ still cannot edit them. Add typed state and Details controls for:
 - Straight/shuffle feel — a separate Details cycle control is implemented;
   `default` omits the optional field and does not alter placement snap
 - Source, license, and description — typed Details text fields are implemented
-- Perfect/good/miss scoring windows — typed Details fields are implemented;
-  combo behavior remains
+- Perfect/good/miss scoring windows and combo behavior — typed Details fields
+  are implemented; style bonuses remain preserved
 - Loop type, repeat, and range
 
 When loop indices refer to phrase ordering, note insertion/deletion must keep

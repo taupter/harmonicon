@@ -6,7 +6,7 @@
 
 use super::state::Field;
 
-pub(super) const FIELDS: [(Field, &str); 14] = [
+pub(super) const FIELDS: [(Field, &str); 19] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -21,4 +21,9 @@ pub(super) const FIELDS: [(Field, &str); 14] = [
     (Field::PerfectWindow, "editor-field-perfect-window"),
     (Field::GoodWindow, "editor-field-good-window"),
     (Field::MissWindow, "editor-field-miss-window"),
+    (Field::ComboEnabled, "editor-field-combo-enabled"),
+    (Field::ComboBase, "editor-field-combo-base"),
+    (Field::ComboStep, "editor-field-combo-step"),
+    (Field::ComboMax, "editor-field-combo-max"),
+    (Field::ComboDecay, "editor-field-combo-decay"),
 ];

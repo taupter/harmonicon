@@ -1509,6 +1509,37 @@ fn invalid_scoring_window_text_falls_back_to_schema_valid_defaults() {
 }
 
 #[test]
+fn combo_settings_are_editable_while_style_bonuses_round_trip() {
+    let mut source = EditorState::default();
+    select_or_add(&mut source, 1, 0);
+    let mut value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&source)).unwrap();
+    value["scoring"]["combo"] = serde_json::json!({
+        "enabled": false,
+        "base_multiplier": 1.5,
+        "step_multiplier": 0.25,
+        "max_multiplier": 6.0,
+        "decay_ms": 3000
+    });
+    value["scoring"]["style_bonus"] = serde_json::json!({ "bend": 75 });
+
+    let mut loaded = EditorState::default();
+    load_harpchart(&value, &mut loaded, &mut Scroll::default());
+    assert_eq!(loaded.combo.enabled, "disabled");
+    assert_eq!(loaded.combo.base, "1.5");
+    loaded.combo.enabled = "enabled".into();
+    loaded.combo.max = "8".into();
+
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&loaded)).unwrap();
+    assert_eq!(saved["scoring"]["combo"]["enabled"], true);
+    assert_eq!(saved["scoring"]["combo"]["max_multiplier"], 8.0);
+    assert_eq!(
+        saved["scoring"]["style_bonus"],
+        value["scoring"]["style_bonus"]
+    );
+    validated_harpchart(&saved.to_string()).expect("edited combo satisfies the schema");
+}
+
+#[test]
 fn default_song_feel_is_omitted_from_saved_charts() {
     let saved: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&EditorState::default())).unwrap();

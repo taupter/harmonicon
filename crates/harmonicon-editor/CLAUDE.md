@@ -712,7 +712,9 @@ load-bearing about *this* crate.
 - **Scoring windows are typed as Details text fields** because authors enter
   exact millisecond values. Serialization accepts positive integers and falls
   back to the new-chart defaults (60/120/220 ms) for blank or invalid input;
-  the still-uneditable combo and style-bonus objects remain preserved JSON.
+  combo enabled/base/step/maximum/decay values are typed beside them. Invalid
+  combo numbers fall back to schema-valid new-chart defaults. Style bonuses
+  remain preserved JSON.
 - **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
   a `dialogs::checkbox` in the meta form; off by default). When on,
   `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at

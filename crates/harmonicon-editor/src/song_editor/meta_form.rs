@@ -394,6 +394,11 @@ pub(super) fn spawn_field_row(
                     .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
                         state.song_feel = cycle_next(&SONG_FEELS, &state.song_feel);
                     });
+            } else if field == Field::ComboEnabled {
+                btn.observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
+                    state.combo.enabled =
+                        cycle_next(&["enabled", "disabled"], &state.combo.enabled);
+                });
             } else if field == Field::LessonPassCriteria {
                 btn.insert(Tooltip(String::from(
                     loc.msg("editor-field-lesson-pass-criteria-tooltip"),

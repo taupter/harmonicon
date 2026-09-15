@@ -303,6 +303,21 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     scoring["perfect_window_ms"] = json!(positive_ms(&state.perfect_window_ms, 60));
     scoring["good_window_ms"] = json!(positive_ms(&state.good_window_ms, 120));
     scoring["miss_window_ms"] = json!(positive_ms(&state.miss_window_ms, 220));
+    let bounded = |value: &str, fallback: f64, minimum: f64| {
+        value
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite() && *value > minimum)
+            .unwrap_or(fallback)
+    };
+    scoring["combo"] = json!({
+        "enabled": state.combo.enabled != "disabled",
+        "base_multiplier": bounded(&state.combo.base, 1.0, 1.0 - f64::EPSILON),
+        "step_multiplier": bounded(&state.combo.step, 0.1, 0.0),
+        "max_multiplier": bounded(&state.combo.max, 4.0, 1.0),
+        "decay_ms": positive_ms(&state.combo.decay_ms, 2000)
+    });
 
     let mut timing = json!({
         "resolution": TICKS_PER_BEAT,
@@ -375,6 +390,17 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             .as_u64()
             .unwrap_or(220)
             .to_string();
+        let combo = &scoring["combo"];
+        state.combo.enabled = if combo["enabled"].as_bool().unwrap_or(true) {
+            "enabled"
+        } else {
+            "disabled"
+        }
+        .into();
+        state.combo.base = combo["base_multiplier"].as_f64().unwrap_or(1.0).to_string();
+        state.combo.step = combo["step_multiplier"].as_f64().unwrap_or(0.1).to_string();
+        state.combo.max = combo["max_multiplier"].as_f64().unwrap_or(4.0).to_string();
+        state.combo.decay_ms = combo["decay_ms"].as_u64().unwrap_or(2000).to_string();
     }
     if let Some(metadata) = v.get("metadata") {
         state.source = metadata["source"].as_str().unwrap_or("").to_string();

@@ -14,6 +14,7 @@ pub(super) use super::note_model::{
     ContentKind, Dir, DragKind, DragState, Edge, GridNote, HarmonicaKind, Mode, PhraseAnnotation,
     Pitch, Side, TimelineDrag, TimelineTool,
 };
+pub(super) use super::scoring_settings::ComboSettings;
 pub(super) use harmonicon_core::synth::Expr;
 
 // ── Metadata field types ─────────────────────────────────────────────────────
@@ -34,6 +35,11 @@ pub(super) enum Field {
     PerfectWindow,
     GoodWindow,
     MissWindow,
+    ComboEnabled,
+    ComboBase,
+    ComboStep,
+    ComboMax,
+    ComboDecay,
     /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
     /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
@@ -89,6 +95,7 @@ impl Field {
                 | Field::Position
                 | Field::Difficulty
                 | Field::SongFeel
+                | Field::ComboEnabled
                 | Field::LessonPassCriteria
                 | Field::LessonTechnique
                 | Field::LessonProgression
@@ -246,10 +253,8 @@ pub(super) struct EditorState {
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
-    /// Still-uneditable chart settings retained verbatim for round trips.
     pub(super) preserved_scoring: Option<serde_json::Value>,
     pub(super) preserved_loop: Option<serde_json::Value>,
-    /// Opening meter; later changes live in `meter_changes`.
     pub(super) time_signature: String,
     pub(super) key: String,
     pub(super) position: String,
@@ -271,6 +276,7 @@ pub(super) struct EditorState {
     pub(super) perfect_window_ms: String,
     pub(super) good_window_ms: String,
     pub(super) miss_window_ms: String,
+    pub(super) combo: ComboSettings,
     pub(super) drag_msg: harmonicon_platform::localization::LocalizedStr,
     pub(super) mode: Mode,
     /// Whether this editing session is authoring a song or a lesson — see
@@ -383,6 +389,7 @@ impl Default for EditorState {
             perfect_window_ms: "60".into(),
             good_window_ms: "120".into(),
             miss_window_ms: "220".into(),
+            combo: ComboSettings::default(),
             drag_msg: harmonicon_platform::localization::LocalizedStr::default(),
             mode: Mode::default(),
             content_kind: ContentKind::default(),
@@ -559,6 +566,11 @@ impl EditorState {
             Field::PerfectWindow => &self.perfect_window_ms,
             Field::GoodWindow => &self.good_window_ms,
             Field::MissWindow => &self.miss_window_ms,
+            Field::ComboEnabled => &self.combo.enabled,
+            Field::ComboBase => &self.combo.base,
+            Field::ComboStep => &self.combo.step,
+            Field::ComboMax => &self.combo.max,
+            Field::ComboDecay => &self.combo.decay_ms,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -589,6 +601,11 @@ impl EditorState {
             Field::PerfectWindow => &mut self.perfect_window_ms,
             Field::GoodWindow => &mut self.good_window_ms,
             Field::MissWindow => &mut self.miss_window_ms,
+            Field::ComboEnabled => &mut self.combo.enabled,
+            Field::ComboBase => &mut self.combo.base,
+            Field::ComboStep => &mut self.combo.step,
+            Field::ComboMax => &mut self.combo.max,
+            Field::ComboDecay => &mut self.combo.decay_ms,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }
