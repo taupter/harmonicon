@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use super::clipboard::paste_targets_with_sources;
-use super::grid::{
-    group_move_targets, group_move_valid, mix_srgba, note_in_scale, ruler_label, visible_beats,
-};
+use super::grid::{group_move_targets, group_move_valid, mix_srgba, note_in_scale, visible_beats};
 use super::harpchart::{
     load_harpchart, parse_pitch_expr, safe_path_segment, serialize_harpchart, validated_harpchart,
 };
@@ -2307,53 +2305,88 @@ fn visible_beats_never_goes_negative_for_a_narrow_window() {
     assert_eq!(visible_beats(HOLE_COL_W), 1);
 }
 
-// ── ruler_label ───────────────────────────────────────────────────────────────
+// ── the ruler's bar / beat numbering ─────────────────────────────────────────
+//
+// The ruler now reads `EditorState::meter_map()` directly; these pin the
+// answers it draws, through the same `position` the grid asks.
 
-/// 4/4 at the editor's 12 ticks to a quarter.
-const FOUR_FOUR: (usize, usize) = (48, 12);
-/// 7/8: seven eighths to a bar, 42 ticks — three and a half quarter-note
-/// columns, which is exactly what the old rounded `beats_per_bar` could not
-/// express.
-const SEVEN_EIGHT: (usize, usize) = (42, 6);
-
-#[test]
-fn ruler_label_counts_bars_at_a_bar_line_and_beats_within_one() {
-    let (bar, beat) = FOUR_FOUR;
-    let labels: Vec<String> = (0..8).map(|i| ruler_label(i * beat, bar, beat)).collect();
-    assert_eq!(labels, ["1", "2", "3", "4", "2", "2", "3", "4"]);
-    // Bar 37's downbeat reads "37", not another "1".
-    assert_eq!(ruler_label(36 * bar, bar, beat), "37");
+/// "bar.beat" as the ruler numbers it (1-based) for `tick`.
+fn ruler_position(s: &EditorState, tick: usize) -> (usize, usize) {
+    let p = s.meter_map().position(tick as u64);
+    (p.bar + 1, p.beat + 1)
 }
 
 #[test]
-fn ruler_label_counts_a_seven_eight_bar_as_seven_eighths() {
-    // The bug this fixes: 7/8 is 3.5 quarter-note columns, so counting
-    // columns gave "1 2 3 4" and a bar line half a beat from where the
-    // music puts it. Counting the meter's own beat gives seven.
-    let (bar, beat) = SEVEN_EIGHT;
-    let labels: Vec<String> = (0..7).map(|i| ruler_label(i * beat, bar, beat)).collect();
-    assert_eq!(labels, ["1", "2", "3", "4", "5", "6", "7"]);
-    // Bar 2 starts at tick 42, which is *not* a column boundary (those are
-    // multiples of 12) — the whole point of measuring in ticks.
-    assert_eq!(ruler_label(42, bar, beat), "2");
+fn the_ruler_counts_bars_on_the_downbeat_and_beats_within_one() {
+    let s = EditorState::default(); // 4/4
+    let beat = TICKS_PER_BEAT;
+    let got: Vec<(usize, usize)> = (0..8).map(|i| ruler_position(&s, i * beat)).collect();
+    assert_eq!(
+        got,
+        [
+            (1, 1),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (2, 1),
+            (2, 2),
+            (2, 3),
+            (2, 4)
+        ]
+    );
+    assert_eq!(
+        ruler_position(&s, 36 * 4 * beat),
+        (37, 1),
+        "bar 37, not another 1"
+    );
+}
+
+#[test]
+fn the_ruler_counts_a_seven_eight_bar_as_seven_eighths() {
+    // 7/8 is 3.5 quarter-note columns; the map counts the meter's own beat
+    // and puts bar 2 at tick 42, which is not a column boundary at all.
+    let s = EditorState {
+        time_signature: "7/8".into(),
+        ..Default::default()
+    };
+    let got: Vec<usize> = (0..7).map(|i| ruler_position(&s, i * 6).1).collect();
+    assert_eq!(got, [1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(ruler_position(&s, 42), (2, 1));
     assert!(!42_usize.is_multiple_of(TICKS_PER_BEAT));
 }
 
 #[test]
-fn ruler_label_counts_a_six_eight_bar_as_six_eighths() {
-    // 6/8 *is* a whole number of quarters (3), so the old code placed its
-    // bar lines correctly — but counted three beats where a musician counts
-    // six.
-    let labels: Vec<String> = (0..6).map(|i| ruler_label(i * 6, 36, 6)).collect();
-    assert_eq!(labels, ["1", "2", "3", "4", "5", "6"]);
-    assert_eq!(ruler_label(36, 36, 6), "2");
+fn the_ruler_re_bars_everything_after_a_meter_change() {
+    // Two bars of 4/4, then 3/4 from bar 3: bar 4 starts 36 ticks later,
+    // not 48, and beats within it count to three.
+    let s = EditorState {
+        meter_changes: vec![(96, "3/4".into())],
+        ..Default::default()
+    };
+    assert_eq!(ruler_position(&s, 96), (3, 1));
+    assert_eq!(ruler_position(&s, 96 + 24), (3, 3));
+    assert_eq!(ruler_position(&s, 96 + 36), (4, 1));
+    // And the ruler's bar lines land there too.
+    let bars: Vec<u64> = s
+        .meter_map()
+        .bar_starts(0, 200)
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+    assert_eq!(bars, [0, 48, 96, 132, 168]);
 }
 
 #[test]
-fn ruler_label_survives_degenerate_meter_lengths() {
-    // Both accessors clamp to 1, but the label must not divide by zero if
-    // some future caller doesn't.
-    assert_eq!(ruler_label(5, 0, 0), "6");
+fn describe_tick_matches_the_ruler_after_a_change() {
+    use super::timeline::describe_tick;
+    let s = EditorState {
+        meter_changes: vec![(84, "3/4".into())], // off a bar line: bar 2 is cut short
+        ..Default::default()
+    };
+    let map = s.meter_map();
+    assert_eq!(describe_tick(83, &map), "2.3");
+    assert_eq!(describe_tick(84, &map), "3.1");
+    assert_eq!(describe_tick(84 + 36, &map), "4.1");
 }
 
 // ── resize_grip_position ──────────────────────────────────────────────────────
@@ -2981,25 +3014,37 @@ fn meter_reads_the_chart_meter_not_a_fixed_four() {
 fn ticks_per_bar_is_exact_where_a_whole_quarter_count_has_to_round() {
     let mut s = EditorState::default();
     // 4/4: four quarters, 48 ticks.
-    assert_eq!(s.ticks_per_bar(), 4 * TICKS_PER_BEAT);
-    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT);
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_bar as usize,
+        4 * TICKS_PER_BEAT
+    );
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_beat as usize,
+        TICKS_PER_BEAT
+    );
 
     // 7/8: seven eighths, 3.5 quarters — which rounded to whole quarters
     // would claim a 48-tick bar; the real one is 42.
     s.time_signature = "7/8".into();
     assert_eq!(s.meter().beats_per_bar(), 3.5);
-    assert_eq!(s.ticks_per_bar(), 42);
-    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT / 2);
+    assert_eq!(s.meter_map().segment_at(0).ticks_per_bar as usize, 42);
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_beat as usize,
+        TICKS_PER_BEAT / 2
+    );
 
     // 5/8: 2.5 quarters, the other direction.
     s.time_signature = "5/8".into();
-    assert_eq!(s.ticks_per_bar(), 30);
+    assert_eq!(s.meter_map().segment_at(0).ticks_per_bar as usize, 30);
 
     // 6/8 was always a whole number of quarters, so only the *beat* changes:
     // six eighths per bar rather than three quarters.
     s.time_signature = "6/8".into();
-    assert_eq!(s.ticks_per_bar(), 36);
-    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT / 2);
+    assert_eq!(s.meter_map().segment_at(0).ticks_per_bar as usize, 36);
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_beat as usize,
+        TICKS_PER_BEAT / 2
+    );
 }
 
 #[test]
@@ -3011,7 +3056,7 @@ fn every_offered_meter_divides_the_tick_grid_exactly() {
         s.time_signature = sig.into();
         let meter = harmonicon_ui::music_score::parse_time_signature(sig);
         assert_eq!(
-            s.ticks_per_bar(),
+            s.meter_map().segment_at(0).ticks_per_bar as usize,
             meter.ticks_per_bar(TICKS_PER_BEAT as u32).unwrap() as usize,
             "{sig} fell back instead of dividing exactly"
         );
@@ -3024,8 +3069,14 @@ fn a_meter_too_fine_for_the_tick_grid_falls_back_rather_than_panicking() {
         time_signature: "4/32".into(),
         ..Default::default()
     };
-    assert_eq!(s.ticks_per_signature_beat(), TICKS_PER_BEAT);
-    assert_eq!(s.ticks_per_bar(), TICKS_PER_BEAT * 4);
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_beat as usize,
+        TICKS_PER_BEAT
+    );
+    assert_eq!(
+        s.meter_map().segment_at(0).ticks_per_bar as usize,
+        TICKS_PER_BEAT * 4
+    );
 }
 
 #[test]
@@ -3035,8 +3086,14 @@ fn meter_survives_a_malformed_signature() {
     let mut s = EditorState::default();
     for junk in ["", "3", "3/", "3/0", "x/y"] {
         s.time_signature = junk.into();
-        assert!(s.ticks_per_bar() >= 1, "{junk:?}");
-        assert!(s.ticks_per_signature_beat() >= 1, "{junk:?}");
+        assert!(
+            s.meter_map().segment_at(0).ticks_per_bar as usize >= 1,
+            "{junk:?}"
+        );
+        assert!(
+            s.meter_map().segment_at(0).ticks_per_beat as usize >= 1,
+            "{junk:?}"
+        );
         assert!(s.meter().bar_secs(120.0) > 0.0, "{junk:?}");
     }
 }

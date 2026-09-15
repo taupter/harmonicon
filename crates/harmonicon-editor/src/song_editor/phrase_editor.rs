@@ -254,11 +254,7 @@ pub(super) fn update_phrase_editor(
     node.top = Val::Px(ANNOTATION_TOP + ANNOTATION_H + GAP_BELOW_LANE);
 
     if let Ok(mut text) = title.single_mut() {
-        let position = describe_tick(
-            tick,
-            state.ticks_per_bar(),
-            state.ticks_per_signature_beat(),
-        );
+        let position = describe_tick(tick, &state.meter_map());
         let want = loc.msg_args("editor-phrase-editor-title", &[("position", position)]);
         if **text != *want {
             **text = want.to_string();

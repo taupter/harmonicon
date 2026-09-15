@@ -300,7 +300,7 @@ pub(super) fn spawn_record_buttons(
                 return;
             }
             practice.reset();
-            super::metronome::begin_count_in(&state, &mut count_in);
+            super::metronome::begin_count_in(&state, playhead.elapsed, &mut count_in);
         },
     );
     transport_button(

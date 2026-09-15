@@ -99,8 +99,14 @@ pub(super) fn tempo_bpm(state: &EditorState) -> f32 {
 /// Starts a count-in for a fresh Record take — called by the Record Play
 /// button instead of `record::start_record` directly when there's no take
 /// already in flight to resume. See [`CountIn`]'s own doc comment.
-pub(super) fn begin_count_in(state: &EditorState, count_in: &mut CountIn) {
-    count_in.start(count_in_secs(tempo_bpm(state), state.meter()));
+///
+/// One bar of the meter in force *where the take starts*
+/// (`playhead_secs`, the parked playhead), not the opening meter: a take
+/// punched in after a 4/4 → 3/4 change counts three, not four.
+pub(super) fn begin_count_in(state: &EditorState, playhead_secs: f32, count_in: &mut CountIn) {
+    let tick = (playhead_secs.max(0.0) / secs_per_tick(state)).round() as u64;
+    let meter = state.meter_map().meter_at(tick);
+    count_in.start(count_in_secs(tempo_bpm(state), meter));
 }
 
 /// Keeps `MetronomeTempo` in step with the chart currently being edited —

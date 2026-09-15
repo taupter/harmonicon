@@ -51,34 +51,6 @@ const BAR_LABEL_FONT: f32 = 13.0;
 const BEAT_LABEL_FONT: f32 = 11.5;
 const OFF_BEAT_LABEL_FONT: f32 = 11.0;
 
-/// The beat ruler's label for the signature beat starting at `tick`: the
-/// *bar* number on a downbeat, the beat's index within its bar everywhere
-/// else. Both are 1-based.
-///
-/// Works in ticks so that meters whose bar isn't a whole number of
-/// quarter-note columns still count correctly — 7/8 numbers seven eighths
-/// to a bar, where counting columns gave four quarters and a bar line in
-/// the wrong place.
-///
-/// Labelling every beat with only its index within the bar made the ruler
-/// identical in every bar of a chart, with nothing to distinguish bar 1
-/// from bar 37 — which also left the 12-bar tint (`bar_bg`, keyed on a bar
-/// index) unreadable, since its colour cycle has no visible counter to
-/// anchor to.
-pub(super) fn ruler_label(
-    tick: usize,
-    ticks_per_bar: usize,
-    ticks_per_signature_beat: usize,
-) -> String {
-    let ticks_per_bar = ticks_per_bar.max(1);
-    let ticks_per_signature_beat = ticks_per_signature_beat.max(1);
-    if tick.is_multiple_of(ticks_per_bar) {
-        format!("{}", tick / ticks_per_bar + 1)
-    } else {
-        format!("{}", (tick % ticks_per_bar) / ticks_per_signature_beat + 1)
-    }
-}
-
 /// Blends `tint` into `base` by `t` (0 = pure `base`, 1 = pure `tint`),
 /// keeping `base`'s own alpha so lane cells stay fully opaque.
 pub(super) fn mix_srgba(base: Color, tint: Color, t: f32) -> Color {
@@ -102,6 +74,12 @@ pub(super) const OUT_OF_SCALE_TINT: Color = Color::srgb(0.95, 0.25, 0.20);
 /// from the waveform's own accent color and the beat/bar gridlines so it
 /// reads as its own kind of thing.
 pub(super) const TEMPO_MARKER_COLOR: Color = Color::srgb(0.95, 0.55, 0.15);
+
+/// A meter change's bar line — the full grid height, like a bar line,
+/// but in its own colour so a change reads as structural rather than as
+/// just another bar. Cooler than the tempo marker's orange so the two
+/// kinds of "something changes here" don't read as one.
+pub(super) const METER_MARKER_COLOR: Color = Color::srgb(0.45, 0.75, 0.95);
 
 /// Whether `note`'s target pitch — bent/overblown/overdrawn, not just its
 /// natural one (e.g. bending draw-3 down a step-and-a-half on a C harp is
@@ -181,10 +159,9 @@ pub(super) fn rebuild_grid(
     };
     // Bar geometry is measured in ticks, not in whole quarter-note columns:
     // a 7/8 bar is 42 ticks — three and a half columns — so its bar line
-    // genuinely falls *between* two of them. `beats_per_bar` rounds that to
-    // 4 and put the line half a beat out.
-    let ticks_per_bar = state.ticks_per_bar();
-    let ticks_per_signature_beat = state.ticks_per_signature_beat();
+    // genuinely falls *between* two of them. And it comes from the meter
+    // *map*, not one meter: a mid-song change re-bars everything after it.
+    let meter_map = state.meter_map();
     let first_tick = state.scroll_beat * TICKS_PER_BEAT;
     let last_tick = (state.scroll_beat + cols + 1) * TICKS_PER_BEAT;
     let mut items: Vec<Entity> = Vec::new();
@@ -201,7 +178,7 @@ pub(super) fn rebuild_grid(
         // isn't a whole number of columns one cell can straddle two bars.
         let bar_tint = state.twelve_bar_tint.then(|| {
             bar_bg(
-                (beat * TICKS_PER_BEAT / ticks_per_bar) % 12,
+                meter_map.position((beat * TICKS_PER_BEAT) as u64).bar % 12,
                 &state.key,
                 harmonicon_core::harmonica::Progression::Standard,
                 bar_colors,
@@ -350,13 +327,33 @@ pub(super) fn rebuild_grid(
 
     // ── The beat ruler ───────────────────────────────────────────────────
     //
-    // Driven by ticks rather than by the column loop above, because in any
-    // meter counted in eighths a signature beat is half a column wide and a
-    // bar boundary need not coincide with one at all. In 4/4 every position
-    // below lands exactly on a column, so this draws what it always did.
-    let mut tick = first_tick - first_tick % ticks_per_signature_beat;
-    while tick < last_tick {
-        let is_bar = tick.is_multiple_of(ticks_per_bar);
+    // Driven by the meter map's own beat and bar starts rather than by the
+    // column loop above, because a signature beat need not be a column
+    // (an eighth in 6/8 is half of one), a bar boundary need not coincide
+    // with a column at all (7/8), and after a meter change neither is where
+    // the opening meter would put it. In 4/4 with no changes every position
+    // below lands exactly on a column.
+    let changes: std::collections::BTreeMap<u64, harmonicon_ui::music_score::MusicScoreMeter> =
+        meter_map.changes().collect();
+    let mut beat_ticks: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
+    for (tick, pos) in meter_map.beat_starts(first_tick as u64, last_tick as u64) {
+        beat_ticks.insert(tick);
+        let is_bar = pos.beat == 0;
+        // A bar number on the downbeat, the beat's index otherwise — and,
+        // where a meter change starts this bar, the new signature beside
+        // the number, since a change always begins a bar.
+        let label = match (is_bar, changes.get(&tick)) {
+            (true, Some(meter)) => {
+                format!(
+                    "{} \u{00B7} {}/{}",
+                    pos.bar + 1,
+                    meter.numerator,
+                    meter.denominator
+                )
+            }
+            (true, None) => format!("{}", pos.bar + 1),
+            (false, _) => format!("{}", pos.beat + 1),
+        };
         items.push(
             commands
                 .spawn((
@@ -367,7 +364,7 @@ pub(super) fn rebuild_grid(
                         top: Val::Px(6.0),
                         ..default()
                     },
-                    Text::new(ruler_label(tick, ticks_per_bar, ticks_per_signature_beat)),
+                    Text::new(label),
                     TextFont {
                         font_size: FontSize::Px(if is_bar {
                             BAR_LABEL_FONT
@@ -381,24 +378,16 @@ pub(super) fn rebuild_grid(
                 ))
                 .id(),
         );
-        tick += ticks_per_signature_beat;
     }
-
-    super::annotation_lane::spawn(
-        &mut commands,
-        &mut items,
-        &state,
-        first_tick,
-        last_tick,
-        colors,
-        &loc,
-    );
 
     // Bar lines, at their true tick positions — heavier than the beat lines
     // the column loop drew, and drawn after them so they win where the two
-    // coincide.
-    let mut tick = first_tick - first_tick % ticks_per_bar;
-    while tick < last_tick {
+    // coincide. A meter change's tick is a bar line too, and additionally
+    // gets a `TEMPO_MARKER_COLOR`-style marker the full height of the grid,
+    // since it restructures everything after it the way a tempo point
+    // re-times everything after it.
+    for (tick, _) in meter_map.bar_starts(first_tick as u64, last_tick as u64) {
+        let is_change = changes.contains_key(&tick);
         items.push(
             commands
                 .spawn((
@@ -411,12 +400,15 @@ pub(super) fn rebuild_grid(
                         height: Val::Px(grid_height(hole_count)),
                         ..default()
                     },
-                    BackgroundColor(colors.bar_line),
+                    BackgroundColor(if is_change {
+                        METER_MARKER_COLOR
+                    } else {
+                        colors.bar_line
+                    }),
                     Pickable::IGNORE,
                 ))
                 .id(),
         );
-        tick += ticks_per_bar;
     }
 
     // Counting syllables, on the ticks the *active* snap mode can land on —
@@ -429,7 +421,7 @@ pub(super) fn rebuild_grid(
         let beat = state.scroll_beat + col;
         for &(sub, key) in off_beat_labels(state.snap_mode) {
             let tick = beat * TICKS_PER_BEAT + sub;
-            if tick.is_multiple_of(ticks_per_signature_beat) {
+            if beat_ticks.contains(&(tick as u64)) {
                 continue;
             }
             items.push(
@@ -454,6 +446,16 @@ pub(super) fn rebuild_grid(
             );
         }
     }
+
+    super::annotation_lane::spawn(
+        &mut commands,
+        &mut items,
+        &state,
+        first_tick,
+        last_tick,
+        colors,
+        &loc,
+    );
 
     for note in &state.notes {
         if note.tick < last_tick && note.tick + note.len > first_tick {

@@ -434,29 +434,6 @@ impl EditorState {
         harmonicon_ui::music_score::parse_time_signature(&self.time_signature)
     }
 
-    /// Ticks in one beat of the chart's meter — the unit its upper number
-    /// counts, so an eighth in 7/8 and a quarter in 4/4. Falls back to a
-    /// quarter for a meter too fine to divide the tick grid evenly, which
-    /// the picker (`music_score::TIME_SIGNATURES`) never offers.
-    pub(super) fn ticks_per_signature_beat(&self) -> usize {
-        self.meter()
-            .ticks_per_beat(TICKS_PER_BEAT as u32)
-            .map_or(TICKS_PER_BEAT, |t| t as usize)
-            .max(1)
-    }
-
-    /// Ticks in one bar — exact for every meter the picker offers. This is
-    /// what the grid's bar lines,
-    /// bar numbers and 12-bar tint are laid out from, so a bar boundary
-    /// that falls *between* two quarter-note columns (as every 7/8 and 5/8
-    /// bar line does) still lands where the music actually puts it.
-    pub(super) fn ticks_per_bar(&self) -> usize {
-        self.meter()
-            .ticks_per_bar(TICKS_PER_BEAT as u32)
-            .map_or(TICKS_PER_BEAT * 4, |t| t as usize)
-            .max(1)
-    }
-
     #[cfg(test)]
     pub(super) fn note_at(&self, hole: u8, tick: usize) -> Option<&GridNote> {
         self.notes.iter().find(|n| n.hole == hole && n.tick == tick)
@@ -522,6 +499,22 @@ impl EditorState {
     /// tick_to_seconds`/`seconds_to_tick`. See [`build_tempo_map`].
     pub(super) fn tempo_map(&self) -> Vec<harmonicon_core::chart::TempoPoint> {
         build_tempo_map(&self.tempo, &self.tempo_changes)
+    }
+
+    /// The chart's meter over time — what every bar-shaped figure in the
+    /// editor asks (`grid`'s ruler, bar lines and 12-bar tint; `timeline::
+    /// describe_tick`; the phrase editor's title; the count-in), so a
+    /// mid-song change moves all of them together. [`EditorState::meter`]
+    /// is the *opening* meter only, for the consumers that genuinely take
+    /// one value (the metronome's click and the staff's head).
+    pub(super) fn meter_map(&self) -> harmonicon_ui::music_score::MeterMap {
+        harmonicon_ui::music_score::MeterMap::new(
+            self.time_signature_map()
+                .iter()
+                .map(|p| (p.tick, p.time_signature.as_str()))
+                .collect::<Vec<_>>(),
+            TICKS_PER_BEAT as u32,
+        )
     }
 
     /// Sorted meter map with an explicit tick-zero effective signature.

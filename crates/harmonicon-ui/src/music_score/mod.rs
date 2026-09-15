@@ -50,6 +50,9 @@ mod notation;
 use notation::glyph;
 pub use notation::*;
 
+mod meter_map;
+pub use meter_map::{BarPosition, MeterMap, MeterSegment};
+
 // ── Layout constants ──────────────────────────────────────────────────────
 
 /// Total height (px) of the score panel. `pub` so callers reserve this
