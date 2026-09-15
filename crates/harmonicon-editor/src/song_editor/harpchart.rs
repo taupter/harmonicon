@@ -245,14 +245,13 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     let mut metadata = json!({
         "format_version": CURRENT_FORMAT_VERSION,
         "author": artist,
-        "description": "Created with Harmonicon Song Editor 2"
+        "description": state.description
     });
-    if let Some(preserved) = &state.preserved_metadata {
-        for key in ["source", "license", "description"] {
-            if let Some(value) = preserved.get(key) {
-                metadata[key] = value.clone();
-            }
-        }
+    if !state.source.trim().is_empty() {
+        metadata["source"] = json!(state.source.trim());
+    }
+    if !state.license.trim().is_empty() {
+        metadata["license"] = json!(state.license.trim());
     }
     let audio_file = state.music.trim();
     if !audio_file.is_empty() {
@@ -350,9 +349,16 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
 }
 
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
-    state.preserved_metadata = v.get("metadata").cloned();
     state.preserved_scoring = v.get("scoring").cloned();
     state.preserved_loop = v.get("loop").cloned();
+    if let Some(metadata) = v.get("metadata") {
+        state.source = metadata["source"].as_str().unwrap_or("").to_string();
+        state.license = metadata["license"].as_str().unwrap_or("").to_string();
+        state.description = metadata["description"]
+            .as_str()
+            .unwrap_or("Created with Harmonicon Song Editor 2")
+            .to_string();
+    }
     if let Some(song) = v.get("song") {
         if let Some(t) = song["title"].as_str() {
             state.name = t.to_string();

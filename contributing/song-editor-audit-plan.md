@@ -81,7 +81,7 @@ still cannot edit them. Add typed state and Details controls for:
 - Difficulty — typed state and a Details cycle control are implemented
 - Straight/shuffle feel — a separate Details cycle control is implemented;
   `default` omits the optional field and does not alter placement snap
-- Source, license, and description
+- Source, license, and description — typed Details text fields are implemented
 - Perfect/good/miss scoring windows and combo behavior
 - Loop type, repeat, and range
 

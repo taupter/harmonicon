@@ -702,6 +702,9 @@ load-bearing about *this* crate.
   is independent of placement `snap_mode`: `straight`/`shuffle` request a
   gameplay metronome subdivision, while `default` omits the optional field so
   loading the song leaves the player's current choice untouched.
+- **Source, license, and description are typed metadata text fields** in
+  Details. Blank source/license values omit their optional JSON properties;
+  description defaults to the editor attribution used by newly created charts.
 - **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
   a `dialogs::checkbox` in the meta form; off by default). When on,
   `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at

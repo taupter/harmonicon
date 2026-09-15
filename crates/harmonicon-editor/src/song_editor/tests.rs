@@ -1464,14 +1464,20 @@ fn non_grid_chart_settings_survive_load_and_save() {
     load_harpchart(&value, &mut loaded, &mut scroll);
     assert_eq!(loaded.difficulty, "expert");
     assert_eq!(loaded.song_feel, "shuffle");
+    assert_eq!(loaded.source, "Traditional");
+    assert_eq!(loaded.license, "CC-BY-4.0");
+    assert_eq!(loaded.description, "Custom description");
     loaded.difficulty = "advanced".into();
     loaded.song_feel = "straight".into();
+    loaded.source = "Field recording".into();
+    loaded.license = "CC0".into();
+    loaded.description = "Revised description".into();
     let saved: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&loaded)).expect("saved chart JSON");
 
-    assert_eq!(saved["metadata"]["source"], "Traditional");
-    assert_eq!(saved["metadata"]["license"], "CC-BY-4.0");
-    assert_eq!(saved["metadata"]["description"], "Custom description");
+    assert_eq!(saved["metadata"]["source"], "Field recording");
+    assert_eq!(saved["metadata"]["license"], "CC0");
+    assert_eq!(saved["metadata"]["description"], "Revised description");
     assert_eq!(saved["song"]["difficulty"], "advanced");
     assert_eq!(saved["song"]["feel"], "straight");
     assert_eq!(saved["scoring"], value["scoring"]);

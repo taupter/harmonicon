@@ -28,6 +28,9 @@ pub(super) enum Field {
     Author,
     Difficulty,
     SongFeel,
+    Source,
+    License,
+    Description,
     /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
     /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
@@ -107,7 +110,7 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) const FIELDS: [(Field, &str); 8] = [
+pub(super) const FIELDS: [(Field, &str); 11] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -116,6 +119,9 @@ pub(super) const FIELDS: [(Field, &str); 8] = [
     (Field::Author, "editor-field-author"),
     (Field::Difficulty, "editor-field-difficulty"),
     (Field::SongFeel, "editor-field-feel"),
+    (Field::Source, "editor-field-source"),
+    (Field::License, "editor-field-license"),
+    (Field::Description, "editor-field-description"),
 ];
 
 pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
@@ -257,7 +263,6 @@ pub(super) struct EditorState {
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     /// Chart settings the grid does not edit yet, retained verbatim so a
     /// load/save cycle cannot reset them to editor defaults.
-    pub(super) preserved_metadata: Option<serde_json::Value>,
     pub(super) preserved_scoring: Option<serde_json::Value>,
     pub(super) preserved_loop: Option<serde_json::Value>,
     /// The song's meter, as it will be written to the chart (`"4/4"`,
@@ -281,6 +286,9 @@ pub(super) struct EditorState {
     /// `default` means omit the optional chart field, leaving the player's
     /// current metronome feel untouched; the other values are schema values.
     pub(super) song_feel: String,
+    pub(super) source: String,
+    pub(super) license: String,
+    pub(super) description: String,
     pub(super) drag_msg: harmonicon_platform::localization::LocalizedStr,
     pub(super) mode: Mode,
     /// Whether this editing session is authoring a song or a lesson — see
@@ -376,7 +384,6 @@ impl Default for EditorState {
             meter_changes: Vec::new(),
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
-            preserved_metadata: None,
             preserved_scoring: None,
             preserved_loop: None,
             time_signature: "4/4".into(),
@@ -388,6 +395,9 @@ impl Default for EditorState {
             author: String::new(),
             difficulty: "intermediate".into(),
             song_feel: "default".into(),
+            source: String::new(),
+            license: String::new(),
+            description: "Created with Harmonicon Song Editor 2".into(),
             drag_msg: harmonicon_platform::localization::LocalizedStr::default(),
             mode: Mode::default(),
             content_kind: ContentKind::default(),
@@ -558,6 +568,9 @@ impl EditorState {
             Field::Author => &self.author,
             Field::Difficulty => &self.difficulty,
             Field::SongFeel => &self.song_feel,
+            Field::Source => &self.source,
+            Field::License => &self.license,
+            Field::Description => &self.description,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -582,6 +595,9 @@ impl EditorState {
             Field::Author => &mut self.author,
             Field::Difficulty => &mut self.difficulty,
             Field::SongFeel => &mut self.song_feel,
+            Field::Source => &mut self.source,
+            Field::License => &mut self.license,
+            Field::Description => &mut self.description,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }
