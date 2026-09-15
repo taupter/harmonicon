@@ -14,7 +14,8 @@ use bevy::ui_widgets::{Activate, ValueChange};
 
 use super::state::{
     ContentKind, DIFFICULTIES, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS,
-    LESSON_SCALES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, TECHNIQUE_NAMES, cycle_next,
+    LESSON_SCALES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, SONG_FEELS, TECHNIQUE_NAMES,
+    cycle_next,
 };
 use super::ui::{
     ContentKindText, EditorRoot, HarmonicaKindText, HoleColumnContent, LegendColumn, MetaFieldBox,
@@ -310,8 +311,8 @@ fn spawn_twelve_bar_tint_row(
 /// `lesson_form`'s `LessonThreshold`/`LessonTechnique`) can tag it with a
 /// marker component afterward for a visibility system to key on.
 ///
-/// Two widget shapes, branching on [`Field::is_cycle`]: the five
-/// click-to-cycle fields (`Key`/`Position`/the three lesson-enum pickers)
+/// Two widget shapes, branching on [`Field::is_cycle`]:
+/// click-to-cycle fields (`Key`/`Position`, song enums, and lesson enums)
 /// stay a plain `WidgetButton` that steps the value on `Activate`; every
 /// other field gets a real text box (`dialogs::text_input::
 /// spawn_text_input`, built on `bevy_text::EditableText`) instead of the
@@ -388,6 +389,11 @@ pub(super) fn spawn_field_row(
                 .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
                     state.difficulty = cycle_next(&DIFFICULTIES, &state.difficulty);
                 });
+            } else if field == Field::SongFeel {
+                btn.insert(Tooltip(String::from(loc.msg("editor-field-feel-tooltip"))))
+                    .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
+                        state.song_feel = cycle_next(&SONG_FEELS, &state.song_feel);
+                    });
             } else if field == Field::LessonPassCriteria {
                 btn.insert(Tooltip(String::from(
                     loc.msg("editor-field-lesson-pass-criteria-tooltip"),

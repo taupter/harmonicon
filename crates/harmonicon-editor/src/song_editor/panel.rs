@@ -100,8 +100,8 @@ pub(super) fn update_mod_panel(
     }
 }
 
-/// Keeps the five click-to-cycle fields' displayed text in step with
-/// `EditorState` — the nine free-text fields render themselves (see
+/// Keeps click-to-cycle fields' displayed text in step with `EditorState` —
+/// free-text fields render themselves (see
 /// [`sync_meta_field_text`]) and no longer carry a [`MetaFieldText`] child.
 pub(super) fn update_meta_fields(
     state: Res<EditorState>,

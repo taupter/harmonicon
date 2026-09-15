@@ -267,12 +267,8 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
         "time_signature": state.time_signature,
         "difficulty": state.difficulty
     });
-    if let Some(preserved) = &state.preserved_song {
-        for key in ["feel"] {
-            if let Some(value) = preserved.get(key) {
-                song[key] = value.clone();
-            }
-        }
+    if state.song_feel != "default" {
+        song["feel"] = json!(state.song_feel);
     }
     let loop_settings = state.preserved_loop.clone().unwrap_or_else(|| {
         json!({
@@ -355,7 +351,6 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
 
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
     state.preserved_metadata = v.get("metadata").cloned();
-    state.preserved_song = v.get("song").cloned();
     state.preserved_scoring = v.get("scoring").cloned();
     state.preserved_loop = v.get("loop").cloned();
     if let Some(song) = v.get("song") {
@@ -384,6 +379,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         if let Some(difficulty) = song["difficulty"].as_str() {
             state.difficulty = difficulty.to_string();
         }
+        state.song_feel = song["feel"].as_str().unwrap_or("default").to_string();
     }
     if let Some(p) = v["harmonica"]["position"].as_str()
         && POSITIONS.contains(&p)

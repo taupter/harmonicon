@@ -697,6 +697,11 @@ load-bearing about *this* crate.
   outside the list (it's the common ones, not all valid ones), so
   `sync_time_signature_combobox_value` writes `ComboboxValue` directly
   and displays it faithfully instead of snapping to a nearby option.
+- **Difficulty and song feel are typed song settings.** Both use cycle rows
+  in Details. Difficulty is always one of the schema's four values. Song feel
+  is independent of placement `snap_mode`: `straight`/`shuffle` request a
+  gameplay metronome subdivision, while `default` omits the optional field so
+  loading the song leaves the player's current choice untouched.
 - **The 12-bar-blues lane tint is opt-in** (`EditorState::twelve_bar_tint`,
   a `dialogs::checkbox` in the meta form; off by default). When on,
   `grid::rebuild_grid` mixes `twelve_bar_grid::bar_bg` into each lane at

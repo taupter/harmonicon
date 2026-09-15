@@ -27,6 +27,7 @@ pub(super) enum Field {
     Name,
     Author,
     Difficulty,
+    SongFeel,
     /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
     /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
@@ -70,8 +71,8 @@ pub(super) enum Field {
 }
 
 impl Field {
-    /// True for the five fields that cycle through a fixed set of values on
-    /// click (`Key`, `Position`, the three lesson-enum pickers) rather than
+    /// True for fields that cycle through a fixed set of values on
+    /// click (`Key`, `Position`, song enums, and lesson enums) rather than
     /// accepting typed text. `meta_form::spawn_field_row` branches on this
     /// to decide whether to spawn a click-to-cycle button or a real text
     /// input (`dialogs::text_input::spawn_text_input`).
@@ -81,6 +82,7 @@ impl Field {
             Field::Key
                 | Field::Position
                 | Field::Difficulty
+                | Field::SongFeel
                 | Field::LessonPassCriteria
                 | Field::LessonTechnique
                 | Field::LessonProgression
@@ -105,7 +107,7 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) const FIELDS: [(Field, &str); 7] = [
+pub(super) const FIELDS: [(Field, &str); 8] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -113,9 +115,11 @@ pub(super) const FIELDS: [(Field, &str); 7] = [
     (Field::Name, "editor-field-name"),
     (Field::Author, "editor-field-author"),
     (Field::Difficulty, "editor-field-difficulty"),
+    (Field::SongFeel, "editor-field-feel"),
 ];
 
 pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
+pub(super) const SONG_FEELS: [&str; 3] = ["default", "straight", "shuffle"];
 
 /// The extra rows `lesson_form::spawn_lesson_form` shows only while
 /// [`ContentKind::Lesson`] is active — everything `lesson_schema.dtd.json`
@@ -252,10 +256,8 @@ pub(super) struct EditorState {
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     /// Chart settings the grid does not edit yet, retained verbatim so a
-    /// load/save cycle cannot reset them to editor defaults. `preserved_song`
-    /// now supplies only `feel`; difficulty has typed state and a form row.
+    /// load/save cycle cannot reset them to editor defaults.
     pub(super) preserved_metadata: Option<serde_json::Value>,
-    pub(super) preserved_song: Option<serde_json::Value>,
     pub(super) preserved_scoring: Option<serde_json::Value>,
     pub(super) preserved_loop: Option<serde_json::Value>,
     /// The song's meter, as it will be written to the chart (`"4/4"`,
@@ -276,6 +278,9 @@ pub(super) struct EditorState {
     pub(super) name: String,
     pub(super) author: String,
     pub(super) difficulty: String,
+    /// `default` means omit the optional chart field, leaving the player's
+    /// current metronome feel untouched; the other values are schema values.
+    pub(super) song_feel: String,
     pub(super) drag_msg: harmonicon_platform::localization::LocalizedStr,
     pub(super) mode: Mode,
     /// Whether this editing session is authoring a song or a lesson — see
@@ -372,7 +377,6 @@ impl Default for EditorState {
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
             preserved_metadata: None,
-            preserved_song: None,
             preserved_scoring: None,
             preserved_loop: None,
             time_signature: "4/4".into(),
@@ -383,6 +387,7 @@ impl Default for EditorState {
             name: String::new(),
             author: String::new(),
             difficulty: "intermediate".into(),
+            song_feel: "default".into(),
             drag_msg: harmonicon_platform::localization::LocalizedStr::default(),
             mode: Mode::default(),
             content_kind: ContentKind::default(),
@@ -552,6 +557,7 @@ impl EditorState {
             Field::Name => &self.name,
             Field::Author => &self.author,
             Field::Difficulty => &self.difficulty,
+            Field::SongFeel => &self.song_feel,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -575,6 +581,7 @@ impl EditorState {
             Field::Name => &mut self.name,
             Field::Author => &mut self.author,
             Field::Difficulty => &mut self.difficulty,
+            Field::SongFeel => &mut self.song_feel,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }
