@@ -737,6 +737,11 @@ load-bearing about *this* crate.
   and serialize it, validate the saved result, and compare events, annotations,
   timing, instrument, scoring, loop, and metadata semantics after documented
   normalization. Add a chart to assets only if these tests remain green.
+- **The status bar warns when the selected detector cannot score chords.** A
+  duplicate `(tick, len)` among grid notes is exactly a multi-event item after
+  serialization. If `AudioSettings::pitch_algorithm.is_polyphonic()` is false,
+  the editor reuses gameplay's localized chord warning; active save/load,
+  count-in, drag, and recording feedback take priority over it.
 - **Loop settings are typed Details fields.** Type/repeat cycle through schema
   values; start/end accept inclusive phrase indices. Serialization clamps both
   to the current track and orders end at or after start, so note edits cannot

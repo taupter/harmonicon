@@ -14,6 +14,7 @@ use super::ui::{
 };
 use super::undo::UndoHistory;
 use bevy_fluent::prelude::Localization;
+use harmonicon_audio::AudioSettings;
 use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_ui::dialogs::button::BaseButtonColor;
@@ -393,6 +394,7 @@ pub(super) fn update_snap_mode_text(
 
 pub(super) fn update_status_bar(
     state: Res<EditorState>,
+    audio: Res<AudioSettings>,
     practice: Res<PracticeState>,
     record: Res<RecordState>,
     count_in: Res<super::metronome::CountIn>,
@@ -412,7 +414,8 @@ pub(super) fn update_status_bar(
     // yet. Drag messages after that (ephemeral and action-specific); a
     // live recording after that (it's actively running, unlike the
     // practice message which just sits there between hits); practice
-    // messages fill the bar otherwise.
+    // messages fill the bar otherwise. An unscorable-chord warning sits
+    // between active work and passive practice feedback.
     **text = if let Some(msg) = feedback.current() {
         msg.to_string()
     } else if let Some(secs) = count_in.remaining_secs_display() {
@@ -429,15 +432,32 @@ pub(super) fn update_status_bar(
             &[("count", record.note_count.to_string())],
         )
         .to_string()
+    } else if editor_chords_unhearable(&state, &audio) {
+        loc.msg("chord-warning-monophonic").to_string()
     } else {
         practice.msg.to_string()
     };
+}
+
+/// Whether the current chart contains a serialized chord the selected pitch
+/// detector cannot hear. Notes form one chart item only when onset and duration
+/// match, mirroring `harpchart::serialize_harpchart_notes`.
+fn editor_chords_unhearable(state: &EditorState, audio: &AudioSettings) -> bool {
+    if audio.pitch_algorithm.is_polyphonic() {
+        return false;
+    }
+    let mut spans = std::collections::HashSet::new();
+    state
+        .notes
+        .iter()
+        .any(|note| !spans.insert((note.tick, note.len)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::state::GridNote;
     use super::*;
+    use harmonicon_audio::pitch_detect::PitchAlgorithm;
 
     fn note(dir: Dir, pitch: Pitch, expr: Expr) -> GridNote {
         GridNote {
@@ -449,6 +469,43 @@ mod tests {
             pitch,
             expr,
         }
+    }
+
+    #[test]
+    fn monophonic_detector_warns_only_for_notes_that_serialize_as_a_chord() {
+        let mut state = EditorState {
+            notes: vec![
+                GridNote {
+                    id: 1,
+                    hole: 4,
+                    tick: 0,
+                    len: 4,
+                    dir: Dir::Blow,
+                    pitch: Pitch::Normal,
+                    expr: Expr::None,
+                },
+                GridNote {
+                    id: 2,
+                    hole: 5,
+                    tick: 0,
+                    len: 2,
+                    dir: Dir::Blow,
+                    pitch: Pitch::Normal,
+                    expr: Expr::None,
+                },
+            ],
+            ..Default::default()
+        };
+        let mut audio = AudioSettings {
+            pitch_algorithm: PitchAlgorithm::Yin,
+            ..Default::default()
+        };
+
+        assert!(!editor_chords_unhearable(&state, &audio));
+        state.notes[1].len = 4;
+        assert!(editor_chords_unhearable(&state, &audio));
+        audio.pitch_algorithm = PitchAlgorithm::Nmf;
+        assert!(!editor_chords_unhearable(&state, &audio));
     }
 
     // ── update_mod_panel ─────────────────────────────────────────────────────
@@ -941,6 +998,7 @@ mod tests {
             p
         };
         world.insert_resource(practice);
+        world.insert_resource(AudioSettings::default());
         world.insert_resource(RecordState::default());
         world.insert_resource(super::super::metronome::CountIn::default());
         world.insert_resource(super::super::save_feedback::SaveFeedback::default());
@@ -967,6 +1025,7 @@ mod tests {
             p
         };
         world.insert_resource(practice);
+        world.insert_resource(AudioSettings::default());
         world.insert_resource(RecordState::default());
         world.insert_resource(super::super::metronome::CountIn::default());
         world.insert_resource(super::super::save_feedback::SaveFeedback::default());
@@ -993,6 +1052,7 @@ mod tests {
             p
         };
         world.insert_resource(practice);
+        world.insert_resource(AudioSettings::default());
         // `RecordState::open` is private to the `record` module, so build
         // this via field mutation (`active` is `pub(super)`) rather than a
         // struct literal, which would need every field visible here.
