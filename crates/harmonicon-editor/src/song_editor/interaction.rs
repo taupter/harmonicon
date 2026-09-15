@@ -22,6 +22,7 @@ use super::ui::{
     GridArea, GridContent, GroupMoveGhost, ModButton, MoveGhost, NoteView, ResizeGrip,
 };
 use super::{AppState, GRIP_D, HEADER_H, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
+use harmonicon_core::harmonica::Harmonica;
 use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 use harmonicon_ui::dialogs::file_dialog::FileDialog;
 
@@ -65,7 +66,7 @@ pub(super) fn select_or_add(state: &mut EditorState, hole: u8, tick: usize) {
     // Normal for just this note — same "silently do nothing on an
     // incompatible hole" rule clicking the button on a selected note
     // already has — rather than rejecting the whole placement.
-    let pitch = if pitch_compatible(state.sticky_pitch, hole) {
+    let pitch = if pitch_compatible(state.sticky_pitch, &state.effective_harp(), hole) {
         state.sticky_pitch
     } else {
         Pitch::Normal
@@ -212,13 +213,14 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
         return;
     };
 
+    let harp = state.effective_harp();
     let Some(note) = state.selected_note_mut() else {
         return;
     };
     match kind {
         ModButton::Blow | ModButton::Draw => unreachable!(),
         ModButton::Bend => {
-            let max = max_bend(note.hole);
+            let max = max_bend(&harp, note.hole);
             if max <= 0.0 {
                 return;
             }
@@ -316,23 +318,30 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
     }
 }
 
+/// The deepest bend any hole of `harp` allows — the cap for cycling a
+/// bend with no hole to check against. Asked of the harp rather than kept
+/// as a constant, since it's a property of the tuning: three semitones on
+/// Richter (hole 3, the note this instrument is played for), the same on
+/// natural minor but on different holes, and whatever a custom layout's
+/// widest reed pair gives.
+pub(super) fn deepest_bend(harp: &Harmonica) -> f32 {
+    (1..=harp.hole_count())
+        .map(|hole| max_bend(harp, hole))
+        .fold(0.0, f32::max)
+}
+
 /// Cycles `sticky_pitch`'s bend depth with nothing selected, so there's no
-/// specific hole to cap it against — uses [`DEEPEST_BEND`], the richest cap
+/// specific hole to cap it against — uses [`deepest_bend`], the richest cap
 /// any hole has, so cycling here is never cut short by a hole that isn't
 /// even involved yet. `select_or_add` re-validates against the real hole
 /// once a note actually gets placed.
-/// The deepest bend any hole allows — hole 3's three semitones, the note
-/// this instrument is played for. Derived from `max_bend` rather than
-/// written twice, so widening a hole's range can't leave this behind.
-pub(super) const DEEPEST_BEND: f32 = 3.0;
-
 pub(super) fn cycle_sticky_bend(state: &mut EditorState) {
     let current = match state.sticky_pitch {
         Pitch::Bend(depth) => depth,
         _ => 0.0,
     };
     let next = current + 0.5;
-    state.sticky_pitch = if next > DEEPEST_BEND + f32::EPSILON {
+    state.sticky_pitch = if next > deepest_bend(&state.effective_harp()) + f32::EPSILON {
         Pitch::Normal
     } else {
         Pitch::Bend(next)

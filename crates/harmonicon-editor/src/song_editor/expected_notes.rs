@@ -105,7 +105,7 @@ pub(super) fn place_or_select_expected(state: &mut EditorState, hole: u8, tick: 
     }
 
     let dir = state.sticky_dir;
-    let pitch = if pitch_compatible(state.sticky_pitch, hole) {
+    let pitch = if pitch_compatible(state.sticky_pitch, &state.effective_harp(), hole) {
         state.sticky_pitch
     } else {
         Pitch::Normal
@@ -172,6 +172,7 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
         return;
     }
 
+    let harp = state.effective_harp();
     let Some(note) = state.expected_selected_note_mut() else {
         match kind {
             ModButton::Bend => super::interaction::cycle_sticky_bend(state),
@@ -187,7 +188,7 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
     match kind {
         ModButton::Blow | ModButton::Draw => unreachable!(),
         ModButton::Bend => {
-            let max = max_bend(note.hole);
+            let max = max_bend(&harp, note.hole);
             if max <= 0.0 {
                 return;
             }

@@ -106,14 +106,33 @@ name the conflicting category and phrase/event location.
 ### 4. Instrument extensibility
 
 Unknown future diatonic profiles and chromatics above 16 holes remain rejected.
-Custom layouts are now retained (`ffdee1c`); consider a generic layout-backed instrument
-variant. Avoid adding named variants without complete reed, bend, playback,
-import, and save/load behavior.
+Custom layouts are retained (`ffdee1c`), and **bend depth is now derived from
+the reeds** rather than a Richter table — which had disagreed with the
+alternate tunings on nine holes, forbidding country tuning's hole-5 bend and
+permitting a three-semitone bend on Paddy Richter's hole 3. `technique_fits`
+takes the harp; `overblow_ok`/`overdraw_ok` stay by hole number as an
+instrument convention, not physics.
+
+What a generic layout-backed `HarmonicaKind` would still need: a hole count
+read from the layout rather than the kind (65 `HarmonicaKind::` match sites
+across ten editor files, most of them for that), a save that writes no
+`bending_profile`, and a decision on over-technique availability for reed
+pairs Richter doesn't have (draw-above-blow on holes 7+, or the reverse on
+1–6). Not started; the named-preset model plus retained custom layouts covers
+every bundled and importable chart today.
 
 ### 5. Final usability and integration pass
 
-- Run the editor manually at desktop and short landscape/mobile dimensions.
-- Verify Details remains scrollable after the added fields and checkboxes.
+- Run the editor at desktop and short landscape/mobile dimensions — done over
+  BRP at 1280×720 and 960×360 logical: Details scrolls and every field is
+  reachable at both; the Chart tab's grid (~446 px for ten holes with the
+  annotation lane) exceeds the short viewport, reachable only by two-finger
+  touch pan, which is the height-aware `CompactLayout` item PLAN.md defers to
+  post-1.0 and predates this audit.
+- Verify Details remains scrollable after the added fields and checkboxes —
+  verified, see above. One wart: `Description` is a single-line box and shows
+  the *tail* of a long text (`TextEdit::TextEnd`); a multi-line field is the
+  fix if descriptions grow.
 - Every bundled `.harpchart` is now covered by an automated load/resave/schema
   test that also verifies no events disappear. Synthetic unit coverage handles
   alternate diatonic tunings, 12/16-hole chromatic, meter/tempo maps, split,
@@ -129,7 +148,8 @@ import, and save/load behavior.
 1. Read the root and `crates/harmonicon-editor/CLAUDE.md` instructions.
 2. Run `git status --short` and inspect recent commits; preserve any new user
    work in the song editor.
-3. Start with time-signature maps unless the user reprioritizes.
+3. Items 1–3 are complete; what remains is the layout-backed instrument (4)
+   and the rest of the integration pass (5).
 4. Keep each vertical slice small, fully tested, documented, and committed.
 5. Before each commit run:
 

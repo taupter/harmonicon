@@ -27,7 +27,7 @@ use crate::chart::{
     Timing, TrackItem,
 };
 use crate::harmonica::{Harmonica, hole_notes};
-use crate::pitch_map::{Technique, technique_fits_hole};
+use crate::pitch_map::{Technique, technique_fits};
 
 /// What a drill trains. Only techniques that change which *pitch* comes out
 /// of a hole: an expression technique (wah, vibrato) shapes a note rather
@@ -186,7 +186,7 @@ fn depths_available(harp: &Harmonica, hole: u8) -> Vec<u8> {
         .iter()
         .enumerate()
         .map(|(i, _)| i as u8 + 1)
-        .filter(|d| technique_fits_hole(Technique::Bend(f32::from(*d)), hole))
+        .filter(|d| technique_fits(Technique::Bend(f32::from(*d)), harp, hole))
         .collect()
 }
 

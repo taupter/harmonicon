@@ -364,11 +364,21 @@ fn group_move_valid_rejects_a_target_overlapping_a_note_outside_the_group() {
     let mut s = EditorState::default();
     select_or_add(&mut s, 3, 0); // an unrelated, unselected note
     let targets = vec![(99u32, 3, 0, 4, Pitch::Normal)];
-    assert!(!group_move_valid(&s.notes, &[99], &targets));
+    assert!(!group_move_valid(
+        &s.notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[99],
+        &targets
+    ));
     // Moving out of the blocker's way is fine again — the blocker's default
     // length is one full beat (`TICKS_PER_BEAT`), so its span ends there.
     let clear = vec![(99u32, 3, TICKS_PER_BEAT, 4, Pitch::Normal)];
-    assert!(group_move_valid(&s.notes, &[99], &clear));
+    assert!(group_move_valid(
+        &s.notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[99],
+        &clear
+    ));
 }
 
 #[test]
@@ -399,7 +409,12 @@ fn group_move_valid_ignores_overlap_among_the_groups_own_members() {
         (1u32, 2, 4, 4, Pitch::Normal),
         (2u32, 5, 4, 4, Pitch::Normal),
     ];
-    assert!(group_move_valid(&notes, &[1, 2], &targets));
+    assert!(group_move_valid(
+        &notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[1, 2],
+        &targets
+    ));
 }
 
 #[test]
@@ -408,7 +423,12 @@ fn group_move_valid_rejects_a_pitch_incompatible_with_its_target_hole() {
     // holes 2/3/10 (see `max_bend`) — landing on hole 5
     // must fail even with nothing else in the way.
     let targets = vec![(1u32, 5, 0, 4, Pitch::Bend(1.5))];
-    assert!(!group_move_valid(&[], &[1], &targets));
+    assert!(!group_move_valid(
+        &[],
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[1],
+        &targets
+    ));
 }
 
 // ── Copy/paste ────────────────────────────────────────────────────────────
@@ -603,11 +623,10 @@ fn sticky_pitch_falls_back_to_normal_on_an_incompatible_hole_but_stays_armed() {
 
 #[test]
 fn cycling_sticky_bend_past_the_richest_cap_turns_it_off() {
-    // Counted off `DEEPEST_BEND` rather than a literal, so this keeps
-    // testing the wrap and not a particular depth: the cap moved from 1.5
-    // to hole 3's real three semitones when `max_bend` was corrected.
-    let steps = (super::interaction::DEEPEST_BEND / 0.5).round() as usize;
+    // Counted off the harp's own deepest bend rather than a literal, so
+    // this keeps testing the wrap and not a particular depth.
     let mut s = EditorState::default();
+    let steps = (super::interaction::deepest_bend(&s.effective_harp()) / 0.5).round() as usize;
     for _ in 0..steps {
         apply_modifier(&mut s, ModButton::Bend); // 0.5 .. DEEPEST_BEND
     }
@@ -1245,9 +1264,24 @@ fn move_is_blocked_where_a_note_already_sits() {
         },
     ];
     let target = |hole, tick| vec![(1u32, hole, tick, 1, Pitch::Normal)];
-    assert!(!group_move_valid(&notes, &[1], &target(3, 1)));
-    assert!(group_move_valid(&notes, &[1], &target(3, 2)));
-    assert!(group_move_valid(&notes, &[1], &target(4, 0)));
+    assert!(!group_move_valid(
+        &notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[1],
+        &target(3, 1)
+    ));
+    assert!(group_move_valid(
+        &notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[1],
+        &target(3, 2)
+    ));
+    assert!(group_move_valid(
+        &notes,
+        &build_harp("C", HarmonicaKind::Diatonic),
+        &[1],
+        &target(4, 0)
+    ));
 }
 
 #[test]
@@ -3861,15 +3895,63 @@ fn an_empty_root_has_no_overflow() {
 }
 
 #[test]
-fn the_sticky_bend_cap_is_the_deepest_any_hole_allows() {
-    // Written as a constant next to the cycling code, so it can drift from
-    // `max_bend`. It used to say 1.5 while hole 3 genuinely bends three
-    // semitones, which capped the hole-free sticky cycle below what a real
-    // note could then be given.
-    let deepest = (1..=10u8)
-        .map(harmonicon_core::pitch_map::max_bend)
-        .fold(0.0f32, f32::max);
-    assert_eq!(super::interaction::DEEPEST_BEND, deepest);
+fn the_sticky_bend_cap_is_the_deepest_any_hole_of_the_harp_allows() {
+    use super::interaction::deepest_bend;
+    // Richter: hole 3's three semitones. Paddy Richter flattens hole 3 to
+    // one, so its deepest is elsewhere — hole 2's two.
+    assert_eq!(deepest_bend(&build_harp("C", HarmonicaKind::Diatonic)), 3.0);
+    assert_eq!(
+        deepest_bend(&build_harp("C", HarmonicaKind::PaddyRichter)),
+        2.0
+    );
+    // And the cycle actually stops there: on Richter, 3.0 wraps to Normal.
+    let mut s = EditorState {
+        sticky_pitch: Pitch::Bend(3.0),
+        ..Default::default()
+    };
+    super::interaction::cycle_sticky_bend(&mut s);
+    assert_eq!(s.sticky_pitch, Pitch::Normal);
+}
+
+#[test]
+fn the_bend_button_respects_the_tuning_not_a_richter_table() {
+    // Country tuning's raised draw 5 bends a semitone; Richter's hole 5
+    // does not. The editor used to consult a Richter table for both.
+    let mut country = EditorState {
+        harmonica_kind: HarmonicaKind::CountryTuned,
+        ..Default::default()
+    };
+    select_or_add(&mut country, 5, 0);
+    apply_modifier(&mut country, ModButton::Bend);
+    assert_eq!(
+        country.notes[0].pitch,
+        Pitch::Bend(0.5),
+        "country hole 5 bends"
+    );
+
+    let mut richter = EditorState::default();
+    select_or_add(&mut richter, 5, 0);
+    apply_modifier(&mut richter, ModButton::Bend);
+    assert_eq!(
+        richter.notes[0].pitch,
+        Pitch::Normal,
+        "Richter hole 5 can't"
+    );
+
+    // Paddy Richter's hole 3 bends one semitone, not Richter's three: the
+    // cycle wraps to Normal after 1.0 instead of letting an author place a
+    // bend the instrument can't make.
+    let mut paddy = EditorState {
+        harmonica_kind: HarmonicaKind::PaddyRichter,
+        ..Default::default()
+    };
+    select_or_add(&mut paddy, 3, 0);
+    for _ in 0..2 {
+        apply_modifier(&mut paddy, ModButton::Bend);
+    }
+    assert_eq!(paddy.notes[0].pitch, Pitch::Bend(1.0));
+    apply_modifier(&mut paddy, ModButton::Bend);
+    assert_eq!(paddy.notes[0].pitch, Pitch::Normal);
 }
 
 #[test]

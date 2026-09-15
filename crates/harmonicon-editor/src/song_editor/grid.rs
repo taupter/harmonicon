@@ -657,11 +657,12 @@ pub(super) fn group_move_targets(
 /// fine — they keep their original relative positions).
 pub(super) fn group_move_valid(
     notes: &[GridNote],
+    harp: &Harmonica,
     moving_ids: &[u32],
     targets: &[(u32, u8, usize, usize, Pitch)],
 ) -> bool {
     targets.iter().all(|&(_, hole, tick, len, pitch)| {
-        pitch_compatible(pitch, hole)
+        pitch_compatible(pitch, harp, hole)
             && !notes.iter().any(|n| {
                 !moving_ids.contains(&n.id)
                     && n.hole == hole
@@ -799,7 +800,8 @@ pub(super) fn spawn_note(
                     .find(|n| n.id == id)
                     .map(|n| n.pitch)
                     .unwrap_or(Pitch::Normal);
-                let pitch_ok = pitch_compatible(pitch, hole);
+                let harp = state.effective_harp();
+                let pitch_ok = pitch_compatible(pitch, &harp, hole);
                 // The anchor and the rest of the group (if any) are checked
                 // together, in one `group_move_valid` call, rather than the
                 // anchor via `can_place` and the group separately: since
@@ -821,7 +823,7 @@ pub(super) fn spawn_note(
                 ));
                 let mut moving_ids: Vec<u32> = vec![id];
                 moving_ids.extend(drag.group.iter().map(|n| n.id));
-                let valid = group_move_valid(&state.notes, &moving_ids, &targets);
+                let valid = group_move_valid(&state.notes, &harp, &moving_ids, &targets);
                 state.drag_msg = if !pitch_ok {
                     loc.msg(pitch_deny_key(pitch, hole))
                 } else if !valid {

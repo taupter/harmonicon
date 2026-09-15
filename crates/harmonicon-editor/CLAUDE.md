@@ -41,10 +41,19 @@ load-bearing about *this* crate.
     `grid_cache::Snapshot`) like `harmonica_kind`, for the same reason:
     it changes which pitch every hole means.
 
-  Bend limits (`max_bend`/`overblow_ok`/`overdraw_ok`) are still
-  hole-indexed Richter constants, not derived from the layout — the same
-  simplification gameplay makes. A layout-backed instrument that derives
-  them is the audit plan's item 7, not this.
+  **Bend depth comes from the reeds too**: `pitch_compatible(pitch, harp,
+  hole)` and `max_bend(harp, hole)` (core) count the semitones between a
+  hole's two reeds, so country tuning's raised draw 5 bends, Paddy
+  Richter's hole 3 bends one semitone rather than Richter's three, and a
+  custom layout gets whatever its widest reed pair gives. Before this
+  they were a Richter table, which disagreed with the alternate tunings
+  on nine holes in both directions — forbidding real bends and permitting
+  impossible ones — and the same table capped gameplay's harp-substitution
+  and the drill generator. `overblow_ok`/`overdraw_ok` deliberately stay
+  by hole number: *which* holes get overblown is a convention of the
+  instrument (1/4/5/6 and 7–10), not reed physics. The hole-free sticky
+  cap is `interaction::deepest_bend(harp)`, asked of the effective harp
+  at cycle time, not a constant.
 - **The Song Editor can import a MIDI file** (`song_editor::midi_import`).
   The harmonica selector cycles through standard Richter, Paddy Richter,
   natural-minor, 12-hole chromatic, and 16-hole chromatic layouts. These use

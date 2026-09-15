@@ -93,12 +93,11 @@ fn no_drill_asks_for_a_bend_deeper_than_the_hole_allows() {
                 })
                 .unwrap_or(0.0);
             assert!(
-                depth <= max_bend(event.hole),
+                depth <= max_bend(&harp, event.hole),
                 "{tier:?}: hole {} asked for {depth} semitones, max is {}",
                 event.hole,
-                max_bend(event.hole)
+                max_bend(&harp, event.hole)
             );
-            let _ = &harp;
         }
     }
 }

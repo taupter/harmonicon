@@ -31,7 +31,7 @@
 use crate::chart::{Action, Modifier};
 use crate::harmonica::{Harmonica, hole_notes};
 use crate::midi::note_to_midi;
-use crate::pitch_map::{Technique, map_pitch_playable, technique_fits_hole};
+use crate::pitch_map::{Technique, map_pitch_playable, technique_fits};
 
 /// What swapping the harmonica should preserve.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -183,12 +183,12 @@ pub fn remap_event(
             // shorter one.
             let technique_ok = if over {
                 modifiers.iter().all(|m| match m {
-                    Modifier::Overblow => technique_fits_hole(Technique::Overblow, hole),
-                    Modifier::Overdraw => technique_fits_hole(Technique::Overdraw, hole),
+                    Modifier::Overblow => technique_fits(Technique::Overblow, target_harp, hole),
+                    Modifier::Overdraw => technique_fits(Technique::Overdraw, target_harp, hole),
                     _ => true,
                 })
             } else {
-                depth == 0.0 || technique_fits_hole(Technique::Bend(depth), hole)
+                depth == 0.0 || technique_fits(Technique::Bend(depth), target_harp, hole)
             };
             let playable = midi.is_some() && hole <= target_harp.hole_count() && technique_ok;
             RemappedEvent {

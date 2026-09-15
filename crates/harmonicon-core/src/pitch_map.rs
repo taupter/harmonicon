@@ -72,28 +72,19 @@ pub fn harp_for_key(key: &str, kind: HarpKind) -> Harmonica {
     }
 }
 
-/// How far a hole bends, in semitones. Zero means it doesn't.
+/// How far `hole` bends on `harp`, in semitones. Zero means it doesn't.
 ///
-/// A bend pulls a reed down toward *the other reed in the same hole*, so the
-/// depth available is however many semitones lie strictly between them —
-/// which is exactly what [`hole_notes`] already enumerates as `bends`. On a
-/// Richter harp that interval pattern is the same in every key, so it can be
-/// stated as a table; `max_bend_matches_the_notes_a_hole_actually_has` pins
-/// this against `hole_notes` for every hole of every key, because two
-/// descriptions of one physical fact are exactly the kind of thing that
-/// drifts.
-///
-/// Hole 3 bends a full three semitones — the blues note this instrument is
-/// played for. Holes 5 and 7 have adjacent reeds and so bend nothing at all
-/// (a player can bend hole 5 a fraction, but there is no semitone in
-/// between for it to land on).
-pub fn max_bend(hole: u8) -> f32 {
-    match hole {
-        3 => 3.0,
-        2 | 10 => 2.0,
-        1 | 4 | 6 | 8 | 9 => 1.0,
-        _ => 0.0,
-    }
+/// A bend pulls a reed down toward *the other reed in the same hole*, so
+/// the depth available is however many semitones lie strictly between them
+/// — which is exactly what [`hole_notes`] enumerates as `bends`. Read off
+/// the reeds rather than stated as a table, because a table is only right
+/// for the one tuning it was written from: Richter's constants said
+/// country tuning's raised draw 5 couldn't bend (it can — a semitone) and
+/// that Paddy Richter's hole 3 bent three semitones (it bends one), and
+/// disagreed with natural minor on seven of ten holes. Two descriptions
+/// of one physical fact drift; this keeps one.
+pub fn max_bend(harp: &Harmonica, hole: u8) -> f32 {
+    hole_notes(harp, hole).bends.len() as f32
 }
 
 /// Whether `hole` can be overblown — holes 1/4/5/6, matching
@@ -107,11 +98,17 @@ pub fn overdraw_ok(hole: u8) -> bool {
     (7..=10).contains(&hole)
 }
 
-/// Whether `technique` is physically available on `hole`.
-pub fn technique_fits_hole(technique: Technique, hole: u8) -> bool {
+/// Whether `technique` is physically available on `hole` of `harp`.
+///
+/// Bends come from the reeds ([`max_bend`]); over-techniques stay by hole
+/// number ([`overblow_ok`]/[`overdraw_ok`]) because *which* holes a player
+/// overblows is a convention of the instrument, not reed physics — every
+/// hole with draw above blow could in principle be overblown, but on 2 and
+/// 3 the result duplicates a bend on the next hole, so nobody does.
+pub fn technique_fits(technique: Technique, harp: &Harmonica, hole: u8) -> bool {
     match technique {
         Technique::Natural => true,
-        Technique::Bend(depth) => depth <= max_bend(hole) + f32::EPSILON,
+        Technique::Bend(depth) => depth <= max_bend(harp, hole) + f32::EPSILON,
         Technique::Overblow => overblow_ok(hole),
         Technique::Overdraw => overdraw_ok(hole),
         // Every chromatic hole has the slide.
@@ -175,7 +172,7 @@ pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment
                         && reed > target
                     {
                         let depth = (reed - target) as f32;
-                        if technique_fits_hole(Technique::Bend(depth), hole) {
+                        if technique_fits(Technique::Bend(depth), harp, hole) {
                             return assign(hole, action, Technique::Bend(depth));
                         }
                     }

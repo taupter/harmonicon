@@ -67,7 +67,7 @@ fn a_bend_is_preferred_over_an_overblow_for_the_same_pitch() {
                 range.clone().any(|hole| {
                     harp.wind_direction_midi(hole, &action).is_some_and(|reed| {
                         reed > target
-                            && technique_fits_hole(Technique::Bend((reed - target) as f32), hole)
+                            && technique_fits(Technique::Bend((reed - target) as f32), &harp, hole)
                     })
                 })
             });
@@ -120,7 +120,7 @@ fn every_over_technique_lands_on_a_hole_that_supports_it() {
                 continue;
             };
             assert!(
-                technique_fits_hole(a.technique, a.hole),
+                technique_fits(a.technique, &harp, a.hole),
                 "{key} harp: {:?} on hole {} is not physically available",
                 a.technique,
                 a.hole
@@ -250,27 +250,48 @@ fn suggest_key_breaks_ties_by_harp_keys_own_order() {
 // ── max_bend ─────────────────────────────────────────────────────────────────
 
 #[test]
-fn max_bend_matches_the_notes_a_hole_actually_has() {
-    // Two descriptions of one physical fact: `max_bend`'s table and the
-    // bend notes `hole_notes` derives from the layout. They disagreed —
-    // the table capped every hole at 1.5 semitones, so a 2- or 3-semitone
-    // bend was unreachable and a plain C-major scale came back "needs a
-    // chromatic harmonica" because F and A were judged unplayable on a C
-    // diatonic. Key-independent, since Richter tuning repeats the same
-    // interval pattern, so every key must agree.
+fn richter_bend_depths_are_the_ones_every_harp_player_knows() {
+    // `max_bend` reads the reeds, so this is a regression guard on the
+    // Richter layout itself: hole 3 bends three semitones (the blues note
+    // the instrument is played for), 2 and 10 two, 1/4/6/8/9 one, and 5/7
+    // — adjacent reeds — nothing. Key-independent, since Richter repeats
+    // the same interval pattern in every key.
+    let expected = |hole: u8| match hole {
+        3 => 3.0,
+        2 | 10 => 2.0,
+        1 | 4 | 6 | 8 | 9 => 1.0,
+        _ => 0.0,
+    };
     for key in HARP_KEYS {
         let harp = richter_harp(key);
         for hole in 1..=10u8 {
-            let derived = hole_notes(&harp, hole).bends.len() as f32;
             assert_eq!(
-                max_bend(hole),
-                derived,
-                "hole {hole} on a {key} harp has {derived} bend note(s), \
-                 max_bend says {}",
-                max_bend(hole)
+                max_bend(&harp, hole),
+                expected(hole),
+                "hole {hole} on a {key} harp"
             );
         }
     }
+}
+
+#[test]
+fn bend_depths_follow_the_tuning_not_a_richter_table() {
+    // The cases a Richter table got wrong, in both directions. Each is
+    // just the count of semitones strictly between the hole's two reeds.
+    use crate::harmonica::{country_tuned_harp, natural_minor_harp, paddy_richter_harp};
+    // Country tuning raises draw 5 from F to F#: E–F# has F between them.
+    assert_eq!(max_bend(&country_tuned_harp("C"), 5), 1.0);
+    assert_eq!(max_bend(&richter_harp("C"), 5), 0.0);
+    // Paddy Richter raises blow 3 from G to A: A–B has nothing between.
+    // A table saying three would let an author place a bend the harp can't
+    // make.
+    assert_eq!(max_bend(&paddy_richter_harp("C"), 3), 1.0);
+    // Natural minor: hole 2 is D#–G (three), hole 6 is G–G# (none), hole 7
+    // is C6 over A#5 — a *blow* bend of one on a hole Richter can't bend.
+    let minor = natural_minor_harp("C");
+    assert_eq!(max_bend(&minor, 2), 3.0);
+    assert_eq!(max_bend(&minor, 6), 0.0);
+    assert_eq!(max_bend(&minor, 7), 1.0);
 }
 
 #[test]

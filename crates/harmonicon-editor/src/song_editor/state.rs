@@ -657,11 +657,14 @@ pub(super) struct TimelineSelection {
 
 // ── Note model logic ─────────────────────────────────────────────────────────
 
-pub(super) fn pitch_compatible(pitch: Pitch, hole: u8) -> bool {
+/// Whether `pitch` can be placed on `hole` of `harp` — always the editor's
+/// `effective_harp()`, so a chart's custom reeds and the alternate tunings
+/// get *their* bend depths, not Richter's.
+pub(super) fn pitch_compatible(pitch: Pitch, harp: &Harmonica, hole: u8) -> bool {
     // Delegated so the editor's idea of what a hole can physically do can't
     // drift from the resolver's — `pitch_map` decides which notes are
     // reachable, and this decides which the UI will let you place.
-    harmonicon_core::pitch_map::technique_fits_hole(
+    harmonicon_core::pitch_map::technique_fits(
         match pitch {
             Pitch::Normal => harmonicon_core::pitch_map::Technique::Natural,
             Pitch::Bend(depth) => harmonicon_core::pitch_map::Technique::Bend(depth),
@@ -669,6 +672,7 @@ pub(super) fn pitch_compatible(pitch: Pitch, hole: u8) -> bool {
             Pitch::Overdraw => harmonicon_core::pitch_map::Technique::Overdraw,
             Pitch::Slide => harmonicon_core::pitch_map::Technique::Slide,
         },
+        harp,
         hole,
     )
 }
