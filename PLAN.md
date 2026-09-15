@@ -225,13 +225,14 @@ rather than beside it.
    marker yet — that's the right column's job (step 1: a "Phrase…" button
    opening the same popover for the selected note's onset), so Details
    keeps its rows until the toolbar lands.
-5. **Details becomes song-only.** Remove the Section/Chord/Groove/
+5. **Done.** Details becomes song-only. Remove the Section/Chord/Groove/
    ExpressionIntensity rows and the Call/Split checkboxes from `FIELDS`
    and `meta_form`. This also simplifies the audit plan's "controls for
    preserved song settings" item — everything left in Details is genuinely
    per-song.
 
-Order: 4 (done), 1–3 (done), then 5. Each step keeps `update_mod_panel`'s dual-mode
+All five done; the section below is now a record of the design, to be
+pruned to a one-line entry under "Shipped" once it has settled. Each step keeps `update_mod_panel`'s dual-mode
 tests green and adds the same shape of test for Depth/Call/Split.
 
 Finishing 0.4:

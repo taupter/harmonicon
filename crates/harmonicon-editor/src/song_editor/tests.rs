@@ -1514,7 +1514,7 @@ fn custom_expression_intensity_round_trips() {
     let mut scroll = Scroll::default();
     load_harpchart(&value, &mut loaded, &mut scroll);
     loaded.select_only(loaded.notes[0].id);
-    assert_eq!(loaded.field_text(Field::ExpressionIntensity), "0.9");
+    assert_eq!(loaded.selected_expression_intensity(), "0.9");
 
     let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&loaded)).unwrap();
     assert_eq!(
@@ -1532,7 +1532,7 @@ fn expression_intensity_can_be_authored_only_on_an_expression_note() {
 
     apply_modifier(&mut state, ModButton::Vibrato);
     state.set_selected_expression_intensity("0.75".into());
-    assert_eq!(state.field_text(Field::ExpressionIntensity), "0.75");
+    assert_eq!(state.selected_expression_intensity(), "0.75");
     state.set_selected_expression_intensity("0.5".into());
     assert!(state.expression_intensities.is_empty());
 }
@@ -1621,29 +1621,31 @@ fn phrase_annotations_round_trip() {
 }
 
 #[test]
-fn selected_phrase_annotation_fields_follow_selection_and_clear_cleanly() {
+fn phrase_annotation_text_follows_the_selected_notes_onset_and_clears_cleanly() {
+    // `field_text` for the three phrase fields reads the *selected* note's
+    // phrase — what the phrase editor's boxes showed through Details once,
+    // and what `depth_for_button`-style previews still key on.
     let mut state = EditorState::default();
     select_or_add(&mut state, 2, TICKS_PER_BEAT);
-    state.set_selected_annotation(Field::Section, "Verse".into());
-    state.set_selected_annotation(Field::Chord, "G7".into());
-    state.set_selected_annotation(Field::Groove, "behind the beat".into());
+    state.set_annotation(TICKS_PER_BEAT, Field::Section, "Verse".into());
+    state.set_annotation(TICKS_PER_BEAT, Field::Chord, "G7".into());
+    state.set_annotation(TICKS_PER_BEAT, Field::Groove, "behind the beat".into());
     assert_eq!(state.field_text(Field::Section), "Verse");
     assert_eq!(state.field_text(Field::Chord), "G7");
     assert_eq!(state.field_text(Field::Groove), "behind the beat");
 
     state.selected.clear();
     assert_eq!(state.field_text(Field::Section), "");
-    state.select_only(state.notes[0].id);
-    state.set_selected_annotation(Field::Section, String::new());
-    state.set_selected_annotation(Field::Chord, "  ".into());
-    state.set_selected_annotation(Field::Groove, String::new());
+    state.set_annotation(TICKS_PER_BEAT, Field::Section, String::new());
+    state.set_annotation(TICKS_PER_BEAT, Field::Chord, "  ".into());
+    state.set_annotation(TICKS_PER_BEAT, Field::Groove, String::new());
     assert!(state.phrase_annotations.is_empty());
 }
 
 #[test]
-fn annotation_commit_without_a_selected_note_is_ignored() {
+fn annotation_commit_on_an_onset_with_no_note_is_ignored() {
     let mut state = EditorState::default();
-    state.set_selected_annotation(Field::Chord, "Cmaj7".into());
+    state.set_annotation(0, Field::Chord, "Cmaj7".into());
     assert!(state.phrase_annotations.is_empty());
 }
 

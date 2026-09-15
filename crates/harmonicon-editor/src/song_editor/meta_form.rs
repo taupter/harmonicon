@@ -9,9 +9,8 @@ use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::ui::Checked;
 use bevy::ui_widgets::Button as WidgetButton;
-use bevy::ui_widgets::{Activate, Checkbox, ValueChange};
+use bevy::ui_widgets::{Activate, ValueChange};
 
 use super::state::{
     ContentKind, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS, LESSON_SCALES,
@@ -34,12 +33,6 @@ use harmonicon_ui::dialogs::file_dialog::{DialogMode, OpenFileDialog};
 use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 use harmonicon_ui::music_score::TIME_SIGNATURES;
-
-#[derive(Component)]
-pub(super) struct CallResponseRow;
-
-#[derive(Component)]
-pub(super) struct SplitPhraseRow;
 
 pub(super) fn spawn_hole_column(
     row: &mut ChildSpawnerCommands,
@@ -312,72 +305,6 @@ fn spawn_twelve_bar_tint_row(
     );
 }
 
-fn spawn_call_response_row(
-    commands: &mut Commands,
-    column: Entity,
-    loc: &Localization,
-    checked: bool,
-) {
-    let row = spawn_checkbox(
-        commands,
-        column,
-        &String::from(loc.msg("editor-field-call-response")),
-        checked,
-        |change: On<ValueChange<bool>>, mut state: ResMut<EditorState>| {
-            state.set_selected_call(change.value);
-        },
-    );
-    commands.entity(row).insert(CallResponseRow);
-}
-
-fn spawn_split_phrase_row(
-    commands: &mut Commands,
-    column: Entity,
-    loc: &Localization,
-    checked: bool,
-) {
-    let row = spawn_checkbox(
-        commands,
-        column,
-        &String::from(loc.msg("editor-field-split")),
-        checked,
-        |change: On<ValueChange<bool>>, mut state: ResMut<EditorState>| {
-            state.set_selected_split(change.value);
-        },
-    );
-    commands.entity(row).insert(SplitPhraseRow);
-}
-
-pub(super) fn sync_call_response_checkbox(
-    mut commands: Commands,
-    state: Res<EditorState>,
-    rows: Query<&Children, With<CallResponseRow>>,
-    split_rows: Query<&Children, With<SplitPhraseRow>>,
-    boxes: Query<(), With<Checkbox>>,
-) {
-    sync_checked_rows(&mut commands, &rows, &boxes, state.selected_call());
-    sync_checked_rows(&mut commands, &split_rows, &boxes, state.selected_split());
-}
-
-fn sync_checked_rows<T: Component>(
-    commands: &mut Commands,
-    rows: &Query<&Children, With<T>>,
-    boxes: &Query<(), With<Checkbox>>,
-    checked: bool,
-) {
-    for children in rows {
-        for child in children {
-            if boxes.get(*child).is_ok() {
-                if checked {
-                    commands.entity(*child).insert(Checked);
-                } else {
-                    commands.entity(*child).remove::<Checked>();
-                }
-            }
-        }
-    }
-}
-
 /// Spawns one labelled field row and returns its own entity — so a caller
 /// with a row whose relevance depends on another field's value (e.g.
 /// `lesson_form`'s `LessonThreshold`/`LessonTechnique`) can tag it with a
@@ -513,13 +440,7 @@ pub(super) fn spawn_field_row(
                 colors.field_bg,
                 Color::srgb(0.30, 0.30, 0.40),
                 move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
-                    if matches!(field, Field::Section | Field::Chord | Field::Groove) {
-                        state.set_selected_annotation(field, ev.value.clone());
-                    } else if field == Field::ExpressionIntensity {
-                        state.set_selected_expression_intensity(ev.value.clone());
-                    } else {
-                        *state.field_text_mut(field) = ev.value.clone();
-                    }
+                    *state.field_text_mut(field) = ev.value.clone();
                 },
             );
             line.commands_mut().entity(input_id).insert((
@@ -829,19 +750,12 @@ pub(super) fn spawn_meta_form(
             }
         });
         spawn_twelve_bar_tint_row(&mut form.commands(), first_col, loc, state.twelve_bar_tint);
-        let second_col = spawn_form_column(form, |col| {
+        spawn_form_column(form, |col| {
             for &(field, label) in &FIELDS[MID..] {
                 spawn_field_row(col, loc, colors, state, field, label);
             }
             spawn_midi_track_row(col, loc, colors);
         });
-        spawn_call_response_row(&mut form.commands(), second_col, loc, state.selected_call());
-        spawn_split_phrase_row(
-            &mut form.commands(),
-            second_col,
-            loc,
-            state.selected_split(),
-        );
         let legend_col = spawn_form_column(form, |col| {
             super::legend::spawn_color_legend(col, loc, colors);
         });

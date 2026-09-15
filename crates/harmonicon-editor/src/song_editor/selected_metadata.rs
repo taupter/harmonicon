@@ -103,12 +103,6 @@ impl EditorState {
         }
     }
 
-    pub(super) fn set_selected_annotation(&mut self, field: Field, value: String) {
-        if let Some(tick) = self.selected_note().map(|note| note.tick) {
-            self.set_annotation(tick, field, value);
-        }
-    }
-
     pub(super) fn selected_call(&self) -> bool {
         self.selected_note()
             .and_then(|n| self.phrase_annotations.get(&n.tick))

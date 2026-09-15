@@ -26,14 +26,13 @@ pub(super) enum Field {
     Music,
     Name,
     Author,
-    /// Section label attached to the selected note's onset.
+    /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
+    /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
-    /// Chord symbol attached to the selected note's onset.
+    /// Chord symbol of a phrase — likewise.
     Chord,
-    /// Feel or articulation guidance attached to the selected note's onset.
+    /// Feel or articulation guidance for a phrase — likewise.
     Groove,
-    /// Vibrato/wah depth for the selected note, from zero to one.
-    ExpressionIntensity,
     /// Stable lesson identifier — the profile key/prerequisite target. Never
     /// rename one that's shipped; see `lesson_schema.dtd.json`.
     LessonId,
@@ -89,28 +88,28 @@ impl Field {
     }
 }
 
-/// Each entry pairs a [`Field`] with the localization key used for its label.
+/// Each entry pairs a [`Field`] with the localization key used for its label
+/// — **song-level fields only.** The Details form is for information about
+/// the song; anything attached to a note or a phrase has its own surface:
 ///
-/// The meter is deliberately not among them, and has no [`Field`] variant
-/// at all: it's picked from `music_score::TIME_SIGNATURES`
-/// (`meta_form::spawn_time_signature_combobox`) rather than typed, so an
-/// impossible one like `4/3` can't be entered. Everything that writes it
-/// (Load, MIDI import, the picker) assigns `EditorState::time_signature`
-/// directly.
-pub(super) const FIELDS: [(Field, &str); 10] = [
+/// - The meter has no [`Field`] at all: it's picked from
+///   `music_score::TIME_SIGNATURES` (`meta_form::spawn_time_signature_
+///   combobox`) rather than typed, so an impossible one like `4/3` can't be
+///   entered. Everything that writes it (Load, MIDI import, the picker)
+///   assigns `EditorState::time_signature` directly.
+/// - Per-note state (technique, expression, its depth) is the toolbar's
+///   note column (`ui::NoteColumn`).
+/// - A phrase's Call/Split are note-column buttons too; its section, chord
+///   and groove are edited in `phrase_editor`, from its marker on the
+///   annotation lane or the column's Phrase button. `Field::Section`/
+///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
+pub(super) const FIELDS: [(Field, &str); 6] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
     (Field::Music, "editor-field-music"),
     (Field::Name, "editor-field-name"),
     (Field::Author, "editor-field-author"),
-    (Field::Section, "editor-field-section"),
-    (Field::Chord, "editor-field-chord"),
-    (Field::Groove, "editor-field-groove"),
-    (
-        Field::ExpressionIntensity,
-        "editor-field-expression-intensity",
-    ),
 ];
 
 /// The extra rows `lesson_form::spawn_lesson_form` shows only while
@@ -552,7 +551,6 @@ impl EditorState {
             Field::Name => &self.name,
             Field::Author => &self.author,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
-            Field::ExpressionIntensity => self.selected_expression_intensity(),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
             Field::LessonPath => &self.lesson_path,
@@ -574,8 +572,8 @@ impl EditorState {
             Field::Music => &mut self.music,
             Field::Name => &mut self.name,
             Field::Author => &mut self.author,
-            Field::Section | Field::Chord | Field::Groove | Field::ExpressionIntensity => {
-                unreachable!("selected-note fields use their dedicated commit methods")
+            Field::Section | Field::Chord | Field::Groove => {
+                unreachable!("phrase fields are written through `set_annotation`")
             }
             Field::LessonId => &mut self.lesson_id,
             Field::LessonUnit => &mut self.lesson_unit,

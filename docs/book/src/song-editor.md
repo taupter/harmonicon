@@ -94,11 +94,14 @@ natural-minor 10-hole diatonic; 12-/16-hole chromatic),
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 
-**Section**, **Chord**, and **Groove** describe the phrase that begins at the
-selected note. Select a note on the Chart tab, open Details, and enter a section
-name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such as
-`laid-back shuffle`. Notes that begin on the same tick share the annotation.
-Clearing the field removes that marker from the chart.
+**Section**, **Chord**, and **Groove** describe the phrase that begins at a
+note. Select a note and press the sidebar's **Phrase** (§) button, and a
+small panel opens above the grid with the three fields — enter a section
+name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such
+as `laid-back shuffle`. Notes that begin on the same tick share the
+annotation. Clearing every field removes that marker from the chart. These
+are phrase properties, not song ones, which is why they live beside the
+note tools rather than in Details.
 
 These phrase values are also visible in the header above the notes. Section
 boundaries use `§`, chords use `♬`, call-and-response uses `↩`, and a
@@ -119,14 +122,15 @@ a new note will get. A chart can carry any depth in between; the button
 shows it as-is and a click steps up to the next quarter. The rate still
 comes from repeated clicks on the Vibrato or Wah button.
 
-Enable **Call and response at selected note** to make the phrase beginning
-there a response exercise. During gameplay Harmonicon demonstrates consecutive
-call-marked phrases, then waits for the player to perform them.
+Select a note and press the sidebar's **Call** (↩) button to make the phrase
+beginning there a response exercise. During gameplay Harmonicon demonstrates
+consecutive call-marked phrases, then waits for the player to perform them.
+The button lights while the selected note's phrase is a call.
 
 For an octave or tongue-block split, place the simultaneously sounding notes
-at the same tick with the same duration, select either note, and enable
-**Tongue-block split at selected note**. The chart then labels that group as a
-split rather than an ordinary chord.
+at the same tick with the same duration, select either note, and press
+**Split** (TB). The chart then labels that group as a split rather than an
+ordinary chord.
 
 ### Tempo changes
 
