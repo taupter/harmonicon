@@ -142,7 +142,7 @@ pub(super) fn request_confirm(
         TimelineTool::Select => return,
         // Toggled directly by `on_timeline_click_tempo` — never goes
         // through the confirm-dialog path this function drives.
-        TimelineTool::Tempo => return,
+        TimelineTool::Tempo | TimelineTool::Meter => return,
     };
     let map = state.meter_map();
     state.pending_timeline_op = Some((tool, start, end));
@@ -196,6 +196,65 @@ pub(super) fn on_timeline_click_tempo(
         return;
     };
     toggle_tempo_point(&mut state, tick);
+}
+
+/// Cycles the nearest meter change, or starts one on the nearest beat of the
+/// meter in force. Cycling back to the preceding meter removes the point;
+/// tick zero remains owned by the Details picker.
+pub(super) fn cycle_meter_point(state: &mut EditorState, tick: usize) {
+    use harmonicon_ui::music_score::TIME_SIGNATURES;
+    const SNAP_TICKS: usize = super::TICKS_PER_BEAT / 2;
+    if tick < SNAP_TICKS {
+        return;
+    }
+    let map = state.meter_map();
+    let next_signature = |current: &str| -> String {
+        let idx = TIME_SIGNATURES.iter().position(|&s| s == current);
+        TIME_SIGNATURES[idx.map_or(0, |i| (i + 1) % TIME_SIGNATURES.len())].to_string()
+    };
+    let nearest = state
+        .meter_changes
+        .iter()
+        .enumerate()
+        .filter(|&(_, (change_tick, _))| change_tick.abs_diff(tick) <= SNAP_TICKS)
+        .min_by_key(|&(_, (change_tick, _))| change_tick.abs_diff(tick));
+    if let Some((index, (change_tick, current))) = nearest {
+        let before = map.meter_at(change_tick.saturating_sub(1) as u64);
+        let before = format!("{}/{}", before.numerator, before.denominator);
+        let next = next_signature(current);
+        if next == before {
+            state.meter_changes.remove(index);
+        } else {
+            state.meter_changes[index].1 = next;
+        }
+        return;
+    }
+    let segment = map.segment_at(tick as u64);
+    let beat = segment.ticks_per_beat as usize;
+    let offset = tick - segment.start_tick as usize;
+    let snapped = segment.start_tick as usize + (offset + beat / 2) / beat * beat;
+    let current = format!("{}/{}", segment.meter.numerator, segment.meter.denominator);
+    state
+        .meter_changes
+        .push((snapped, next_signature(&current)));
+}
+
+/// The Meter tool's whole interaction — the Tempo tool's sibling, same
+/// plain-`Click` reasoning as [`on_timeline_click_tempo`] above.
+// not-a-widget-button: same continuous drag surface as the tempo handler.
+pub(super) fn on_timeline_click_meter(
+    ev: On<Pointer<Click>>,
+    geoms: Query<&TimelineSurfaceGeometry>,
+    rels: Query<&RelativeCursorPosition>,
+    mut state: ResMut<EditorState>,
+) {
+    if state.mode != Mode::Edit || state.timeline_tool != TimelineTool::Meter {
+        return;
+    }
+    let Some(tick) = hovered_tick(ev.entity, &geoms, &rels) else {
+        return;
+    };
+    cycle_meter_point(&mut state, tick);
 }
 
 /// Record mode's own use of the ruler: a click parks the playhead (the red
@@ -400,7 +459,12 @@ pub(super) fn handle_timeline_confirm(
         match tool {
             TimelineTool::Erase => state.erase_notes_in(start, end),
             TimelineTool::Remove => state.remove_range_closing_gap(start, end),
-            TimelineTool::None | TimelineTool::Select | TimelineTool::Tempo => continue,
+            TimelineTool::None
+            | TimelineTool::Select
+            | TimelineTool::Tempo
+            | TimelineTool::Meter => {
+                continue;
+            }
         }
     }
 }

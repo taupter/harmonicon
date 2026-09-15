@@ -139,6 +139,15 @@ pub(super) enum TimelineTool {
     /// clicking again). See `timeline::on_timeline_click_tempo`/
     /// `toggle_tempo_point`.
     Tempo,
+    /// Click-to-cycle a meter change at the clicked beat — the Tempo
+    /// tool's sibling for `meter_changes`. A click where no change exists adds
+    /// one with the next signature in `TIME_SIGNATURES` after the one in
+    /// force there; a click on an existing change steps it to the next
+    /// signature, and stepping it round to the meter it changed *from*
+    /// removes it, since that would be a change to nothing. One gesture,
+    /// no modifier, no confirm dialog. See `timeline::
+    /// on_timeline_click_meter`/`cycle_meter_point`.
+    Meter,
 }
 
 impl TimelineTool {

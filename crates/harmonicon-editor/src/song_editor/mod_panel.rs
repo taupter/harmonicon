@@ -422,6 +422,15 @@ pub(super) fn spawn_mod_panel(
                                             style,
                                             colors,
                                         );
+                                        timeline_tool_button(
+                                            g,
+                                            TimelineToolButton(TimelineTool::Meter),
+                                            loc.msg("editor-tool-meter"),
+                                            loc.msg("editor-tool-meter-tooltip"),
+                                            "\u{2016}",
+                                            style,
+                                            colors,
+                                        );
                                     });
 
                                 // The metronome click, shared with gameplay/the Bending

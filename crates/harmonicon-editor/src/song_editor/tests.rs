@@ -19,7 +19,7 @@ use super::state::{
     Pitch, Side, TimelineTool, apply_resize, build_tempo_map, cycle_next, enforce_direction,
     enforce_expr, move_target, note_rect, toggle_tempo_point,
 };
-use super::timeline::{TimelineSurfaceGeometry, drag_end_tick};
+use super::timeline::{TimelineSurfaceGeometry, cycle_meter_point, drag_end_tick};
 use super::ui::ModButton;
 use super::undo::{HISTORY_LIMIT, UndoHistory};
 use super::{BEAT_W, GRIP_D, HEADER_H, HOLE_COL_W, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
@@ -2718,6 +2718,48 @@ fn timeline_tool_is_active_is_false_only_for_none() {
     assert!(!TimelineTool::None.is_active());
     assert!(TimelineTool::Erase.is_active());
     assert!(TimelineTool::Remove.is_active());
+    assert!(TimelineTool::Meter.is_active());
+}
+
+#[test]
+fn meter_tool_adds_a_change_on_the_nearest_active_beat() {
+    let mut state = EditorState::default();
+    cycle_meter_point(&mut state, 50);
+    assert_eq!(state.meter_changes, vec![(48, "3/4".into())]);
+}
+
+#[test]
+fn meter_tool_cycles_an_existing_change_and_eventually_removes_it() {
+    let mut state = EditorState {
+        meter_changes: vec![(48, "3/4".into())],
+        ..Default::default()
+    };
+    cycle_meter_point(&mut state, 48);
+    assert_eq!(state.meter_changes, vec![(48, "2/4".into())]);
+    for _ in 0..8 {
+        cycle_meter_point(&mut state, 48);
+    }
+    assert!(state.meter_changes.is_empty());
+}
+
+#[test]
+fn meter_tool_uses_the_changed_meters_beat_grid() {
+    let mut state = EditorState {
+        meter_changes: vec![(48, "7/8".into())],
+        ..Default::default()
+    };
+    cycle_meter_point(&mut state, 57);
+    assert_eq!(
+        state.meter_changes,
+        vec![(48, "7/8".into()), (60, "5/8".into())]
+    );
+}
+
+#[test]
+fn meter_tool_leaves_tick_zero_to_the_details_picker() {
+    let mut state = EditorState::default();
+    cycle_meter_point(&mut state, 3);
+    assert!(state.meter_changes.is_empty());
 }
 
 // ── drag_end_tick ─────────────────────────────────────────────────────────

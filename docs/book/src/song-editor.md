@@ -144,6 +144,15 @@ waveform (if the chart has one) and the beat/bar grid both lay out
 against the real tempo map, so they stay aligned across a tempo change
 instead of drifting.
 
+### Time-signature changes
+
+Select the **Meter** tool and click the ruler to add a time-signature change
+on the nearest beat. A new point starts at the next available signature;
+clicking the point cycles it again, and cycling back to the preceding meter
+removes it. The opening meter remains controlled by the Time Signature picker
+in Details. Meter changes begin a new bar and are labeled directly on the
+ruler, so later bar numbers, beat numbers, and the 12-bar tint stay aligned.
+
 ### Scale and note colors
 
 Every note on the grid is tinted by the technique it's played with — plain

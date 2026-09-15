@@ -671,6 +671,10 @@ load-bearing about *this* crate.
   tick-zero point. Load and save rescale its anchors with the chart resolution,
   and undo/grid caching track the later points. The load validator still
   rejects charts containing a map until every bar-shaped consumer uses it.
+  The timeline's Meter tool (`cycle_meter_point`) authors later changes:
+  clicks snap to the active meter's beat, cycle through `TIME_SIGNATURES`,
+  and remove a point when it cycles back to the preceding meter. Tick zero
+  remains owned by the Details picker.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

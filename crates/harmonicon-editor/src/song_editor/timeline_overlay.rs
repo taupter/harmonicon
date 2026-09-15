@@ -14,8 +14,8 @@ use bevy::ui::RelativeCursorPosition;
 use super::ranges::{normalize_range, split_side_range};
 use super::state::{EditorState, Side, TimelineDrag, TimelineSelection};
 use super::timeline::{
-    TimelineSurface, TimelineSurfaceGeometry, on_timeline_click_seek, on_timeline_click_tempo,
-    on_timeline_drag, on_timeline_drag_end, on_timeline_drag_start,
+    TimelineSurface, TimelineSurfaceGeometry, on_timeline_click_meter, on_timeline_click_seek,
+    on_timeline_click_tempo, on_timeline_drag, on_timeline_drag_end, on_timeline_drag_start,
 };
 use super::{HEADER_H, TICK_W};
 
@@ -101,6 +101,7 @@ pub(super) fn spawn_persistent_entities(
         .observe(on_timeline_drag)
         .observe(on_timeline_drag_end)
         .observe(on_timeline_click_tempo)
+        .observe(on_timeline_click_meter)
         .observe(on_timeline_click_seek);
 }
 

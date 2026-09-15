@@ -71,6 +71,10 @@ The editor representation and resolution-aware load/save portion of step 1 is
 implemented. The validator deliberately continues rejecting meter maps until
 steps 2–6 are complete.
 
+The ruler now integrates meter segments and the Meter timeline tool can insert,
+cycle, and remove later changes. Remaining consumers and MIDI import still need
+to use the map before the validator guard can be removed.
+
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
 non-480 source resolution. Remove the unsupported rejection only after every
 consumer preserves the map.
