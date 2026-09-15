@@ -383,9 +383,10 @@ Difficulty is a Details control with the chart format's four choices: easy,
 intermediate, advanced, and expert. Song Feel separately chooses straight or
 shuffle metronome subdivision; its default setting leaves the player's current
 choice untouched. Source, license, and description are editable text fields in
-the same form. Settings that do not yet have controls—scoring rules and loop
-configuration—are retained from a loaded chart. Editing its notes therefore
-does not reset them.
+the same form. Perfect, Good, and Miss Window fields edit the scoring timing in
+milliseconds; blank, zero, or invalid values fall back to 60, 120, and 220 ms.
+Combo and style-bonus scoring rules, and loop configuration, are retained from
+a loaded chart. Editing its notes therefore does not reset them.
 
 Loading also stops before changing the open chart when a file uses musical
 features the grid cannot preserve yet, such as combinations of mutually

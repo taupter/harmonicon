@@ -1315,7 +1315,6 @@ fn unequal_simultaneous_note_lengths_round_trip_without_being_extended() {
         ],
         ..Default::default()
     };
-
     let value: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
     assert_eq!(value["track"].as_array().unwrap().len(), 2);
@@ -1467,11 +1466,17 @@ fn non_grid_chart_settings_survive_load_and_save() {
     assert_eq!(loaded.source, "Traditional");
     assert_eq!(loaded.license, "CC-BY-4.0");
     assert_eq!(loaded.description, "Custom description");
+    assert_eq!(loaded.perfect_window_ms, "90");
+    assert_eq!(loaded.good_window_ms, "180");
+    assert_eq!(loaded.miss_window_ms, "360");
     loaded.difficulty = "advanced".into();
     loaded.song_feel = "straight".into();
     loaded.source = "Field recording".into();
     loaded.license = "CC0".into();
     loaded.description = "Revised description".into();
+    loaded.perfect_window_ms = "70".into();
+    loaded.good_window_ms = "140".into();
+    loaded.miss_window_ms = "280".into();
     let saved: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&loaded)).expect("saved chart JSON");
 
@@ -1480,9 +1485,27 @@ fn non_grid_chart_settings_survive_load_and_save() {
     assert_eq!(saved["metadata"]["description"], "Revised description");
     assert_eq!(saved["song"]["difficulty"], "advanced");
     assert_eq!(saved["song"]["feel"], "straight");
-    assert_eq!(saved["scoring"], value["scoring"]);
+    assert_eq!(saved["scoring"]["perfect_window_ms"], 70);
+    assert_eq!(saved["scoring"]["good_window_ms"], 140);
+    assert_eq!(saved["scoring"]["miss_window_ms"], 280);
     assert_eq!(saved["loop"], value["loop"]);
     validated_harpchart(&saved.to_string()).expect("preserved settings remain valid");
+}
+
+#[test]
+fn invalid_scoring_window_text_falls_back_to_schema_valid_defaults() {
+    let mut state = EditorState {
+        perfect_window_ms: "zero".into(),
+        good_window_ms: "0".into(),
+        miss_window_ms: "-1".into(),
+        ..Default::default()
+    };
+    select_or_add(&mut state, 1, 0);
+    let saved: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    assert_eq!(saved["scoring"]["perfect_window_ms"], 60);
+    assert_eq!(saved["scoring"]["good_window_ms"], 120);
+    assert_eq!(saved["scoring"]["miss_window_ms"], 220);
+    validated_harpchart(&saved.to_string()).expect("fallback windows satisfy the schema");
 }
 
 #[test]

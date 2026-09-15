@@ -31,6 +31,9 @@ pub(super) enum Field {
     Source,
     License,
     Description,
+    PerfectWindow,
+    GoodWindow,
+    MissWindow,
     /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
     /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
@@ -95,9 +98,7 @@ impl Field {
     }
 }
 
-/// Each entry pairs a [`Field`] with the localization key used for its label
-/// — **song-level fields only.** The Details form is for information about
-/// the song; anything attached to a note or a phrase has its own surface:
+/// Song-level Details fields paired with localization keys.
 ///
 /// - The meter has no [`Field`] at all: it's picked from
 ///   `music_score::TIME_SIGNATURES` (`meta_form::spawn_time_signature_
@@ -110,7 +111,7 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) const FIELDS: [(Field, &str); 11] = [
+pub(super) const FIELDS: [(Field, &str); 14] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
@@ -122,16 +123,15 @@ pub(super) const FIELDS: [(Field, &str); 11] = [
     (Field::Source, "editor-field-source"),
     (Field::License, "editor-field-license"),
     (Field::Description, "editor-field-description"),
+    (Field::PerfectWindow, "editor-field-perfect-window"),
+    (Field::GoodWindow, "editor-field-good-window"),
+    (Field::MissWindow, "editor-field-miss-window"),
 ];
 
 pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
 pub(super) const SONG_FEELS: [&str; 3] = ["default", "straight", "shuffle"];
 
-/// The extra rows `lesson_form::spawn_lesson_form` shows only while
-/// [`ContentKind::Lesson`] is active — everything `lesson_schema.dtd.json`
-/// needs beyond what [`FIELDS`] already covers (title/tempo/key/... are
-/// shared with a plain song, since a chart-backed lesson's chart is an
-/// ordinary chart).
+/// Extra lesson-only Details rows required by `lesson_schema.dtd.json`.
 pub(super) const LESSON_FIELDS: [(Field, &str); 10] = [
     (Field::LessonId, "editor-field-lesson-id"),
     (Field::LessonUnit, "editor-field-lesson-unit"),
@@ -261,15 +261,10 @@ pub(super) struct EditorState {
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
-    /// Chart settings the grid does not edit yet, retained verbatim so a
-    /// load/save cycle cannot reset them to editor defaults.
+    /// Still-uneditable chart settings retained verbatim for round trips.
     pub(super) preserved_scoring: Option<serde_json::Value>,
     pub(super) preserved_loop: Option<serde_json::Value>,
-    /// The song's meter, as it will be written to the chart (`"4/4"`,
-    /// `"3/4"`, `"6/8"`). Everything that needs a bar length asks
-    /// [`EditorState::beats_per_bar`] rather than assuming four — the grid's
-    /// bar lines, the metronome's count-in, the timeline's bar readout and
-    /// the notation staff all follow it.
+    /// Opening meter; later changes live in `meter_changes`.
     pub(super) time_signature: String,
     pub(super) key: String,
     pub(super) position: String,
@@ -283,12 +278,14 @@ pub(super) struct EditorState {
     pub(super) name: String,
     pub(super) author: String,
     pub(super) difficulty: String,
-    /// `default` means omit the optional chart field, leaving the player's
-    /// current metronome feel untouched; the other values are schema values.
+    /// `default` omits the optional chart field; otherwise a schema value.
     pub(super) song_feel: String,
     pub(super) source: String,
     pub(super) license: String,
     pub(super) description: String,
+    pub(super) perfect_window_ms: String,
+    pub(super) good_window_ms: String,
+    pub(super) miss_window_ms: String,
     pub(super) drag_msg: harmonicon_platform::localization::LocalizedStr,
     pub(super) mode: Mode,
     /// Whether this editing session is authoring a song or a lesson — see
@@ -398,6 +395,9 @@ impl Default for EditorState {
             source: String::new(),
             license: String::new(),
             description: "Created with Harmonicon Song Editor 2".into(),
+            perfect_window_ms: "60".into(),
+            good_window_ms: "120".into(),
+            miss_window_ms: "220".into(),
             drag_msg: harmonicon_platform::localization::LocalizedStr::default(),
             mode: Mode::default(),
             content_kind: ContentKind::default(),
@@ -571,6 +571,9 @@ impl EditorState {
             Field::Source => &self.source,
             Field::License => &self.license,
             Field::Description => &self.description,
+            Field::PerfectWindow => &self.perfect_window_ms,
+            Field::GoodWindow => &self.good_window_ms,
+            Field::MissWindow => &self.miss_window_ms,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -598,6 +601,9 @@ impl EditorState {
             Field::Source => &mut self.source,
             Field::License => &mut self.license,
             Field::Description => &mut self.description,
+            Field::PerfectWindow => &mut self.perfect_window_ms,
+            Field::GoodWindow => &mut self.good_window_ms,
+            Field::MissWindow => &mut self.miss_window_ms,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }

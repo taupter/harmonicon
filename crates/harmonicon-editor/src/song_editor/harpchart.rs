@@ -277,7 +277,7 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             "end_index": last_phrase
         })
     });
-    let scoring = state.preserved_scoring.clone().unwrap_or_else(|| {
+    let mut scoring = state.preserved_scoring.clone().unwrap_or_else(|| {
         json!({
             "perfect_window_ms": 60,
             "good_window_ms": 120,
@@ -292,6 +292,17 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
             "style_bonus": { "bend": 50, "vibrato": 25, "wah-wah": 40 }
         })
     });
+    let positive_ms = |value: &str, fallback: u64| {
+        value
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .unwrap_or(fallback)
+    };
+    scoring["perfect_window_ms"] = json!(positive_ms(&state.perfect_window_ms, 60));
+    scoring["good_window_ms"] = json!(positive_ms(&state.good_window_ms, 120));
+    scoring["miss_window_ms"] = json!(positive_ms(&state.miss_window_ms, 220));
 
     let mut timing = json!({
         "resolution": TICKS_PER_BEAT,
@@ -351,6 +362,20 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
     state.preserved_scoring = v.get("scoring").cloned();
     state.preserved_loop = v.get("loop").cloned();
+    if let Some(scoring) = v.get("scoring") {
+        state.perfect_window_ms = scoring["perfect_window_ms"]
+            .as_u64()
+            .unwrap_or(60)
+            .to_string();
+        state.good_window_ms = scoring["good_window_ms"]
+            .as_u64()
+            .unwrap_or(120)
+            .to_string();
+        state.miss_window_ms = scoring["miss_window_ms"]
+            .as_u64()
+            .unwrap_or(220)
+            .to_string();
+    }
     if let Some(metadata) = v.get("metadata") {
         state.source = metadata["source"].as_str().unwrap_or("").to_string();
         state.license = metadata["license"].as_str().unwrap_or("").to_string();
