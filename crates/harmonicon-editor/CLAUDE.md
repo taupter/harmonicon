@@ -717,7 +717,10 @@ load-bearing about *this* crate.
   budget.
 - **Source, license, and description are typed metadata text fields** in
   Details. Blank source/license values omit their optional JSON properties;
-  description defaults to the editor attribution used by newly created charts.
+  description defaults to the editor attribution used by newly created charts
+  and uses a four-line, word-wrapped input that inserts newlines on Enter and
+  commits on focus loss. `metadata.author` is held separately from the Details
+  `Author` value (`song.artist`) so load/save does not conflate the two credits.
 - **Scoring windows are typed as Details text fields** because authors enter
   exact millisecond values. Serialization accepts positive integers and falls
   back to the new-chart defaults (60/120/220 ms) for blank or invalid input;
@@ -730,9 +733,10 @@ load-bearing about *this* crate.
   cannot be reproduced by the synth, so load validation rejects each category
   with its phrase and event location.
 - **Every bundled lesson/song chart must survive the editor.** The integration
-  test walks `assets/{lessons,songs}/**/*.harpchart`, validates each source, loads and serializes it,
-  checks that every event became a note, and validates the saved result. Add a
-  chart to assets only if this test remains green.
+  tests walk `assets/{lessons,songs}/**/*.harpchart`, validate each source, load
+  and serialize it, validate the saved result, and compare events, annotations,
+  timing, instrument, scoring, loop, and metadata semantics after documented
+  normalization. Add a chart to assets only if these tests remain green.
 - **Loop settings are typed Details fields.** Type/repeat cycle through schema
   values; start/end accept inclusive phrase indices. Serialization clamps both
   to the current track and orders end at or after start, so note edits cannot

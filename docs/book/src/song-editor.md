@@ -382,8 +382,9 @@ out clearly instead of silently mis-loading.
 Difficulty is a Details control with the chart format's four choices: easy,
 intermediate, advanced, and expert. Song Feel separately chooses straight or
 shuffle metronome subdivision; its default setting leaves the player's current
-choice untouched. Source, license, and description are editable text fields in
-the same form. Perfect, Good, and Miss Window fields edit the scoring timing in
+choice untouched. Source and license are editable text fields in the same form;
+description uses a four-line word-wrapped box, where Enter starts a new line and
+leaving the box commits the text. Perfect, Good, and Miss Window fields edit the scoring timing in
 milliseconds; blank, zero, or invalid values fall back to 60, 120, and 220 ms.
 Combo controls set whether streak multipliers are enabled and their base,
 increment, maximum, and decay time. Loop controls choose its section type,

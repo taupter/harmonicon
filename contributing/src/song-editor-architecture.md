@@ -361,6 +361,10 @@ map, and note-removal paths prune stale ids.
 scoring windows, combo behavior, and loop configuration. Only arbitrary style
 bonuses remain preserved JSON. Loop indices clamp to the current serialized
 phrase list, so deleting phrases cannot leave an out-of-range loop.
+Chart authorship (`metadata.author`) is stored separately from the performing
+artist (`song.artist`), even though only the artist is directly editable, so a
+load/save cycle cannot replace one credit with the other. Description uses the
+shared multiline text input and commits on focus loss.
 
 Meter changes are tick-keyed alongside tempo changes. A shared `MeterMap`
 drives ruler/bar layout, metronome and count-in accents, notation splitting,
@@ -368,8 +372,10 @@ and timeline labels. MIDI import reads meter events from conductor tracks;
 Remove shifts both timing maps and restores the timing active at the cut end.
 
 The editor models standard Richter, Paddy Richter, country tuned, natural
-minor, 12-hole chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
-variants. `playback::build_harp` supplies the matching core layout, and
+minor, 12-hole chromatic, and 16-hole chromatic instruments as distinct
+`HarmonicaKind` variants. The chart schema is the authority for those supported
+profiles and hole counts; post-schema validation only rejects modifier
+combinations the editor cannot represent. `playback::build_harp` supplies the matching core layout, and
 `EditorState::hole_count` is the shared authority for grid lanes, note bounds,
 import, and save/load. The serialized `bending_profile` or `harmonica.holes`
 value restores the same variant on load, so alternate reed layouts and holes
