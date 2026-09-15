@@ -27,6 +27,7 @@ mod clipboard;
 // gates dynamic linking and asset hot-reload elsewhere in the app.
 #[cfg(feature = "dev")]
 mod debug_record;
+mod details_fields;
 // Dev-only ("--features dev") benchmark-authoring workflow — see its own
 // module docs. Same gating as `debug_record` above.
 #[cfg(feature = "dev")]

@@ -111,22 +111,7 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) const FIELDS: [(Field, &str); 14] = [
-    (Field::Tempo, "editor-field-tempo"),
-    (Field::Key, "editor-field-key"),
-    (Field::Position, "editor-field-position"),
-    (Field::Music, "editor-field-music"),
-    (Field::Name, "editor-field-name"),
-    (Field::Author, "editor-field-author"),
-    (Field::Difficulty, "editor-field-difficulty"),
-    (Field::SongFeel, "editor-field-feel"),
-    (Field::Source, "editor-field-source"),
-    (Field::License, "editor-field-license"),
-    (Field::Description, "editor-field-description"),
-    (Field::PerfectWindow, "editor-field-perfect-window"),
-    (Field::GoodWindow, "editor-field-good-window"),
-    (Field::MissWindow, "editor-field-miss-window"),
-];
+pub(super) use super::details_fields::FIELDS;
 
 pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
 pub(super) const SONG_FEELS: [&str; 3] = ["default", "straight", "shuffle"];

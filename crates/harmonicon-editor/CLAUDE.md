@@ -702,6 +702,10 @@ load-bearing about *this* crate.
   is independent of placement `snap_mode`: `straight`/`shuffle` request a
   gameplay metronome subdivision, while `default` omits the optional field so
   loading the song leaves the player's current choice untouched.
+- **`details_fields.rs` owns the song Details row registry and order.** Field
+  behavior and values remain in `state.rs`/`meta_form.rs`; keep this registry
+  separate so adding form rows does not make document state exceed its module
+  budget.
 - **Source, license, and description are typed metadata text fields** in
   Details. Blank source/license values omit their optional JSON properties;
   description defaults to the editor attribution used by newly created charts.
