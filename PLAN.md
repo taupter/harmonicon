@@ -169,6 +169,77 @@ Work in risk order:
 5. Add focused round-trip and playability tests for each item, then update the
    player and contributor documentation as behavior becomes available.
 
+### Song Editor: one editing surface per kind of data
+
+The Details form mixes three kinds of field that are attached to three
+different things, and the per-note/per-phrase ones don't belong in a
+form whose job is "generic song information":
+
+| Attached to | Fields | Where it belongs |
+|---|---|---|
+| the song | tempo, key, meter, position, music, name, author, … | Details (stays) |
+| a phrase — the notes sharing an onset, keyed by tick | section, chord, groove, call, split | the annotation lane |
+| one note — keyed by id | technique, expression, expression depth | the toolbar |
+
+The toolbar is *already* the per-note surface: `panel::update_mod_panel`
+lights Blow/Draw, Bend (+ depth dot), Overblow/Overdraw/Slide and Wah/
+Vibrato (with the rate in the label) for the selected note, and with
+nothing selected shows the sticky-armed defaults the *next* placed note
+gets; a click both edits the selection and arms the sticky. Any second
+per-note surface — a popup under the note was considered — would
+duplicate that, two places lighting up for one note, on top of the
+occlusion and respawn-lifecycle costs a popup over the grid carries
+(note entities die on every `rebuild_grid`; the resize grips are
+persistent for exactly that reason). So the plan builds on the toolbar
+rather than beside it.
+
+1. **Two-column toolbar.** Left: document and tools — back, save, load,
+   undo, redo, Edit/Record/Play, lock, metronome, legend, the timeline
+   tools, copy *and* paste (kept together; a needs-a-selection Copy dims
+   like Undo does rather than moving columns). Right: **the note** — the
+   selected one, or the next one to be placed — Blow/Draw, Bend/Overblow/
+   Overdraw/Slide, Wah/Vibrato, Depth, Call, Split, delete. The column is
+   named for what it *is*, not "the selection", because it never empties:
+   with nothing selected it shows what the next note gets. It's Edit-mode
+   content (`EditModeGroup` already hides the technique buttons in
+   Record/Play), so collapse it with `Display::None` outside Edit and give
+   the width back exactly when the grid needs it. Two icon columns are
+   112 px (`toolbar_width`); in the text-label styles show one column
+   only — two 168 px columns is a third of a small screen. This applies
+   the toolbar's own stated principle again: spend horizontal space, the
+   axis a landscape screen has to spare, instead of vertical.
+2. **Depth as a right-column cycle button** (¼ ½ ¾ 1), dual-mode like the
+   Hz cycling Wah/Vibrato already do, replacing the Details text field.
+   **Open decision:** stepped depth loses the free 0–1 float the field
+   accepts today. If depth must stay a free number, it needs a text field
+   and the right column can't host it — it would then go to the phrase
+   strip below as a note-mode row. Decide before starting.
+3. **Call/Split as right-column buttons.** They're phrase bools, bound to
+   the selected note's onset — how Details already resolves them — so
+   they need no phrase selection of their own.
+4. **Section/chord/groove on the annotation lane** (the in-flight audit
+   item: a lane between the ruler and the waveform, markers at each
+   annotated onset, `HEADER_H` grows so every module adjusts). Clicking a
+   marker opens a small popover with the three text fields. This is the
+   one place a popover genuinely fits: top of the grid, opens downward,
+   only on a marker click rather than every note click. It must be a
+   **persistent** entity repositioned per frame, like the grips — lane
+   markers are respawned by `rebuild_grid`, and a text field childed to
+   one would lose focus mid-typing. Keep `bevy_ui_widgets::Popover`'s
+   ancestry rule in mind (`meta_form::spawn_scale_combobox`'s doc): the
+   popover's clipping follows its ECS parent, so anchor it in the fixed
+   chrome, not inside `GridArea`'s `Overflow::clip()`.
+5. **Details becomes song-only.** Remove the Section/Chord/Groove/
+   ExpressionIntensity rows and the Call/Split checkboxes from `FIELDS`
+   and `meta_form`. This also simplifies the audit plan's "controls for
+   preserved song settings" item — everything left in Details is genuinely
+   per-song.
+
+Order: 4 first (it's already in progress and the phrase fields have
+nowhere else to go until it exists), then 1–3 together (one toolbar
+restructure), then 5. Each step keeps `update_mod_panel`'s dual-mode
+tests green and adds the same shape of test for Depth/Call/Split.
+
 Finishing 0.4:
 
 1. **Backing track variety, remainder** (0.4): recorded loops per style
