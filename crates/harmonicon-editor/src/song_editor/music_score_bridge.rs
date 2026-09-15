@@ -12,20 +12,47 @@ use bevy::prelude::*;
 
 use harmonicon_ui::music_score::MusicScoreMeter;
 use harmonicon_ui::music_score::{
-    MusicScoreNotes, MusicScorePlayhead, NotationNote, parse_time_signature, split_at_bar_lines,
+    MeterMap, MusicScoreNotes, MusicScorePlayhead, NotationNote, parse_time_signature,
 };
 
 use super::TICKS_PER_BEAT;
 use super::playback::{Playhead, note_midi};
 use super::state::EditorState;
 
+fn notation_segments(
+    note: &super::state::GridNote,
+    midi: u8,
+    meter_map: &MeterMap,
+) -> Vec<NotationNote> {
+    let start = note.tick as u64;
+    let end = (note.tick + note.len.max(1)) as u64;
+    let mut boundaries = vec![start];
+    boundaries.extend(
+        meter_map
+            .bar_starts(start.saturating_add(1), end)
+            .into_iter()
+            .map(|(tick, _)| tick),
+    );
+    boundaries.push(end);
+    boundaries
+        .windows(2)
+        .enumerate()
+        .map(|(index, pair)| NotationNote {
+            start_beat: pair[0] as f64 / TICKS_PER_BEAT as f64,
+            duration_beats: (pair[1] - pair[0]) as f64 / TICKS_PER_BEAT as f64,
+            midi,
+            tied_from_previous: index > 0,
+        })
+        .collect()
+}
+
 /// Rebuilds [`MusicScoreNotes`] from `EditorState::notes` whenever the
 /// editor state changes — same `resource_exists_and_changed::<EditorState>`
 /// gate every other EditorState-derived rebuild in `song_editor::mod` uses.
 /// A note whose hole/technique the current harp can't resolve is skipped,
-/// same as gameplay's bridge. `super::BEATS_PER_BAR` feeds
-/// `split_at_bar_lines` so a note crossing a bar line becomes tied segments
-/// instead of one oversized notehead.
+/// same as gameplay's bridge. The editor's meter map supplies every bar
+/// boundary, so notes crossing either an ordinary bar line or a meter change
+/// become tied segments instead of one oversized notehead.
 pub(super) fn sync_music_score(
     state: Res<EditorState>,
     mut notes: ResMut<MusicScoreNotes>,
@@ -36,19 +63,15 @@ pub(super) fn sync_music_score(
         *meter = editor_meter;
     }
     let harp = state.effective_harp();
+    let meter_map = state.meter_map();
     notes.0 = state
         .notes
         .iter()
         .filter_map(|n| {
             let midi = note_midi(n, &harp)?;
-            Some(NotationNote {
-                start_beat: n.tick as f64 / TICKS_PER_BEAT as f64,
-                duration_beats: n.len.max(1) as f64 / TICKS_PER_BEAT as f64,
-                midi,
-                tied_from_previous: false,
-            })
+            Some(notation_segments(n, midi, &meter_map))
         })
-        .flat_map(|note| split_at_bar_lines(note, editor_meter.beats_per_bar()))
+        .flatten()
         .collect();
 }
 
@@ -64,11 +87,63 @@ pub(super) fn sync_music_score_playhead(
     playhead: Res<Playhead>,
     state: Res<EditorState>,
     mut score_playhead: ResMut<MusicScorePlayhead>,
+    mut meter: ResMut<MusicScoreMeter>,
 ) {
-    if playhead.playing && playhead.secs_per_tick > 0.0 {
+    let tick = if playhead.playing && playhead.secs_per_tick > 0.0 {
         let cur_tick = playhead.elapsed / playhead.secs_per_tick;
         score_playhead.0 = (cur_tick / TICKS_PER_BEAT as f32) as f64;
+        cur_tick.max(0.0).round() as u64
     } else {
         score_playhead.0 = state.scroll_beat as f64;
+        (state.scroll_beat * TICKS_PER_BEAT) as u64
+    };
+    *meter = state.meter_map().meter_at(tick);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::song_editor::state::{Dir, Expr, GridNote, Pitch};
+
+    fn note(tick: usize, len: usize) -> GridNote {
+        GridNote {
+            id: 1,
+            hole: 4,
+            tick,
+            len,
+            dir: Dir::Blow,
+            pitch: Pitch::Normal,
+            expr: Expr::None,
+        }
+    }
+
+    #[test]
+    fn notation_splits_and_ties_across_meter_map_bars() {
+        let map = MeterMap::new([(0, "4/4"), (48, "3/4")], TICKS_PER_BEAT as u32);
+
+        let segments = notation_segments(&note(36, 60), 60, &map);
+
+        assert_eq!(segments.len(), 3);
+        assert_eq!(segments[0].duration_beats, 1.0);
+        assert_eq!(segments[1].duration_beats, 3.0);
+        assert_eq!(segments[2].duration_beats, 1.0);
+        assert!(!segments[0].tied_from_previous);
+        assert!(segments[1].tied_from_previous);
+        assert!(segments[2].tied_from_previous);
+    }
+
+    #[test]
+    fn notation_treats_an_off_bar_meter_change_as_a_boundary() {
+        let map = MeterMap::new([(0, "4/4"), (42, "3/4")], TICKS_PER_BEAT as u32);
+
+        let segments = notation_segments(&note(36, 54), 60, &map);
+
+        let starts: Vec<_> = segments.iter().map(|segment| segment.start_beat).collect();
+        assert_eq!(starts, vec![3.0, 3.5, 6.5]);
+        assert!(
+            segments[1..]
+                .iter()
+                .all(|segment| segment.tied_from_previous)
+        );
     }
 }

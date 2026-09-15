@@ -678,7 +678,9 @@ load-bearing about *this* crate.
   The live metronome derives a clock local to the active meter segment, so
   every change starts with a downbeat even when it truncates the preceding
   bar. Record count-in stores the meter at the parked playhead and uses it for
-  both its duration and click accents.
+  both its duration and click accents. Staff notation splits sustained notes
+  at every meter-map bar boundary, and its displayed meter follows the active
+  segment at the playhead (or the viewport while stopped).
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A
