@@ -1,7 +1,7 @@
 # The Song Editor
 
-The Song Editor (`harmonicon-editor`'s `song_editor/`, ~16,500 lines
-across thirty-five files) is Harmonicon's largest single feature: a full in-game chart
+The Song Editor (`harmonicon-editor`'s `song_editor/`) is Harmonicon's largest
+single feature: a full in-game chart
 authoring tool built around one central document resource, a piano-roll
 grid, and enough surrounding tooling (live recording, MIDI import,
 undo/redo, a real tempo map, lesson authoring) that it functions as a
@@ -144,7 +144,8 @@ an editor this large.
 
 Harmonicon's `undo::track_changes` instead runs once every frame
 `EditorState` changes at all, diffing a lightweight `Snapshot` (just
-`notes` and `tempo_changes` — deliberately *not* the whole
+notes, timing maps, phrase annotations, and expression intensities — deliberately
+*not* the whole
 `EditorState`, excluding transient fields like `selected`/`scroll_beat`/
 `dragging` that shouldn't count as "an edit" for undo purposes) against
 the last-seen snapshot, and pushes the *previous* one onto the undo
@@ -322,8 +323,8 @@ parsing primitives as — the *runtime* MIDI-backing feature described in
 its tracks in a combobox; picking a track quantizes its notes onto the
 editor's tick grid and resolves each pitch onto the currently selected
 harp key via `pitch_map::map_pitch` (an exact match, else a bend or
-slide, else the nearest playable note — while carrying the source tempo map
-and time signature into the editor, and reusing the exact same
+slide, else the nearest playable note — while carrying the source tempo and
+time-signature maps into the editor, and reusing the exact same
 compatibility check the editor's own UI enforces, so an import can never
 produce a note the grid wouldn't otherwise let you place by hand). The import
 also computes phrase-level diagnostics before replacing the grid: pitches that
@@ -342,11 +343,10 @@ per-track-stem backing Jam Session can use instead.
 Phrase annotations are tick-keyed editor content. Section names serialize as
 the established `phrase` field, while harmonic analysis uses the dedicated
 optional `chord` field and performance feel uses `groove`. Section, chord,
-groove, and call annotations participate in undo and round-trip with notes. The
-Details form edits the annotation at the selected note's onset,
-including the `call` flag used by gameplay's call-and-response scheduler and
-the `split` flag that serializes the same-tick note group with split play mode;
-`annotation_lane.rs` renders that same map directly in a dedicated header lane.
+groove, and call annotations participate in undo and round-trip with notes.
+Clicking an annotation-lane marker opens the phrase popover at that onset;
+note-column buttons edit `call` and `split`, which serialize the same-tick group
+for call-response or split play mode.
 Markers use absolute tick positions inside the scrolling `GridContent`, clip at
 the next annotation anchor, and never copy their content into ECS components.
 Every note in a same-tick chord therefore resolves to the same phrase metadata.
@@ -357,11 +357,15 @@ This preserves old charts without expanding the expression enum used by every
 placement, recording, playback, and rendering path. Undo snapshots carry the
 map, and note-removal paths prune stale ids.
 
-`EditorState` also retains the loaded chart's non-grid metadata, song options,
-scoring object, and loop object as JSON. Serialization starts from editor-owned
-title, artist, timing, instrument, and track data, then restores only those
-settings that have no editor control yet. This prevents a note edit from
-resetting difficulty, feel, attribution, scoring windows, or loop behavior.
+`EditorState` owns typed Details values for attribution, difficulty, song feel,
+scoring windows, combo behavior, and loop configuration. Only arbitrary style
+bonuses remain preserved JSON. Loop indices clamp to the current serialized
+phrase list, so deleting phrases cannot leave an out-of-range loop.
+
+Meter changes are tick-keyed alongside tempo changes. A shared `MeterMap`
+drives ruler/bar layout, metronome and count-in accents, notation splitting,
+and timeline labels. MIDI import reads meter events from conductor tracks;
+Remove shifts both timing maps and restores the timing active at the cut end.
 
 The editor models standard Richter, Paddy Richter, country tuned, natural
 minor, 12-hole chromatic, and 16-hole chromatic instruments as distinct `HarmonicaKind`
