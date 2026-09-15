@@ -10,10 +10,18 @@ without writing JSON directly.
 
 The screen has three parts:
 
-- The **tool sidebar** down the left edge, holding every action: Back,
-  the mode buttons, undo/redo, the note techniques, and Save/Load. It
-  scrolls — **drag it** or use the **mouse wheel** over it — because on a
-  short screen the whole palette doesn't fit at once.
+- The **tool sidebar** down the left edge, in two columns. The **left
+  column** is about the song and the tools: Back, the mode buttons, lock,
+  undo/redo, copy/paste, the Select/Erase/Remove/Tempo tools, metronome,
+  legend, and Save/Load. The **right column** is about *the note* — the
+  selected one, or the next one you'll place: Blow/Draw, bend/overblow/
+  overdraw (or slide), wah/vibrato and their depth, the phrase's Call and
+  Split marks, the phrase editor, and Delete. With nothing selected the
+  right column previews what a newly placed note gets, so it's never
+  empty. It only appears in Edit mode; Record and Play fold the sidebar
+  back to one column and give the grid the width. Either column scrolls —
+  **drag it** or use the **mouse wheel** over it — because on a short
+  screen the whole palette doesn't fit at once.
 - The **note grid**, one lane per harmonica hole, under the **Chart**
   tab.
 - The song's metadata (tempo, key, position, title, background music,
@@ -24,17 +32,19 @@ full height of the window — on a laptop screen, and especially on a phone,
 the grid alone can fill it.
 
 The sidebar's buttons can show **icons only, text only, or both** — set it
-under Options → *Button style*. Icons-only makes the sidebar much narrower;
-every button keeps a tooltip either way, so hovering always tells you what
-it does.
+under Options → *Button style*. Icons-only makes the sidebar much narrower
+and is what puts the two columns side by side; with text labels they stack
+into one column instead. Every button keeps a tooltip either way, so
+hovering always tells you what it does.
 
 ## Modes
 
 - **Edit mode** — place, move, resize, and delete notes on the grid.
   Click an empty cell to add a note; drag a note's edges to resize it or
-  its body to move it. The **tool sidebar** sets the selected
+  its body to move it. The sidebar's **note column** sets the selected
   note's technique: Blow/Draw direction, bend depth, overblow/overdraw,
-  slide (chromatic only), wah/vibrato rate, or delete it outright.
+  slide (chromatic only), wah/vibrato rate and **Depth** (¼ ½ ¾ 1,
+  stepped by clicking, like the rate), or delete it outright.
   **Ctrl+click** adds or removes a note from the selection instead of
   replacing it, so you can select several at once; dragging any one of
   them moves the whole group together, keeping their relative positions
@@ -102,9 +112,12 @@ that starts there is selected — so a drag or Delete right after acts on the
 whole phrase. Press Escape or the panel's ✗ to close it; it also closes by
 itself if the phrase's notes are removed.
 
-When the selected note has vibrato or wah, **Vibrato / wah intensity** sets its
-depth from `0` to `1`; `0.5` is the default. The rate still comes from repeated
-clicks on the Vibrato or Wah technique button.
+When the selected note has vibrato or wah, the **Depth** button in the note
+column steps its depth ¼ → ½ → ¾ → 1; ½ is the default. The button shows
+the current value, and with nothing selected it shows — and sets — the depth
+a new note will get. A chart can carry any depth in between; the button
+shows it as-is and a click steps up to the next quarter. The rate still
+comes from repeated clicks on the Vibrato or Wah button.
 
 Enable **Call and response at selected note** to make the phrase beginning
 there a response exercise. During gameplay Harmonicon demonstrates consecutive

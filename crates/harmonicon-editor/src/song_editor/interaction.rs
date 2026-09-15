@@ -13,10 +13,10 @@ use super::grid::group_move_targets;
 use super::material::EditorNoteMaterial;
 use super::snap::snap_absolute_tick;
 use super::state::{
-    Dir, DragKind, DragState, Edge, EditorState, Expr, GridNote, Pitch, Scroll, TimelineSelection,
-    VIBRATO_HZ_MAX, VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN, WAH_HZ_STEP,
-    apply_resize, enforce_direction, enforce_expr, max_bend, note_rect, overblow_ok, overdraw_ok,
-    pitch_compatible, pitch_forced_dir,
+    DEFAULT_INTENSITY, Dir, DragKind, DragState, Edge, EditorState, Expr, GridNote, Pitch, Scroll,
+    TimelineSelection, VIBRATO_HZ_MAX, VIBRATO_HZ_MIN, VIBRATO_HZ_STEP, WAH_HZ_MAX, WAH_HZ_MIN,
+    WAH_HZ_STEP, apply_resize, enforce_direction, enforce_expr, max_bend, note_rect, overblow_ok,
+    overdraw_ok, pitch_compatible, pitch_forced_dir,
 };
 use super::ui::{
     GridArea, GridContent, GroupMoveGhost, ModButton, MoveGhost, NoteView, ResizeGrip,
@@ -100,6 +100,12 @@ pub(super) fn select_or_add(state: &mut EditorState, hole: u8, tick: usize) {
     }
     if expr != Expr::None {
         enforce_expr(state, id);
+        // The armed depth, like the armed rate: only meaningful with an
+        // expression to have a depth of, and the default is never stored.
+        if state.sticky_intensity != DEFAULT_INTENSITY {
+            let depth = state.sticky_intensity.clone();
+            state.expression_intensities.insert(id, depth);
+        }
     }
 }
 
@@ -134,9 +140,34 @@ pub(super) fn delete_selected(state: &mut EditorState) {
 }
 
 pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
-    if kind == ModButton::Delete {
-        delete_selected(state);
-        return;
+    match kind {
+        ModButton::Delete => {
+            delete_selected(state);
+            return;
+        }
+        ModButton::Depth => {
+            state.cycle_depth();
+            return;
+        }
+        // Phrase properties, reached through the selected note's onset.
+        // No sticky meaning: a phrase is a set of placed notes.
+        ModButton::Call => {
+            let on = state.selected_call();
+            state.set_selected_call(!on);
+            return;
+        }
+        ModButton::Split => {
+            let on = state.selected_split();
+            state.set_selected_split(!on);
+            return;
+        }
+        ModButton::Phrase => {
+            if let Some(tick) = state.selected_note().map(|n| n.tick) {
+                state.open_phrase_editor(tick);
+            }
+            return;
+        }
+        _ => {}
     }
     if matches!(kind, ModButton::Blow | ModButton::Draw) {
         let dir = if kind == ModButton::Blow {
@@ -253,7 +284,11 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
                 Expr::Vibrato(next)
             };
         }
-        ModButton::Delete => unreachable!(),
+        ModButton::Delete
+        | ModButton::Depth
+        | ModButton::Call
+        | ModButton::Split
+        | ModButton::Phrase => unreachable!(),
     }
     // Read the note's resulting pitch/expr/dir out before writing to
     // `state` again below — `note` is still borrowing it at this point.

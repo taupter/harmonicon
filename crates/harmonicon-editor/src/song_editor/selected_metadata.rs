@@ -2,7 +2,7 @@
 
 //! Selected-note phrase labels and expression depth editing.
 
-use super::state::{EditorState, Expr, Field};
+use super::state::{DEFAULT_INTENSITY, EditorState, Expr, Field};
 
 impl EditorState {
     /// The phrase at `tick`'s section/chord/groove text, or `""`.
@@ -59,6 +59,32 @@ impl EditorState {
             .get(&note.id)
             .map(String::as_str)
             .unwrap_or("0.5")
+    }
+
+    /// The depth the Depth button shows and steps from: the selected
+    /// note's, or with nothing selected the sticky one — and `""` for a
+    /// selected note that has no vibrato/wah to have a depth of.
+    pub(super) fn depth_for_button(&self) -> &str {
+        match self.selected_note() {
+            Some(note) if note.expr == Expr::None => "",
+            Some(_) => self.selected_expression_intensity(),
+            None => &self.sticky_intensity,
+        }
+    }
+
+    /// The Depth button's click: steps the selected note's depth, or with
+    /// nothing selected the sticky depth a new note gets. A selected note
+    /// with no vibrato/wah is left alone — the same "silently do nothing
+    /// on an incompatible note" rule Overblow follows on a hole that can't.
+    pub(super) fn cycle_depth(&mut self) {
+        match self.selected_note() {
+            Some(note) if note.expr == Expr::None => {}
+            Some(_) => {
+                let next = next_depth_step(self.selected_expression_intensity());
+                self.set_selected_expression_intensity(next);
+            }
+            None => self.sticky_intensity = next_depth_step(&self.sticky_intensity),
+        }
     }
 
     pub(super) fn set_selected_expression_intensity(&mut self, value: String) {
@@ -133,5 +159,37 @@ impl EditorState {
         {
             self.phrase_annotations.remove(&tick);
         }
+    }
+}
+
+/// The depth after one Depth-button click from `current`: the next of the
+/// four quarter steps strictly above it, wrapping from 1 back to ¼. A
+/// value between steps (a chart can carry any 0–1 depth) rounds *up* to the
+/// next step rather than snapping to the nearest, so a click always
+/// visibly changes something. Unparseable input counts as the default.
+pub(super) fn next_depth_step(current: &str) -> String {
+    const STEPS: [f32; 4] = [0.25, 0.5, 0.75, 1.0];
+    let current: f32 = current
+        .trim()
+        .parse()
+        .unwrap_or_else(|_| DEFAULT_INTENSITY.parse().unwrap());
+    let next = STEPS
+        .iter()
+        .copied()
+        .find(|&step| step > current + 1e-6)
+        .unwrap_or(STEPS[0]);
+    if (next - 0.5).abs() < 1e-6 {
+        DEFAULT_INTENSITY.to_string()
+    } else {
+        format!("{next}")
+    }
+}
+
+/// `"0.75"` as `"75%"` — the Depth button's label. A value the map stores
+/// as `""` (a note with no vibrato/wah) shows nothing.
+pub(super) fn depth_label(value: &str) -> String {
+    match value.trim().parse::<f32>() {
+        Ok(v) => format!("{}%", (v * 100.0).round() as i32),
+        Err(_) => String::new(),
     }
 }

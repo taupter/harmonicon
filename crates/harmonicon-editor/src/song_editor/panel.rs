@@ -8,9 +8,9 @@ use super::practice::PracticeState;
 use super::record::RecordState;
 use super::state::{ContentKind, Dir, EditorState, Expr, Field, HarmonicaKind, Mode, Pitch};
 use super::ui::{
-    BendDot, ContentKindText, EditModeGroup, ExpectedNotesGroup, HarmonicaKindText, MetaFieldBox,
-    MetaFieldText, ModButton, ModButtonLabel, ModeButton, PlayModeGroup, RecordModeGroup,
-    SnapModeText, StatusMsg, TimelineToolButton, UndoRedoButton,
+    BendDot, ContentKindText, EditModeGroup, EditorToolbar, ExpectedNotesGroup, HarmonicaKindText,
+    MetaFieldBox, MetaFieldText, ModButton, ModButtonLabel, ModeButton, NoteColumn, PlayModeGroup,
+    RecordModeGroup, SnapModeText, StatusMsg, TimelineToolButton, UndoRedoButton,
 };
 use super::undo::UndoHistory;
 use bevy_fluent::prelude::Localization;
@@ -33,6 +33,9 @@ pub(super) fn mod_button_active(kind: ModButton, dir: Dir, pitch: Pitch, expr: E
         ModButton::Slide => pitch == Pitch::Slide,
         ModButton::Wah => matches!(expr, Expr::Wah(_)),
         ModButton::Vibrato => matches!(expr, Expr::Vibrato(_)),
+        // Call/Split read the selected note's *phrase*, which needs the
+        // whole state — `update_mod_panel` handles them beside this.
+        ModButton::Depth | ModButton::Call | ModButton::Split | ModButton::Phrase => false,
         ModButton::Delete => false,
     }
 }
@@ -55,8 +58,14 @@ pub(super) fn update_mod_panel(
         Some(n) => (n.dir, n.pitch, n.expr),
         None => (state.sticky_dir, state.sticky_pitch, state.sticky_expr),
     };
+    let call = state.selected_call();
+    let split = state.selected_split();
     for (kind, mut bg) in &mut buttons {
-        let active = mod_button_active(*kind, dir, pitch, expr);
+        let active = match kind {
+            ModButton::Call => call,
+            ModButton::Split => split,
+            _ => mod_button_active(*kind, dir, pitch, expr),
+        };
         bg.0 = if active {
             colors.btn_active
         } else {
@@ -74,14 +83,18 @@ pub(super) fn update_mod_panel(
     // Show the selected (or, with nothing selected, sticky-armed) rate next
     // to Wah/Vibrato (e.g. "Vibrato 5Hz") so cycling the rate with repeated
     // clicks is legible.
+    let depth = super::selected_metadata::depth_label(state.depth_for_button());
     for (label, mut text) in &mut labels {
-        let hz = match (label.kind, expr) {
-            (ModButton::Vibrato, Expr::Vibrato(hz)) => Some(hz),
-            (ModButton::Wah, Expr::Wah(hz)) => Some(hz),
+        let suffix = match (label.kind, expr) {
+            (ModButton::Vibrato, Expr::Vibrato(hz)) => Some(format!("{hz:.0}Hz")),
+            (ModButton::Wah, Expr::Wah(hz)) => Some(format!("{hz:.0}Hz")),
+            // Same shape as the rate: the selected note's depth, or the
+            // sticky one — and nothing for a note with no expression.
+            (ModButton::Depth, _) if !depth.is_empty() => Some(depth.clone()),
             _ => None,
         };
-        **text = match hz {
-            Some(hz) => format!("{} {hz:.0}Hz", label.base),
+        **text = match suffix {
+            Some(suffix) => format!("{} {suffix}", label.base),
             None => label.base.clone(),
         };
     }
@@ -270,6 +283,37 @@ pub(super) fn update_mode_visibility(
     }
     for mut node in &mut expected_notes_group {
         node.display = display(state.mode == Mode::ExpectedNotes);
+    }
+}
+
+/// Shows the toolbar's note column in Edit mode only, and gives the grid
+/// its width back outside it — a Record/Play toolbar has nothing to put in
+/// that column, and 56 px of empty toolbar is real grid width on a phone.
+/// Its own system rather than another arm of [`update_mode_visibility`]
+/// because it also resizes the toolbar itself, which that system's
+/// group-only queries don't reach.
+pub(super) fn update_note_column(
+    state: Res<EditorState>,
+    mut column: Query<&mut Node, With<NoteColumn>>,
+    mut toolbar: Query<(&EditorToolbar, &mut Node), Without<NoteColumn>>,
+) {
+    let editing = state.mode == Mode::Edit;
+    for mut node in &mut column {
+        node.display = if editing {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    for (widths, mut node) in &mut toolbar {
+        let want = Val::Px(if editing {
+            widths.width_with_note_column
+        } else {
+            widths.width_without
+        });
+        if node.width != want {
+            node.width = want;
+        }
     }
 }
 
@@ -507,6 +551,84 @@ mod tests {
             *world.get::<Visibility>(bend_dot).unwrap(),
             Visibility::Hidden
         );
+    }
+
+    #[test]
+    fn update_mod_panel_lights_call_and_labels_depth_from_the_selected_phrase() {
+        use super::super::state::PhraseAnnotation;
+        let mut world = World::new();
+        let mut state = EditorState {
+            notes: vec![note(Dir::Blow, Pitch::Normal, Expr::Vibrato(5.0))],
+            selected: vec![1],
+            ..Default::default()
+        };
+        state.phrase_annotations.insert(
+            0,
+            PhraseAnnotation {
+                call: true,
+                ..Default::default()
+            },
+        );
+        state.expression_intensities.insert(1, "0.75".into());
+        world.insert_resource(state);
+        world.insert_resource(LoadedTheme::default());
+        let colors = LoadedTheme::default().song_editor_colors();
+
+        let call = world
+            .spawn((ModButton::Call, BaseButtonColor(colors.btn_bg)))
+            .id();
+        let split = world
+            .spawn((ModButton::Split, BaseButtonColor(colors.btn_bg)))
+            .id();
+        let depth_label = world
+            .spawn((
+                ModButtonLabel {
+                    kind: ModButton::Depth,
+                    base: "Depth".into(),
+                },
+                Text::new("Depth"),
+            ))
+            .id();
+
+        let mut schedule = Schedule::default();
+        schedule.add_systems(update_mod_panel);
+        schedule.run(&mut world);
+
+        assert_eq!(
+            world.get::<BaseButtonColor>(call).unwrap().0,
+            colors.btn_active,
+            "the phrase is a call, so Call lights"
+        );
+        assert_eq!(
+            world.get::<BaseButtonColor>(split).unwrap().0,
+            colors.btn_bg,
+            "and Split doesn't"
+        );
+        assert_eq!(world.get::<Text>(depth_label).unwrap().0, "Depth 75%");
+    }
+
+    #[test]
+    fn update_mod_panel_shows_no_depth_for_a_note_with_no_expression() {
+        let mut world = World::new();
+        world.insert_resource(EditorState {
+            notes: vec![note(Dir::Blow, Pitch::Normal, Expr::None)],
+            selected: vec![1],
+            ..Default::default()
+        });
+        world.insert_resource(LoadedTheme::default());
+        let depth_label = world
+            .spawn((
+                ModButtonLabel {
+                    kind: ModButton::Depth,
+                    base: "Depth".into(),
+                },
+                Text::new("Depth 50%"),
+            ))
+            .id();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(update_mod_panel);
+        schedule.run(&mut world);
+        assert_eq!(world.get::<Text>(depth_label).unwrap().0, "Depth");
     }
 
     #[test]

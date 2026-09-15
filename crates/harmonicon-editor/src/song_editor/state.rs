@@ -137,6 +137,10 @@ pub(super) const LESSON_FIELDS: [(Field, &str); 10] = [
     (Field::LessonScale, "editor-field-lesson-scale"),
 ];
 
+/// The vibrato/wah depth a note has when `expression_intensities` holds
+/// nothing for it — never stored, so "set to default" means "remove".
+pub(super) const DEFAULT_INTENSITY: &str = "0.5";
+
 /// All valid diatonic harp keys in chromatic order.
 pub(super) use harmonicon_core::pitch_map::HARP_KEYS;
 
@@ -338,6 +342,10 @@ pub(super) struct EditorState {
     pub(super) sticky_dir: Dir,
     pub(super) sticky_pitch: Pitch,
     pub(super) sticky_expr: Expr,
+    /// Vibrato/wah depth a newly placed note gets, as the string the
+    /// `expression_intensities` map stores (`"0.5"` is the default and is
+    /// never written). Armed by the Depth button with nothing selected.
+    pub(super) sticky_intensity: String,
 }
 
 impl Default for EditorState {
@@ -395,6 +403,7 @@ impl Default for EditorState {
             sticky_dir: Dir::Blow,
             sticky_pitch: Pitch::Normal,
             sticky_expr: Expr::None,
+            sticky_intensity: DEFAULT_INTENSITY.into(),
         }
     }
 }

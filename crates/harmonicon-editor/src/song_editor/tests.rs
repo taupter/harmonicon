@@ -3354,6 +3354,133 @@ fn popover_sits_under_its_marker_and_inside_the_grid_area() {
     assert_eq!(popover_left(100, 0.0, 100.0), 0.0);
 }
 
+// ── the note column: Depth / Call / Split / Phrase ───────────────────────────
+
+#[test]
+fn depth_steps_through_the_four_quarters_and_wraps() {
+    use super::selected_metadata::next_depth_step;
+    assert_eq!(next_depth_step("0.5"), "0.75");
+    assert_eq!(next_depth_step("0.75"), "1");
+    assert_eq!(next_depth_step("1"), "0.25");
+    // ½ is the default and is spelled the way the map's "absent" is.
+    assert_eq!(next_depth_step("0.25"), "0.5");
+}
+
+#[test]
+fn depth_steps_up_from_a_value_between_the_quarters() {
+    use super::selected_metadata::next_depth_step;
+    // A chart can carry any 0–1 depth; a click always visibly moves.
+    assert_eq!(next_depth_step("0.8"), "1");
+    assert_eq!(next_depth_step("0.1"), "0.25");
+    assert_eq!(
+        next_depth_step("garbage"),
+        "0.75",
+        "unparseable counts as the default"
+    );
+}
+
+#[test]
+fn depth_label_is_a_percentage_or_nothing() {
+    use super::selected_metadata::depth_label;
+    assert_eq!(depth_label("0.75"), "75%");
+    assert_eq!(depth_label("1"), "100%");
+    assert_eq!(depth_label(""), "");
+}
+
+#[test]
+fn depth_button_steps_the_selected_notes_depth() {
+    let mut s = state_with_notes(vec![GridNote {
+        expr: Expr::Vibrato(5.0),
+        ..timeline_note(0, 1, 0, 4)
+    }]);
+    s.selected = vec![0];
+    assert_eq!(
+        s.depth_for_button(),
+        "0.5",
+        "default shown before any click"
+    );
+    apply_modifier(&mut s, ModButton::Depth);
+    assert_eq!(
+        s.expression_intensities.get(&0).map(String::as_str),
+        Some("0.75")
+    );
+    assert_eq!(s.depth_for_button(), "0.75");
+    // Back round to the default, which is stored as absence.
+    apply_modifier(&mut s, ModButton::Depth);
+    apply_modifier(&mut s, ModButton::Depth);
+    apply_modifier(&mut s, ModButton::Depth);
+    assert!(!s.expression_intensities.contains_key(&0));
+}
+
+#[test]
+fn depth_button_leaves_a_note_with_no_expression_alone() {
+    let mut s = state_with_notes(vec![timeline_note(0, 1, 0, 4)]);
+    s.selected = vec![0];
+    assert_eq!(s.depth_for_button(), "", "nothing to show a depth of");
+    apply_modifier(&mut s, ModButton::Depth);
+    assert!(s.expression_intensities.is_empty());
+}
+
+#[test]
+fn depth_button_arms_the_sticky_depth_that_a_new_note_gets() {
+    // Dual-mode like the rate: with nothing selected, the click arms what
+    // the next placed note gets — but only a note with an expression.
+    let mut s = EditorState::default();
+    apply_modifier(&mut s, ModButton::Depth);
+    assert_eq!(s.sticky_intensity, "0.75");
+    assert_eq!(s.depth_for_button(), "0.75");
+    s.sticky_expr = Expr::Wah(3.0);
+    select_or_add(&mut s, 2, 0);
+    let id = s.notes[0].id;
+    assert_eq!(
+        s.expression_intensities.get(&id).map(String::as_str),
+        Some("0.75")
+    );
+    // Without an expression the armed depth has nothing to apply to.
+    s.sticky_expr = Expr::None;
+    select_or_add(&mut s, 3, 24);
+    let id = s.notes[1].id;
+    assert!(!s.expression_intensities.contains_key(&id));
+}
+
+#[test]
+fn call_and_split_buttons_toggle_the_selected_notes_phrase() {
+    let mut s = state_with_metadata();
+    s.selected = vec![0]; // hole 1 at tick 0; hole 2 shares the onset
+    apply_modifier(&mut s, ModButton::Call);
+    assert!(s.phrase_annotations[&0].call);
+    // The phrase's, not the note's: hole 2 sees it too.
+    s.selected = vec![1];
+    assert!(s.selected_call());
+    apply_modifier(&mut s, ModButton::Split);
+    assert!(s.phrase_annotations[&0].split);
+    apply_modifier(&mut s, ModButton::Call);
+    assert!(!s.phrase_annotations[&0].call);
+    apply_modifier(&mut s, ModButton::Split);
+    assert!(!s.phrase_annotations[&0].split);
+    // Nothing selected: no phrase to toggle.
+    s.selected.clear();
+    apply_modifier(&mut s, ModButton::Call);
+    assert_eq!(s.phrase_annotations.len(), 2);
+}
+
+#[test]
+fn phrase_button_opens_the_editor_on_the_selected_notes_onset() {
+    let mut s = state_with_metadata();
+    s.selected = vec![2];
+    apply_modifier(&mut s, ModButton::Phrase);
+    assert_eq!(s.phrase_editor, Some(24));
+    // And on an onset with no annotation yet — the way to add the first.
+    let mut s = state_with_notes(vec![timeline_note(0, 1, 36, 4)]);
+    s.selected = vec![0];
+    apply_modifier(&mut s, ModButton::Phrase);
+    assert_eq!(s.phrase_editor, Some(36));
+    // Nothing selected: nothing to open.
+    let mut s = EditorState::default();
+    apply_modifier(&mut s, ModButton::Phrase);
+    assert_eq!(s.phrase_editor, None);
+}
+
 // ── two_finger_pan_delta ──────────────────────────────────────────────────
 
 use bevy::math::Vec2;

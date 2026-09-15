@@ -254,7 +254,7 @@ impl Plugin for SongEditor2Plugin {
                                 .or_else(resource_changed::<LoadedTheme>),
                         ),
                     ),
-                    panel::update_mode_visibility
+                    (panel::update_mode_visibility, panel::update_note_column)
                         .run_if(resource_exists_and_changed::<state::EditorState>),
                     legend::update_legend_visibility
                         .run_if(resource_exists_and_changed::<state::EditorState>),

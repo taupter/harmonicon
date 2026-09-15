@@ -343,6 +343,44 @@ load-bearing about *this* crate.
   pasted notes become the new selection — ready to drag into place
   immediately, the same way a fresh `select_or_add` selects what it
   just placed.
+- **The toolbar is two columns, and the right one is the per-note
+  surface** (`mod_panel::spawn_mod_panel`; `ui::NoteColumn`). Left:
+  the document and the tools — navigation, modes, lock, undo/redo,
+  copy/paste, the timeline tools, metronome, legend, files. Right: **the
+  note** — Blow/Draw, the pitch techniques, Wah/Vibrato, Depth, the
+  phrase's Call/Split, the phrase editor, Delete. Named for what it *is*,
+  not "the selection", because it never empties: `panel::update_mod_panel`
+  shows the selected note's state when there is one and the sticky-armed
+  defaults the *next* note gets otherwise, and a click both edits the
+  selection and arms the sticky (the Word-bold-button pattern). That
+  dual-mode rule is why per-note controls live here and nowhere else — a
+  second per-note surface (a popup under the note was considered) would
+  light up in two places for one note. What follows from the split:
+  - **Side by side only in icon-only style** (`two_columns`): two 56 px
+    columns, and the toolbar scrolls half as far. In the text styles two
+    168 px columns would be a third of a small screen, so the note column
+    stacks below the document column instead.
+  - **The note column is Edit-mode content** and collapses to
+    `Display::None` outside it, and `EditorToolbar` carries both widths so
+    `panel::update_note_column` can hand the 56 px back to the grid in
+    Record/Play — where the column would be empty.
+  - **Depth is a stepped cycle** (`selected_metadata::next_depth_step`:
+    ¼ ½ ¾ 1, wrapping), dual-mode like the Hz rate — the selected note's
+    `expression_intensities` entry, or `sticky_intensity` for the next
+    note. A chart may carry any 0–1 depth; the label shows it as-is
+    (`depth_label`, a percentage) and a click steps *up* to the next
+    quarter so it always visibly moves. `"0.5"` is the default and is
+    never stored — stepping onto it removes the entry. A note with no
+    expression shows no depth and ignores the click, the same "silently
+    do nothing on an incompatible note" rule Overblow follows.
+  - **Call/Split are phrase properties reached through the note**
+    (`set_selected_call`/`set_selected_split`, keyed on the selected
+    note's onset), so they highlight from the phrase, not from
+    `mod_button_active`'s per-note fields, and have no sticky meaning.
+  - **Phrase opens `phrase_editor` on the selected note's onset** — the
+    way to annotate a phrase that has no marker on the lane to click yet.
+  - `expected_notes`' dev-only layer ignores all four: its notes have no
+    depth and belong to no phrase.
 - **Every bulk edit to `notes` goes through `metadata_sync`, never a
   direct mutation.** Two metadata stores live *beside* the notes rather
   than on them: `phrase_annotations` (section/chord/groove/call/split),

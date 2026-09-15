@@ -46,8 +46,32 @@ pub(super) struct DetailsTabPanel;
 /// The vertical tool sidebar down the left edge of the Song Editor — the
 /// clipping viewport. Its single child is [`EditorToolbarContent`], which is
 /// what actually moves when the toolbar is scrolled.
+///
+/// Carries the two widths it switches between: with the [`NoteColumn`]
+/// shown (Edit mode) and without (Record/Play, where that column would be
+/// empty and the grid wants the space back). `panel::update_mode_visibility`
+/// applies whichever the mode calls for.
 #[derive(Component)]
-pub(super) struct EditorToolbar;
+pub(super) struct EditorToolbar {
+    pub(super) width_with_note_column: f32,
+    pub(super) width_without: f32,
+}
+
+/// The toolbar's right-hand column: **the note** — the selected one, or
+/// the next one to be placed. Blow/Draw, the pitch techniques, Wah/
+/// Vibrato and Depth, the phrase's Call/Split, the phrase editor, delete.
+/// Named for what it *is* rather than "the selection" because it never
+/// empties: with nothing selected every button shows what the next placed
+/// note gets (`panel::update_mod_panel`'s sticky fallback). Edit-mode
+/// content, collapsed with `Display::None` outside it.
+///
+/// The left column is everything about the document and the tools:
+/// navigation, modes, undo/redo, the clipboard, metronome, legend, files,
+/// and the timeline tools. This split applies the toolbar's own principle
+/// again — spend horizontal space, the axis a landscape screen has to
+/// spare, rather than vertical — and halves how far it has to scroll.
+#[derive(Component)]
+pub(super) struct NoteColumn;
 
 /// The scrollable column inside [`EditorToolbar`]. Offset by
 /// `view_scroll::apply_toolbar_scroll` rather than wrapped in a `ScrollArea`,
@@ -165,6 +189,22 @@ pub(super) enum ModButton {
     Slide,
     Wah,
     Vibrato,
+    /// Vibrato/wah depth, cycled in quarter steps (¼ ½ ¾ 1) the way
+    /// Wah/Vibrato cycle their rate — dual-mode like them: the selected
+    /// note's own depth, or the sticky one a new note gets. A chart may
+    /// carry any 0–1 value; the label shows it as-is and a click steps to
+    /// the next quarter above it.
+    Depth,
+    /// Toggles call-and-response on the selected note's *phrase* (its
+    /// onset) — a phrase property reached through the note, like the
+    /// Details form used to; no sticky meaning with nothing selected.
+    Call,
+    /// Toggles the tongue-block split on the selected note's phrase.
+    Split,
+    /// Opens the phrase editor (`phrase_editor`) on the selected note's
+    /// onset — the way to annotate a phrase that has no marker to click
+    /// yet.
+    Phrase,
     Delete,
 }
 

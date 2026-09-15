@@ -202,7 +202,7 @@ pub(super) fn mod_button(
             TextColor(Color::WHITE),
             Pickable::IGNORE,
         ));
-        if matches!(kind, ModButton::Wah | ModButton::Vibrato) {
+        if matches!(kind, ModButton::Wah | ModButton::Vibrato | ModButton::Depth) {
             text.insert(ModButtonLabel { kind, base });
         }
         if kind == ModButton::Bend {

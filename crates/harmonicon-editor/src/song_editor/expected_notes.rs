@@ -145,6 +145,14 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
         delete_expected_selected(state);
         return;
     }
+    // Expected notes carry no depth and belong to no phrase — nothing for
+    // these to act on in this layer.
+    if matches!(
+        kind,
+        ModButton::Depth | ModButton::Call | ModButton::Split | ModButton::Phrase
+    ) {
+        return;
+    }
     if matches!(kind, ModButton::Blow | ModButton::Draw) {
         let dir = if kind == ModButton::Blow {
             Dir::Blow
@@ -243,7 +251,11 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
                 Expr::Vibrato(next)
             };
         }
-        ModButton::Delete => unreachable!(),
+        ModButton::Delete
+        | ModButton::Depth
+        | ModButton::Call
+        | ModButton::Split
+        | ModButton::Phrase => unreachable!(),
     }
 }
 

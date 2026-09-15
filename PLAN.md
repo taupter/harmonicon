@@ -193,7 +193,7 @@ occlusion and respawn-lifecycle costs a popup over the grid carries
 persistent for exactly that reason). So the plan builds on the toolbar
 rather than beside it.
 
-1. **Two-column toolbar.** Left: document and tools — back, save, load,
+1. **Done.** Two-column toolbar. Left: document and tools — back, save, load,
    undo, redo, Edit/Record/Play, lock, metronome, legend, the timeline
    tools, copy *and* paste (kept together; a needs-a-selection Copy dims
    like Undo does rather than moving columns). Right: **the note** — the
@@ -208,13 +208,13 @@ rather than beside it.
    only — two 168 px columns is a third of a small screen. This applies
    the toolbar's own stated principle again: spend horizontal space, the
    axis a landscape screen has to spare, instead of vertical.
-2. **Depth as a right-column cycle button** (¼ ½ ¾ 1), dual-mode like the
+2. **Done — stepped.** Depth as a right-column cycle button (¼ ½ ¾ 1), dual-mode like the
    Hz cycling Wah/Vibrato already do, replacing the Details text field.
    **Open decision:** stepped depth loses the free 0–1 float the field
    accepts today. If depth must stay a free number, it needs a text field
    and the right column can't host it — it would then go to the phrase
    strip below as a note-mode row. Decide before starting.
-3. **Call/Split as right-column buttons.** They're phrase bools, bound to
+3. **Done.** Call/Split as right-column buttons. They're phrase bools, bound to
    the selected note's onset — how Details already resolves them — so
    they need no phrase selection of their own.
 4. **Done.** Section/chord/groove on the annotation lane: markers at each
@@ -231,7 +231,7 @@ rather than beside it.
    preserved song settings" item — everything left in Details is genuinely
    per-song.
 
-Order: 4 (done), then 1–3 together (one toolbar restructure), then 5. Each step keeps `update_mod_panel`'s dual-mode
+Order: 4 (done), 1–3 (done), then 5. Each step keeps `update_mod_panel`'s dual-mode
 tests green and adds the same shape of test for Depth/Call/Split.
 
 Finishing 0.4:
