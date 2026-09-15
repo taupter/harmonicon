@@ -140,7 +140,11 @@ pub(super) fn sync_meta_field_text(
         let want = state.field_text(tag.0);
         if text.value() != want {
             text.editor_mut().set_text(want);
-            text.queue_edit(TextEdit::TextEnd(false));
+            text.queue_edit(if tag.0 == Field::Description {
+                TextEdit::TextStart(false)
+            } else {
+                TextEdit::TextEnd(false)
+            });
         }
     }
 }

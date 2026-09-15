@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Two minimal single-line text boxes — a numeric one
-//! ([`spawn_numeric_input`]) and a plain-string one ([`spawn_text_input`]).
+//! Minimal numeric, single-line, and multiline text boxes.
 //! `bevy_ui_widgets`' `EditableTextInputPlugin` — already registered
 //! app-wide via `UiWidgetsPlugins` — supplies click-to-focus, cursor
 //! rendering, and keyboard editing for any entity carrying
@@ -172,7 +171,9 @@ pub struct TextInputCommitted {
 /// `NumericInputState`, there's no range/last-value to carry — any string
 /// commits as-is.
 #[derive(Component, Clone, Copy, Default)]
-struct TextInputState;
+struct TextInputState {
+    commit_on_enter: bool,
+}
 
 /// Spawns a bordered plain-text box showing `value`, `width` px wide, as a
 /// child of `parent`. `on_commit` fires with the buffer's current text on
@@ -210,7 +211,59 @@ pub fn spawn_text_input<M: 'static>(
                 ..default()
             },
             TabIndex(0),
-            TextInputState,
+            TextInputState {
+                commit_on_enter: true,
+            },
+        ))
+        .id();
+    commands.entity(input).observe(on_commit);
+    commands.entity(input).observe(commit_text_on_blur);
+    commands.entity(parent).add_child(input);
+    input
+}
+
+/// Spawns a four-line, word-wrapped text box. Enter inserts a newline;
+/// losing focus commits the buffer.
+pub fn spawn_multiline_text_input<M: 'static>(
+    commands: &mut Commands,
+    parent: Entity,
+    value: &str,
+    width: f32,
+    bg: Color,
+    border: Color,
+    on_commit: impl IntoObserverSystem<TextInputCommitted, (), M>,
+) -> Entity {
+    let mut editable = EditableText::new(value);
+    editable.visible_lines = Some(4.0);
+    editable.allow_newlines = true;
+    editable.queue_edit(TextEdit::TextStart(false));
+    let input = commands
+        .spawn((
+            Node {
+                width: Val::Px(width),
+                height: Val::Px(72.0),
+                align_items: AlignItems::FlexStart,
+                padding: UiRect::all(Val::Px(8.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+            BorderColor::all(border),
+            BackgroundColor(bg),
+            editable,
+            TextLayout::default(),
+            TextFont {
+                font_size: FontSize::Px(14.0),
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            TextCursorStyle {
+                color: Color::WHITE,
+                ..default()
+            },
+            TabIndex(0),
+            TextInputState {
+                commit_on_enter: false,
+            },
         ))
         .id();
     commands.entity(input).observe(on_commit);
@@ -244,7 +297,7 @@ fn commit_text_on_blur(
 fn commit_text_on_enter(
     input_focus: Res<InputFocus>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    inputs: Query<(Entity, &EditableText), With<TextInputState>>,
+    inputs: Query<(Entity, &EditableText, &TextInputState)>,
     mut commands: Commands,
 ) {
     if !keyboard.just_pressed(KeyCode::Enter) {
@@ -253,9 +306,12 @@ fn commit_text_on_enter(
     let Some(focused) = input_focus.get() else {
         return;
     };
-    let Ok((entity, text)) = inputs.get(focused) else {
+    let Ok((entity, text, state)) = inputs.get(focused) else {
         return;
     };
+    if !state.commit_on_enter {
+        return;
+    }
     commit_text(entity, text, &mut commands);
 }
 

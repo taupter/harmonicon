@@ -31,7 +31,9 @@ use harmonicon_ui::dialogs::button::make_interactive;
 use harmonicon_ui::dialogs::checkbox::spawn_checkbox;
 use harmonicon_ui::dialogs::combobox::{ComboboxSelect, ComboboxValue, spawn_combobox};
 use harmonicon_ui::dialogs::file_dialog::{DialogMode, OpenFileDialog};
-use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
+use harmonicon_ui::dialogs::text_input::{
+    TextInputCommitted, spawn_multiline_text_input, spawn_text_input,
+};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 use harmonicon_ui::music_score::TIME_SIGNATURES;
 
@@ -459,17 +461,30 @@ pub(super) fn spawn_field_row(
                 ));
             });
         } else {
-            let input_id = spawn_text_input(
-                line.commands_mut(),
-                row_id,
-                state.field_text(field),
-                240.0,
-                colors.field_bg,
-                Color::srgb(0.30, 0.30, 0.40),
-                move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
-                    *state.field_text_mut(field) = ev.value.clone();
-                },
-            );
+            let on_commit = move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
+                *state.field_text_mut(field) = ev.value.clone();
+            };
+            let input_id = if field == Field::Description {
+                spawn_multiline_text_input(
+                    line.commands_mut(),
+                    row_id,
+                    state.field_text(field),
+                    240.0,
+                    colors.field_bg,
+                    Color::srgb(0.30, 0.30, 0.40),
+                    on_commit,
+                )
+            } else {
+                spawn_text_input(
+                    line.commands_mut(),
+                    row_id,
+                    state.field_text(field),
+                    240.0,
+                    colors.field_bg,
+                    Color::srgb(0.30, 0.30, 0.40),
+                    on_commit,
+                )
+            };
             line.commands_mut().entity(input_id).insert((
                 MetaFieldBox(field),
                 Tooltip(String::from(loc.msg("editor-field-text-tooltip"))),

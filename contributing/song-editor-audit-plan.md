@@ -133,9 +133,8 @@ every bundled and importable chart today.
   touch pan, which is the height-aware `CompactLayout` item PLAN.md defers to
   post-1.0 and predates this audit.
 - Verify Details remains scrollable after the added fields and checkboxes —
-  verified, see above. One wart: `Description` is a single-line box and shows
-  the *tail* of a long text (`TextEdit::TextEnd`); a multi-line field is the
-  fix if descriptions grow.
+  verified, see above. `Description` now uses a four-line word-wrapped editor;
+  Enter inserts a newline and losing focus commits the value.
 - Every bundled `.harpchart` is now covered by automated load/resave/schema and
   semantic comparison. The comparison checks events, modifiers, annotations,
   timing maps, song/harmonica settings, scoring, loops, and metadata while
