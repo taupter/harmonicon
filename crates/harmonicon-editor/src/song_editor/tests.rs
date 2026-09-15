@@ -1476,7 +1476,7 @@ fn non_grid_chart_settings_survive_load_and_save() {
 }
 
 #[test]
-fn editor_load_validation_lists_semantics_it_cannot_preserve() {
+fn editor_load_validation_lists_only_semantics_it_cannot_preserve() {
     let mut state = EditorState {
         harmonica_kind: HarmonicaKind::Chromatic,
         ..Default::default()
@@ -1484,15 +1484,19 @@ fn editor_load_validation_lists_semantics_it_cannot_preserve() {
     select_or_add(&mut state, 1, 0);
     let mut value: serde_json::Value =
         serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
-    value["harmonica"]["holes"] = serde_json::json!(16);
     value["timing"]["time_signature_map"] =
         serde_json::json!([{ "tick": 0, "time_signature": "4/4" }]);
+    value["track"][0]["events"][0]["modifiers"] = serde_json::json!([
+        { "type": "bend", "semitones": -1.0 },
+        { "type": "overblow" }
+    ]);
     value["track"][0]["groove"] = serde_json::json!("laid-back");
     value["track"][0]["call"] = serde_json::json!(true);
     value["track"][0]["play_mode"] = serde_json::json!("split");
 
     let error = validated_harpchart(&value.to_string()).expect_err("unsupported chart must fail");
-    assert!(error.contains("time-signature changes"));
+    assert!(error.contains("mutually exclusive"));
+    assert!(!error.contains("time-signature changes"));
     assert!(!error.contains("groove annotation"));
     assert!(!error.contains("call-and-response"));
     assert!(!error.contains("split play mode"));
@@ -1999,6 +2003,7 @@ fn a_meter_map_round_trips_and_rescales_from_a_foreign_resolution() {
         { "tick": 0, "time_signature": "6/8" },
         { "tick": 3360, "time_signature": "7/8" }
     ]);
+    validated_harpchart(&value.to_string()).expect("meter maps are editable");
 
     let mut loaded = EditorState::default();
     let mut scroll = Scroll::default();

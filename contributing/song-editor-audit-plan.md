@@ -53,10 +53,9 @@ Do not casually add new allowlist entries. `state.rs` was reduced below the
 
 ## Remaining work, in priority order
 
-### 1. Support time-signature maps
+### 1. Support time-signature maps — complete
 
-`timing.time_signature_map` is the main remaining valid chart feature rejected
-by `unsupported_chart_features`. This is a larger vertical slice:
+`timing.time_signature_map` is represented and editable end to end:
 
 1. Add an editor meter-map representation with a tick-zero effective meter.
 2. Load/save maps with resolution conversion.
@@ -67,21 +66,12 @@ by `unsupported_chart_features`. This is a larger vertical slice:
 5. Add a timeline tool or marker editor for inserting/removing meter changes.
 6. Import MIDI meter changes rather than retaining only one meter.
 
-The editor representation and resolution-aware load/save portion of step 1 is
-implemented. The validator deliberately continues rejecting meter maps until
-steps 2–6 are complete.
-
-The ruler now integrates meter segments and the Meter timeline tool can insert,
-cycle, and remove later changes. Remaining consumers and MIDI import still need
-to use the map before the validator guard can be removed.
-
 The live editor metronome and Record count-in now use the meter segment active
 at the playhead. Notation splits sustained notes at meter-map bar boundaries
 and displays the active meter. MIDI import now preserves the full meter map.
 
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
-non-480 source resolution. Remove the unsupported rejection only after every
-consumer preserves the map.
+non-480 source resolution. The unsupported-feature rejection has been removed.
 
 ### 2. Add controls for preserved song settings
 

@@ -617,13 +617,6 @@ pub(super) fn unsupported_chart_features(value: &serde_json::Value) -> Vec<Strin
         found.push(format!("alternate diatonic tuning/profile {:?}", profile));
     }
 
-    if value["timing"]["time_signature_map"]
-        .as_array()
-        .is_some_and(|map| !map.is_empty())
-    {
-        found.push("time-signature changes".to_string());
-    }
-
     if let Some(track) = value["track"].as_array() {
         for (index, phrase) in track.iter().enumerate() {
             let number = index + 1;
