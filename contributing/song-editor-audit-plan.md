@@ -133,12 +133,14 @@ every bundled and importable chart today.
   verified, see above. One wart: `Description` is a single-line box and shows
   the *tail* of a long text (`TextEdit::TextEnd`); a multi-line field is the
   fix if descriptions grow.
-- Every bundled `.harpchart` is now covered by an automated load/resave/schema
-  test that also verifies no events disappear. Synthetic unit coverage handles
-  alternate diatonic tunings, 12/16-hole chromatic, meter/tempo maps, split,
-  call-response, and custom expression intensity.
-- Compare semantic JSON before/after, allowing only intentional normalization
-  such as formatting and generated phrase IDs.
+- Every bundled `.harpchart` is now covered by automated load/resave/schema and
+  semantic comparison. The comparison checks events, modifiers, annotations,
+  timing maps, song/harmonica settings, scoring, loops, and metadata while
+  allowing grid quantization, generated phrase IDs, derived pitch labels, and
+  explicit serialization of schema defaults. It exposed and fixed the editor's
+  conflation of `metadata.author` with `song.artist` (`73213a4`). Synthetic unit
+  coverage handles alternate diatonic tunings, 12/16-hole chromatic,
+  meter/tempo maps, split, call-response, and custom expression intensity.
 - Update `docs/book/src/song-editor.md`,
   `contributing/src/song-editor-architecture.md`, and
   `crates/harmonicon-editor/CLAUDE.md` when an invariant becomes load-bearing.
