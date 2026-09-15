@@ -265,10 +265,10 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
         "tempo_bpm": bpm,
         "key": state.key,
         "time_signature": state.time_signature,
-        "difficulty": "intermediate"
+        "difficulty": state.difficulty
     });
     if let Some(preserved) = &state.preserved_song {
-        for key in ["difficulty", "feel"] {
+        for key in ["feel"] {
             if let Some(value) = preserved.get(key) {
                 song[key] = value.clone();
             }
@@ -380,6 +380,9 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         // silently rewriting it to 4/4 on the next save.
         if let Some(ts) = song["time_signature"].as_str() {
             state.time_signature = ts.to_string();
+        }
+        if let Some(difficulty) = song["difficulty"].as_str() {
+            state.difficulty = difficulty.to_string();
         }
     }
     if let Some(p) = v["harmonica"]["position"].as_str()

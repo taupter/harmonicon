@@ -13,8 +13,8 @@ use bevy::ui_widgets::Button as WidgetButton;
 use bevy::ui_widgets::{Activate, ValueChange};
 
 use super::state::{
-    ContentKind, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS, LESSON_SCALES,
-    PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, TECHNIQUE_NAMES, cycle_next,
+    ContentKind, DIFFICULTIES, EditorState, FIELDS, Field, HARP_KEYS, HarmonicaKind, LESSON_PATHS,
+    LESSON_SCALES, PASS_CRITERIA_KINDS, POSITIONS, PROGRESSIONS, TECHNIQUE_NAMES, cycle_next,
 };
 use super::ui::{
     ContentKindText, EditorRoot, HarmonicaKindText, HoleColumnContent, LegendColumn, MetaFieldBox,
@@ -380,6 +380,13 @@ pub(super) fn spawn_field_row(
                 )))
                 .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
                     state.position = cycle_next(&POSITIONS, &state.position);
+                });
+            } else if field == Field::Difficulty {
+                btn.insert(Tooltip(String::from(
+                    loc.msg("editor-field-difficulty-tooltip"),
+                )))
+                .observe(|_: On<Activate>, mut state: ResMut<EditorState>| {
+                    state.difficulty = cycle_next(&DIFFICULTIES, &state.difficulty);
                 });
             } else if field == Field::LessonPassCriteria {
                 btn.insert(Tooltip(String::from(

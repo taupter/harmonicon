@@ -26,6 +26,7 @@ pub(super) enum Field {
     Music,
     Name,
     Author,
+    Difficulty,
     /// Section label of a *phrase* — edited in `phrase_editor`, keyed by
     /// the phrase's onset tick, not a form row (see [`FIELDS`]).
     Section,
@@ -79,6 +80,7 @@ impl Field {
             self,
             Field::Key
                 | Field::Position
+                | Field::Difficulty
                 | Field::LessonPassCriteria
                 | Field::LessonTechnique
                 | Field::LessonProgression
@@ -103,14 +105,17 @@ impl Field {
 ///   and groove are edited in `phrase_editor`, from its marker on the
 ///   annotation lane or the column's Phrase button. `Field::Section`/
 ///   `Chord`/`Groove` exist to name those three text boxes, not form rows.
-pub(super) const FIELDS: [(Field, &str); 6] = [
+pub(super) const FIELDS: [(Field, &str); 7] = [
     (Field::Tempo, "editor-field-tempo"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
     (Field::Music, "editor-field-music"),
     (Field::Name, "editor-field-name"),
     (Field::Author, "editor-field-author"),
+    (Field::Difficulty, "editor-field-difficulty"),
 ];
+
+pub(super) const DIFFICULTIES: [&str; 4] = ["easy", "intermediate", "advanced", "expert"];
 
 /// The extra rows `lesson_form::spawn_lesson_form` shows only while
 /// [`ContentKind::Lesson`] is active — everything `lesson_schema.dtd.json`
@@ -247,7 +252,8 @@ pub(super) struct EditorState {
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     /// Chart settings the grid does not edit yet, retained verbatim so a
-    /// load/save cycle cannot reset them to editor defaults.
+    /// load/save cycle cannot reset them to editor defaults. `preserved_song`
+    /// now supplies only `feel`; difficulty has typed state and a form row.
     pub(super) preserved_metadata: Option<serde_json::Value>,
     pub(super) preserved_song: Option<serde_json::Value>,
     pub(super) preserved_scoring: Option<serde_json::Value>,
@@ -269,6 +275,7 @@ pub(super) struct EditorState {
     pub(super) music: String,
     pub(super) name: String,
     pub(super) author: String,
+    pub(super) difficulty: String,
     pub(super) drag_msg: harmonicon_platform::localization::LocalizedStr,
     pub(super) mode: Mode,
     /// Whether this editing session is authoring a song or a lesson — see
@@ -375,6 +382,7 @@ impl Default for EditorState {
             music: String::new(),
             name: String::new(),
             author: String::new(),
+            difficulty: "intermediate".into(),
             drag_msg: harmonicon_platform::localization::LocalizedStr::default(),
             mode: Mode::default(),
             content_kind: ContentKind::default(),
@@ -543,6 +551,7 @@ impl EditorState {
             Field::Music => &self.music,
             Field::Name => &self.name,
             Field::Author => &self.author,
+            Field::Difficulty => &self.difficulty,
             Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
@@ -565,6 +574,7 @@ impl EditorState {
             Field::Music => &mut self.music,
             Field::Name => &mut self.name,
             Field::Author => &mut self.author,
+            Field::Difficulty => &mut self.difficulty,
             Field::Section | Field::Chord | Field::Groove => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }

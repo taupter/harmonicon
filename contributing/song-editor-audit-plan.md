@@ -78,7 +78,7 @@ non-480 source resolution. The unsupported-feature rejection has been removed.
 Commit `18be7af` prevents data loss by retaining settings as JSON, but authors
 still cannot edit them. Add typed state and Details controls for:
 
-- Difficulty
+- Difficulty — typed state and a Details cycle control are implemented
 - Straight/shuffle feel, kept conceptually separate from placement snap
 - Source, license, and description
 - Perfect/good/miss scoring windows and combo behavior

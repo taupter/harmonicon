@@ -379,13 +379,14 @@ written against, so a chart saved by a newer Harmonicon that added
 something this version's Song Editor doesn't understand will point that
 out clearly instead of silently mis-loading.
 
-Settings that do not yet have form controls—source, license, description,
-difficulty, feel, scoring rules, and loop configuration—are retained from a
-loaded chart. Editing its notes therefore does not reset those values.
+Difficulty is a Details control with the chart format's four choices: easy,
+intermediate, advanced, and expert. Settings that do not yet have controls—
+source, license, description, feel, scoring rules, and loop configuration—are
+retained from a loaded chart. Editing its notes therefore does not reset them.
 
 Loading also stops before changing the open chart when a file uses musical
-features the grid cannot preserve yet, such as meter changes or combinations
-of mutually exclusive technique modifiers. The status bar names the unsupported feature;
+features the grid cannot preserve yet, such as combinations of mutually
+exclusive technique modifiers. The status bar names the unsupported feature;
 the original file and the current editor contents remain untouched.
 
 For songs you want the game to discover automatically without editing the
