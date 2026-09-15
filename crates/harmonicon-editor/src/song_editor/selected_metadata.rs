@@ -5,10 +5,8 @@
 use super::state::{EditorState, Expr, Field};
 
 impl EditorState {
-    pub(super) fn selected_annotation_text(&self, field: Field) -> &str {
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return "";
-        };
+    /// The phrase at `tick`'s section/chord/groove text, or `""`.
+    pub(super) fn annotation_text(&self, tick: usize, field: Field) -> &str {
         let Some(annotation) = self.phrase_annotations.get(&tick) else {
             return "";
         };
@@ -17,6 +15,36 @@ impl EditorState {
             Field::Chord => annotation.chord.as_deref().unwrap_or(""),
             Field::Groove => annotation.groove.as_deref().unwrap_or(""),
             _ => unreachable!(),
+        }
+    }
+
+    /// Sets one text field of the phrase at `tick` — an empty value clears
+    /// it, and an annotation left with nothing set is dropped. Refuses a
+    /// tick no note starts on: such an annotation is exactly the orphan
+    /// `metadata_sync::drop_orphaned_metadata` exists to remove, so
+    /// accepting it would only lose the text at the next prune.
+    pub(super) fn set_annotation(&mut self, tick: usize, field: Field, value: String) {
+        if !matches!(field, Field::Section | Field::Chord | Field::Groove) {
+            return;
+        }
+        if !self.notes.iter().any(|n| n.tick == tick) {
+            return;
+        }
+        let value = (!value.trim().is_empty()).then_some(value);
+        let annotation = self.phrase_annotations.entry(tick).or_default();
+        match field {
+            Field::Section => annotation.section = value,
+            Field::Chord => annotation.chord = value,
+            Field::Groove => annotation.groove = value,
+            _ => unreachable!(),
+        }
+        self.remove_empty_annotation(tick);
+    }
+
+    pub(super) fn selected_annotation_text(&self, field: Field) -> &str {
+        match self.selected_note().map(|note| note.tick) {
+            Some(tick) => self.annotation_text(tick, field),
+            None => "",
         }
     }
 
@@ -50,21 +78,9 @@ impl EditorState {
     }
 
     pub(super) fn set_selected_annotation(&mut self, field: Field, value: String) {
-        if !matches!(field, Field::Section | Field::Chord | Field::Groove) {
-            return;
+        if let Some(tick) = self.selected_note().map(|note| note.tick) {
+            self.set_annotation(tick, field, value);
         }
-        let Some(tick) = self.selected_note().map(|note| note.tick) else {
-            return;
-        };
-        let value = (!value.trim().is_empty()).then_some(value);
-        let annotation = self.phrase_annotations.entry(tick).or_default();
-        match field {
-            Field::Section => annotation.section = value,
-            Field::Chord => annotation.chord = value,
-            Field::Groove => annotation.groove = value,
-            _ => unreachable!(),
-        }
-        self.remove_empty_annotation(tick);
     }
 
     pub(super) fn selected_call(&self) -> bool {

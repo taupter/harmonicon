@@ -308,6 +308,12 @@ pub(super) struct EditorState {
     /// does not have. A UI preference, like [`EditorState::snap_mode`] —
     /// not chart content, and not undo-tracked.
     pub(super) twelve_bar_tint: bool,
+    /// The onset tick whose phrase the `phrase_editor` popover is open on,
+    /// if any — opened by clicking that phrase's marker on the annotation
+    /// lane. A UI preference like `snap_mode`: not chart content, not
+    /// undo-tracked. Closed by Escape, its own close button, or losing the
+    /// notes at that tick.
+    pub(super) phrase_editor: Option<usize>,
     pub(super) timeline_tool: TimelineTool,
     /// A split point placed by a plain click-and-release on the timeline
     /// ruler — persists across frames (unlike `timeline_drag`, which only
@@ -382,6 +388,7 @@ impl Default for EditorState {
             loaded_harmonica: None,
             snap_mode: SnapMode::default(),
             twelve_bar_tint: false,
+            phrase_editor: None,
             timeline_tool: TimelineTool::default(),
             timeline_split: None,
             pending_timeline_op: None,

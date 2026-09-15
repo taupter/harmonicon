@@ -170,6 +170,11 @@ editor-snap-mode-triplet = ‹ Triplet 8ths ›
 editor-beat-count-and = &
 editor-beat-count-a = a
 editor-phrase-marker-tooltip = Phrase at tick {$tick}: {$details}
+editor-phrase-editor-title = Phrase at {$position}
+editor-phrase-editor-close = Close the phrase editor
+editor-phrase-editor-section = Section
+editor-phrase-editor-chord = Chord
+editor-phrase-editor-groove = Groove
 editor-field-twelve-bar-tint = 12-Bar Blues Tint
 
 # Song Editor 2 — color legend (third meta-form column)

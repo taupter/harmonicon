@@ -3288,6 +3288,72 @@ fn undo_restores_annotations_and_intensities_together_with_the_notes() {
     );
 }
 
+// ── phrase editor ────────────────────────────────────────────────────────────
+
+#[test]
+fn opening_the_phrase_editor_selects_every_note_of_the_phrase() {
+    let mut s = state_with_metadata();
+    s.open_phrase_editor(0);
+    assert_eq!(s.phrase_editor, Some(0));
+    let mut selected = s.selected.clone();
+    selected.sort_unstable();
+    assert_eq!(selected, vec![0, 1], "both tick-0 notes, not just one");
+}
+
+#[test]
+fn opening_the_phrase_editor_on_an_empty_onset_does_nothing() {
+    let mut s = state_with_metadata();
+    s.selected = vec![2];
+    s.open_phrase_editor(12);
+    assert_eq!(s.phrase_editor, None);
+    assert_eq!(s.selected, vec![2], "the selection is left alone");
+}
+
+#[test]
+fn set_annotation_writes_the_phrase_at_that_tick_not_the_selection() {
+    let mut s = state_with_metadata();
+    s.selected = vec![2]; // tick 24 selected...
+    s.set_annotation(0, Field::Chord, "C7".into()); // ...but tick 0 edited
+    assert_eq!(s.annotation_text(0, Field::Chord), "C7");
+    assert_eq!(s.annotation_text(24, Field::Chord), "");
+    assert_eq!(
+        s.annotation_text(0, Field::Section),
+        "A",
+        "other fields kept"
+    );
+}
+
+#[test]
+fn set_annotation_refuses_a_tick_nothing_starts_on() {
+    // Such an annotation is exactly the orphan `drop_orphaned_metadata`
+    // removes, so accepting it would only lose the text at the next prune.
+    let mut s = state_with_metadata();
+    s.set_annotation(12, Field::Section, "ghost".into());
+    assert!(!s.phrase_annotations.contains_key(&12));
+}
+
+#[test]
+fn clearing_the_last_field_drops_the_annotation() {
+    let mut s = state_with_metadata();
+    s.set_annotation(24, Field::Section, "  ".into());
+    assert!(!s.phrase_annotations.contains_key(&24));
+}
+
+#[test]
+fn popover_sits_under_its_marker_and_inside_the_grid_area() {
+    use super::phrase_editor::{WIDTH, popover_left};
+    // Unscrolled, a marker at tick 24 is at x = 24 * TICK_W.
+    assert_eq!(popover_left(24, 0.0, 800.0), 24.0 * TICK_W);
+    // Scrolling moves it with the marker.
+    assert_eq!(popover_left(24, 50.0, 800.0), 24.0 * TICK_W - 50.0);
+    // A marker near the right edge pulls the panel back inside the area.
+    assert_eq!(popover_left(1000, 0.0, 800.0), 800.0 - WIDTH);
+    // A marker scrolled off the left never puts the panel left of 0.
+    assert_eq!(popover_left(0, 300.0, 800.0), 0.0);
+    // An area narrower than the panel pins it to the left edge.
+    assert_eq!(popover_left(100, 0.0, 100.0), 0.0);
+}
+
 // ── two_finger_pan_delta ──────────────────────────────────────────────────
 
 use bevy::math::Vec2;

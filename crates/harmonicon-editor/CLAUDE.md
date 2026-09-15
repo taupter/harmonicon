@@ -600,6 +600,33 @@ load-bearing about *this* crate.
   marker width ends at the next anchor and clips overflow, with the full value
   available in a tooltip. Keep the lane separate from note rows so dense
   annotations cannot cover notes or their external resize grips.
+  **Clicking a marker edits the phrase in place** (`phrase_editor.rs`):
+  the marker is a real `WidgetButton` whose `Activate` calls
+  `EditorState::open_phrase_editor(tick)` — which selects every note at
+  that onset and sets `phrase_editor: Some(tick)` — and a popover with the
+  Section/Chord/Groove text boxes opens directly beneath it. Three facts
+  about that popover:
+  - **It is persistent, not a marker's child.** `bevy_ui_widgets::Popover`
+    positions off its ECS parent, and markers are `GridItem`s respawned on
+    every `rebuild_grid` — a text box childed to one loses focus mid-word.
+    So it's spawned once in `ui::setup` (contents filled in by
+    `populate_phrase_editor` on a later frame, the same spawn-once gate the
+    Scale combobox uses) and positioned per frame by
+    `update_phrase_editor`.
+  - **It is a child of `GridArea`, not `GridContent`**, so its position is
+    `tick * TICK_W - Scroll::px` in the area's own coordinates
+    (`popover_left`, clamped to the area's width) with no global-transform
+    conversion, and it neither scrolls away with the notes nor gets clipped
+    at the grid's right edge.
+  - **Every write goes through `EditorState::set_annotation(tick, …)`**,
+    which refuses a tick no note starts on, and the popover closes itself
+    the moment its onset has no notes (undo, delete, Remove) — an
+    annotation without a phrase is exactly the orphan `metadata_sync`
+    drops, so accepting text there would lose it at the next prune.
+    Escape closes it first, before it deselects or leaves the editor
+    (`interaction::grid_keys`). `phrase_editor` is a UI preference like
+    `snap_mode`: not chart content, not undo-tracked, not in the grid
+    cache.
 - **Meter maps mirror tempo maps in editor state.** `time_signature` is the
   tick-zero value and `meter_changes` holds later `(tick, signature)` points;
   `EditorState::time_signature_map()` returns the sorted map with an explicit

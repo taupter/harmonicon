@@ -35,6 +35,23 @@ use super::clipboard::{NoteClipboard, paste_targets_with_sources};
 use super::state::{EditorState, PhraseAnnotation};
 
 impl EditorState {
+    /// Opens the phrase editor on the phrase at `tick` and selects every
+    /// note that starts there — so the popover, a drag and Delete all act
+    /// on the same thing. A tick nothing starts on is ignored.
+    pub(super) fn open_phrase_editor(&mut self, tick: usize) {
+        let ids: Vec<u32> = self
+            .notes
+            .iter()
+            .filter(|n| n.tick == tick)
+            .map(|n| n.id)
+            .collect();
+        if ids.is_empty() {
+            return;
+        }
+        self.selected = ids;
+        self.phrase_editor = Some(tick);
+    }
+
     /// Drops annotations at ticks no note starts on and intensities for
     /// ids no note has. Idempotent; cheap enough to run after any removal.
     pub(super) fn drop_orphaned_metadata(&mut self) {

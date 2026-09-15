@@ -4,6 +4,8 @@
 
 use bevy::picking::Pickable;
 use bevy::prelude::*;
+use bevy::ui_widgets::Activate;
+use bevy::ui_widgets::Button as WidgetButton;
 use bevy_fluent::prelude::Localization;
 use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_platform::theme::SongEditorColors;
@@ -65,10 +67,16 @@ pub(super) fn spawn(
             "editor-phrase-marker-tooltip",
             &[("tick", tick.to_string()), ("details", text.clone())],
         );
+        // A real button so a click opens the phrase editor through
+        // `Activate` — and no `TabIndex`, since markers are respawned on
+        // every rebuild and the toolbar is the keyboard route to the same
+        // editor. Clicking also selects every note of the phrase, so a
+        // following drag or Delete acts on the whole phrase.
         items.push(
             commands
                 .spawn((
                     GridItem,
+                    WidgetButton,
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(x),
@@ -88,6 +96,9 @@ pub(super) fn spawn(
                     TextColor(colors.label),
                     Tooltip(String::from(tooltip)),
                 ))
+                .observe(move |_: On<Activate>, mut state: ResMut<EditorState>| {
+                    state.open_phrase_editor(tick);
+                })
                 .id(),
         );
         if annotation.section.is_some() {

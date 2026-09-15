@@ -217,27 +217,21 @@ rather than beside it.
 3. **Call/Split as right-column buttons.** They're phrase bools, bound to
    the selected note's onset — how Details already resolves them — so
    they need no phrase selection of their own.
-4. **Section/chord/groove on the annotation lane** (the in-flight audit
-   item: a lane between the ruler and the waveform, markers at each
-   annotated onset, `HEADER_H` grows so every module adjusts). Clicking a
-   marker opens a small popover with the three text fields. This is the
-   one place a popover genuinely fits: top of the grid, opens downward,
-   only on a marker click rather than every note click. It must be a
-   **persistent** entity repositioned per frame, like the grips — lane
-   markers are respawned by `rebuild_grid`, and a text field childed to
-   one would lose focus mid-typing. Keep `bevy_ui_widgets::Popover`'s
-   ancestry rule in mind (`meta_form::spawn_scale_combobox`'s doc): the
-   popover's clipping follows its ECS parent, so anchor it in the fixed
-   chrome, not inside `GridArea`'s `Overflow::clip()`.
+4. **Done.** Section/chord/groove on the annotation lane: markers at each
+   annotated onset (`annotation_lane.rs`), and clicking one opens a
+   persistent popover beneath it with the three text fields
+   (`phrase_editor.rs`), selecting the phrase's notes as it does. What's
+   still missing for step 5 is a way to annotate an onset that has *no*
+   marker yet — that's the right column's job (step 1: a "Phrase…" button
+   opening the same popover for the selected note's onset), so Details
+   keeps its rows until the toolbar lands.
 5. **Details becomes song-only.** Remove the Section/Chord/Groove/
    ExpressionIntensity rows and the Call/Split checkboxes from `FIELDS`
    and `meta_form`. This also simplifies the audit plan's "controls for
    preserved song settings" item — everything left in Details is genuinely
    per-song.
 
-Order: 4 first (it's already in progress and the phrase fields have
-nowhere else to go until it exists), then 1–3 together (one toolbar
-restructure), then 5. Each step keeps `update_mod_panel`'s dual-mode
+Order: 4 (done), then 1–3 together (one toolbar restructure), then 5. Each step keeps `update_mod_panel`'s dual-mode
 tests green and adds the same shape of test for Depth/Call/Split.
 
 Finishing 0.4:

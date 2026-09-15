@@ -96,6 +96,12 @@ tongue-block split uses `TB`; hover a clipped marker to read its full contents.
 Markers stop at the next phrase anchor, so dense annotations do not cover the
 note lanes or resize handles.
 
+**Click a marker to edit it in place.** A small panel opens just below it
+with the Section, Chord and Groove fields for that phrase, and every note
+that starts there is selected — so a drag or Delete right after acts on the
+whole phrase. Press Escape or the panel's ✗ to close it; it also closes by
+itself if the phrase's notes are removed.
+
 When the selected note has vibrato or wah, **Vibrato / wah intensity** sets its
 depth from `0` to `1`; `0.5` is the default. The rate still comes from repeated
 clicks on the Vibrato or Wah technique button.

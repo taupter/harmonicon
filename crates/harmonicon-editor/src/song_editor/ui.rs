@@ -671,6 +671,10 @@ fn spawn_fixed_chrome(
                 super::interaction::spawn_resize_grips(content, colors);
                 super::timeline_overlay::spawn_persistent_entities(content, hole_count);
             });
+            // After `GridContent` so it draws above the grid; a child of
+            // the *area*, not the content, so it doesn't scroll with the
+            // notes — see `phrase_editor`'s module docs.
+            super::phrase_editor::spawn_phrase_editor(ga, colors);
         });
     });
 

@@ -47,6 +47,7 @@ mod music_score_bridge;
 mod note_model;
 mod panel;
 mod panel_widgets;
+mod phrase_editor;
 mod pitch_map;
 mod ranges;
 mod save_feedback;
@@ -304,6 +305,8 @@ impl Plugin for SongEditor2Plugin {
                         .chain(),
                     meta_form::spawn_scale_combobox,
                     meta_form::spawn_time_signature_combobox,
+                    phrase_editor::populate_phrase_editor,
+                    phrase_editor::update_phrase_editor,
                     meta_form::sync_scale_combobox_value,
                     meta_form::sync_call_response_checkbox
                         .run_if(resource_exists_and_changed::<state::EditorState>),
