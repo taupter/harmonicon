@@ -675,6 +675,10 @@ load-bearing about *this* crate.
   clicks snap to the active meter's beat, cycle through `TIME_SIGNATURES`,
   and remove a point when it cycles back to the preceding meter. Tick zero
   remains owned by the Details picker.
+  The live metronome derives a clock local to the active meter segment, so
+  every change starts with a downbeat even when it truncates the preceding
+  bar. Record count-in stores the meter at the parked playhead and uses it for
+  both its duration and click accents.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

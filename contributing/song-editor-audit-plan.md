@@ -75,6 +75,9 @@ The ruler now integrates meter segments and the Meter timeline tool can insert,
 cycle, and remove later changes. Remaining consumers and MIDI import still need
 to use the map before the validator guard can be removed.
 
+The live editor metronome and Record count-in now use the meter segment active
+at the playhead. Notation splitting and MIDI meter-map import remain.
+
 Cover 4/4 → 3/4, 6/8 → 7/8, changes away from a bar line, and round-trip at a
 non-480 source resolution. Remove the unsupported rejection only after every
 consumer preserves the map.

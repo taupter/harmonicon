@@ -50,6 +50,7 @@ pub(super) struct CountIn {
     total_secs: f32,
     remaining_secs: f32,
     active: bool,
+    meter: MusicScoreMeter,
 }
 
 impl CountIn {
@@ -70,10 +71,11 @@ impl CountIn {
         self.total_secs - self.remaining_secs
     }
 
-    fn start(&mut self, total_secs: f32) {
+    fn start(&mut self, total_secs: f32, meter: MusicScoreMeter) {
         self.total_secs = total_secs;
         self.remaining_secs = total_secs;
         self.active = true;
+        self.meter = meter;
     }
 
     pub(super) fn stop(&mut self) {
@@ -106,7 +108,21 @@ pub(super) fn tempo_bpm(state: &EditorState) -> f32 {
 pub(super) fn begin_count_in(state: &EditorState, playhead_secs: f32, count_in: &mut CountIn) {
     let tick = (playhead_secs.max(0.0) / secs_per_tick(state)).round() as u64;
     let meter = state.meter_map().meter_at(tick);
-    count_in.start(count_in_secs(tempo_bpm(state), meter));
+    count_in.start(count_in_secs(tempo_bpm(state), meter), meter);
+}
+
+/// Clock and meter local to the active meter segment. Resetting the clock at
+/// a change makes that change's first beat a downbeat even when its tick was
+/// not a bar boundary in the preceding meter.
+fn segment_clock(state: &EditorState, elapsed_secs: f32) -> (f64, MusicScoreMeter) {
+    let secs_per_tick = secs_per_tick(state);
+    let tick = (elapsed_secs.max(0.0) / secs_per_tick).round() as u64;
+    let map = state.meter_map();
+    let segment = map.segment_at(tick);
+    (
+        (tick - segment.start_tick) as f64 * f64::from(secs_per_tick),
+        segment.meter,
+    )
 }
 
 /// Keeps `MetronomeTempo` in step with the chart currently being edited —
@@ -127,6 +143,7 @@ pub(super) fn sync_tempo(state: Res<EditorState>, mut tempo: ResMut<MetronomeTem
 /// needing to know which. Silent during a count-in ([`tick_count_in`]
 /// clicks instead, against its own clock) and while nothing is playing.
 pub(super) fn click_metronome(
+    state: Res<EditorState>,
     playhead: Res<Playhead>,
     count_in: Res<CountIn>,
     tempo: Res<MetronomeTempo>,
@@ -140,9 +157,14 @@ pub(super) fn click_metronome(
     if count_in.active() || !playhead.playing || playhead.paused {
         return;
     }
+    let (clock, meter) = segment_clock(&state, playhead.elapsed);
+    let active_tempo = MetronomeTempo {
+        bpm: tempo.bpm,
+        meter,
+    };
     play_click_if_due(
-        playhead.elapsed as f64,
-        &tempo,
+        clock,
+        &active_tempo,
         *feel,
         muted.0,
         &sounds,
@@ -172,9 +194,13 @@ pub(super) fn tick_count_in(
     if !count_in.active() {
         return;
     }
+    let count_in_tempo = MetronomeTempo {
+        bpm: tempo.bpm,
+        meter: count_in.meter,
+    };
     play_click_if_due(
         count_in.elapsed_secs() as f64,
-        &tempo,
+        &count_in_tempo,
         *feel,
         muted.0,
         &sounds,
@@ -236,7 +262,7 @@ mod tests {
     #[test]
     fn starting_activates_and_seeds_remaining_time() {
         let mut count_in = CountIn::default();
-        count_in.start(2.0);
+        count_in.start(2.0, meter("4/4"));
         assert!(count_in.active());
         assert_eq!(count_in.remaining_secs_display(), Some(2.0));
         assert_eq!(count_in.elapsed_secs(), 0.0);
@@ -245,7 +271,7 @@ mod tests {
     #[test]
     fn elapsed_grows_as_remaining_shrinks() {
         let mut count_in = CountIn::default();
-        count_in.start(2.0);
+        count_in.start(2.0, meter("4/4"));
         count_in.remaining_secs = 0.5;
         assert_eq!(count_in.elapsed_secs(), 1.5);
     }
@@ -253,7 +279,7 @@ mod tests {
     #[test]
     fn stopping_deactivates() {
         let mut count_in = CountIn::default();
-        count_in.start(2.0);
+        count_in.start(2.0, meter("4/4"));
         count_in.stop();
         assert!(!count_in.active());
         assert_eq!(count_in.remaining_secs_display(), None);
@@ -315,5 +341,32 @@ mod tests {
             ..Default::default()
         };
         assert!((tempo_bpm(&state) - 120.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn metronome_clock_restarts_on_a_meter_changes_downbeat() {
+        let state = EditorState {
+            tempo: "120".into(),
+            meter_changes: vec![(84, "3/4".into())],
+            ..Default::default()
+        };
+        let (at_change, changed_meter) = segment_clock(&state, 3.5);
+        assert!(at_change.abs() < 1e-6);
+        assert_eq!(changed_meter, meter("3/4"));
+        let (one_quarter_later, _) = segment_clock(&state, 4.0);
+        assert!((one_quarter_later - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn count_in_remembers_the_meter_at_the_parked_playhead() {
+        let state = EditorState {
+            tempo: "120".into(),
+            meter_changes: vec![(48, "3/4".into())],
+            ..Default::default()
+        };
+        let mut count_in = CountIn::default();
+        begin_count_in(&state, 2.0, &mut count_in);
+        assert_eq!(count_in.meter, meter("3/4"));
+        assert_eq!(count_in.total_secs, 1.5);
     }
 }
