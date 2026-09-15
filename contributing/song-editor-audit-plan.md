@@ -114,9 +114,10 @@ import, and save/load behavior.
 
 - Run the editor manually at desktop and short landscape/mobile dimensions.
 - Verify Details remains scrollable after the added fields and checkboxes.
-- Load and resave representative bundled charts: Richter, country tuned,
-  natural minor, Paddy Richter, 12/16-hole chromatic, split, call-response,
-  tempo-map, and custom expression-intensity lessons.
+- Every bundled `.harpchart` is now covered by an automated load/resave/schema
+  test that also verifies no events disappear. Synthetic unit coverage handles
+  alternate diatonic tunings, 12/16-hole chromatic, meter/tempo maps, split,
+  call-response, and custom expression intensity.
 - Compare semantic JSON before/after, allowing only intentional normalization
   such as formatting and generated phrase IDs.
 - Update `docs/book/src/song-editor.md`,

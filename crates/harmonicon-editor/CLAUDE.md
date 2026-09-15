@@ -720,6 +720,10 @@ load-bearing about *this* crate.
   Multiple pitch techniques have an ambiguous target, and multiple expressions
   cannot be reproduced by the synth, so load validation rejects each category
   with its phrase and event location.
+- **Every bundled lesson/song chart must survive the editor.** The integration
+  test walks `assets/{lessons,songs}/**/*.harpchart`, validates each source, loads and serializes it,
+  checks that every event became a note, and validates the saved result. Add a
+  chart to assets only if this test remains green.
 - **Loop settings are typed Details fields.** Type/repeat cycle through schema
   values; start/end accept inclusive phrase indices. Serialization clamps both
   to the current track and orders end at or after start, so note edits cannot

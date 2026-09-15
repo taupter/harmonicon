@@ -1439,6 +1439,53 @@ fn editor_load_validation_accepts_its_own_expression_intensity() {
 }
 
 #[test]
+fn every_bundled_chart_loads_and_resaves_as_a_valid_chart() {
+    fn charts_below(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                charts_below(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "harpchart") {
+                out.push(path);
+            }
+        }
+    }
+
+    let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+    let mut paths = Vec::new();
+    charts_below(&assets.join("lessons"), &mut paths);
+    charts_below(&assets.join("songs"), &mut paths);
+    assert!(
+        !paths.is_empty(),
+        "no bundled charts found under {}",
+        assets.display()
+    );
+
+    for path in paths {
+        let text = std::fs::read_to_string(&path).unwrap();
+        let value = validated_harpchart(&text)
+            .unwrap_or_else(|error| panic!("{} cannot be edited: {error}", path.display()));
+        let source_events: usize = value["track"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|phrase| phrase["events"].as_array().map_or(0, Vec::len))
+            .sum();
+        let mut state = EditorState::default();
+        load_harpchart(&value, &mut state, &mut Scroll::default());
+        assert_eq!(
+            state.notes.len(),
+            source_events,
+            "{} lost notes",
+            path.display()
+        );
+        let saved = serialize_harpchart(&state);
+        validated_harpchart(&saved)
+            .unwrap_or_else(|error| panic!("{} resaved invalidly: {error}", path.display()));
+    }
+}
+
+#[test]
 fn non_grid_chart_settings_survive_load_and_save() {
     let mut source = EditorState::default();
     select_or_add(&mut source, 1, 0);
