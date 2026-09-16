@@ -64,22 +64,17 @@ since that bar deliberately paints *above* the pause menu so a loop range can
 be dragged while paused. Dimming controls emphasis; only an opaque surface
 controls legibility.
 
-### 2. 2D and 3D have drifted into different HUDs
+### 2. 2D and 3D have drifted into different HUDs — partly fixed
 
-Same information, different corners. In 2D the song panel is on the right and
-the score sits bottom-right; in 3D the panel is top-left and the score is
-top-right in an oversized box. The BLOW/DRAW legend is centre-bottom in 2D and
-inside the info panel in 3D. 3D has no hole/note map at all. Phase 1's "one
-shared scored-play HUD" is the fix; this records how far apart they are first.
+Same information, different corners. The score/combo/judgment readout is now
+shared (`hud::spawn_score_readout`) and sits at each mode's own hit line
+instead of bottom-right in 2D and top-right in 3D — it was two separate
+spawns at different font sizes before. What is still divergent: the song
+panel is right-hand in 2D and top-left in 3D, the BLOW/DRAW legend is
+centre-bottom in 2D and inside the info panel in 3D, and 3D has no hole/note
+map at all.
 
-### 3. The judgment is nowhere near the hit line
-
-In 2D the hit line sits mid-screen while the score and judgment are in the
-bottom-right corner; in 3D the hit line is centre-screen and the judgment is
-top-right. Reading the verdict means looking away from the notes — the
-specific complaint Phase 1 opens with.
-
-### 4. Song metadata holds a whole column for the whole performance
+### 3. Song metadata holds a whole column for the whole performance
 
 The 2D right panel takes roughly a third of the width and never changes:
 title, key, harp, a multi-line description and the chart author. In 3D the
@@ -87,12 +82,12 @@ same content sits top-left and the remaining right half of the screen is
 empty. Phase 1 wants this shown during countdown and pause instead, with a
 small persistent header during play.
 
-### 5. The wait-for-note prompt is drawn at the note, not at the hit line
+### 4. The wait-for-note prompt is drawn at the note, not at the hit line
 
 "Play Hole 8 ↓" renders at the frozen note's current position, mid-highway,
 overlapping the note it describes. Phase 3 wants this at the hit line.
 
-### 6. Two smaller things worth fixing while nearby
+### 5. Two smaller things worth fixing while nearby
 
 - `wait_freeze_overlay.rs` builds that prompt with a bare
   `format!("Play Hole {} {}")` — unlocalized. It escapes `build.rs`'s literal

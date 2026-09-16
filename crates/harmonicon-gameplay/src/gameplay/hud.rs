@@ -30,6 +30,108 @@ pub struct FeedbackText;
 #[derive(Component)]
 pub struct FeedbackDetailText;
 
+/// Where a mode wants its score readout, expressed against whatever node it
+/// passes as the parent.
+///
+/// The hit line lives somewhere different in each mode — 2D's is the bottom
+/// of a UI highway node, 3D's is a mesh at a fixed `HIT_Z` that only the
+/// camera projects to a screen position — so the shared HUD is *told* where
+/// to sit rather than trying to derive it from geometry it cannot see.
+pub struct ScoreReadoutAnchor {
+    /// Horizontal band to span, so the readout lines up with the lanes
+    /// rather than with the window.
+    pub left: Val,
+    pub width: Val,
+    /// Gap from the bottom of the parent up to the readout — i.e. how far
+    /// the hit line is off the bottom in that mode's own layout.
+    pub bottom: Val,
+}
+
+/// The one score/combo/judgment readout, used by both 2D and 3D.
+///
+/// **Composition is shared; only the anchor differs.** These four markers
+/// used to be spawned twice with different sizes in opposite corners of the
+/// screen — bottom-right in 2D, top-right in 3D — which is how the two modes
+/// drifted into looking like different games. A shared spawner means a change
+/// to the readout is a change to both.
+///
+/// Laid out hugging the two edges of the band with the middle left clear, so
+/// the lanes a note actually falls down stay unobstructed: score and combo on
+/// the left, the transient judgment on the right, both at the height the
+/// player is already looking at.
+pub fn spawn_score_readout(commands: &mut Commands, parent: Entity, anchor: ScoreReadoutAnchor) {
+    let root = commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            left: anchor.left,
+            bottom: anchor.bottom,
+            width: anchor.width,
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::FlexEnd,
+            justify_content: JustifyContent::SpaceBetween,
+            padding: UiRect::horizontal(Val::Px(10.0)),
+            ..default()
+        })
+        .id();
+    commands.entity(parent).add_child(root);
+
+    commands.entity(root).with_children(|row| {
+        row.spawn(Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexStart,
+            row_gap: Val::Px(2.0),
+            ..default()
+        })
+        .with_children(|col| {
+            col.spawn((
+                Text::new("0"),
+                TextFont {
+                    font_size: FontSize::Px(26.0),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                ScoreText,
+            ));
+            col.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.90, 0.72, 0.20)),
+                ComboText,
+            ));
+        });
+
+        row.spawn(Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexEnd,
+            row_gap: Val::Px(1.0),
+            ..default()
+        })
+        .with_children(|col| {
+            col.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(22.0),
+                    ..default()
+                },
+                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+                FeedbackText,
+            ));
+            col.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+                FeedbackDetailText,
+            ));
+        });
+    });
+}
+
 /// Localization key and tint for one judgment, shared by the label-once and
 /// the per-frame color-fade halves of [`update_score_display`]. Every arm is a
 /// straight lookup of a decision `score_notes` already made — the timing sign

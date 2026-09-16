@@ -181,6 +181,21 @@ load-bearing about *this* crate.
   enabled` (session cache) together, so the change is both immediate and
   becomes the new default for the next song.
 
+- **One score readout, two modes.** `hud::spawn_score_readout` spawns the
+  `ScoreText`/`ComboText`/`FeedbackText`/`FeedbackDetailText` markers, and
+  both `gameplay_2d` and `gameplay_3d` call it — they used to spawn the same
+  four markers separately at different sizes in opposite corners
+  (bottom-right vs. top-right), which is how the two modes drifted into
+  looking like different games. Composition is shared; only the
+  `ScoreReadoutAnchor` differs, because the hit line is a different kind of
+  thing in each: 2D's is the bottom of a real UI node (so the readout is a
+  child of the highway, offset by `HIT_H_PCT`), while 3D's is a mesh at
+  `HIT_Z` whose screen position comes from the fixed camera (so it's a
+  measured `HIT_PLANE_BOTTOM_PCT` of window height — **re-measure that if
+  the 3D camera ever moves**). The readout hugs the two edges of its band
+  and leaves the middle clear, so it doesn't sit on top of the lanes a note
+  actually falls down.
+
 - **Score HUD is message-driven, not polled:** `score_notes` emits a
   `NoteScored` message at the instant a note is judged;
   `update_score_display` is a `MessageReader` consumer, not a per-frame

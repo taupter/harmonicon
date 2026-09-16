@@ -23,9 +23,9 @@ use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
-    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackDetailText, FeedbackText,
-    GameplayRoot, HoleCell, HoleState, LOOKAHEAD, MusicStarted, NoteVisual, PlayedHarp,
-    ScheduledNote, ScoreText, SongNotes, ValidHarpNotes,
+    ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
+    MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongNotes,
+    ValidHarpNotes, spawn_score_readout,
 };
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 
@@ -153,6 +153,9 @@ pub fn setup(
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
 
     let compact = display.compact.0;
+    // Filled in below; the shared score readout hangs off the highway so it
+    // can sit a fixed distance above that node's own hit line.
+    let mut highway = Entity::PLACEHOLDER;
     commands
         .spawn((
             Node {
@@ -205,20 +208,22 @@ pub fn setup(
             })
             .with_children(|left| {
                 // Note highway
-                left.spawn((
-                    Node {
-                        width: Val::Percent(100.0),
-                        flex_grow: 1.0,
-                        min_height: Val::Px(120.0),
-                        overflow: Overflow::clip(),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.06, 0.06, 0.09)),
-                    NoteHighway,
-                ))
-                .with_children(|hw| {
-                    spawn_highway(hw, chart);
-                });
+                highway = left
+                    .spawn((
+                        Node {
+                            width: Val::Percent(100.0),
+                            flex_grow: 1.0,
+                            min_height: Val::Px(120.0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.06, 0.06, 0.09)),
+                        NoteHighway,
+                    ))
+                    .with_children(|hw| {
+                        spawn_highway(hw, chart);
+                    })
+                    .id();
 
                 // Harmonica holes
                 left.spawn(Node {
@@ -333,54 +338,22 @@ pub fn setup(
                         spawn_modifier_legend(right, &loc, &legend_materials);
                     }
                 }
-
-                // Score
-                right
-                    .spawn(Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(2.0),
-                        ..default()
-                    })
-                    .with_children(|p| {
-                        p.spawn((
-                            Text::new("0"),
-                            TextFont {
-                                font_size: FontSize::Px(28.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            ScoreText,
-                        ));
-                        p.spawn((
-                            Text::new(""),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgb(0.90, 0.72, 0.20)),
-                            ComboText,
-                        ));
-                        p.spawn((
-                            Text::new(""),
-                            TextFont {
-                                font_size: FontSize::Px(20.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                            FeedbackText,
-                        ));
-                        p.spawn((
-                            Text::new(""),
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                            FeedbackDetailText,
-                        ));
-                    });
             });
         });
+
+    // Score/combo/judgment, sitting just above the highway's own hit band
+    // rather than in a corner of the screen — the judgment has to be
+    // readable without looking away from the notes being judged.
+    spawn_score_readout(
+        &mut commands,
+        highway,
+        ScoreReadoutAnchor {
+            left: Val::Percent(0.0),
+            width: Val::Percent(100.0),
+            bottom: Val::Percent(HIT_H_PCT),
+        },
+    );
+
     let aural = display.lesson.is_some_and(|lesson| lesson.aural);
     let note_markers: Vec<NoteMarker> = if aural {
         Vec::new()

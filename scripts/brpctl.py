@@ -19,6 +19,13 @@ tools beside it, this is meant to be reachable mid-debugging.
     python3 scripts/brpctl.py resize 1920 1080     # physical px
     python3 scripts/brpctl.py video 300            # -> target/video/NNNN/
 
+    # Getting somewhere, and capturing it under a name you chose
+    python3 scripts/brpctl.py home
+    python3 scripts/brpctl.py enter "Play 2D" Traditional Amazing Grace
+    python3 scripts/brpctl.py pause
+    python3 scripts/brpctl.py wait on
+    python3 scripts/brpctl.py capture /tmp/shots before-fix
+
     # Drive every screen the gameplay work needs a baseline of into one
     # directory of named PNGs. Takes a few minutes.
     python3 scripts/brpctl.py --take-all-screenshots [outdir]
@@ -436,6 +443,16 @@ def _main(argv):
         resize(float(args[0]), float(args[1]))
     elif command == "sleep":
         time.sleep(float(args[0]))
+    elif command == "capture":
+        capture(args[0], args[1])
+    elif command == "home":
+        to_main_menu()
+    elif command == "enter":
+        enter_song(args[0], args[1], " ".join(args[2:]))
+    elif command == "pause":
+        _pause()
+    elif command == "wait":
+        _set_wait(args[0].lower() in ("on", "true", "1"))
     elif command in ("--take-all-screenshots", "take-all-screenshots"):
         take_all_screenshots(*args[:1])
     else:

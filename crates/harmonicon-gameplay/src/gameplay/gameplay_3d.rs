@@ -26,9 +26,9 @@ use super::note_tail_3d::NoteTail3dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
-    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackDetailText, FeedbackText,
-    GameplayRoot, HoleCell, HoleState, LOOKAHEAD, MusicStarted, PlayedHarp, ScheduledNote,
-    ScoreText, ValidHarpNotes,
+    ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
+    MusicStarted, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, ValidHarpNotes,
+    spawn_score_readout,
 };
 
 // ── 3D layout constants ───────────────────────────────────────────────────────
@@ -37,6 +37,12 @@ const LANE_WIDTH: f32 = 1.0;
 const LANE_GAP: f32 = 0.06;
 const LANE_DEPTH: f32 = 60.0;
 const HIT_Z: f32 = 6.0;
+/// Where the lane's hit plane lands on screen, as a fraction of window height
+/// measured up from the bottom. The camera is fixed
+/// (`Transform::from_xyz(0.0, 14.0, 24.0)` looking at the lane), so this is a
+/// constant of that camera rather than something worth projecting per frame —
+/// but it has to be re-measured if the camera ever moves.
+const HIT_PLANE_BOTTOM_PCT: f32 = 24.0;
 const FAR_Z: f32 = HIT_Z - LANE_DEPTH; // -54
 const LANE_Y: f32 = 1.6;
 const NOTE_H: f32 = 0.18;
@@ -904,76 +910,33 @@ fn spawn_hud_overlay(
             });
     }
 
-    // Score, top-right and clear of the note highway.
-    let hud_top = if compact {
-        8.0 + BAR_HEIGHT
-    } else {
-        8.0 + BAR_HEIGHT + music_score::PANEL_HEIGHT
-    };
-    commands
+    // Score/combo/judgment, at the height of the lane's own hit plane rather
+    // than in a screen corner. The 3D hit zone is a mesh at `HIT_Z`, so its
+    // screen position comes from the (fixed) camera rather than from layout —
+    // hence a measured fraction of the window rather than a UI anchor, unlike
+    // 2D where the highway node's own bottom is the hit line.
+    let readout_root = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(hud_top),
-                right: Val::Px(8.0),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::FlexStart,
-                column_gap: Val::Px(16.0),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
                 ..default()
             },
             GlobalZIndex(1),
             GameplayRoot,
+            Pickable::IGNORE,
         ))
-        .with_children(|row| {
-            row.spawn((
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::FlexEnd,
-                    row_gap: Val::Px(2.0),
-                    padding: UiRect::all(Val::Px(8.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-            ))
-            .with_children(|p| {
-                p.spawn((
-                    Text::new("0"),
-                    TextFont {
-                        font_size: FontSize::Px(30.0),
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                    ScoreText,
-                ));
-                p.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.90, 0.72, 0.20)),
-                    ComboText,
-                ));
-                p.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(22.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                    FeedbackText,
-                ));
-                p.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(13.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                    FeedbackDetailText,
-                ));
-            });
-        });
+        .id();
+    spawn_score_readout(
+        commands,
+        readout_root,
+        ScoreReadoutAnchor {
+            left: Val::Percent(0.0),
+            width: Val::Percent(100.0),
+            bottom: Val::Percent(HIT_PLANE_BOTTOM_PCT),
+        },
+    );
 }
 
 // ── Per-frame systems ─────────────────────────────────────────────────────────

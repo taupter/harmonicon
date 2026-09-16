@@ -9,7 +9,13 @@
       "Bash(cargo deny *)",
       "Bash(cargo info *)",
       "Bash(cargo search *)",
-      "Bash(cargo metadata *)"
+      "Bash(cargo metadata *)",
+      "Bash(cargo run *)",
+      "Bash(cargo sweep *)",
+      "Bash(mdbook build *)",
+      "Bash(mdbook serve *)",
+      "Bash(python3 scripts/brpctl.py *)",
+      "Bash(curl -s -X POST http://127.0.0.1:15702 *)"
     ]
   }
 }
