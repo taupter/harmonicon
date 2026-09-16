@@ -32,7 +32,7 @@ struct TechniqueLegendToggleLabel;
 /// clearly; actual params/animation come from the same `note_techniques`/
 /// `note_anim_mode`/`tail_params` the falling notes use, so the legend
 /// can't drift from what the notes do.
-fn legend_techniques() -> [(Modifier, &'static str); 5] {
+fn legend_techniques() -> [(Modifier, &'static str); 6] {
     use harmonicon_core::chart::Modifier::*;
     [
         (
@@ -40,25 +40,53 @@ fn legend_techniques() -> [(Modifier, &'static str); 5] {
                 semitones: -1.0,
                 intensity: None,
             },
-            "bend",
+            "mod-bend",
         ),
         (
             Vibrato {
                 oscillation_hz: 5.0,
                 intensity: Some(0.9),
             },
-            "vibrato",
+            "mod-vibrato",
         ),
         (
             WahWah {
                 oscillation_hz: 3.0,
                 intensity: Some(0.9),
             },
-            "wah-wah",
+            "mod-wah",
         ),
-        (Overblow, "overblow"),
-        (Overdraw, "overdraw"),
+        (Overblow, "mod-overblow"),
+        (Overdraw, "mod-overdraw"),
+        (Slide, "mod-slide"),
     ]
+}
+
+fn modifier_kind(modifier: &Modifier) -> u8 {
+    match modifier {
+        Modifier::Bend { .. } => 0,
+        Modifier::Vibrato { .. } => 1,
+        Modifier::WahWah { .. } => 2,
+        Modifier::Overblow => 3,
+        Modifier::Overdraw => 4,
+        Modifier::Slide => 5,
+    }
+}
+
+/// Representative legend entries for only the techniques present in a chart.
+/// Keeping this decision independent of rendering makes it impossible for a
+/// plain-note song to spend permanent HUD space teaching five unrelated
+/// symbols, and gives chromatic slide charts the entry the old fixed legend
+/// omitted entirely.
+fn used_legend_techniques(modifiers: &[Modifier]) -> Vec<(Modifier, &'static str)> {
+    legend_techniques()
+        .into_iter()
+        .filter(|(candidate, _)| {
+            modifiers
+                .iter()
+                .any(|used| modifier_kind(used) == modifier_kind(candidate))
+        })
+        .collect()
 }
 
 /// Builds one comet-tail material per technique for the legend previews. They are
@@ -67,12 +95,13 @@ fn legend_techniques() -> [(Modifier, &'static str); 5] {
 /// colour, now tells the techniques apart.
 pub fn build_legend_materials(
     materials: &mut Assets<NoteTail2dMaterial>,
+    used_modifiers: &[Modifier],
 ) -> Vec<(Handle<NoteTail2dMaterial>, &'static str)> {
     // A short, fixed preview "note": enough length for the animations to read.
     const PREVIEW_H_PCT: f32 = 20.0;
     let color = Color::srgba(0.74, 0.82, 1.0, 0.95).to_linear();
 
-    legend_techniques()
+    used_legend_techniques(used_modifiers)
         .into_iter()
         .enumerate()
         .map(|(i, (modifier, name))| {
@@ -154,7 +183,7 @@ pub fn spawn_modifier_legend(
                 TechniqueLegendBody,
             ))
             .with_children(|list| {
-                for (handle, name) in entries {
+                for (handle, label_key) in entries {
                     list.spawn(Node {
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
@@ -172,7 +201,7 @@ pub fn spawn_modifier_legend(
                             MaterialNode(handle.clone()),
                         ));
                         row.spawn((
-                            Text::new(*name),
+                            Text::new(String::from(loc.msg(label_key))),
                             TextFont {
                                 font_size: FontSize::Px(15.0),
                                 ..default()
@@ -225,7 +254,7 @@ mod tests {
 
     #[test]
     fn legend_covers_all_techniques() {
-        assert_eq!(legend_techniques().len(), 5);
+        assert_eq!(legend_techniques().len(), 6);
     }
 
     #[test]
@@ -233,7 +262,36 @@ mod tests {
         let names: Vec<&str> = legend_techniques().iter().map(|(_, n)| *n).collect();
         assert_eq!(
             names,
-            ["bend", "vibrato", "wah-wah", "overblow", "overdraw"]
+            [
+                "mod-bend",
+                "mod-vibrato",
+                "mod-wah",
+                "mod-overblow",
+                "mod-overdraw",
+                "mod-slide"
+            ]
         );
+    }
+
+    #[test]
+    fn legend_contains_only_techniques_the_chart_uses_in_canonical_order() {
+        let used = [
+            Modifier::Slide,
+            Modifier::Vibrato {
+                oscillation_hz: 4.0,
+                intensity: None,
+            },
+            Modifier::Slide,
+        ];
+        let names: Vec<&str> = used_legend_techniques(&used)
+            .into_iter()
+            .map(|(_, name)| name)
+            .collect();
+        assert_eq!(names, ["mod-vibrato", "mod-slide"]);
+    }
+
+    #[test]
+    fn plain_notes_need_no_technique_legend() {
+        assert!(used_legend_techniques(&[]).is_empty());
     }
 }

@@ -109,7 +109,14 @@ pub fn setup(
 
     // Animated tail previews for the techniques legend (built up front so the UI
     // closures only borrow a ready slice, not the material store).
-    let legend_materials = build_legend_materials(&mut shape_materials);
+    let used_modifiers: Vec<Modifier> = chart
+        .track
+        .iter()
+        .flat_map(|item| &item.events)
+        .flat_map(|event| event.modifiers.as_deref().unwrap_or_default())
+        .cloned()
+        .collect();
+    let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers);
 
     let key = chart.song.key.as_str();
     let bpm = chart.song.tempo_bpm;
@@ -321,8 +328,9 @@ pub fn setup(
                             spawn_metronome(metro, &loc, beats_per_bar, bpm);
                         });
 
-                    // Technique colour legend
-                    spawn_modifier_legend(right, &loc, &legend_materials);
+                    if !legend_materials.is_empty() {
+                        spawn_modifier_legend(right, &loc, &legend_materials);
+                    }
                 }
 
                 // Score

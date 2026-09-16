@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy_fluent::Localization;
-use harmonicon_core::chart::{Action, HarpChart};
+use harmonicon_core::chart::{Action, HarpChart, Modifier};
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_platform::assets_management::{
@@ -879,16 +879,25 @@ fn spawn_hud_overlay(
 
                 // Animated tail previews for the techniques legend (built up front so the UI
                 // closures only borrow a ready slice, not the material store).
-                let legend_materials = build_legend_materials(&mut shape_materials);
+                let used_modifiers: Vec<Modifier> = chart
+                    .track
+                    .iter()
+                    .flat_map(|item| &item.events)
+                    .flat_map(|event| event.modifiers.as_deref().unwrap_or_default())
+                    .cloned()
+                    .collect();
+                let legend_materials =
+                    build_legend_materials(&mut shape_materials, &used_modifiers);
 
-                // Technique colour legend
-                p.spawn(Node {
-                    margin: UiRect::top(Val::Px(8.0)),
-                    ..default()
-                })
-                .with_children(|leg| {
-                    spawn_modifier_legend(leg, loc, &legend_materials);
-                });
+                if !legend_materials.is_empty() {
+                    p.spawn(Node {
+                        margin: UiRect::top(Val::Px(8.0)),
+                        ..default()
+                    })
+                    .with_children(|leg| {
+                        spawn_modifier_legend(leg, loc, &legend_materials);
+                    });
+                }
             });
     }
 
