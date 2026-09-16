@@ -15,7 +15,11 @@
       "Bash(mdbook build *)",
       "Bash(mdbook serve *)",
       "Bash(python3 scripts/brpctl.py *)",
-      "Bash(curl -s -X POST http://127.0.0.1:15702 *)"
+      "Bash(curl -s -X POST http://127.0.0.1:15702 *)",
+      "Bash(./scripts/run-dev.sh)",
+      "Bash(./scripts/run-dev.sh *)",
+      "Bash(scripts/run-dev.sh)",
+      "Bash(scripts/run-dev.sh *)"
     ]
   }
 }

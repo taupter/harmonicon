@@ -30,6 +30,7 @@ pub mod pause_menu;
 mod phrase_overlay;
 pub mod plugin;
 mod results;
+mod song_info;
 pub mod song_progress_overlay;
 mod song_waveform_material;
 mod state;
@@ -48,6 +49,7 @@ pub use hud::*;
 pub use judge::*;
 pub use notes::*;
 pub use plugin::*;
+pub use song_info::*;
 pub use state::*;
 
 #[cfg(test)]

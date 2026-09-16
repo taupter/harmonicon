@@ -354,7 +354,7 @@ pub fn setup(
 
     // Jam already shows the harp hint on the persistent left panel, so the
     // countdown doesn't repeat it.
-    spawn_countdown(&mut commands, &loc, None);
+    spawn_countdown(&mut commands, &loc, None, None);
 
     super::call_response::spawn_call_response_banner(&mut commands);
 }

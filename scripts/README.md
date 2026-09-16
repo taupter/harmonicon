@@ -125,6 +125,24 @@ Two things it knows that are easy to get wrong by hand:
   blind toggle does the opposite of what you meant whenever the last session
   left it on.
 
+## `run-dev.sh` — rebuild and relaunch with BRP up
+
+```bash
+./scripts/run-dev.sh              # rebuild, relaunch, wait for BRP
+./scripts/run-dev.sh --no-build   # relaunch only
+./scripts/run-dev.sh --stop       # stop a running instance
+```
+
+Waits until the Bevy Remote Protocol server actually answers before
+returning, so the next command can drive it without guessing at a sleep.
+
+One command rather than a chain of three on purpose: a chain can only be
+permitted as a whole, so `cargo build && nohup env … && python3 …` matches no
+narrow allowlist pattern and prompts every single time.
+
+It kills by the built path (`target/release/harmonicon`), not the bare name —
+`pkill -f harmonicon` also matches the shell running the script.
+
 ## Everything else here
 
 `generate_lesson_files.py`, `create_base_harp_model.py`, `make_note_cube.py`

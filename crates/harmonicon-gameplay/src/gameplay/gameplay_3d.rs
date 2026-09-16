@@ -10,7 +10,6 @@ use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_platform::assets_management::{
     HarmonicaModelConfig, HoleConfig, SelectedHarmonicaModel, SelectedNoteTheme3d, ShowNoteNumbers,
 };
-use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 use harmonicon_song::song::NoteCube3dConfig;
 use harmonicon_song::song::SongManifest;
@@ -27,8 +26,8 @@ use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
-    MusicStarted, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, ValidHarpNotes,
-    spawn_score_readout,
+    MusicStarted, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, ValidHarpNotes,
+    spawn_score_readout, spawn_song_header,
 };
 
 // ── 3D layout constants ───────────────────────────────────────────────────────
@@ -571,6 +570,7 @@ pub(super) struct NoteBuildState<'w> {
 #[derive(bevy::ecs::system::SystemParam)]
 pub(super) struct HudContext<'w> {
     loc: Res<'w, Localization>,
+    song_info: Res<'w, SongInfo>,
     bravura: Option<Res<'w, BravuraFont>>,
     compact: Res<'w, harmonicon_platform::responsive::CompactLayout>,
 }
@@ -675,11 +675,11 @@ pub fn setup(
     spawn_hud_overlay(
         &mut commands,
         chart,
-        key,
         chart.song.tempo_bpm,
         beats_per_bar,
         shape_materials,
         &hud.loc,
+        &hud.song_info,
         compact,
     );
     let aural = lesson.is_some_and(|lesson| lesson.aural);
@@ -715,7 +715,12 @@ pub fn setup(
     }
     super::wait_freeze_overlay::spawn_wait_freeze_prompt(&mut commands);
     let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
-    spawn_countdown(&mut commands, &hud.loc, Some(&harp_hint));
+    spawn_countdown(
+        &mut commands,
+        &hud.loc,
+        Some(&harp_hint),
+        Some(&hud.song_info),
+    );
 }
 
 fn spawn_harmonica_3d(
@@ -770,39 +775,13 @@ fn spawn_harmonica_3d(
 fn spawn_hud_overlay(
     commands: &mut Commands,
     chart: &harmonicon_core::chart::HarpChart,
-    key: &str,
     bpm: f32,
     beats_per_bar: usize,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
     loc: &Localization,
+    song_info: &SongInfo,
     compact: bool,
 ) {
-    let title = format!("{} \u{2014} {}", chart.song.artist, chart.song.title);
-    let info = String::from(
-        loc.msg_args(
-            "gameplay-chart-info",
-            &[
-                ("key", key.to_string()),
-                ("bpm", (chart.song.tempo_bpm as u32).to_string()),
-                (
-                    "time_sig",
-                    chart
-                        .song
-                        .time_signature
-                        .as_deref()
-                        .unwrap_or("4/4")
-                        .to_string(),
-                ),
-            ],
-        ),
-    );
-    let harp_info = chart.harmonica.display();
-    let description = chart
-        .metadata
-        .as_ref()
-        .and_then(|m| m.description.as_deref());
-    let chart_author = chart.metadata.as_ref().and_then(|m| m.author.as_deref());
-
     // Top-left info box: song info, phrase/tab aids, metronome, legends —
     // all supplementary, so it's skipped entirely in compact mode rather
     // than trimmed piecemeal (nothing essential lives in it).
@@ -829,43 +808,9 @@ fn spawn_hud_overlay(
                 GameplayRoot,
             ))
             .with_children(|p| {
-                for (text, size, color) in [
-                    (title.as_str(), 18.0f32, Color::WHITE),
-                    (info.as_str(), 15.0, Color::srgb(0.65, 0.70, 0.80)),
-                    (harp_info.as_str(), 15.0, Color::srgb(0.45, 0.72, 0.55)),
-                ] {
-                    p.spawn((
-                        Text::new(text.to_string()),
-                        TextFont {
-                            font_size: FontSize::Px(size),
-                            ..default()
-                        },
-                        TextColor(color),
-                    ));
-                }
-                if let Some(desc) = description {
-                    p.spawn((
-                        Text::new(desc.to_string()),
-                        TextFont {
-                            font_size: FontSize::Px(15.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.50, 0.50, 0.55)),
-                    ));
-                }
-                if let Some(author) = chart_author {
-                    p.spawn((
-                        Text::new(String::from(loc.msg_args(
-                            "gameplay-chart-author",
-                            &[("author", author.to_string())],
-                        ))),
-                        TextFont {
-                            font_size: FontSize::Px(15.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.40, 0.40, 0.45)),
-                    ));
-                }
+                // Title only; the rest of `SongInfo` is read material and
+                // now shows during the countdown and in the pause menu.
+                spawn_song_header(p, song_info);
 
                 // Live phrase / groove banner (driven by phrase_overlay::update_phrase)
                 spawn_phrase_banner(p);

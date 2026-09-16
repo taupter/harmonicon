@@ -51,14 +51,14 @@ Two things it does not cover, and why:
 
 ## Phase 1: make the highway the visual focus
 
-- Keep the song title in a small persistent header; show the full key, harp,
-  author, and description during countdown and pause instead of spending the
-  whole performance on them. (The score/combo/judgment half is done:
-  `hud::spawn_score_readout` is one shared readout, anchored at each mode's
-  own hit line rather than in a screen corner.)
-- Give the 2D highway most of the available width. Add beat and downbeat guides
-  derived from `GameplayClock`, the tempo map, and `bars::chart_meter`; do not
-  introduce a second timing calculation in the renderer.
+- Add beat and downbeat guides derived from `GameplayClock`, the tempo map, and
+  `bars::chart_meter`; do not introduce a second timing calculation in the
+  renderer.
+
+  *(Done: `hud::spawn_score_readout` is one shared readout anchored at each
+  mode's own hit line rather than a screen corner, and `song_info` moved the
+  key/harp/description/author to the countdown and pause menu, leaving a title
+  header — which gave the 2D highway 60% → 74% of the width.)*
 - Strengthen the hit line and align hole numbers with it. Use shape or labels in
   addition to blow/draw color so the colorblind palette is not the only cue.
 - Keep technique symbols close to the notes that use them; the legend is

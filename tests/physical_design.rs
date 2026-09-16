@@ -32,7 +32,6 @@ const BUDGET: usize = 1000;
 const ALLOWLIST: &[&str] = &[
     // Phase 6 targets named explicitly by the plan, with a destination:
     "crates/harmonicon-gameplay/src/gameplay/bending_trainer.rs", // split: drill logic vs UI
-    "crates/harmonicon-gameplay/src/gameplay/gameplay_2d.rs", // split: scene setup vs note spawn/despawn vs tails
     "crates/harmonicon-gameplay/src/gameplay/gameplay_3d.rs", // split: scene setup vs note spawn/despawn vs tails
     "crates/harmonicon-menu/src/menu/pages/options.rs",       // split: one section per file
     "crates/harmonicon-lessons/src/lesson_reader.rs", // split: interactive widget runtime vs reader page assembly

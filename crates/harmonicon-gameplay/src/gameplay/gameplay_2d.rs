@@ -24,8 +24,8 @@ use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
-    MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongNotes,
-    ValidHarpNotes, spawn_score_readout,
+    MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, SongNotes,
+    ValidHarpNotes, spawn_score_readout, spawn_song_header,
 };
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 
@@ -63,6 +63,7 @@ pub fn setup(
     effective: Res<EffectiveHarmonica>,
     mut valid_notes: ResMut<ValidHarpNotes>,
     mut played_harp: ResMut<PlayedHarp>,
+    song_info: Res<SongInfo>,
     mut song_notes: ResMut<SongNotes>,
     mut render_assets: ResMut<NoteRenderAssets>,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
@@ -122,32 +123,6 @@ pub fn setup(
     let key = chart.song.key.as_str();
     let bpm = chart.song.tempo_bpm;
 
-    let title = format!("{} \u{2014} {}", chart.song.artist, chart.song.title);
-    let info = String::from(
-        loc.msg_args(
-            "gameplay-chart-info",
-            &[
-                ("key", key.to_string()),
-                ("bpm", (bpm as u32).to_string()),
-                (
-                    "time_sig",
-                    chart
-                        .song
-                        .time_signature
-                        .as_deref()
-                        .unwrap_or("4/4")
-                        .to_string(),
-                ),
-            ],
-        ),
-    );
-    let harp_info = chart.harmonica.display();
-    let description = chart
-        .metadata
-        .as_ref()
-        .and_then(|m| m.description.as_deref());
-    let chart_author = chart.metadata.as_ref().and_then(|m| m.author.as_deref());
-
     // The meter's own beat count, for the HUD's beat dots — from the one
     // reading of the chart's meter gameplay has (`bars::chart_meter`).
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
@@ -195,7 +170,7 @@ pub fn setup(
                 width: if compact {
                     Val::Percent(88.0)
                 } else {
-                    Val::Percent(60.0)
+                    Val::Percent(74.0)
                 },
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -245,10 +220,15 @@ pub fn setup(
                 12.0 + BAR_HEIGHT + music_score::PANEL_HEIGHT
             };
             root.spawn(Node {
+                // Narrower than the 40% it held when the song's description
+                // lived here. What's left is live material only — phrase
+                // banner, tab ribbon, metronome, technique legend — and the
+                // width it gave up goes to the highway, which is the thing
+                // the player is actually reading.
                 width: if compact {
                     Val::Px(140.0)
                 } else {
-                    Val::Percent(40.0)
+                    Val::Percent(26.0)
                 },
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -261,62 +241,13 @@ pub fn setup(
             })
             .with_children(|right| {
                 if !compact {
-                    // Song info
-                    right
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(3.0),
-                            ..default()
-                        })
-                        .with_children(|col| {
-                            col.spawn((
-                                Text::new(title),
-                                TextFont {
-                                    font_size: FontSize::Px(18.0),
-                                    ..default()
-                                },
-                                TextColor(Color::WHITE),
-                            ));
-                            col.spawn((
-                                Text::new(info),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.60, 0.65, 0.75)),
-                            ));
-                            col.spawn((
-                                Text::new(harp_info),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.45, 0.72, 0.55)),
-                            ));
-                            if let Some(desc) = description {
-                                col.spawn((
-                                    Text::new(desc.to_string()),
-                                    TextFont {
-                                        font_size: FontSize::Px(15.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::srgb(0.50, 0.50, 0.55)),
-                                ));
-                            }
-                            if let Some(author) = chart_author {
-                                col.spawn((
-                                    Text::new(String::from(loc.msg_args(
-                                        "gameplay-chart-author",
-                                        &[("author", author.to_string())],
-                                    ))),
-                                    TextFont {
-                                        font_size: FontSize::Px(15.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::srgb(0.40, 0.40, 0.45)),
-                                ));
-                            }
-                        });
+                    // Title only while notes are falling; the key, harp,
+                    // description and author are read material and now live
+                    // where there is time to read them — the countdown and
+                    // the pause menu (`song_info::spawn_song_details`).
+                    right.spawn(Node::default()).with_children(|col| {
+                        spawn_song_header(col, &song_info);
+                    });
 
                     // Live phrase / groove banner (driven by phrase_overlay::update_phrase)
                     spawn_phrase_banner(right);
@@ -386,7 +317,7 @@ pub fn setup(
     }
     super::wait_freeze_overlay::spawn_wait_freeze_prompt(&mut commands);
     let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
-    spawn_countdown(&mut commands, &loc, Some(&harp_hint));
+    spawn_countdown(&mut commands, &loc, Some(&harp_hint), Some(&song_info));
 }
 
 /// Wraps `music_score::spawn_music_score` in its own absolutely-positioned,

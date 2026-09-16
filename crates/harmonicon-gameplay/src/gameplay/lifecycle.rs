@@ -6,6 +6,7 @@
 
 use bevy::audio::Volume;
 use bevy::prelude::*;
+use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, EffectiveHarmonica, GameplayMode, SelectedSong};
 use harmonicon_audio::audio_input::AudioCapture;
@@ -15,6 +16,7 @@ use harmonicon_song::song::SongManifest;
 use super::bars::chart_meter;
 use super::clock::GameplayClock;
 use super::notes::{last_note_end, resolve_item_time};
+use super::song_info::SongInfo;
 use super::state::{
     GameplayRoot, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicPlayer, MusicStarted, Paused,
     PitchGate, Score, ScoringConfig, SongEnd, SongStats,
@@ -59,6 +61,23 @@ pub(crate) fn reset_score(
 /// Extra seconds after the last note before the results screen, so the final
 /// notes ring out.
 const SONG_END_TAIL: f64 = 2.5;
+
+/// Resolves the song's own description strings once per song, for every
+/// screen that shows them (the in-play header, the countdown, the pause
+/// menu). Its own system rather than a corner of `setup_scoring_config`
+/// because the consumers have to be ordered *after* it — an `add_systems`
+/// tuple is unordered, so without that the pause menu spawns its details
+/// from a default-empty `SongInfo` about half the time.
+pub(crate) fn setup_song_info(
+    selected: Res<SelectedSong>,
+    manifests: Res<Assets<SongManifest>>,
+    loc: Res<Localization>,
+    mut song_info: ResMut<SongInfo>,
+) {
+    if let Some(manifest) = manifests.get(&selected.0) {
+        *song_info = SongInfo::from_chart(&manifest.chart, &loc);
+    }
+}
 
 pub(crate) fn setup_scoring_config(
     selected: Res<SelectedSong>,

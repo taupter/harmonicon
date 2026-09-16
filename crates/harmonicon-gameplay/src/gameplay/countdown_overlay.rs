@@ -13,6 +13,7 @@ use harmonicon_song::song::SongManifest;
 
 use super::{
     GameplayClock, GameplayLogic, GameplayRoot, MidiTrackPlayer, MusicPlayer, MusicStarted, Paused,
+    SongInfo, spawn_song_details,
 };
 
 #[derive(Component, Default, Clone)]
@@ -21,7 +22,18 @@ pub struct CountdownOverlay;
 #[derive(Component)]
 pub struct CountdownText;
 
-pub fn spawn_countdown(commands: &mut Commands, loc: &Localization, harp_hint: Option<&str>) {
+/// `song_info` is `None` for Jam Session, which has no chart to describe.
+///
+/// The countdown is one of the two moments the player is not playing, so it
+/// is where the song's own details belong — key, harp, description, author.
+/// They used to hold a column of the HUD for the whole performance instead,
+/// which is time nobody spends reading them.
+pub fn spawn_countdown(
+    commands: &mut Commands,
+    loc: &Localization,
+    harp_hint: Option<&str>,
+    song_info: Option<&SongInfo>,
+) {
     // The full-screen overlay shell is static and font/handle-free, so it's a
     // `bsn!` scene. The countdown text children carry a custom `FontSource`,
     // which `bsn!` can't take directly in 0.19-rc.3, so they stay imperative.
@@ -61,6 +73,9 @@ pub fn spawn_countdown(commands: &mut Commands, loc: &Localization, harp_hint: O
                 },
                 TextColor(Color::srgb(0.95, 0.80, 0.35)),
             ));
+        }
+        if let Some(info) = song_info {
+            spawn_song_details(ov, info);
         }
         ov.spawn((
             Text::new("3"),

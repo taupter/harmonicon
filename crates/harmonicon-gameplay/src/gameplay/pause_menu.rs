@@ -12,7 +12,7 @@ use bevy_fluent::Localization;
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::song_progress_overlay::BAR_HEIGHT;
-use super::{GameplayRoot, LoopConfig, MusicPlayer, Paused};
+use super::{GameplayRoot, LoopConfig, MusicPlayer, Paused, SongInfo, spawn_song_details};
 use harmonicon_app::app::{AppState, GameplayMode, ReturnToSongList, SelectedSong};
 use harmonicon_app::profile::PlayerProfile;
 use harmonicon_platform::localization::LocalizationExt;
@@ -574,6 +574,7 @@ pub(super) fn setup_pause_menu(
     speed: Res<PracticeSpeed>,
     selected_phrase: Res<SelectedPhraseIndex>,
     adaptive: Res<AdaptiveDifficulty>,
+    song_info: Res<SongInfo>,
     loc: Res<Localization>,
 ) {
     let is_jam = *mode == GameplayMode::JamSession;
@@ -650,6 +651,9 @@ pub(super) fn setup_pause_menu(
         .id();
     commands.entity(root).add_child(actions);
     commands.entity(actions).with_children(|col| {
+        // The other moment the player isn't playing, so the other place the
+        // song's own details are worth the space (see `song_info`).
+        spawn_song_details(col, &song_info);
         col.spawn((
             Text::new("PAUSED"),
             TextFont {

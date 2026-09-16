@@ -74,13 +74,13 @@ panel is right-hand in 2D and top-left in 3D, the BLOW/DRAW legend is
 centre-bottom in 2D and inside the info panel in 3D, and 3D has no hole/note
 map at all.
 
-### 3. Song metadata holds a whole column for the whole performance
+### 3. Song metadata held a whole column for the whole performance — fixed
 
-The 2D right panel takes roughly a third of the width and never changes:
-title, key, harp, a multi-line description and the chart author. In 3D the
-same content sits top-left and the remaining right half of the screen is
-empty. Phase 1 wants this shown during countdown and pause instead, with a
-small persistent header during play.
+The 2D right panel spent roughly a third of the width on title, key, harp, a
+multi-line description and the chart author, none of which changes during a
+run. It is now a title alone (`song_info::spawn_song_header`); the rest shows
+during the countdown and in the pause menu, the two moments the player is not
+playing. The 2D highway took the reclaimed width, 60% to 74%.
 
 ### 4. The wait-for-note prompt is drawn at the note, not at the hit line
 

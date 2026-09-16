@@ -74,6 +74,7 @@ impl Plugin for GameplayPlugin {
         .init_resource::<MusicStarted>()
         .init_resource::<ValidHarpNotes>()
         .init_resource::<PlayedHarp>()
+        .init_resource::<super::SongInfo>()
         .init_resource::<harmonicon_app::app::EffectiveHarmonica>()
         .init_resource::<SongNotes>()
         .init_resource::<adaptive_difficulty::AdaptiveDifficulty>()
@@ -108,11 +109,19 @@ impl Plugin for GameplayPlugin {
                 lifecycle::setup_scoring_config,
                 lifecycle::configure_pitch_filter,
                 adaptive_difficulty::setup_adaptive_difficulty,
-                pause_menu::setup_pause_menu,
+                // Everything that *shows* the song's details has to run
+                // after the system that resolves them; an `add_systems`
+                // tuple is otherwise unordered.
+                lifecycle::setup_song_info,
+                pause_menu::setup_pause_menu.after(lifecycle::setup_song_info),
                 // Every mode, unlike the 2D/3D-only overlays below.
                 warning_banner::setup_warning_banner,
-                gameplay_2d::setup.run_if(|m: Res<GameplayMode>| *m == GameplayMode::Play2D),
-                gameplay_3d::setup.run_if(|m: Res<GameplayMode>| *m == GameplayMode::Play3D),
+                gameplay_2d::setup
+                    .after(lifecycle::setup_song_info)
+                    .run_if(|m: Res<GameplayMode>| *m == GameplayMode::Play2D),
+                gameplay_3d::setup
+                    .after(lifecycle::setup_song_info)
+                    .run_if(|m: Res<GameplayMode>| *m == GameplayMode::Play3D),
                 // Call-and-response cues need `SongNotes`' response notes to
                 // lead into — Jam Session never builds those.
                 call_response::setup_call_cues.run_if(|m: Res<GameplayMode>| {
