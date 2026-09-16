@@ -126,17 +126,34 @@ pub struct MusicStarted(pub bool);
 #[derive(Resource, Default)]
 pub struct ValidHarpNotes(pub HashSet<u8>);
 
+/// The harp the player is actually holding, kept whole alongside the pitch
+/// set derived from it. `ValidHarpNotes` answers "may this pitch score";
+/// this answers "which hole makes that pitch", which `judge::score_notes`
+/// needs to tell a player what it heard instead of what it wanted.
+///
+/// `None` until a song sets it up (and in the Bending Trainer, which scores
+/// nothing).
+#[derive(Resource, Default)]
+pub struct PlayedHarp(pub Option<Harmonica>);
+
 impl ValidHarpNotes {
-    /// The pitches gameplay will accept, taken from the harp the player is
-    /// actually *holding* — [`EffectiveHarmonica`], not `chart.harmonica`.
+    /// The pitches gameplay will accept, and the harp they came from, taken
+    /// from the harp the player is actually *holding* — [`EffectiveHarmonica`],
+    /// not `chart.harmonica`.
     ///
     /// The two differ whenever a harp has been substituted, and this is the
     /// set `judge::score_notes` filters every detected pitch through, so
     /// building it from the chart's harp instead discards everything the
     /// player sounds. Shared by the 2D and 3D setups so they cannot drift
-    /// apart on which harp they mean.
-    pub(super) fn for_played_harp(effective: &EffectiveHarmonica, chart: &HarpChart) -> Self {
-        Self(effective.harp_for(chart).build_valid_notes())
+    /// apart on which harp they mean — which is also why it returns
+    /// [`PlayedHarp`] rather than leaving each caller to resolve the harp a
+    /// second time and risk resolving it differently.
+    pub(super) fn for_played_harp(
+        effective: &EffectiveHarmonica,
+        chart: &HarpChart,
+    ) -> (Self, PlayedHarp) {
+        let harp = effective.harp_for(chart).clone();
+        (Self(harp.build_valid_notes()), PlayedHarp(Some(harp)))
     }
 }
 
@@ -271,17 +288,30 @@ pub const FEEDBACK_FADE_SECS: f32 = 0.75;
 pub const HIT_FEEDBACK_SECS: f32 = FEEDBACK_FADE_SECS;
 pub const FAILURE_FEEDBACK_SECS: f32 = 0.9;
 
+/// A hole and breath direction — how a player reads a note off the highway,
+/// as opposed to the MIDI number scoring compares by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HoleTab {
+    pub hole: u8,
+    pub is_blow: bool,
+}
+
 /// Why a note failed, as decided by `score_notes` at the instant it failed.
-/// Deliberately coarse — these are the four things a player can act on, not a
+/// Deliberately coarse — these are the things a player can act on, not a
 /// classification of everything the detector saw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MissReason {
     /// The miss window elapsed with no fresh expected pitch and nothing else
-    /// playable sounding either: the player simply didn't attack.
+    /// playable attacked either: the player simply didn't attack.
     NoAttack,
-    /// Something playable was sounding through the window, but not the pitch
-    /// this note wanted.
-    WrongPitch,
+    /// Something playable was attacked through the window, but not the pitch
+    /// this note wanted. `expected` is the note's own tab; `heard` is the
+    /// attacked pitch resolved back onto the played harp, and is `None` only
+    /// if that harp has no way to produce it.
+    WrongPitch {
+        expected: HoleTab,
+        heard: Option<HoleTab>,
+    },
     /// Part of a chord/octave-split sounded, but never all of it at once.
     IncompleteChord,
 }
@@ -469,14 +499,19 @@ mod valid_harp_notes_tests {
             harp: Some(substitute.clone()),
             ..default()
         };
-        assert_eq!(
-            ValidHarpNotes::for_played_harp(&effective, &chart).0,
-            substitute.build_valid_notes()
-        );
+        let (valid, played) = ValidHarpNotes::for_played_harp(&effective, &chart);
+        assert_eq!(valid.0, substitute.build_valid_notes());
         assert_ne!(
-            ValidHarpNotes::for_played_harp(&effective, &chart).0,
+            valid.0,
             chart.harmonica.build_valid_notes(),
             "an A harp and a C harp must not agree on which pitches are valid"
+        );
+        // The whole harp travels with the pitch set, so nothing downstream has
+        // to resolve the substitution a second time and risk resolving it
+        // differently.
+        assert_eq!(
+            played.0.map(|harp| harp.build_valid_notes()),
+            Some(substitute.build_valid_notes())
         );
     }
 
@@ -484,9 +519,11 @@ mod valid_harp_notes_tests {
     fn without_a_substitution_the_charts_own_harp_decides() {
         let chart = chart_in_c();
         let effective = EffectiveHarmonica::default();
+        let (valid, played) = ValidHarpNotes::for_played_harp(&effective, &chart);
+        assert_eq!(valid.0, chart.harmonica.build_valid_notes());
         assert_eq!(
-            ValidHarpNotes::for_played_harp(&effective, &chart).0,
-            chart.harmonica.build_valid_notes()
+            played.0.map(|harp| harp.build_valid_notes()),
+            Some(chart.harmonica.build_valid_notes())
         );
     }
 }

@@ -88,7 +88,10 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
   language.** Hit a note dead on (`PERFECT!`), slightly ahead (`EARLY`) and
   slightly behind (`LATE`); then miss one by playing nothing (`MISS`) and
   miss one by playing an audibly wrong hole through its window (`WRONG
-  NOTE`). On a chart with a chord, sound one hole of it alone: `INCOMPLETE
+  NOTE`, plus a second smaller line naming both tabs — draw 4 where 4 blow
+  was wanted should read *wanted 4↑ · heard 4↓*, and that line must go blank
+  again on the next note rather than captioning it). On a chart with a
+  chord, sound one hole of it alone: `INCOMPLETE
   CHORD`. On a note with a declared vibrato, hold it dead steady: the onset
   still scores, and `TECHNIQUE` appears when the hold ends. Switch the
   language in Options and confirm each label is translated rather than

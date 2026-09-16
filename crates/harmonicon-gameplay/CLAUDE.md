@@ -207,6 +207,19 @@ load-bearing about *this* crate.
     somewhere in the frame. A pitch merely held over from an earlier note is
     a missing attack, not a wrong one — reporting `WRONG NOTE` there would
     coach the player to change notes when the real fix is to re-articulate.
+  - `WrongPitch` carries the expected and heard tabs, so the HUD's second
+    line can say *wanted 4↑ · heard 4↓*. The heard pitch is resolved to a
+    hole in the judge (`pitch_map::map_pitch_playable` against
+    `PlayedHarp`), not in the HUD — the UI formats, it doesn't resolve.
+    Several pitches can be attacked at once and they arrive from a
+    `HashSet`, so `nearest_attacked` picks by a rule (closest to the target,
+    ties low) rather than taking the first; iteration order would otherwise
+    make the same frame report differently on different runs.
+  - **`PlayedHarp` and `ValidHarpNotes` are built together** by
+    `ValidHarpNotes::for_played_harp`, which returns both. `ValidHarpNotes`
+    answers "may this pitch score"; `PlayedHarp` answers "which hole makes
+    it". Both 2D and 3D setup go through that one call precisely so they
+    cannot resolve the `EffectiveHarmonica` substitution differently.
 
 - **The song-progress bar is a per-hole note-lanes strip, with the phrase
   overlay painted over it, and its timescale survives a music-less song**

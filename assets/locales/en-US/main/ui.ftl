@@ -846,6 +846,8 @@ gameplay-judgment-early = EARLY
 gameplay-judgment-late = LATE
 gameplay-judgment-no-attack = MISS
 gameplay-judgment-wrong-pitch = WRONG NOTE
+gameplay-judgment-wrong-pitch-detail = wanted {$expected}  ·  heard {$heard}
+gameplay-judgment-wrong-pitch-detail-unplaceable = wanted {$expected}
 gameplay-judgment-incomplete-chord = INCOMPLETE CHORD
 gameplay-judgment-technique = TECHNIQUE
 

@@ -12,8 +12,9 @@ use bevy::prelude::*;
 
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::{AudioFrame, PitchInfo};
-use harmonicon_core::chart::Modifier;
+use harmonicon_core::chart::{Action, Modifier};
 use harmonicon_core::midi::midi_to_freq_hz;
+use harmonicon_core::pitch_map::map_pitch_playable;
 use harmonicon_core::scoring::{
     HitQuality, NoteOutcome, VIBRATO_MIN_SWING_CENTS, WAH_MIN_SWING_FRAC, chord_is_sounding,
     classify_note, compute_multiplier, compute_points, is_clean_attack, measured_oscillation_hz,
@@ -24,8 +25,8 @@ use super::clock::GameplayClock;
 use super::notes::{ScheduledNote, SongNotes};
 use super::state::{
     ActivePitches, ActiveTargets, FAILURE_FEEDBACK_SECS, HIT_FEEDBACK_SECS, HarmonicaPitchFilter,
-    HitFeedback, JudgmentFeedback, MissReason, NoteScored, PitchGate, Score, ScoringConfig,
-    SongStats, ValidHarpNotes, bump,
+    HitFeedback, HoleTab, JudgmentFeedback, MissReason, NoteScored, PitchGate, PlayedHarp, Score,
+    ScoringConfig, SongStats, ValidHarpNotes, bump,
 };
 
 pub(crate) fn update_active_targets(
@@ -152,8 +153,14 @@ fn observed_failure(
     note: &ScheduledNote,
     sounding: &HashSet<u8>,
     gate: &PitchGate,
+    harp: &PlayedHarp,
 ) -> Option<MissReason> {
-    if !sounding.iter().any(|&pitch| gate.is_fresh(pitch, true)) {
+    let attacked: Vec<u8> = sounding
+        .iter()
+        .copied()
+        .filter(|&pitch| gate.is_fresh(pitch, true))
+        .collect();
+    if attacked.is_empty() {
         return None;
     }
     if !note.chord_pitches.is_empty()
@@ -165,9 +172,38 @@ fn observed_failure(
     {
         return Some(MissReason::IncompleteChord);
     }
-    note.expected_pitch
-        .filter(|expected| !sounding.contains(expected))
-        .map(|_| MissReason::WrongPitch)
+    let expected = note.expected_pitch.filter(|e| !sounding.contains(e))?;
+    Some(MissReason::WrongPitch {
+        expected: HoleTab {
+            hole: note.hole,
+            is_blow: note.is_blow,
+        },
+        heard: nearest_attacked(&attacked, expected).and_then(|pitch| heard_tab(pitch, harp)),
+    })
+}
+
+/// Which of several simultaneously-attacked pitches to name as "what I
+/// heard": the one nearest the target, since that's the one the player was
+/// most plausibly reaching for. Ties break low, and `attacked` arrives from a
+/// `HashSet` — so this has to pick by a rule rather than take the first, or
+/// the same frame could report different pitches on different runs.
+fn nearest_attacked(attacked: &[u8], expected: u8) -> Option<u8> {
+    attacked
+        .iter()
+        .copied()
+        .min_by_key(|&pitch| (pitch.abs_diff(expected), pitch))
+}
+
+/// The hole and breath that produce `pitch` on the harp the player is
+/// holding. `None` when no harp is set up, or when it genuinely can't make
+/// that pitch — possible after a harp substitution, where a detected pitch
+/// passes `ValidHarpNotes` for the chart's harp but not the played one.
+fn heard_tab(pitch: u8, harp: &PlayedHarp) -> Option<HoleTab> {
+    let assignment = map_pitch_playable(pitch, harp.0.as_ref()?)?;
+    Some(HoleTab {
+        hole: assignment.hole,
+        is_blow: matches!(assignment.action, Action::Blow),
+    })
 }
 
 pub(crate) fn score_notes(
@@ -176,6 +212,7 @@ pub(crate) fn score_notes(
     active: Res<ActivePitches>,
     frame: Res<AudioFrame>,
     valid_notes: Res<ValidHarpNotes>,
+    played_harp: Res<PlayedHarp>,
     config: Res<ScoringConfig>,
     audio: Res<AudioSettings>,
     pitch_filter: Option<Res<HarmonicaPitchFilter>>,
@@ -371,7 +408,7 @@ pub(crate) fn score_notes(
         // player's mistake is the note they actually attacked, not whatever
         // happens to still be ringing when the window finally closes.
         if note.miss_evidence.is_none() {
-            note.miss_evidence = observed_failure(note, &harp_pitches, &gate);
+            note.miss_evidence = observed_failure(note, &harp_pitches, &gate, &played_harp);
         }
 
         match classify_note(

@@ -844,6 +844,8 @@ gameplay-judgment-early = ADIANTADO
 gameplay-judgment-late = ATRASADO
 gameplay-judgment-no-attack = ERROU
 gameplay-judgment-wrong-pitch = NOTA ERRADA
+gameplay-judgment-wrong-pitch-detail = esperado {$expected}  ·  ouvido {$heard}
+gameplay-judgment-wrong-pitch-detail-unplaceable = esperado {$expected}
 gameplay-judgment-incomplete-chord = ACORDE INCOMPLETO
 gameplay-judgment-technique = TÉCNICA
 

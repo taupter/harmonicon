@@ -12,7 +12,8 @@ use harmonicon_core::scoring::{HitQuality, combo_label, compute_multiplier};
 use harmonicon_platform::localization::LocalizationExt;
 
 use super::state::{
-    FEEDBACK_FADE_SECS, HitFeedback, JudgmentFeedback, MissReason, NoteScored, Score, ScoringConfig,
+    FEEDBACK_FADE_SECS, HitFeedback, HoleTab, JudgmentFeedback, MissReason, NoteScored, Score,
+    ScoringConfig,
 };
 
 // Score HUD marker components
@@ -22,6 +23,12 @@ pub struct ScoreText;
 pub struct ComboText;
 #[derive(Component)]
 pub struct FeedbackText;
+/// The second, smaller line under [`FeedbackText`]: what a one-word verdict
+/// can't say on its own, currently only the expected-vs-heard tab of a
+/// wrong-pitch miss. Blank for every other judgment, so dense passages get a
+/// single line rather than two.
+#[derive(Component)]
+pub struct FeedbackDetailText;
 
 /// Localization key and tint for one judgment, shared by the label-once and
 /// the per-frame color-fade halves of [`update_score_display`]. Every arm is a
@@ -46,13 +53,54 @@ fn feedback_style(judgment: JudgmentFeedback) -> (&'static str, f32, f32, f32) {
         JudgmentFeedback::Miss(MissReason::NoAttack) => {
             ("gameplay-judgment-no-attack", 1.00, 0.35, 0.35)
         }
-        JudgmentFeedback::Miss(MissReason::WrongPitch) => {
+        JudgmentFeedback::Miss(MissReason::WrongPitch { .. }) => {
             ("gameplay-judgment-wrong-pitch", 1.00, 0.35, 0.35)
         }
         JudgmentFeedback::Miss(MissReason::IncompleteChord) => {
             ("gameplay-judgment-incomplete-chord", 1.00, 0.42, 0.30)
         }
         JudgmentFeedback::TechniqueMiss => ("gameplay-judgment-technique", 1.00, 0.55, 0.25),
+    }
+}
+
+/// A tab as the player reads it off the highway: hole number, then ↑ for blow
+/// and ↓ for draw — the same arrows the hole map and the wait-for-note prompt
+/// use, so one glyph means one thing everywhere on screen.
+pub fn tab_label(tab: HoleTab) -> String {
+    format!(
+        "{}{}",
+        tab.hole,
+        if tab.is_blow { "\u{2191}" } else { "\u{2193}" }
+    )
+}
+
+/// The detail line's text for one judgment — empty for everything a single
+/// word already explains.
+///
+/// A wrong-pitch miss is the exception: "WRONG NOTE" alone tells a player
+/// something they already suspected, while the tab they hit next to the tab
+/// they wanted is the thing they can act on. When the heard pitch can't be
+/// placed on the played harp, this names the target alone rather than
+/// inventing a hole for it.
+fn feedback_detail(judgment: JudgmentFeedback, loc: &Localization) -> String {
+    let MissReason::WrongPitch { expected, heard } = (match judgment {
+        JudgmentFeedback::Miss(reason) => reason,
+        _ => return String::new(),
+    }) else {
+        return String::new();
+    };
+    match heard {
+        Some(heard) => String::from(loc.msg_args(
+            "gameplay-judgment-wrong-pitch-detail",
+            &[
+                ("expected", tab_label(expected)),
+                ("heard", tab_label(heard)),
+            ],
+        )),
+        None => String::from(loc.msg_args(
+            "gameplay-judgment-wrong-pitch-detail-unplaceable",
+            &[("expected", tab_label(expected))],
+        )),
     }
 }
 
@@ -67,11 +115,41 @@ pub(crate) fn update_score_display(
     loc: Res<Localization>,
     mut feedback: ResMut<HitFeedback>,
     time: Res<Time>,
-    mut q_score: Query<&mut Text, (With<ScoreText>, Without<ComboText>, Without<FeedbackText>)>,
-    mut q_combo: Query<&mut Text, (With<ComboText>, Without<ScoreText>, Without<FeedbackText>)>,
+    mut q_score: Query<
+        &mut Text,
+        (
+            With<ScoreText>,
+            Without<ComboText>,
+            Without<FeedbackText>,
+            Without<FeedbackDetailText>,
+        ),
+    >,
+    mut q_combo: Query<
+        &mut Text,
+        (
+            With<ComboText>,
+            Without<ScoreText>,
+            Without<FeedbackText>,
+            Without<FeedbackDetailText>,
+        ),
+    >,
     mut q_feedback: Query<
         (&mut Text, &mut TextColor),
-        (With<FeedbackText>, Without<ScoreText>, Without<ComboText>),
+        (
+            With<FeedbackText>,
+            Without<ScoreText>,
+            Without<ComboText>,
+            Without<FeedbackDetailText>,
+        ),
+    >,
+    mut q_detail: Query<
+        (&mut Text, &mut TextColor),
+        (
+            With<FeedbackDetailText>,
+            Without<ScoreText>,
+            Without<ComboText>,
+            Without<FeedbackText>,
+        ),
     >,
 ) {
     let mut score_moved = false;
@@ -117,6 +195,13 @@ pub(crate) fn update_score_display(
         for (mut t, _) in &mut q_feedback {
             t.0 = label.clone();
         }
+        // Written on the same frame as the headline, including the empty
+        // string: otherwise a wrong-pitch detail would outlive its own miss
+        // and sit under the *next* note's verdict.
+        let detail = feedback_detail(judgment, &loc);
+        for (mut t, _) in &mut q_detail {
+            t.0 = detail.clone();
+        }
     }
 
     feedback.timer = (feedback.timer - time.delta_secs()).max(0.0);
@@ -132,10 +217,24 @@ pub(crate) fn update_score_display(
                 // easily done here, so we just fade alpha.
                 let (_, r, g, b) = feedback_style(judgment);
                 *color = TextColor(Color::srgba(r, g, b, alpha));
-                if feedback.timer == 0.0 {
-                    feedback.judgment = None;
-                }
             }
         }
+    }
+
+    // The detail line fades on the same timer but in a neutral tint: the
+    // headline already carries the colour coding, and repeating it twice at
+    // two sizes reads as an alarm rather than an explanation.
+    let detail_alpha = match feedback.judgment {
+        None => 0.0,
+        Some(_) => (feedback.timer / FEEDBACK_FADE_SECS).clamp(0.0, 1.0) * 0.85,
+    };
+    for (_, mut color) in &mut q_detail {
+        *color = TextColor(Color::srgba(0.92, 0.92, 0.92, detail_alpha));
+    }
+
+    // Cleared here rather than inside the colour loop above, so a screen with
+    // no feedback text spawned at all still lets a judgment expire.
+    if feedback.timer == 0.0 {
+        feedback.judgment = None;
     }
 }

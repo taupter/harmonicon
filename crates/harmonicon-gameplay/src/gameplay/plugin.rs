@@ -20,8 +20,8 @@ use super::lifecycle;
 use super::notes::SongNotes;
 use super::state::{
     ActivePitches, ActiveTargets, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicStarted,
-    NoteScored, Paused, PitchGate, Score, ScoringConfig, SongEnd, SongStats, ValidHarpNotes,
-    collect_pitches,
+    NoteScored, Paused, PitchGate, PlayedHarp, Score, ScoringConfig, SongEnd, SongStats,
+    ValidHarpNotes, collect_pitches,
 };
 use super::{
     adaptive_difficulty, bending_trainer, call_response, countdown_overlay, gameplay_2d,
@@ -73,6 +73,7 @@ impl Plugin for GameplayPlugin {
         .init_resource::<PitchGate>()
         .init_resource::<MusicStarted>()
         .init_resource::<ValidHarpNotes>()
+        .init_resource::<PlayedHarp>()
         .init_resource::<harmonicon_app::app::EffectiveHarmonica>()
         .init_resource::<SongNotes>()
         .init_resource::<adaptive_difficulty::AdaptiveDifficulty>()

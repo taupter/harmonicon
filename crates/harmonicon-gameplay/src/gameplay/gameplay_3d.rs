@@ -26,8 +26,9 @@ use super::note_tail_3d::NoteTail3dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
-    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackText, GameplayRoot, HoleCell,
-    HoleState, LOOKAHEAD, MusicStarted, ScheduledNote, ScoreText, ValidHarpNotes,
+    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackDetailText, FeedbackText,
+    GameplayRoot, HoleCell, HoleState, LOOKAHEAD, MusicStarted, PlayedHarp, ScheduledNote,
+    ScoreText, ValidHarpNotes,
 };
 
 // ── 3D layout constants ───────────────────────────────────────────────────────
@@ -551,6 +552,7 @@ pub fn update_note_hole_labels_3d(
 #[derive(bevy::ecs::system::SystemParam)]
 pub(super) struct NoteBuildState<'w> {
     valid_notes: ResMut<'w, ValidHarpNotes>,
+    played_harp: ResMut<'w, PlayedHarp>,
     song_notes: ResMut<'w, super::SongNotes>,
     render_assets: ResMut<'w, NoteRenderAssets3D>,
     adaptive: Res<'w, AdaptiveDifficulty>,
@@ -592,7 +594,8 @@ pub fn setup(
     };
     clock.set_free(-COUNTDOWN);
     music_started.0 = false;
-    *note_build.valid_notes = ValidHarpNotes::for_played_harp(&effective, &manifest.chart);
+    (*note_build.valid_notes, *note_build.played_harp) =
+        ValidHarpNotes::for_played_harp(&effective, &manifest.chart);
 
     for (mut cam, _) in &mut cameras {
         cam.order = 1;
@@ -959,6 +962,15 @@ fn spawn_hud_overlay(
                     },
                     TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
                     FeedbackText,
+                ));
+                p.spawn((
+                    Text::new(""),
+                    TextFont {
+                        font_size: FontSize::Px(13.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+                    FeedbackDetailText,
                 ));
             });
         });

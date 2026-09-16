@@ -23,9 +23,9 @@ use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
-    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackText, GameplayRoot, HoleCell,
-    HoleState, LOOKAHEAD, MusicStarted, NoteVisual, ScheduledNote, ScoreText, SongNotes,
-    ValidHarpNotes,
+    ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackDetailText, FeedbackText,
+    GameplayRoot, HoleCell, HoleState, LOOKAHEAD, MusicStarted, NoteVisual, PlayedHarp,
+    ScheduledNote, ScoreText, SongNotes, ValidHarpNotes,
 };
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 
@@ -62,6 +62,7 @@ pub fn setup(
     mut music_started: ResMut<MusicStarted>,
     effective: Res<EffectiveHarmonica>,
     mut valid_notes: ResMut<ValidHarpNotes>,
+    mut played_harp: ResMut<PlayedHarp>,
     mut song_notes: ResMut<SongNotes>,
     mut render_assets: ResMut<NoteRenderAssets>,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
@@ -89,7 +90,7 @@ pub fn setup(
 
     clock.set_free(-COUNTDOWN);
     music_started.0 = false;
-    *valid_notes = ValidHarpNotes::for_played_harp(&effective, &manifest.chart);
+    (*valid_notes, *played_harp) = ValidHarpNotes::for_played_harp(&effective, &manifest.chart);
 
     let chart = &manifest.chart;
 
@@ -367,6 +368,15 @@ pub fn setup(
                             },
                             TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
                             FeedbackText,
+                        ));
+                        p.spawn((
+                            Text::new(""),
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+                            FeedbackDetailText,
                         ));
                     });
             });

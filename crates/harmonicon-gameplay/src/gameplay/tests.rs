@@ -190,7 +190,13 @@ fn loop_test_note(time: f64) -> ScheduledNote {
         playable: true,
         // Pre-dirtied like the other resolved state above, so the reset
         // assertions below cover the failure attribution too.
-        miss_evidence: Some(MissReason::WrongPitch),
+        miss_evidence: Some(MissReason::WrongPitch {
+            expected: HoleTab {
+                hole: 1,
+                is_blow: true,
+            },
+            heard: None,
+        }),
         force_wait: false,
     }
 }
@@ -760,6 +766,9 @@ fn score_notes_credits_the_closest_offset_when_two_same_pitch_notes_overlap() {
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(PlayedHarp(Some(harmonicon_core::harmonica::richter_harp(
+        "C",
+    ))));
     world.init_resource::<Messages<NoteScored>>();
     world.insert_resource(SongNotes {
         // Sorted by time: index 0 is farther from `judged` (offset
@@ -801,6 +810,9 @@ fn score_notes_leaves_a_far_future_note_untouched() {
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(PlayedHarp(Some(harmonicon_core::harmonica::richter_harp(
+        "C",
+    ))));
     world.init_resource::<Messages<NoteScored>>();
     world.insert_resource(SongNotes {
         notes: vec![overlap_test_note(120.0)],
@@ -834,6 +846,9 @@ fn clean_attack_test_world(active: Vec<PitchInfo>) -> World {
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(PlayedHarp(Some(harmonicon_core::harmonica::richter_harp(
+        "C",
+    ))));
     world.init_resource::<Messages<NoteScored>>();
     world.insert_resource(SongNotes {
         notes: vec![overlap_test_note(0.49)],
@@ -918,6 +933,9 @@ fn chord_test_world(active: Vec<PitchInfo>) -> World {
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(PlayedHarp(Some(harmonicon_core::harmonica::richter_harp(
+        "C",
+    ))));
     world.init_resource::<Messages<NoteScored>>();
     world.insert_resource(SongNotes {
         notes: chord_test_notes(),
@@ -1099,6 +1117,69 @@ fn update_score_display_only_writes_text_when_score_moved() {
         color.0.alpha() > 0.0,
         "the feedback flash should be visible right after a fresh hit"
     );
+}
+
+#[test]
+fn the_detail_line_explains_a_wrong_pitch_and_clears_on_the_next_judgment() {
+    // The stale-detail failure this guards against: a wrong-pitch detail that
+    // isn't overwritten on the next judgment sits under the *following*
+    // note's verdict, captioning a note it has nothing to do with.
+    let mut world = World::new();
+    world.insert_resource(Score::default());
+    world.insert_resource(ScoringConfig::default());
+    world.insert_resource(HitFeedback::default());
+    world.insert_resource(Time::<()>::default());
+    world.insert_resource(bevy_fluent::Localization::default());
+    world.init_resource::<Messages<NoteScored>>();
+    let detail_entity = world
+        .spawn((
+            Text::new(""),
+            TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+            FeedbackDetailText,
+        ))
+        .id();
+
+    let mut schedule = Schedule::default();
+    schedule.add_systems(update_score_display);
+
+    let wrong_pitch = JudgmentFeedback::Miss(MissReason::WrongPitch {
+        expected: HoleTab {
+            hole: 4,
+            is_blow: true,
+        },
+        heard: Some(HoleTab {
+            hole: 4,
+            is_blow: false,
+        }),
+    });
+    world.insert_resource(HitFeedback {
+        judgment: Some(wrong_pitch),
+        timer: FAILURE_FEEDBACK_SECS,
+    });
+    world.write_message(NoteScored {
+        judgment: Some(wrong_pitch),
+    });
+    schedule.run(&mut world);
+    assert!(
+        !world.get::<Text>(detail_entity).unwrap().0.is_empty(),
+        "a wrong-pitch miss should caption itself with the two tabs"
+    );
+
+    // Any other judgment has nothing to add, so the line must go back to
+    // empty rather than keep the previous note's caption.
+    let hit = JudgmentFeedback::Hit {
+        quality: HitQuality::Perfect,
+        offset: 0.0,
+    };
+    world.insert_resource(HitFeedback {
+        judgment: Some(hit),
+        timer: HIT_FEEDBACK_SECS,
+    });
+    world.write_message(NoteScored {
+        judgment: Some(hit),
+    });
+    schedule.run(&mut world);
+    assert_eq!(world.get::<Text>(detail_entity).unwrap().0, "");
 }
 
 // ── notes_needing_spawn (windowed rendering) ─────────────────────────────
@@ -1286,6 +1367,9 @@ fn end_to_end_synthetic_song_drives_score_combo_and_stats() {
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(PlayedHarp(Some(harmonicon_core::harmonica::richter_harp(
+        "C",
+    ))));
     world.init_resource::<Messages<NoteScored>>();
 
     fn note(time: f64, pitch: u8) -> ScheduledNote {
@@ -1430,6 +1514,20 @@ fn end_to_end_synthetic_song_drives_score_combo_and_stats() {
 /// attribution is only meaningful end-to-end like this: it accumulates across
 /// the frames a note is pending, so a single-frame call can't observe it.
 fn judgments_for(notes: Vec<ScheduledNote>, steps: &[(f64, &[u8])]) -> Vec<JudgmentFeedback> {
+    judgments_on_harp(
+        notes,
+        steps,
+        PlayedHarp(Some(harmonicon_core::harmonica::richter_harp("C"))),
+    )
+}
+
+/// [`judgments_for`] with the played harp chosen by the caller, for the cases
+/// that turn on which harp (or no harp) is set up.
+fn judgments_on_harp(
+    notes: Vec<ScheduledNote>,
+    steps: &[(f64, &[u8])],
+    harp: PlayedHarp,
+) -> Vec<JudgmentFeedback> {
     let mut world = World::new();
     world.insert_resource(GameplayClock::new(0.0));
     world.insert_resource(Time::<()>::default());
@@ -1442,6 +1540,7 @@ fn judgments_for(notes: Vec<ScheduledNote>, steps: &[(f64, &[u8])]) -> Vec<Judgm
     world.insert_resource(SongStats::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(PitchGate::default());
+    world.insert_resource(harp);
     world.init_resource::<Messages<NoteScored>>();
     world.insert_resource(SongNotes { notes, cursor: 0 });
 
@@ -1501,9 +1600,90 @@ fn score_notes_blames_a_wrong_pitch_the_player_actually_attacked() {
         vec![judged_note(0.5, 60)],
         &[(0.5, &[62]), (0.55, &[62]), (0.56, &[]), (0.7, &[])],
     );
+    // `overlap_test_note` is hole 1 blow (= C4/60); 62 is D4, hole 1 draw on
+    // the same harp — the classic "drew when you should have blown".
     assert_eq!(
         judgments,
-        vec![JudgmentFeedback::Miss(MissReason::WrongPitch)]
+        vec![JudgmentFeedback::Miss(MissReason::WrongPitch {
+            expected: HoleTab {
+                hole: 1,
+                is_blow: true,
+            },
+            heard: Some(HoleTab {
+                hole: 1,
+                is_blow: false,
+            }),
+        })]
+    );
+}
+
+#[test]
+fn a_wrong_pitch_miss_names_the_attacked_pitch_nearest_the_target() {
+    // Two wrong pitches are attacked at once (62 and 67). The report has to
+    // name one of them, and `harp_pitches` is a `HashSet` — so it must pick by
+    // a rule, not by iteration order, or the same frame reports differently on
+    // different runs. The rule is "nearest the target", as the likeliest miss.
+    let heard: Vec<Option<HoleTab>> = (0..16)
+        .map(|_| {
+            let judgments = judgments_for(
+                vec![judged_note(0.5, 60)],
+                &[(0.5, &[62, 67]), (0.56, &[]), (0.7, &[])],
+            );
+            match judgments.as_slice() {
+                [JudgmentFeedback::Miss(MissReason::WrongPitch { heard, .. })] => *heard,
+                other => panic!("got {other:?}"),
+            }
+        })
+        .collect();
+    // 62 (D4, hole 1 draw) is a whole tone from the target; 67 is a fifth.
+    assert!(
+        heard.iter().all(|&h| h
+            == Some(HoleTab {
+                hole: 1,
+                is_blow: false,
+            })),
+        "picked inconsistently across runs: {heard:?}"
+    );
+}
+
+#[test]
+fn a_wrong_pitch_miss_still_names_the_target_when_the_harp_is_unknown() {
+    // With no harp set up there is no hole to name the heard pitch by. The
+    // verdict and the expected tab still stand; the heard half says so by
+    // being absent, rather than by naming some fallback hole the player would
+    // then go looking for.
+    let judgments = judgments_on_harp(
+        vec![judged_note(0.5, 60)],
+        &[(0.5, &[62]), (0.56, &[]), (0.7, &[])],
+        PlayedHarp::default(),
+    );
+    assert_eq!(
+        judgments,
+        vec![JudgmentFeedback::Miss(MissReason::WrongPitch {
+            expected: HoleTab {
+                hole: 1,
+                is_blow: true,
+            },
+            heard: None,
+        })]
+    );
+}
+
+#[test]
+fn tab_label_reads_as_hole_number_then_breath_arrow() {
+    assert_eq!(
+        tab_label(HoleTab {
+            hole: 4,
+            is_blow: true
+        }),
+        "4\u{2191}"
+    );
+    assert_eq!(
+        tab_label(HoleTab {
+            hole: 10,
+            is_blow: false
+        }),
+        "10\u{2193}"
     );
 }
 

@@ -80,9 +80,13 @@ duration) is still deliberately absent: sustain currently scales points
 continuously rather than passing or failing, and making it an outcome is a
 scoring change, which this work is keeping separate.
 
+A wrong-pitch miss captions itself with the expected and heard tabs
+(*wanted 4↑ · heard 4↓*) on a second HUD line, blank for every other judgment.
+The heard pitch is resolved to a hole in the judge against `PlayedHarp`, not in
+the HUD.
+
 Remaining in-play presentation work:
 
-- briefly show expected and heard hole/tab information for a wrong-pitch miss;
 - animate the judged note itself and reset cleanly across A–B loops;
 - show hold progress on sustained notes and confirm or reject vibrato/wah while
   the hold is still happening, not only once it ends;
