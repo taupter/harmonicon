@@ -182,11 +182,31 @@ load-bearing about *this* crate.
   becomes the new default for the next song.
 
 - **Score HUD is message-driven, not polled:** `score_notes` emits a
-  `NoteScored`-style message with the hit quality/points/new combo at the
-  instant a note is judged; `update_score_display` is a `MessageReader`
-  consumer, not a per-frame `format!` into `Text`. Follow this pattern for
-  any future HUD element whose trigger is a discrete scoring event rather
-  than a continuously-varying value.
+  `NoteScored` message at the instant a note is judged;
+  `update_score_display` is a `MessageReader` consumer, not a per-frame
+  `format!` into `Text`. Follow this pattern for any future HUD element
+  whose trigger is a discrete scoring event rather than a
+  continuously-varying value. What the message carries is a
+  `JudgmentFeedback` (`state.rs`) — *the scorer's own decision*, not a
+  quality code the UI re-interprets:
+  - `Hit { quality, offset }` carries the same signed offset the scorer
+    classified from and fed to `SongStats::offset_sum`, so the HUD's
+    `EARLY`/`LATE` split costs no second timing calculation and cannot
+    disagree with the stats. `None` means `Score` moved without anything to
+    say at the hit line (a sustain payout, combo decay).
+  - **Miss attribution accumulates while the note is pending, on
+    `ScheduledNote::miss_evidence`** — it is *not* computed when the miss
+    window elapses. By then the offending pitch has almost always stopped
+    sounding, so classifying from that last frame alone reports nearly every
+    miss as `NoAttack`. `judge::observed_failure` runs each frame from the
+    same `harp_pitches`/`PitchGate` state the hit test on that frame uses,
+    and the first frame that blames something wins. Anything that resets a
+    note's score state must clear it too (`handle_loop_boundary` does;
+    `carry_over_note_state` carries it).
+  - Both `WrongPitch` and `IncompleteChord` require a *fresh* attack
+    somewhere in the frame. A pitch merely held over from an earlier note is
+    a missing attack, not a wrong one — reporting `WRONG NOTE` there would
+    coach the player to change notes when the real fix is to re-articulate.
 
 - **The song-progress bar is a per-hole note-lanes strip, with the phrase
   overlay painted over it, and its timescale survives a music-less song**

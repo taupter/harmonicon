@@ -837,6 +837,16 @@ gameplay-chart-info = Tono: {$key}  ♩ = {$bpm}  {$time_sig}
 gameplay-chart-author = Canción: {$author}
 gameplay-techniques-toggle = {$arrow} TÉCNICAS
 
+# Gameplay — the judgment label at the hit line, one per scoring outcome
+gameplay-judgment-perfect = ¡PERFECTO!
+gameplay-judgment-good = BIEN
+gameplay-judgment-early = ADELANTADO
+gameplay-judgment-late = RETRASADO
+gameplay-judgment-no-attack = FALLO
+gameplay-judgment-wrong-pitch = NOTA INCORRECTA
+gameplay-judgment-incomplete-chord = ACORDE INCOMPLETO
+gameplay-judgment-technique = TÉCNICA
+
 # Menú de pausa
 pause-quit-song = Salir de la canción
 pause-finish-lesson = Terminar lección

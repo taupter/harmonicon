@@ -212,6 +212,7 @@ mod tests {
                 phrase_section: 0,
                 chord_pitches,
                 playable: true,
+                miss_evidence: None,
                 force_wait: false,
             }],
             cursor: 0,

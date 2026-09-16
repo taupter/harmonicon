@@ -245,7 +245,7 @@ pub fn track_items<'a>(
 }
 
 /// Copies resolved score state (`hit`, `missed`, `held`, `sustain_scored`,
-/// `pitch_samples`, `amp_samples`) from `old` into matching notes in `new`,
+/// `pitch_samples`, `amp_samples`, `miss_evidence`) from `old` into matching notes in `new`,
 /// matched by `(time, hole, is_blow)` — stable across a rebuild since both
 /// lists derive from the same chart, regardless of which other notes got
 /// unlocked/relocked around a given note. Used when the pause menu changes
@@ -273,6 +273,7 @@ pub fn carry_over_note_state(old: &[ScheduledNote], new: &mut [ScheduledNote]) {
         note.sustain_scored = src.sustain_scored;
         note.pitch_samples = src.pitch_samples.clone();
         note.amp_samples = src.amp_samples.clone();
+        note.miss_evidence = src.miss_evidence;
     }
 }
 
@@ -433,6 +434,7 @@ mod tests {
             phrase_section: section,
             chord_pitches: Vec::new(),
             playable: true,
+            miss_evidence: None,
             force_wait: false,
         }
     }
@@ -677,6 +679,7 @@ mod tests {
             phrase_section: 0,
             chord_pitches: Vec::new(),
             playable: true,
+            miss_evidence: None,
             force_wait: false,
         }
     }

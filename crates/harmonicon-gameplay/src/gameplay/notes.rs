@@ -15,6 +15,7 @@ use harmonicon_core::harp_remap;
 use harmonicon_core::midi::note_to_midi;
 
 use super::adaptive_difficulty::{AdaptiveDifficulty, track_items, unlocked_flags};
+use super::state::MissReason;
 
 pub const LOOKAHEAD: f64 = 3.0;
 
@@ -93,6 +94,16 @@ pub struct ScheduledNote {
     /// to `NoteOutcome::Missed` when its window passes. A player must not be
     /// marked down for a note their harp physically cannot make.
     pub playable: bool,
+    /// Why this note looks like it is failing, recorded the first frame
+    /// inside its window that carried evidence (see
+    /// `judge::observed_failure`) and read once the miss window elapses.
+    ///
+    /// It has to accumulate rather than be computed at the miss, because by
+    /// the time the window closes the offending pitch has usually stopped
+    /// sounding — classifying from that last frame alone would report almost
+    /// every miss as `MissReason::NoAttack`. `None` at the miss *is*
+    /// `NoAttack`: nothing was ever heard to blame.
+    pub miss_evidence: Option<MissReason>,
     /// From the chart's `TrackItem::call` — this note is the "response"
     /// half of a call-and-response phrase. `clock::tick_clock`'s
     /// wait-freeze condition treats it like `WaitForNoteMode` being on
@@ -362,6 +373,7 @@ pub fn build_scheduled_notes(
                     phrase_section: section,
                     chord_pitches: chord_pitches.clone(),
                     playable,
+                    miss_evidence: None,
                     force_wait: item.call,
                 },
                 tag,

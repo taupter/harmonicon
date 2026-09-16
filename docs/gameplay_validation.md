@@ -66,6 +66,7 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
 | Detected pitches are judged against the harp the player is *holding*, not the chart's, in both 2D and 3D | `gameplay::state::valid_harp_notes_tests::*` |
 | Impossible blow+draw mixes are rejected, with the direction heuristic's known blind spot pinned | `harmonica_constraints::tests::*` |
 | End-to-end: a synthetic pitch stream drives a mini chart through hit/good/miss and the score/combo/stats update accordingly | `gameplay::tests::end_to_end_synthetic_song_drives_score_combo_and_stats` |
+| Each judged note reports *why* it turned out that way (early/late hit, no-attack vs. wrong-pitch vs. incomplete-chord miss, unconfirmed sustained technique), attributed from the frames the note was actually pending rather than reconstructed at the miss | `gameplay::tests::score_notes_reports_a_good_hit_played_before_the_beat_as_early`, `…::score_notes_blames_*`, `…::score_notes_reports_an_unconfirmed_sustained_technique_when_the_sustain_ends` |
 | Loop boundary rewinds the clock and resets only the notes inside the loop range | `gameplay::tests::loop_boundary_rewinds_the_clock_and_resets_notes_in_range`, `…::loop_boundary_is_a_no_op_before_end_time_or_when_inactive` |
 | Windowed note-visual spawning: a note's window opens/closes at the right time, already-spawned notes aren't respawned, far-out notes are excluded | `gameplay::tests::notes_needing_spawn_*` |
 | Adaptive difficulty: phrase grouping, unlock-fraction curve, per-note unlock/section tagging, learned-fraction bump on a clean clear | `gameplay::adaptive_difficulty::tests::*` |
@@ -83,6 +84,18 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
   `gameplay::tests::end_to_end_synthetic_song_drives_score_combo_and_stats`;
   this check is now just about the HUD actually *displaying* those numbers —
   manual: rendering)*
+- [ ] **The judgment label says what actually happened, in the current
+  language.** Hit a note dead on (`PERFECT!`), slightly ahead (`EARLY`) and
+  slightly behind (`LATE`); then miss one by playing nothing (`MISS`) and
+  miss one by playing an audibly wrong hole through its window (`WRONG
+  NOTE`). On a chart with a chord, sound one hole of it alone: `INCOMPLETE
+  CHORD`. On a note with a declared vibrato, hold it dead steady: the onset
+  still scores, and `TECHNIQUE` appears when the hold ends. Switch the
+  language in Options and confirm each label is translated rather than
+  showing a raw `gameplay-judgment-…` key. *(manual: rendering + a real harp
+  and mic; which judgment each case produces is unit-tested — see the table
+  above — but only a live run shows the label reaching the screen, reading
+  legibly at speed, and being localized)*
 - [ ] No errors/panics in the console while the gameplay chain runs. *(manual)*
 - [ ] **Long-song sync**: play a 3+ minute song end to end; the hit line still matches the beat at the end, with no accumulating drift. *(manual: audio + timing; correction math is unit-tested but real decoder/frame-hitch drift isn't)*
 - [ ] **Low-keyed harp detection**: load (or author) a chart with a Low-F/Low-D harmonica and confirm hole-1 blow/draw register — the detector range now derives from the chart's layout instead of a fixed 200 Hz floor. *(manual: needs a real low-keyed harp and mic)*

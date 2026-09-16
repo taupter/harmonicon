@@ -257,8 +257,53 @@ impl Default for SongEnd {
 
 #[derive(Resource, Default)]
 pub struct HitFeedback {
-    pub quality: Option<HitQuality>,
+    pub judgment: Option<JudgmentFeedback>,
     pub timer: f32,
+}
+
+/// How long the hit-line label holds before it has finished fading out.
+/// A failure lingers longer than a hit: a hit's label only confirms what the
+/// player already heard themselves play, while a failure label is the one
+/// place the *reason* is stated, and dense passages give it little room.
+/// `FEEDBACK_FADE_SECS` is the fade itself, so a failure spends its extra
+/// time at full opacity rather than fading more slowly.
+pub const FEEDBACK_FADE_SECS: f32 = 0.75;
+pub const HIT_FEEDBACK_SECS: f32 = FEEDBACK_FADE_SECS;
+pub const FAILURE_FEEDBACK_SECS: f32 = 0.9;
+
+/// Why a note failed, as decided by `score_notes` at the instant it failed.
+/// Deliberately coarse — these are the four things a player can act on, not a
+/// classification of everything the detector saw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MissReason {
+    /// The miss window elapsed with no fresh expected pitch and nothing else
+    /// playable sounding either: the player simply didn't attack.
+    NoAttack,
+    /// Something playable was sounding through the window, but not the pitch
+    /// this note wanted.
+    WrongPitch,
+    /// Part of a chord/octave-split sounded, but never all of it at once.
+    IncompleteChord,
+}
+
+/// The player-facing meaning of one scoring decision. Timing and failure
+/// attribution are captured inside `score_notes`, from the same clock instant,
+/// pitches, and attack-gate state that made the decision; the HUD only renders
+/// this value and never attempts to classify a note independently.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum JudgmentFeedback {
+    /// `offset` is the judged clock minus the note's own time, i.e. the same
+    /// signed value `score_notes` classified the hit from and feeds to
+    /// `SongStats::offset_sum`: negative is early, positive is late.
+    Hit {
+        quality: HitQuality,
+        offset: f64,
+    },
+    Miss(MissReason),
+    /// The onset landed and scored, but a declared sustained technique
+    /// (vibrato/wah) was not confirmed over the hold. The note still counts
+    /// as a hit — only the technique failed.
+    TechniqueMiss,
 }
 
 /// Notes currently inside the good-hit window: (hole, is_blow).
@@ -269,13 +314,12 @@ pub struct ActiveTargets(pub Vec<(u8, bool)>);
 /// Emitted by [`judge::score_notes`](super::judge::score_notes) whenever
 /// `Score` moves (a fresh hit, a sustain bonus, a miss resetting the combo,
 /// or combo decay) — `hud::update_score_display` reads this instead of
-/// re-`format!`ing the score/combo `Text` every frame. `quality` is only
-/// `Some` for a fresh hit, telling `update_score_display` to set the
-/// "PERFECT!"/"GOOD" label once rather than every frame of its fade; the
-/// fade itself stays driven by `HitFeedback` directly, not this message.
+/// re-`format!`ing the score/combo `Text` every frame. `judgment` is absent
+/// for score-only changes such as sustain points and combo decay; the fade
+/// itself stays driven by `HitFeedback` directly, not this message.
 #[derive(Message)]
 pub struct NoteScored {
-    pub quality: Option<HitQuality>,
+    pub judgment: Option<JudgmentFeedback>,
 }
 
 // ── Shared components ─────────────────────────────────────────────────────────

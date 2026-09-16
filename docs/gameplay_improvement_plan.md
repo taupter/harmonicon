@@ -52,57 +52,48 @@ compact-layout failure modes before rearranging the screen.
   introduce a second timing calculation in the renderer.
 - Strengthen the hit line and align hole numbers with it. Use shape or labels in
   addition to blow/draw color so the colorblind palette is not the only cue.
-- Show only techniques that occur in the loaded chart. Keep their symbols close
-  to the notes that use them; the legend is supporting help, not permanent
-  primary content.
-- Do not show a twelve-bar grid for an arbitrary keyed song. The current 2D and
-  3D setup derives a standard blues progression even for material such as
-  *Für Elise*. A form panel should require authored chord/form information. Jam
-  Session and lessons that explicitly teach twelve-bar form keep the full grid.
+- Keep technique symbols close to the notes that use them; the legend is
+  supporting help, not permanent primary content. (Restricting the legend to
+  techniques the chart actually uses is done.)
 - Apply the same information hierarchy to Play 3D. Preserve the different lane
   rendering, but share the surrounding HUD composition so the two modes do not
   drift again.
 
 Acceptance: at 1280×720 and the compact breakpoint, the next notes, hit line,
 expected hole/direction, score, and pause control are all legible without
-overlap. A non-blues chart shows no invented blues form.
+overlap. A non-blues chart shows no invented blues form. *(The invented blues
+form is gone; the layout work is open.)*
 
 ## Phase 2: report what happened at each note
 
-Replace the narrow `NoteScored { quality }` HUD message with a richer judgment
-message emitted alongside the existing score mutation. It should contain the
-note id, outcome, signed timing offset for a hit, and a small failure category.
-The scoring algorithm remains authoritative; the message describes its decision
-and must not duplicate classification in UI code.
+The message contract is in place. `NoteScored` carries a `JudgmentFeedback`
+(`gameplay/state.rs`) rather than a bare `HitQuality`: `Hit { quality, offset }`
+with the scorer's own signed offset, `Miss(MissReason)` with a `NoAttack` /
+`WrongPitch` / `IncompleteChord` category, or `TechniqueMiss` when a declared
+sustained technique is not confirmed at the end of a hold. Attribution
+accumulates on `ScheduledNote::miss_evidence` while the note is pending, from
+the same frame and `PitchGate` state `score_notes` judges from — see the crate's
+`CLAUDE.md`. The HUD renders the value and classifies nothing itself.
 
-The first failure vocabulary should stay small:
+A graded `Sustain` outcome (onset landed, note not held for enough of its
+duration) is still deliberately absent: sustain currently scales points
+continuously rather than passing or failing, and making it an outcome is a
+scoring change, which this work is keeping separate.
 
-- `No attack`: the miss window elapsed with no fresh expected pitch.
-- `Wrong pitch`: a fresh playable harp pitch was present, but not the expected
-  target.
-- `Technique`: the onset landed but a required sustained technique did not pass.
-- `Sustain`: the onset landed but the note was not held for enough of its
-  duration, if sustain is made an explicit graded outcome.
+Remaining in-play presentation work:
 
-The in-play presentation should then:
-
-- display `Perfect`, `Early`, `Late`, and `Miss` near the hit line;
 - briefly show expected and heard hole/tab information for a wrong-pitch miss;
 - animate the judged note itself and reset cleanly across A–B loops;
-- show hold progress on sustained notes and confirm or reject vibrato/wah when
-  the sustain ends;
+- show hold progress on sustained notes and confirm or reject vibrato/wah while
+  the hold is still happening, not only once it ends;
 - keep effects short and spatially stable so dense passages do not produce a
   wall of labels.
 
-This phase requires care around wrong-pitch attribution: detector frames can
-contain several pitches and a pitch may already be consumed by `PitchGate`.
-Failure categories must be derived from the same frame and gate state used by
-`score_notes`, not reconstructed afterward.
-
-Acceptance: the synthetic end-to-end scoring test asserts the emitted feedback
-for perfect, early/late good, no-attack miss, wrong-pitch miss, and failed
-sustained technique. Live validation confirms that feedback appears on the same
-visual beat as the judged note.
+Acceptance: pure/headless tests assert the emitted feedback for perfect,
+early/late good, no-attack miss, wrong-pitch miss, incomplete chord, and failed
+sustained technique *(done — `gameplay::tests::score_notes_blames_*` and
+siblings)*. Live validation confirms that feedback appears on the same visual
+beat as the judged note.
 
 ## Phase 3: make practice controls part of the loop
 

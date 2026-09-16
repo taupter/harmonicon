@@ -263,6 +263,9 @@ pub(crate) fn handle_loop_boundary(
         // them from scratch rather than on top of the previous lap's.
         note.pitch_samples.clear();
         note.amp_samples.clear();
+        // Same reasoning for the failure attribution: the next lap must
+        // explain its own miss, not repeat what went wrong last time round.
+        note.miss_evidence = None;
     }
     // These notes are playable again, so `judge::score_notes`'s cursor
     // (which only ever advances past *permanently* resolved notes) can't

@@ -188,6 +188,9 @@ fn loop_test_note(time: f64) -> ScheduledNote {
         phrase_section: 0,
         chord_pitches: Vec::new(),
         playable: true,
+        // Pre-dirtied like the other resolved state above, so the reset
+        // assertions below cover the failure attribution too.
+        miss_evidence: Some(MissReason::WrongPitch),
         force_wait: false,
     }
 }
@@ -230,6 +233,10 @@ fn loop_boundary_rewinds_the_clock_and_resets_notes_in_range() {
         assert!(
             reset.pitch_samples.is_empty() && reset.amp_samples.is_empty(),
             "note {i} must not carry the previous lap's sustain samples"
+        );
+        assert!(
+            reset.miss_evidence.is_none(),
+            "note {i} must not carry the previous lap's failure attribution"
         );
     }
     assert_eq!(song_notes.cursor, 1, "cursor rewinds to the in-range note");
@@ -723,6 +730,7 @@ pub(super) fn overlap_test_note(time: f64) -> ScheduledNote {
         phrase_section: 0,
         chord_pitches: Vec::new(),
         playable: true,
+        miss_evidence: None,
         force_wait: false,
     }
 }
@@ -1036,6 +1044,7 @@ fn update_score_display_only_writes_text_when_score_moved() {
     world.insert_resource(ScoringConfig::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(Time::<()>::default());
+    world.insert_resource(bevy_fluent::Localization::default());
     world.init_resource::<Messages<NoteScored>>();
 
     let score_entity = world.spawn((Text::new(""), ScoreText)).id();
@@ -1061,11 +1070,17 @@ fn update_score_display_only_writes_text_when_score_moved() {
     // message with a quality — mirror that here rather than depending on
     // `update_score_display` to do it.
     world.insert_resource(HitFeedback {
-        quality: Some(HitQuality::Perfect),
+        judgment: Some(JudgmentFeedback::Hit {
+            quality: HitQuality::Perfect,
+            offset: 0.0,
+        }),
         timer: 0.75,
     });
     world.write_message(NoteScored {
-        quality: Some(HitQuality::Perfect),
+        judgment: Some(JudgmentFeedback::Hit {
+            quality: HitQuality::Perfect,
+            offset: 0.0,
+        }),
     });
     schedule.run(&mut world);
 
@@ -1075,7 +1090,10 @@ fn update_score_display_only_writes_text_when_score_moved() {
         world.get::<Text>(combo_entity).unwrap().0,
         combo_label(3, expected_multiplier)
     );
-    assert_eq!(world.get::<Text>(feedback_entity).unwrap().0, "PERFECT!");
+    assert_eq!(
+        world.get::<Text>(feedback_entity).unwrap().0,
+        "gameplay-judgment-perfect"
+    );
     let color = world.get::<TextColor>(feedback_entity).unwrap();
     assert!(
         color.0.alpha() > 0.0,
@@ -1287,6 +1305,7 @@ fn end_to_end_synthetic_song_drives_score_combo_and_stats() {
             phrase_section: 0,
             chord_pitches: Vec::new(),
             playable: true,
+            miss_evidence: None,
             force_wait: false,
         }
     }
@@ -1372,4 +1391,201 @@ fn end_to_end_synthetic_song_drives_score_combo_and_stats() {
         "combo should have peaked at 2 (both hits) before the miss reset it"
     );
     assert_eq!(score.combo, 0, "the miss should have reset the live combo");
+
+    // The same three decisions as they reach the HUD. Nothing else in the
+    // run carries a judgment — sustain payouts and combo decay move `Score`
+    // without saying anything at the hit line.
+    let judgments: Vec<JudgmentFeedback> = world
+        .resource_mut::<Messages<NoteScored>>()
+        .drain()
+        .filter_map(|m| m.judgment)
+        .collect();
+    assert_eq!(judgments.len(), 3, "got {judgments:?}");
+    assert!(
+        matches!(
+            judgments[0],
+            JudgmentFeedback::Hit {
+                quality: HitQuality::Perfect,
+                ..
+            }
+        ),
+        "got {:?}",
+        judgments[0]
+    );
+    match judgments[1] {
+        JudgmentFeedback::Hit {
+            quality: HitQuality::Good,
+            offset,
+        } => assert!(offset > 0.0, "the D4 hit landed late, so must read late"),
+        other => panic!("got {other:?}"),
+    }
+    assert_eq!(judgments[2], JudgmentFeedback::Miss(MissReason::NoAttack));
+}
+
+// ── score_notes (judgment feedback) ──────────────────────────────────────
+
+/// Drives `notes` through `score_notes` over a scripted `(clock time, MIDI
+/// pitches sounding)` timeline and returns every judgment the run emitted, in
+/// order — the exact values `hud::update_score_display` renders. Failure
+/// attribution is only meaningful end-to-end like this: it accumulates across
+/// the frames a note is pending, so a single-frame call can't observe it.
+fn judgments_for(notes: Vec<ScheduledNote>, steps: &[(f64, &[u8])]) -> Vec<JudgmentFeedback> {
+    let mut world = World::new();
+    world.insert_resource(GameplayClock::new(0.0));
+    world.insert_resource(Time::<()>::default());
+    world.insert_resource(ActivePitches(vec![]));
+    world.insert_resource(AudioFrame::default());
+    world.insert_resource(ValidHarpNotes(HashSet::from([60u8, 62, 64, 67])));
+    world.insert_resource(ScoringConfig::default());
+    world.insert_resource(AudioSettings::default());
+    world.insert_resource(Score::default());
+    world.insert_resource(SongStats::default());
+    world.insert_resource(HitFeedback::default());
+    world.insert_resource(PitchGate::default());
+    world.init_resource::<Messages<NoteScored>>();
+    world.insert_resource(SongNotes { notes, cursor: 0 });
+
+    let mut schedule = Schedule::default();
+    schedule.add_systems(score_notes);
+
+    let mut prev_t = 0.0f64;
+    for &(t, sounding) in steps {
+        world.resource_mut::<GameplayClock>().set_free(t);
+        world.resource_mut::<ActivePitches>().0 = sounding
+            .iter()
+            .map(|&m| pitch_info(m, "", 4, midi_to_freq_hz(m as f32)))
+            .collect();
+        world
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f64(t - prev_t));
+        schedule.run(&mut world);
+        prev_t = t;
+    }
+
+    world
+        .resource_mut::<Messages<NoteScored>>()
+        .drain()
+        .filter_map(|m| m.judgment)
+        .collect()
+}
+
+/// One short note at `time` expecting `pitch`, with no modifiers — the
+/// baseline the judgment tests vary.
+fn judged_note(time: f64, pitch: u8) -> ScheduledNote {
+    ScheduledNote {
+        duration: 0.2,
+        expected_pitch: Some(pitch),
+        ..overlap_test_note(time)
+    }
+}
+
+#[test]
+fn score_notes_reports_a_good_hit_played_before_the_beat_as_early() {
+    // 90 ms ahead: past `perfect_window` (60 ms), inside `good_window` (130).
+    let judgments = judgments_for(vec![judged_note(0.5, 60)], &[(0.41, &[60]), (0.42, &[60])]);
+    match judgments.first() {
+        Some(&JudgmentFeedback::Hit {
+            quality: HitQuality::Good,
+            offset,
+        }) => assert!(offset < 0.0, "played ahead of the beat, so offset is early"),
+        other => panic!("got {other:?}"),
+    }
+}
+
+#[test]
+fn score_notes_blames_a_wrong_pitch_the_player_actually_attacked() {
+    // 62 is attacked where 60 was wanted, and has stopped sounding well
+    // before the miss window closes at 0.63 — the case a classification done
+    // only at the miss instant would misreport as "no attack".
+    let judgments = judgments_for(
+        vec![judged_note(0.5, 60)],
+        &[(0.5, &[62]), (0.55, &[62]), (0.56, &[]), (0.7, &[])],
+    );
+    assert_eq!(
+        judgments,
+        vec![JudgmentFeedback::Miss(MissReason::WrongPitch)]
+    );
+}
+
+#[test]
+fn score_notes_blames_no_attack_when_nothing_sounded_at_all() {
+    let judgments = judgments_for(vec![judged_note(0.5, 60)], &[(0.5, &[]), (0.7, &[])]);
+    assert_eq!(
+        judgments,
+        vec![JudgmentFeedback::Miss(MissReason::NoAttack)]
+    );
+}
+
+#[test]
+fn score_notes_blames_no_attack_when_the_player_only_held_the_previous_note() {
+    // 60 is held unbroken from the first note through the second's whole
+    // window. The second note wanted 62, but the player never articulated
+    // anything — "wrong note" would be the wrong coaching here.
+    let judgments = judgments_for(
+        vec![judged_note(0.0, 60), judged_note(0.5, 62)],
+        &[
+            (0.0, &[60]),
+            (0.1, &[60]),
+            (0.3, &[60]),
+            (0.5, &[60]),
+            (0.6, &[60]),
+            (0.7, &[60]),
+        ],
+    );
+    assert_eq!(
+        judgments.last(),
+        Some(&JudgmentFeedback::Miss(MissReason::NoAttack)),
+        "got {judgments:?}"
+    );
+}
+
+#[test]
+fn score_notes_blames_an_incomplete_chord_when_only_part_of_it_sounded() {
+    // Both halves of a [60, 64] chord miss, and both must say why: the
+    // player did attack, and did attack one of the chord's own pitches —
+    // just never both at once.
+    let judgments = judgments_for(
+        chord_test_notes(),
+        &[(0.49, &[60]), (0.55, &[60]), (0.56, &[]), (0.7, &[])],
+    );
+    assert_eq!(
+        judgments,
+        vec![
+            JudgmentFeedback::Miss(MissReason::IncompleteChord),
+            JudgmentFeedback::Miss(MissReason::IncompleteChord),
+        ]
+    );
+}
+
+#[test]
+fn score_notes_reports_an_unconfirmed_sustained_technique_when_the_sustain_ends() {
+    // The onset lands (so the note is a hit and keeps its points), but the
+    // held pitch never wobbles, so the declared vibrato can't be confirmed.
+    let note = ScheduledNote {
+        modifiers: vec![Modifier::Vibrato {
+            oscillation_hz: 5.0,
+            intensity: None,
+        }],
+        ..judged_note(0.0, 60)
+    };
+    let judgments = judgments_for(
+        vec![note],
+        &[
+            (0.0, &[60]),
+            (0.05, &[60]),
+            (0.1, &[60]),
+            (0.15, &[60]),
+            (0.25, &[60]),
+        ],
+    );
+    assert_eq!(
+        judgments.last(),
+        Some(&JudgmentFeedback::TechniqueMiss),
+        "got {judgments:?}"
+    );
+    assert!(
+        matches!(judgments[0], JudgmentFeedback::Hit { .. }),
+        "the onset still scored as a hit: got {:?}",
+        judgments[0]
+    );
 }

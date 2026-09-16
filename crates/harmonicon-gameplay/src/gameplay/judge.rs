@@ -21,10 +21,11 @@ use harmonicon_core::scoring::{
 };
 
 use super::clock::GameplayClock;
-use super::notes::SongNotes;
+use super::notes::{ScheduledNote, SongNotes};
 use super::state::{
-    ActivePitches, ActiveTargets, HarmonicaPitchFilter, HitFeedback, NoteScored, PitchGate, Score,
-    ScoringConfig, SongStats, ValidHarpNotes, bump,
+    ActivePitches, ActiveTargets, FAILURE_FEEDBACK_SECS, HIT_FEEDBACK_SECS, HarmonicaPitchFilter,
+    HitFeedback, JudgmentFeedback, MissReason, NoteScored, PitchGate, Score, ScoringConfig,
+    SongStats, ValidHarpNotes, bump,
 };
 
 pub(crate) fn update_active_targets(
@@ -134,6 +135,41 @@ pub fn style_bonus_points(modifiers: &[Modifier], table: &HashMap<String, f32>) 
         .sum()
 }
 
+/// What one frame inside `note`'s window says about why it is failing, or
+/// `None` if that frame blames nothing.
+///
+/// Called every frame the note is pending — not once when the miss window
+/// elapses — because the offending pitch has usually stopped sounding by
+/// then, and classifying from that last frame alone would report nearly every
+/// miss as [`MissReason::NoAttack`]. It reads the same `sounding` set and
+/// `gate` the hit test on that very same frame reads, so the explanation can
+/// never disagree with the decision it explains.
+///
+/// Both answers require a *fresh* attack somewhere in the frame: a pitch the
+/// player has simply been holding since an earlier note isn't a wrong note,
+/// it's a missing one.
+fn observed_failure(
+    note: &ScheduledNote,
+    sounding: &HashSet<u8>,
+    gate: &PitchGate,
+) -> Option<MissReason> {
+    if !sounding.iter().any(|&pitch| gate.is_fresh(pitch, true)) {
+        return None;
+    }
+    if !note.chord_pitches.is_empty()
+        && note
+            .chord_pitches
+            .iter()
+            .any(|pitch| sounding.contains(pitch))
+        && !chord_is_sounding(&note.chord_pitches, sounding)
+    {
+        return Some(MissReason::IncompleteChord);
+    }
+    note.expected_pitch
+        .filter(|expected| !sounding.contains(expected))
+        .map(|_| MissReason::WrongPitch)
+}
+
 pub(crate) fn score_notes(
     clock: Res<GameplayClock>,
     time: Res<Time>,
@@ -177,7 +213,7 @@ pub(crate) fn score_notes(
         )
     {
         score.combo = 0;
-        scored.write(NoteScored { quality: None });
+        scored.write(NoteScored { judgment: None });
     }
 
     let harp_pitches: HashSet<u8> = active
@@ -256,6 +292,7 @@ pub(crate) fn score_notes(
                     .filter(|&x| is_sustained_technique(x))
                     .cloned()
                     .collect();
+                let mut technique_missed = false;
                 if !sustained.is_empty() {
                     let (verified, unverified): (Vec<Modifier>, Vec<Modifier>) =
                         sustained.into_iter().partition(|m| {
@@ -267,11 +304,21 @@ pub(crate) fn score_notes(
                         stats.record_technique(&verified, true);
                     }
                     if !unverified.is_empty() {
+                        technique_missed = true;
                         stats.record_technique(&unverified, false);
                     }
                 }
                 note.sustain_scored = true;
-                scored.write(NoteScored { quality: None });
+                let judgment = if technique_missed {
+                    Some(JudgmentFeedback::TechniqueMiss)
+                } else {
+                    None
+                };
+                if let Some(judgment) = judgment {
+                    feedback.judgment = Some(judgment);
+                    feedback.timer = FAILURE_FEEDBACK_SECS;
+                }
+                scored.write(NoteScored { judgment });
             }
             continue;
         }
@@ -320,6 +367,13 @@ pub(crate) fn score_notes(
                     || chord_is_sounding(&note.chord_pitches, &harp_pitches))
         });
 
+        // Keep the first frame's explanation rather than the last one's: the
+        // player's mistake is the note they actually attacked, not whatever
+        // happens to still be ringing when the window finally closes.
+        if note.miss_evidence.is_none() {
+            note.miss_evidence = observed_failure(note, &harp_pitches, &gate);
+        }
+
         match classify_note(
             offset,
             playing,
@@ -328,13 +382,19 @@ pub(crate) fn score_notes(
             config.miss_window,
         ) {
             NoteOutcome::Missed => {
+                let reason = note.miss_evidence.unwrap_or(MissReason::NoAttack);
                 note.missed = true;
                 stats.miss += 1;
                 stats.record_technique(&note.modifiers, false);
                 if config.combo_enabled {
                     score.combo = 0;
                 }
-                scored.write(NoteScored { quality: None });
+                let judgment = JudgmentFeedback::Miss(reason);
+                feedback.judgment = Some(judgment);
+                feedback.timer = FAILURE_FEEDBACK_SECS;
+                scored.write(NoteScored {
+                    judgment: Some(judgment),
+                });
             }
             NoteOutcome::TooEarly | NoteOutcome::Gap | NoteOutcome::Waiting => {}
             NoteOutcome::Hit(quality) => {
@@ -391,10 +451,11 @@ pub(crate) fn score_notes(
                 // one); the bonus is the payoff for nailing them. Vibrato/wah
                 // bonuses are awarded later, once the sustain confirms them.
                 score.points += style_bonus_points(&immediate, &config.style_bonus).round() as u32;
-                feedback.quality = Some(quality);
-                feedback.timer = 0.75;
+                let judgment = JudgmentFeedback::Hit { quality, offset };
+                feedback.judgment = Some(judgment);
+                feedback.timer = HIT_FEEDBACK_SECS;
                 scored.write(NoteScored {
-                    quality: Some(quality),
+                    judgment: Some(judgment),
                 });
             }
         }
