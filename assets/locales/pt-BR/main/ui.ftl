@@ -850,6 +850,8 @@ gameplay-judgment-incomplete-chord = ACORDE INCOMPLETO
 gameplay-judgment-technique = TÉCNICA
 
 # Menu de pausa
+pause-group-playback-aids = AJUDAS DE REPRODUÇÃO
+pause-group-phrase-practice = PRÁTICA DE TRECHO
 pause-quit-song = Sair da música
 pause-finish-lesson = Concluir lição
 pause-wait-for-note-button = ⏸ Esperar nota

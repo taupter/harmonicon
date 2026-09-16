@@ -852,6 +852,8 @@ gameplay-judgment-incomplete-chord = INCOMPLETE CHORD
 gameplay-judgment-technique = TECHNIQUE
 
 # Pause menu
+pause-group-playback-aids = PLAYBACK AIDS
+pause-group-phrase-practice = PHRASE PRACTICE
 pause-quit-song = Quit Song
 pause-finish-lesson = Finish Lesson
 pause-wait-for-note-button = ⏸ Wait for Note

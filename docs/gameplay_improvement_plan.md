@@ -31,9 +31,14 @@ step instead of presenting a ledger of counters.
 ## Phase 0: establish a visual baseline — done
 
 `python3 scripts/brpctl.py --take-all-screenshots` drives Play 2D (three chart
-fixtures), Play 3D, pause, wait-for-note and results at 1280×720 and at
-800×600, writing named PNGs to `target/screenshots/tour/`. Findings are in
-`docs/gameplay_baseline.md`; re-run it for the after half of any comparison.
+fixtures), Play 3D, pause, wait-for-note and results at **1920×1080, the
+supported floor**, writing named PNGs to `target/screenshots/tour/`. Findings
+are in `docs/gameplay_baseline.md`; re-run it for the after half of any
+comparison.
+
+There is no smaller desktop size to design for — phones ship 1080p panels.
+Narrower than Full HD is Android portrait, and that wants its own baseline
+once anyone has run the APK on hardware, not a shrunken desktop one.
 
 Two things it does not cover, and why:
 
@@ -62,10 +67,10 @@ Two things it does not cover, and why:
   rendering, but share the surrounding HUD composition so the two modes do not
   drift again.
 
-Acceptance: at 1280×720 and the compact breakpoint, the next notes, hit line,
-expected hole/direction, score, and pause control are all legible without
-overlap. A non-blues chart shows no invented blues form. *(The invented blues
-form is gone; the layout work is open.)*
+Acceptance: at 1920×1080, the next notes, hit line, expected hole/direction,
+score, and pause control are all legible without overlap. A non-blues chart
+shows no invented blues form. *(The invented blues form is gone; the layout
+work is open.)*
 
 ## Phase 2: report what happened at each note
 
@@ -143,8 +148,7 @@ remain visually separated from practice adjustments.
   general song score.
 
 Acceptance: pure tests cover coaching-message selection, minimum sample sizes,
-timing histogram buckets, and missed-range selection. The result remains usable
-at compact height through scrolling or a responsive two-column layout.
+timing histogram buckets, and missed-range selection.
 
 ## Phase 5: polish and accessibility
 
@@ -153,14 +157,28 @@ at compact height through scrolling or a responsive two-column layout.
   signal.
 - Add reduced-motion and feedback-intensity settings before introducing camera
   shake or large pulses. Visual motion must never move the hit target.
-- Audit text contrast, focus order, touch target size, localization expansion,
-  and short landscape windows. The shared responsive decision should become
-  height-aware rather than adding gameplay-only pixel exceptions.
+- Audit text contrast, focus order, touch target size and localization
+  expansion. Window size below Full HD is explicitly *not* in scope for
+  desktop; `CompactLayout` earns its keep on Android portrait, and should be
+  re-tuned against a real device rather than against a small desktop window.
 - Add optional judgment sounds only after testing them with microphone capture;
   speaker feedback can contaminate pitch detection. Visual feedback is the safe
   default.
 - Re-capture the player-guide screenshots and update
   `docs/gameplay_validation.md` as each visible phase lands.
+
+Two defects the Phase 0 pass turned up, both small and both in this phase's
+territory (see `docs/gameplay_baseline.md`):
+
+- **The wait-for-note prompt is not localized.** `wait_freeze_overlay.rs`
+  builds it with a bare `format!("Play Hole {} {}")`. It escapes `build.rs`'s
+  literal check because the literal reaches `Text` through a variable rather
+  than directly — so fixing it means a Fluent key *and* deciding whether that
+  check should follow a binding one hop, since anything else written this way
+  is equally invisible.
+- **A chromatic harp renders `? position`.** Diatonic position is meaningless
+  on a chromatic harp, so the field should be omitted rather than filled with
+  a question mark.
 
 ## Implementation boundaries
 

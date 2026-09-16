@@ -2,7 +2,7 @@
 
 Phase 0 of `gameplay_improvement_plan.md`: what the scored-play screens
 actually look like before the HUD work, so every later phase has a
-before/after and so the compact failure modes are known rather than
+before/after and so the layout failure modes are known rather than
 discovered halfway through a rewrite.
 
 ## Retaking it
@@ -12,7 +12,7 @@ cargo run --release --features dev          # in one terminal
 python3 scripts/brpctl.py --take-all-screenshots
 ```
 
-Fourteen PNGs land in `target/screenshots/tour/`. Deliberately not committed:
+Seven PNGs land in `target/screenshots/tour/`. Deliberately not committed:
 the command regenerates them in a few minutes, and a committed set goes stale
 silently — which is the failure mode a baseline exists to prevent. What is
 worth keeping is the list of findings below.
@@ -25,8 +25,14 @@ Fixtures, chosen so the contextual parts of the HUD differ:
 | `technique` | Example Artist — One Bourbon, One Scotch, One Beer | bend, vibrato, wah; a blues chart in 2nd position |
 | `chromatic` | Beethoven — Für Elise | 12-hole chromatic, slide; the non-blues chart the plan names |
 
-Sizes are 1280×720 (the plan's wide acceptance size) and 800×600 (below
-`CompactLayout`'s 900px breakpoint).
+**Full HD (1920×1080) is the supported floor**, and the only size the tour
+captures. Even phones ship 1080p panels, so there is no "small desktop" case
+to design against; anything narrower is Android-portrait territory, which
+nobody has run on hardware yet. A first pass baselined 800×600 as well and
+the two findings unique to it — a clipped results screen, a 3D info panel
+covering the lanes — were retired as soon as that stopped being a target.
+They are the reason this paragraph exists: a baseline at a size nobody runs
+manufactures work.
 
 ## What already works
 
@@ -44,26 +50,21 @@ Confirmed on screen, not just in tests:
 
 ## Findings
 
-### 1. The pause menu is unreadable at both sizes
+### 1. The pause menu was unreadable — fixed
 
-The practice controls are painted straight over the song-info panel with no
-backdrop of their own, so two independent text columns collide: "Wait for
-Note: off" lands on top of "Key: C ♩ = 80 3/4", "Adaptive Difficulty: off"
-on top of the description paragraph, "Drag on the progress bar above to set a
-loop range" across the metronome buttons. Worse at 800×600, but already
-broken at the supported wide size.
+The practice controls were painted straight over the song-info panel with
+only a 65%-black wash between them, so two independent text columns collided:
+"Wait for Note: off" landed on top of "Key: C ♩ = 80 3/4", "Adaptive
+Difficulty: off" on the description paragraph, "Drag on the progress bar
+above to set a loop range" across the metronome buttons.
 
-This is the single largest visible defect in scored play and it is not a
-compact-only problem.
+Now three cards on an opaque surface — session actions, playback aids, phrase
+practice — and the overlay reserves the song-progress bar's height at the top,
+since that bar deliberately paints *above* the pause menu so a loop range can
+be dragged while paused. Dimming controls emphasis; only an opaque surface
+controls legibility.
 
-### 2. Results is unusable at compact height
-
-At 800×600 the "SONG COMPLETE" heading is clipped off the top and **Retry and
-Continue are pushed off the bottom entirely**, with no scrolling — the player
-has no visible way off the screen. Phase 4's acceptance criterion already
-calls for scrolling or a two-column layout; this is what it is for.
-
-### 3. 2D and 3D have drifted into different HUDs
+### 2. 2D and 3D have drifted into different HUDs
 
 Same information, different corners. In 2D the song panel is on the right and
 the score sits bottom-right; in 3D the panel is top-left and the score is
@@ -71,36 +72,27 @@ top-right in an oversized box. The BLOW/DRAW legend is centre-bottom in 2D and
 inside the info panel in 3D. 3D has no hole/note map at all. Phase 1's "one
 shared scored-play HUD" is the fix; this records how far apart they are first.
 
-### 4. The judgment is nowhere near the hit line
+### 3. The judgment is nowhere near the hit line
 
 In 2D the hit line sits mid-screen while the score and judgment are in the
 bottom-right corner; in 3D the hit line is centre-screen and the judgment is
 top-right. Reading the verdict means looking away from the notes — the
 specific complaint Phase 1 opens with.
 
-### 5. Song metadata outweighs the highway at 1280×720
+### 4. Song metadata holds a whole column for the whole performance
 
-The right panel takes roughly 40% of the width for the whole performance:
-title, key, harp, a multi-line description and the chart author. The
-description alone wraps to four lines at compact width.
+The 2D right panel takes roughly a third of the width and never changes:
+title, key, harp, a multi-line description and the chart author. In 3D the
+same content sits top-left and the remaining right half of the screen is
+empty. Phase 1 wants this shown during countdown and pause instead, with a
+small persistent header during play.
 
-Curiously, **compact is closer to what Phase 1 wants than wide is** — below
-the breakpoint the info panel and the notation staff are dropped entirely and
-the highway takes the full width. The compact layout has already made the
-editorial decision the wide layout hasn't.
-
-### 6. The 3D info panel occludes the highway when compact
-
-At 800×600 the 3D song panel keeps its full width and covers the left half of
-the lanes, hiding falling notes behind it. It is not resized for compact at
-all.
-
-### 7. The wait-for-note prompt is drawn at the note, not at the hit line
+### 5. The wait-for-note prompt is drawn at the note, not at the hit line
 
 "Play Hole 8 ↓" renders at the frozen note's current position, mid-highway,
 overlapping the note it describes. Phase 3 wants this at the hit line.
 
-### 8. Two smaller things worth fixing while nearby
+### 6. Two smaller things worth fixing while nearby
 
 - `wait_freeze_overlay.rs` builds that prompt with a bare
   `format!("Play Hole {} {}")` — unlocalized. It escapes `build.rs`'s literal

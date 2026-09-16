@@ -16,11 +16,11 @@ tools beside it, this is meant to be reachable mid-debugging.
     python3 scripts/brpctl.py click Play
     python3 scripts/brpctl.py shot                 # -> target/screenshots/
     python3 scripts/brpctl.py state menu Options
-    python3 scripts/brpctl.py resize 800 600       # logical px
+    python3 scripts/brpctl.py resize 1920 1080     # physical px
     python3 scripts/brpctl.py video 300            # -> target/video/NNNN/
 
-    # Drive every screen the gameplay work needs a baseline of, at both
-    # window sizes, into one directory of named PNGs. Takes a few minutes.
+    # Drive every screen the gameplay work needs a baseline of into one
+    # directory of named PNGs. Takes a few minutes.
     python3 scripts/brpctl.py --take-all-screenshots [outdir]
 
 Or import it: `from brpctl import click, shot, texts`.
@@ -248,17 +248,18 @@ def window():
     return result[0]["entity"], result[0]["components"][WINDOW]
 
 
-def resize(logical_width, logical_height):
-    """Resize in *logical* px — what `CompactLayout`'s 900px breakpoint reads.
+def resize(width, height):
+    """Resize the window, in **physical** px — `1920, 1080` means Full HD.
 
-    The component stores physical px, so this multiplies by the live scale
-    factor rather than assuming 1.0.
+    Note that layout code reasons in *logical* px (physical / scale factor),
+    so `CompactLayout`'s 900px breakpoint is not 900 here: on a 1.5x display
+    a 1920px-wide window is 1280 logical. Ask [`window`] for the live scale
+    factor when that distinction matters.
     """
-    entity, component = window()
-    scale = component["resolution"]["scale_factor"]
+    entity, _ = window()
     for path, value in (
-        (".resolution.physical_width", int(round(logical_width * scale))),
-        (".resolution.physical_height", int(round(logical_height * scale))),
+        (".resolution.physical_width", int(round(width))),
+        (".resolution.physical_height", int(round(height))),
     ):
         rpc(
             "world.mutate_components",
@@ -283,10 +284,12 @@ FIXTURES = [
     ("chromatic", "Ludwig van Beethoven", "Fur Elise"),  # chromatic + slide
 ]
 
-# Logical px. 900 is `CompactLayout`'s breakpoint, so 800 is meaningfully
-# compact rather than merely small, and 1280x720 is the plan's stated wide
-# acceptance size.
-SIZES = [("wide", 1280, 720), ("compact", 800, 600)]
+# Physical px. **Full HD is the supported floor** — even phones ship 1080p
+# panels now — so there is no "compact desktop" case to baseline. Smaller
+# than this is Android-portrait territory, which nobody has run on hardware
+# yet (see contributing/src/android-build.md); when that happens it wants its
+# own entry here rather than a shrunken desktop one.
+SIZES = [("fullhd", 1920, 1080)]
 
 COUNTDOWN_SETTLE = 9.0  # 3s countdown, plus time for notes to reach the lane
 
@@ -369,7 +372,7 @@ def take_all_screenshots(outdir="target/screenshots/tour"):
     for size_name, width, height in SIZES:
         resize(width, height)
         time.sleep(2.0)
-        print(f"[{size_name}] {width}x{height} logical")
+        print(f"[{size_name}] {width}x{height} physical")
 
         for fixture, artist, song in FIXTURES:
             to_main_menu()

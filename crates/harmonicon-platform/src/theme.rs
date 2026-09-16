@@ -232,6 +232,24 @@ pub const HUD_PANEL_BG: Color = Color::srgba(0.05, 0.05, 0.08, 0.85);
 /// deliberate seam rather than an accidental gap.
 pub const HUD_DIVIDER_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.10);
 
+/// The surface a modal's own content sits on — confirm/file dialogs and the
+/// pause menu. **Near-opaque on purpose.** A modal that only dims what is
+/// behind it still lets that content compete with its own: the pause menu
+/// used to be a bare 65%-black wash, and its 13px practice labels landed on
+/// top of the song-info panel's text, leaving both unreadable at every window
+/// size. Dimming controls *emphasis*; only an opaque surface controls what is
+/// legible.
+pub const MODAL_PANEL_BG: Color = Color::srgba(0.08, 0.08, 0.11, 0.98);
+
+/// The wash a modal paints over the screen behind its [`MODAL_PANEL_BG`]
+/// surface, dark enough to push a busy gameplay scene back without hiding
+/// where the player is.
+pub const MODAL_BACKDROP_BG: Color = Color::srgba(0.0, 0.0, 0.0, 0.78);
+
+/// Border around a [`MODAL_PANEL_BG`] surface — the edge that makes it read
+/// as a raised card rather than a hole cut in the backdrop.
+pub const MODAL_PANEL_BORDER: Color = Color::srgb(0.30, 0.30, 0.40);
+
 /// Colors for the song editor grid/panel, read from a theme's `theme.json`
 /// under `"colors": { "song_editor": { ... } }`. The struct-level
 /// `#[serde(default)]` means a theme can override just a few fields (e.g.

@@ -11,10 +11,12 @@ use bevy::ui_widgets::{
 use bevy_fluent::Localization;
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
+use super::song_progress_overlay::BAR_HEIGHT;
 use super::{GameplayRoot, LoopConfig, MusicPlayer, Paused};
 use harmonicon_app::app::{AppState, GameplayMode, ReturnToSongList, SelectedSong};
 use harmonicon_app::profile::PlayerProfile;
 use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::theme::{MODAL_BACKDROP_BG, MODAL_PANEL_BG, MODAL_PANEL_BORDER};
 use harmonicon_song::lessons::LessonContext;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::button;
@@ -508,15 +510,56 @@ pub(super) fn update_phrase_learned_slider(
     }
 }
 
+/// One group's card: a column of rows on an opaque surface. `align` differs
+/// between the session-actions card (centred, its buttons are the content)
+/// and the two aid cards (start-aligned, so their label columns line up).
+fn card_node(align: AlignItems) -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        align_items: align,
+        row_gap: Val::Px(12.0),
+        padding: UiRect::all(Val::Px(20.0)),
+        border: UiRect::all(Val::Px(1.0)),
+        ..default()
+    }
+}
+
+/// The small caps-ish title above a card's controls. Dim and small: it names
+/// the group for someone scanning for a control, and should lose to the
+/// controls themselves for anyone who already knows where they are.
+fn spawn_group_heading(commands: &mut Commands, card: Entity, loc: &Localization, key: &str) {
+    let label = String::from(loc.msg(key));
+    commands.entity(card).with_children(|children| {
+        children.spawn((
+            Text::new(label),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(Color::srgb(0.58, 0.58, 0.70)),
+        ));
+    });
+}
+
 /// Spawns the (initially hidden) pause overlay. Tagged `GameplayRoot` so
-/// it's torn down with the scene. Two columns: left is transport actions
-/// only (Resume/Restart/Quit Song, + Finish Lesson where it applies); right
-/// is every practice aid — kept apart so a slip of the mouse over the "big"
-/// actions isn't one misclick from a tweak knob, or vice versa. Most of the
-/// tree is authored declaratively with `bsn!`; sliders and their readouts
-/// are imperative (`SliderRange`/`SliderStep` have no `Default`, so they
-/// can't be bsn! patches, and labels need the default font, which `bsn!`
-/// can't set in 0.19).
+/// it's torn down with the scene.
+///
+/// Three groups, each on its own [`MODAL_PANEL_BG`] card: **session actions**
+/// (Resume/Restart/Quit Song, + Finish Lesson where it applies), **playback
+/// aids** (wait-for-note, practice speed) and **phrase practice** (adaptive
+/// difficulty, the selected section, the A–B loop). Session actions stay
+/// apart from the rest so a slip of the mouse over the "big" actions isn't
+/// one misclick from a tweak knob, or vice versa.
+///
+/// **The cards are what make this readable, not the backdrop.** A translucent
+/// wash over live gameplay leaves the HUD underneath competing with the
+/// menu's own 13px labels — see [`MODAL_PANEL_BG`]'s own comment for what
+/// that looked like.
+///
+/// Most of the tree is authored declaratively with `bsn!`; sliders and their
+/// readouts are imperative (`SliderRange`/`SliderStep` have no `Default`, so
+/// they can't be bsn! patches, and labels need the default font, which
+/// `bsn!` can't set in 0.19).
 ///
 /// Speed and Wait-for-Note are practice aids for a scored, fixed-length
 /// song — Jam Session has no notes to wait for and no fixed pacing to slow
@@ -553,19 +596,24 @@ pub(super) fn setup_pause_menu(
         learned,
     );
 
-    let root = commands
+    let backdrop = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
-                column_gap: Val::Px(48.0),
+                align_items: AlignItems::Center,
+                // The song-progress bar paints *above* this overlay
+                // (`BAR_Z_INDEX`), on purpose — a loop range is dragged on it
+                // while paused. So reserve its height here the same way
+                // `gameplay_2d`'s own panels do, or the top card slides
+                // under it and "Resume" ends up behind the waveform.
+                padding: UiRect::all(Val::Px(16.0)).with_top(Val::Px(8.0 + BAR_HEIGHT)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.65)),
+            BackgroundColor(MODAL_BACKDROP_BG),
             GlobalZIndex(200),
             GameplayRoot,
             PauseMenuRoot,
@@ -573,21 +621,39 @@ pub(super) fn setup_pause_menu(
         ))
         .id();
 
-    // ── Left column: transport actions ──────────────────────────────────
-    let actions = commands
+    let root = commands
         .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            row_gap: Val::Px(20.0),
+            width: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Stretch,
+            justify_content: JustifyContent::Center,
+            align_content: AlignContent::Center,
+            // Unconditional, not gated on `CompactLayout`: wrapping only
+            // engages once the cards actually overflow, so it costs the
+            // supported sizes nothing and keeps a narrower window degrading
+            // into a stack rather than clipping.
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: Val::Px(24.0),
+            row_gap: Val::Px(16.0),
             ..default()
         })
+        .id();
+    commands.entity(backdrop).add_child(root);
+
+    // ── Session actions ──────────────────────────────────────────────────
+    let actions = commands
+        .spawn((
+            card_node(AlignItems::Center),
+            BackgroundColor(MODAL_PANEL_BG),
+            BorderColor::all(MODAL_PANEL_BORDER),
+        ))
         .id();
     commands.entity(root).add_child(actions);
     commands.entity(actions).with_children(|col| {
         col.spawn((
             Text::new("PAUSED"),
             TextFont {
-                font_size: FontSize::Px(52.0),
+                font_size: FontSize::Px(34.0),
                 ..default()
             },
             TextColor(Color::WHITE),
@@ -606,18 +672,21 @@ pub(super) fn setup_pause_menu(
         }
     });
 
-    // ── Right column: practice aids ──────────────────────────────────────
+    // ── Playback aids ────────────────────────────────────────────────────
+    // Only meaningful for a scored, fixed-length song: Jam Session has no
+    // notes to wait for and no fixed pacing to slow down, so the whole card
+    // is absent there rather than shown disabled.
     let aids = commands
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Start,
-            row_gap: Val::Px(12.0),
-            ..default()
-        })
+        .spawn((
+            card_node(AlignItems::Start),
+            BackgroundColor(MODAL_PANEL_BG),
+            BorderColor::all(MODAL_PANEL_BORDER),
+        ))
         .id();
-    commands.entity(root).add_child(aids);
 
     if !is_jam {
+        commands.entity(root).add_child(aids);
+        spawn_group_heading(&mut commands, aids, &loc, "pause-group-playback-aids");
         commands.entity(aids).with_children(|children| {
             children.spawn_empty().apply_scene(bsn! {
                 Node {
@@ -637,7 +706,24 @@ pub(super) fn setup_pause_menu(
             });
         });
         spawn_practice_speed_row(&mut commands, aids, &loc, speed.0);
-        commands.entity(aids).with_children(|children| {
+    }
+
+    // ── Phrase practice ──────────────────────────────────────────────────
+    // The A–B loop rows at the end stay in every mode: dragging a range on
+    // the progress bar while paused is "repeat this part," as useful for
+    // free-play as for a scored run. Everything above them needs a chart.
+    let practice = commands
+        .spawn((
+            card_node(AlignItems::Start),
+            BackgroundColor(MODAL_PANEL_BG),
+            BorderColor::all(MODAL_PANEL_BORDER),
+        ))
+        .id();
+    commands.entity(root).add_child(practice);
+    spawn_group_heading(&mut commands, practice, &loc, "pause-group-phrase-practice");
+
+    if !is_jam {
+        commands.entity(practice).with_children(|children| {
             children.spawn_empty().apply_scene(bsn! {
                 Node {
                     flex_direction: {FlexDirection::Row},
@@ -665,8 +751,8 @@ pub(super) fn setup_pause_menu(
                 PhraseSelectorLabel
             });
         });
-        spawn_phrase_learned_row(&mut commands, aids, learned);
-        commands.entity(aids).with_children(|children| {
+        spawn_phrase_learned_row(&mut commands, practice, learned);
+        commands.entity(practice).with_children(|children| {
             children.spawn_empty().apply_scene(bsn! {
                 Text({String::from(loc.msg("pause-drag-section-hint"))})
                 TextFont { font_size: {FontSize::Px(13.0)} }
@@ -680,7 +766,7 @@ pub(super) fn setup_pause_menu(
         });
     }
 
-    commands.entity(aids).with_children(|children| {
+    commands.entity(practice).with_children(|children| {
         children.spawn_empty().apply_scene(bsn! {
             Node {
                 flex_direction: {FlexDirection::Row},

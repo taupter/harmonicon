@@ -99,7 +99,7 @@ the protocol; this is it with the fiddly parts handled.
 python3 scripts/brpctl.py buttons            # what is clickable right now
 python3 scripts/brpctl.py click "Play Song"
 python3 scripts/brpctl.py shot               # -> target/screenshots/
-python3 scripts/brpctl.py resize 800 600     # logical px
+python3 scripts/brpctl.py resize 1920 1080   # physical px
 python3 scripts/brpctl.py --take-all-screenshots [outdir]
 ```
 
@@ -108,10 +108,11 @@ this is meant to be reachable in the middle of debugging something else.
 
 `--take-all-screenshots` drives the whole app and writes one **named** PNG per
 screen: Play 2D on three chart fixtures (no techniques / bend+vibrato+wah /
-chromatic), Play 3D, the pause menu, wait-for-note and results, each at
-1280×720 and at 800×600 (below `CompactLayout`'s 900px breakpoint). Takes a
-few minutes. The alternative is a pile of `shot_<millis>.png` distinguishable
-only by remembering what order you took them in.
+chromatic), Play 3D, the pause menu, wait-for-note and results, at 1920×1080 —
+the supported floor, and the only size worth baselining, since anything
+narrower is Android portrait rather than a small desktop. Takes a few minutes.
+The alternative is a pile of `shot_<millis>.png` distinguishable only by
+remembering what order you took them in.
 
 Two things it knows that are easy to get wrong by hand:
 

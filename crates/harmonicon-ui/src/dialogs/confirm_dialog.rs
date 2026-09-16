@@ -12,10 +12,10 @@ use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
+use harmonicon_platform::theme::{MODAL_BACKDROP_BG, MODAL_PANEL_BG, MODAL_PANEL_BORDER};
+
 use super::button;
 pub use super::file_dialog::DialogId;
-
-const PANEL_BG: Color = Color::srgba(0.08, 0.08, 0.11, 0.98);
 
 /// Request to open the confirm dialog.
 #[derive(Message)]
@@ -70,7 +70,7 @@ fn handle_open(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.78)),
+            BackgroundColor(MODAL_BACKDROP_BG),
             GlobalZIndex(300),
         ))
         .with_children(|backdrop| {
@@ -85,8 +85,8 @@ fn handle_open(
                         border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
-                    BackgroundColor(PANEL_BG),
-                    BorderColor::all(Color::srgb(0.30, 0.30, 0.40)),
+                    BackgroundColor(MODAL_PANEL_BG),
+                    BorderColor::all(MODAL_PANEL_BORDER),
                 ))
                 .with_children(|panel| {
                     panel.spawn((
