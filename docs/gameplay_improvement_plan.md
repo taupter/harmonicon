@@ -28,18 +28,21 @@ Contextual teaching aids should appear only when the chart contains the data
 that makes them meaningful. Results should turn the run into one useful next
 step instead of presenting a ledger of counters.
 
-## Phase 0: establish a visual baseline
+## Phase 0: establish a visual baseline — done
 
-- Capture Play 2D, Play 3D, pause, wait-for-note, and results at the supported
-  wide and compact sizes using the existing BRP capture workflow.
-- Use three fixtures: a simple single-note song, a technique-heavy song, and a
-  chromatic/chord song. Include one run with no detected input and one with a
-  scripted mixture of hits and misses.
-- Add layout assertions only for pure decisions such as which contextual panels
-  are visible. Rendering quality remains screenshot/manual validation.
+`python3 scripts/brpctl.py --take-all-screenshots` drives Play 2D (three chart
+fixtures), Play 3D, pause, wait-for-note and results at 1280×720 and at
+800×600, writing named PNGs to `target/screenshots/tour/`. Findings are in
+`docs/gameplay_baseline.md`; re-run it for the after half of any comparison.
 
-This gives every later phase a before/after comparison and catches the current
-compact-layout failure modes before rearranging the screen.
+Two things it does not cover, and why:
+
+- **A scripted mixture of hits and misses.** `ActivePitches` isn't reflected,
+  so detected pitches can't be injected over BRP. Hits in a captured run come
+  from whatever the microphone actually hears. The judgment vocabulary itself
+  is covered headlessly instead (`gameplay::tests::score_notes_blames_*`).
+- **Layout assertions.** Still worth adding for pure decisions such as which
+  contextual panels are visible; rendering quality stays screenshot/manual.
 
 ## Phase 1: make the highway the visual focus
 

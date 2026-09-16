@@ -37,6 +37,12 @@ brp() { curl -s -X POST http://127.0.0.1:15702 \
         -H 'Content-Type: application/json' -d "$1"; }
 ```
 
+For anything beyond a one-off poke, `scripts/brpctl.py` already wraps these
+request shapes — including resolving a button from its label, and a
+`--take-all-screenshots` tour that drives every screen at two window sizes.
+The raw shapes are documented here anyway, because the wrapper is worth
+reading only once you know what it is wrapping.
+
 ## Screenshots → `target/screenshots/`
 
 Bevy's own `Screenshot` component is `Reflect` and registered, so BRP can
@@ -92,6 +98,20 @@ brp '{"jsonrpc":"2.0","id":6,"method":"rpc.discover"}'
 Type paths are the full Rust paths and they matter: UI text is
 `bevy_ui::widget::text::Text`, **not** `bevy_text::text::Text` (which exists,
 is registered, and matches nothing on a UI node).
+
+**A component's path and its crate's `use`-visible name are not the same**,
+and the two halves of the same widget don't even agree with each other. The
+button *component* is registered under its declaring module,
+`bevy_ui_widgets::button::Button`; the `Activate` *event* is registered as
+`bevy_ui_widgets::Activate`, because that is the re-export `dev_capture`
+hands to `register_type`. Guessing either from the other fails, and fails
+differently: a wrong component path matches nothing and looks like an empty
+screen, while a wrong event path at least answers `Unknown event type`.
+
+Another thing a query cannot tell you: **whether any of this is on screen.**
+The pause menu's buttons are spawned and merely hidden while a song plays, so
+they are in every query result during normal play. See the "does not give
+you" section below — this is the same blind spot as fonts.
 
 `world.mutate_components`/`world.mutate_resources` change state live, and
 `world.write_message`/`world.trigger_event` fire messages and events without

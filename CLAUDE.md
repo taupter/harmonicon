@@ -27,6 +27,13 @@ than accumulating history (git log/commit messages are the historical record):
   built)
 - `docs/gameplay_validation.md` — manual + automated validation checklist;
   update it when changing gameplay/timing behaviour
+- `docs/gameplay_improvement_plan.md` — the phased rework of what scored play
+  *shows* the player (HUD hierarchy, per-note judgment feedback, practice
+  controls, coaching results), and `docs/gameplay_baseline.md` — what those
+  screens looked like before it started, plus the defects the baseline pass
+  found. Regenerate the captures with `python3 scripts/brpctl.py
+  --take-all-screenshots` against a running `--features dev` build; they are
+  not committed, because a stale committed baseline is worse than none
 - `docs/pitch_detection_plan.md` — what the harmonica-aware detection
   filtering does today, which of its constants were chosen from measurement
   and which are placeholders, and what needs a recorded corpus before it can

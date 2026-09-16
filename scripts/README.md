@@ -89,6 +89,41 @@ It stops rather than doing something surprising when:
 The tag push starts `.github/workflows/release.yaml`, whose first job
 re-checks the tag against `Cargo.toml` before anything is built.
 
+## `brpctl.py` — drive a running game from the shell
+
+Needs a game started with `--features dev`, which serves the Bevy Remote
+Protocol on `127.0.0.1:15702`. `contributing/src/remote-control.md` explains
+the protocol; this is it with the fiddly parts handled.
+
+```bash
+python3 scripts/brpctl.py buttons            # what is clickable right now
+python3 scripts/brpctl.py click "Play Song"
+python3 scripts/brpctl.py shot               # -> target/screenshots/
+python3 scripts/brpctl.py resize 800 600     # logical px
+python3 scripts/brpctl.py --take-all-screenshots [outdir]
+```
+
+Standard library only — no virtualenv, unlike the asset tools below, because
+this is meant to be reachable in the middle of debugging something else.
+
+`--take-all-screenshots` drives the whole app and writes one **named** PNG per
+screen: Play 2D on three chart fixtures (no techniques / bend+vibrato+wah /
+chromatic), Play 3D, the pause menu, wait-for-note and results, each at
+1280×720 and at 800×600 (below `CompactLayout`'s 900px breakpoint). Takes a
+few minutes. The alternative is a pile of `shot_<millis>.png` distinguishable
+only by remembering what order you took them in.
+
+Two things it knows that are easy to get wrong by hand:
+
+- **A button's label is every text node under it, joined**, and the
+  discriminator between two identically-labelled buttons is their *parent's*
+  subtree, not their index — indices come from ECS query order. The HUD's
+  pause control and the pause menu's wait-for-note toggle are both exactly
+  `"⏸"`.
+- **Toggles are read before they are set.** Wait-for-note is persisted, so a
+  blind toggle does the opposite of what you meant whenever the last session
+  left it on.
+
 ## Everything else here
 
 `generate_lesson_files.py`, `create_base_harp_model.py`, `make_note_cube.py`
