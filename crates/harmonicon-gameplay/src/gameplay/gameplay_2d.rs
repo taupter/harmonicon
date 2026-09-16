@@ -8,7 +8,6 @@ use bevy::ui::ComputedNode;
 use bevy_fluent::Localization;
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_core::chart::{Action, Modifier};
-use harmonicon_core::harmonica::twelve_bar;
 use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_song::song::NoteThemeConfig;
 use harmonicon_song::song::SongManifest;
@@ -23,7 +22,6 @@ use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
-use super::twelve_bar_blues_overlay::{GridConfig, spawn_12_bar_grid};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackText, GameplayRoot, HoleCell,
     HoleState, LOOKAHEAD, MusicStarted, NoteVisual, ScheduledNote, ScoreText, SongNotes,
@@ -68,7 +66,6 @@ pub fn setup(
     mut render_assets: ResMut<NoteRenderAssets>,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
     note_theme: Res<harmonicon_platform::assets_management::SelectedNoteTheme2d>,
-    theme: Res<harmonicon_platform::theme::LoadedTheme>,
     adaptive: Res<AdaptiveDifficulty>,
     loc: Res<Localization>,
     display: LessonDisplayContext,
@@ -116,7 +113,6 @@ pub fn setup(
 
     let key = chart.song.key.as_str();
     let bpm = chart.song.tempo_bpm;
-    let chords = twelve_bar(key);
 
     let title = format!("{} \u{2014} {}", chart.song.artist, chart.song.title);
     let info = String::from(
@@ -313,24 +309,6 @@ pub fn setup(
                     spawn_phrase_banner(right);
                     // Tab-notation ribbon for the current phrase (phrase_overlay::update_tab_ribbon)
                     spawn_tab_ribbon(right);
-
-                    // 12-bar blues grid
-                    right
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(3.0),
-                            ..default()
-                        })
-                        .with_children(|grid| {
-                            let _ = spawn_12_bar_grid(
-                                grid,
-                                &chords,
-                                key,
-                                harmonicon_core::harmonica::Progression::Standard,
-                                &GridConfig::for_2d(),
-                                theme.twelve_bar_colors(),
-                            );
-                        });
 
                     // Metronome
                     right

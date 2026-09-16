@@ -15,8 +15,10 @@ duration, scrolling down toward a fixed hit line.
 - Optional **hole-number labels** (Options → Note labels) replace the
   plain up/down arrow on each note with its actual hole number, if you'd
   rather read "4" than work out the arrow from the lane.
-- The **12-bar chord grid**, **metronome**, **technique legend**, and
-  **score/combo** all sit in the HUD to the side of the highway.
+- The **metronome**, **technique legend**, and **score/combo** sit in the HUD
+  to the side of the highway. Authored phrase and chord labels appear in the
+  phrase banner; gameplay does not invent a blues progression for a chart that
+  does not contain one.
 - A **tab-notation ribbon** shows the current musical phrase's notes as
   plain text (e.g. `-4' +5 -4`) as they come up — handy if you're more
   comfortable reading harmonica tab than the highway.

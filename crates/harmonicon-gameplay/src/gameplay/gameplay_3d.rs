@@ -5,14 +5,13 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use bevy_fluent::Localization;
 use harmonicon_core::chart::{Action, HarpChart};
-use harmonicon_core::harmonica::twelve_bar;
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_platform::assets_management::{
     HarmonicaModelConfig, HoleConfig, SelectedHarmonicaModel, SelectedNoteTheme3d, ShowNoteNumbers,
 };
 use harmonicon_platform::localization::LocalizationExt;
-use harmonicon_platform::theme::{LoadedTheme, NoteColors, TwelveBarColors, effective_note_colors};
+use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 use harmonicon_song::song::NoteCube3dConfig;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{self, BravuraFont};
@@ -26,7 +25,6 @@ use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_tail_3d::NoteTail3dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
-use super::twelve_bar_blues_overlay::{GridConfig, spawn_12_bar_grid};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, ComboText, FeedbackText, GameplayRoot, HoleCell,
     HoleState, LOOKAHEAD, MusicStarted, ScheduledNote, ScoreText, ValidHarpNotes,
@@ -564,7 +562,6 @@ pub(super) struct NoteBuildState<'w> {
 /// separate bundle rather than folding into that one.
 #[derive(bevy::ecs::system::SystemParam)]
 pub(super) struct HudContext<'w> {
-    theme: Res<'w, LoadedTheme>,
     loc: Res<'w, Localization>,
     bravura: Option<Res<'w, BravuraFont>>,
     compact: Res<'w, harmonicon_platform::responsive::CompactLayout>,
@@ -604,7 +601,6 @@ pub fn setup(
 
     let chart = &manifest.chart;
     let key = chart.song.key.as_str();
-    let chords = twelve_bar(key);
     let model_cfg = load_model_config(&selected_model.0, chart.harmonica.hole_count());
 
     setup_camera_3d(&mut commands);
@@ -670,12 +666,10 @@ pub fn setup(
     spawn_hud_overlay(
         &mut commands,
         chart,
-        &chords,
         key,
         chart.song.tempo_bpm,
         beats_per_bar,
         shape_materials,
-        hud.theme.twelve_bar_colors(),
         &hud.loc,
         compact,
     );
@@ -767,13 +761,10 @@ fn spawn_harmonica_3d(
 fn spawn_hud_overlay(
     commands: &mut Commands,
     chart: &harmonicon_core::chart::HarpChart,
-    chords: &[String],
     key: &str,
-
     bpm: f32,
     beats_per_bar: usize,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
-    twelve_bar_colors: TwelveBarColors,
     loc: &Localization,
     compact: bool,
 ) {
@@ -901,11 +892,7 @@ fn spawn_hud_overlay(
             });
     }
 
-    // 12-bar blues grid + score, grouped top-right — clear of the note
-    // highway, which sits center-screen, instead of stacked under the song
-    // info: the grid's fixed width used to force the info panel above to
-    // match it, growing/shrinking the whole panel with whatever else was in
-    // it (in particular the song title/description).
+    // Score, top-right and clear of the note highway.
     let hud_top = if compact {
         8.0 + BAR_HEIGHT
     } else {
@@ -926,28 +913,6 @@ fn spawn_hud_overlay(
             GameplayRoot,
         ))
         .with_children(|row| {
-            if !compact {
-                row.spawn((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(4.0),
-                        padding: UiRect::all(Val::Px(8.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-                ))
-                .with_children(|grid| {
-                    let _ = spawn_12_bar_grid(
-                        grid,
-                        chords,
-                        key,
-                        harmonicon_core::harmonica::Progression::Standard,
-                        &GridConfig::for_3d(),
-                        twelve_bar_colors,
-                    );
-                });
-            }
-
             row.spawn((
                 Node {
                     flex_direction: FlexDirection::Column,
