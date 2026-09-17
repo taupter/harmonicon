@@ -11,7 +11,7 @@
 //! `menu::scene::spawn_menu_root` (any page whose content can outgrow the
 //! screen — a long artist/song/lesson/theme list) and the Song Editor.
 
-use bevy::picking::events::{Drag, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerDrag, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, Pressed, ScrollPosition};
 use bevy::ui_widgets::{
@@ -48,7 +48,7 @@ fn drag_to_pan(mut area: EntityCommands) -> Entity {
 }
 
 fn begin_drag_scroll(
-    drag: On<Pointer<DragStart>>,
+    drag: On<PointerDragStart>,
     mut areas: Query<(&ComputedNode, &mut DragScrollStart), With<ScrollArea>>,
 ) {
     let Ok((computed, mut start)) = areas.get_mut(drag.entity) else {
@@ -59,7 +59,7 @@ fn begin_drag_scroll(
 }
 
 fn drag_scroll(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     mut commands: Commands,
     ui_scale: Res<UiScale>,
     mut areas: Query<

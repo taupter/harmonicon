@@ -15,8 +15,7 @@ use super::state::{Dir, EditorState, Pitch, pitch_color};
 use super::timeline_overlay::{RANGE_HIGHLIGHT_COLOR, SPLIT_LINE_COLOR};
 use super::ui::LegendColumn;
 use super::view_scroll::{SCROLLBAR_BLOW_COLOR, SCROLLBAR_DRAW_COLOR};
-use bevy_fluent::prelude::Localization;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::SongEditorColors;
 
 /// Shows/hides the meta form's third (legend) column to match

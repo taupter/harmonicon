@@ -27,11 +27,10 @@ use bevy::{
     prelude::*,
     ui_widgets::Activate,
 };
-use bevy_fluent::Localization;
 
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::PitchEvent;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_ui::dialogs::button;
 
 use harmonicon_app::app::{AppState, ReturnToOptions};

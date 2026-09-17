@@ -11,7 +11,7 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::ui_widgets::Button as WidgetButton;
@@ -19,7 +19,6 @@ use bevy::ui_widgets::{
     Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
     slider_self_update,
 };
-use bevy_fluent::Localization;
 
 const TRACK_BG: Color = Color::srgb(0.14, 0.14, 0.22);
 
@@ -28,7 +27,7 @@ use harmonicon_audio::audio_input::{self, MicStatus};
 use harmonicon_platform::assets_management::{
     AvailableHarmonicas, SelectedHarmonicaModel, ShowNoteNumbers,
 };
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use harmonicon_platform::theme::LoadedTheme;
 
@@ -816,7 +815,7 @@ fn propagate_preview_layers(
 
 /// Hover highlight for harmonica buttons, never overriding the green selection.
 fn harm_over(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     selected: Res<SelectedHarmonicaModel>,
     mut buttons: Query<(&HarmonicaButton, &mut BackgroundColor)>,
 ) {
@@ -828,7 +827,7 @@ fn harm_over(
 }
 
 fn harm_out(
-    ev: On<Pointer<Out>>,
+    ev: On<PointerOut>,
     selected: Res<SelectedHarmonicaModel>,
     mut buttons: Query<(&HarmonicaButton, &mut BackgroundColor)>,
 ) {

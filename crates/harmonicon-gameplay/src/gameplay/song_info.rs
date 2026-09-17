@@ -15,10 +15,9 @@
 //! notes are falling. See [`spawn_song_details`] and [`spawn_song_header`].
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_core::chart::HarpChart;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 /// Every song-describing string the HUD needs, resolved and localized once.
 #[derive(Resource, Default, Clone)]

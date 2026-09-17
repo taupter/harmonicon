@@ -9,7 +9,6 @@ use std::collections::{HashMap, HashSet};
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_core::chart::{Action, Scale};
 use harmonicon_core::harmonica::{
@@ -23,7 +22,7 @@ use harmonicon_gameplay::gameplay::{
     ActivePitches, COUNTDOWN, CurrentBar, GameplayClock, GameplayRoot, MidiTrackPlayer,
     MusicPlayer, MusicStarted, resolve_item_time,
 };
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::button;

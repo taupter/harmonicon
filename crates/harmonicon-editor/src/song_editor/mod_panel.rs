@@ -23,9 +23,8 @@ use super::ui::{
     EditModeGroup, EditorToolbar, EditorToolbarContent, ModButton, ModeButton, NoteColumn,
     PlayModeGroup, RecordModeGroup, TimelineToolButton,
 };
-use bevy_fluent::prelude::Localization;
 use harmonicon_audio::pitch_detect::{PitchAlgorithm, PitchRange};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::settings::ActionButtonStyle;
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::algo_picker::{algo_labels, attach_algo_tooltip, on_algo_selected};

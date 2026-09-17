@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use bevy::asset::AssetPath;
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
-use bevy_fluent::Localization;
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_core::chart::{Action, Modifier};
 use harmonicon_song::song::NoteThemeConfig;

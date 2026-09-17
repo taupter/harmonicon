@@ -21,13 +21,12 @@
 //!   machinery, just a moving target for the one that already exists.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{JamPositionCycle, JamScale, SelectedSong};
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::Position;
 use harmonicon_gameplay::gameplay::AbsoluteBar;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::{CircleOfFifthsColors, LoadedTheme};
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::circle_of_fifths::spawn_circle_of_fifths;

@@ -4,14 +4,13 @@
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, ReturnToSongList, SelectedSong};
 use harmonicon_app::profile::{
     PlayerProfile, record_lesson, record_play, record_training, save_profile, training_key,
 };
 use harmonicon_audio::AudioSettings;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::lessons::{LessonContext, lesson_passed};
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::button;

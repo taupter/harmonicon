@@ -11,10 +11,9 @@
 //! lane on any harp, 10-hole diatonic or 12-hole chromatic.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_core::chart::Action;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use super::HoleCell;
 use super::gameplay_2d::HIT_H_PCT;

@@ -99,7 +99,7 @@ resurface if a dependency bump reintroduces either:
 Covered in depth in their own chapters — this is the index:
 
 - [Localization and Theming](localization-and-theming.md): the
-  `bevy_fluent` startup panic (`load_folder` needing directory listing),
+  locale-loading startup panic (`load_folder` needing directory listing),
   fixed with a fixed `LOCALES` list loaded by explicit path; and
   `theme::load_theme`'s raw `std::fs::read_to_string`, fixed by turning
   `ThemeJson` into a real `AssetServer`-loaded `Asset`.

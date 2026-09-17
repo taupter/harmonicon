@@ -52,10 +52,9 @@ use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::prelude::*;
 use bevy::ui::ScrollPosition;
 use bevy::ui_widgets::{Activate, Button as WidgetButton};
-use bevy_fluent::Localization;
 
 use harmonicon_app::profile::PlayerProfile;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::lessons::graph::LessonGraph;
 use harmonicon_song::lessons::units::UnitChain;

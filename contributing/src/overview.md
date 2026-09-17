@@ -179,12 +179,12 @@ gets its own discussion in the chapter its responsibility belongs to:
 
 | Crate | Role | Discussed in |
 |---|---|---|
-| `bevy` 0.19 | ECS, rendering, UI, audio playback, asset system | throughout |
+| `bevy` 0.20 | ECS, rendering, UI, audio playback, asset system | throughout |
 | `cpal` | Cross-platform microphone capture | [Audio Pipeline](audio-pipeline.md) |
 | `rustfft` | FFT for pitch detection and the spectrogram | [Audio Pipeline](audio-pipeline.md) |
 | `midly` | MIDI file parsing | [Chart Format](chart-and-assets.md), [Jam Session](jam-session-architecture.md) |
 | `serde_json` / `jsonschema` | Chart/theme/lesson JSON parsing and schema validation | [Chart Format](chart-and-assets.md) |
-| `bevy_fluent` / `fluent_content` | Fluent-based localization | [Localization and Theming](localization-and-theming.md) |
+| `fluent` / `fluent_content` / `fluent-langneg` | Fluent-based localization (the Bevy asset layer on top is ours, in `localization::ftl`) | [Localization and Theming](localization-and-theming.md) |
 | `figment` | Layered settings-file loading | [Persistence](persistence.md) |
 | `notify-debouncer-full` | Filesystem watching for `~/Harmonicon` | [Persistence](persistence.md) |
 | `rodio` (decode-only) | OGG/WAV waveform pre-analysis | [Chart Format](chart-and-assets.md) |

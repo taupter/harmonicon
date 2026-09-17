@@ -6,10 +6,9 @@
 //! consumer, not a per-frame `format!` into `Text`.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_core::scoring::{HitQuality, combo_label, compute_multiplier};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use super::state::{
     FEEDBACK_FADE_SECS, HitFeedback, HoleTab, JudgmentFeedback, MissReason, NoteScored, Score,

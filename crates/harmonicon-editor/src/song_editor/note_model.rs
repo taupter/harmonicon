@@ -177,21 +177,21 @@ pub(super) struct PhraseAnnotation {
 /// An in-progress press-drag gesture on the timeline ruler: `start` is
 /// fixed at the press position, `end` follows the pointer. Not normalized —
 /// `end` can be less than `start` — see [`normalize_range`]. Mirrors
-/// [`DragState`]'s role for note dragging: set by `Pointer<DragStart>`,
-/// live-updated by `Pointer<Drag>`; `Pointer<DragEnd>` then either keeps it
+/// [`DragState`]'s role for note dragging: set by `PointerDragStart`,
+/// live-updated by `PointerDrag`; `PointerDragEnd` then either keeps it
 /// as the Select tool's persisted selection (an `end` that genuinely moved
 /// past `start`), or — since `bevy_picking` fires `DragStart` on any
 /// nonzero pixel motion, so ordinary click jitter routinely produces one —
 /// falls back to treating a same-tick `start`/`end` as the click it was
 /// meant to be, against [`EditorState::timeline_split`]. Deliberately not
-/// driven by `Pointer<Click>`: `Click` and `DragEnd` both fire on the same
+/// driven by `PointerClick`: `Click` and `DragEnd` both fire on the same
 /// release, `Click` first, so routing every decision through `Drag*` alone
 /// avoids that race instead of coordinating two competing handlers.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(super) struct TimelineDrag {
     pub(super) start: usize,
     pub(super) end: usize,
-    /// [`Scroll::px`] at the moment the drag started. `Pointer<Drag>` only
+    /// [`Scroll::px`] at the moment the drag started. `PointerDrag` only
     /// reports pointer motion, but the grid can keep scrolling *under* a
     /// held drag (wheel pan), so the span's moving end is pointer motion
     /// *plus* scroll delta since the press (`timeline::drag_end_tick`) —
@@ -199,7 +199,7 @@ pub(super) struct TimelineDrag {
     /// revealed area instead of pinning it to the press-time content.
     pub(super) scroll_px: f32,
     /// Accumulated pointer motion since the press (already ÷ UI scale) —
-    /// the last `Pointer<Drag>::distance.x` seen. Lets a wheel-scroll frame
+    /// the last `PointerDrag::distance.x` seen. Lets a wheel-scroll frame
     /// with a stationary pointer (no `Drag` event fires then) still
     /// recompute `end` — see `timeline::sync_selection_with_scroll`.
     pub(super) pointer_px: f32,

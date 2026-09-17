@@ -23,12 +23,11 @@
 //! Jam Session builds no `SongNotes`.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::AppState;
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::audio_input::MicStatus;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use super::{GameplayRoot, SongNotes};
 

@@ -22,10 +22,9 @@
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::profile::{PlayerProfile, save_profile};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 
 use crate::menu::routing::MenuPage;

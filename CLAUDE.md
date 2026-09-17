@@ -12,7 +12,7 @@ published change needs correction, including a commit-message correction.
 ## What this is
 
 Harmonicon: a rhythm game for diatonic and chromatic harmonica (Rust + Bevy
-0.19). The player plays a *real* harmonica into the microphone; pitches are
+0.20). The player plays a *real* harmonica into the microphone; pitches are
 detected in real time and scored against a scrolling chart. Goal: teach
 blues/jazz harmonica through play.
 
@@ -336,7 +336,7 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   WidgetButton` — plain `bevy::prelude::*` resolves the bare `Button` name
   to `bevy_ui`'s *legacy*, pre-headless-widgets marker instead, which has
   no keyboard support at all) with `TabIndex(0)` attached, never a
-  hand-rolled `Pointer<Click>` observer on a plain `Node`. Every screen's
+  hand-rolled `PointerClick` observer on a plain `Node`. Every screen's
   root needs a `TabGroup` (`bevy::input_focus::tab_navigation`) for
   Tab/Shift+Tab to scope to; a modal (a confirm/file dialog, an open
   combobox dropdown) needs `TabGroup::modal()` or its items' `TabIndex`
@@ -346,17 +346,17 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   `Display`/`Visibility` check. `dialogs::keyboard_nav::KeyboardNavPlugin`
   registers `TabNavigationPlugin` (not in `DefaultPlugins`, unlike
   `InputFocusPlugin`) and paints the focus ring; it does **not** bridge
-  `Activate` to `Pointer<Click>` — every click handler on a real
+  `Activate` to `PointerClick` — every click handler on a real
   `WidgetButton` is written directly as `On<Activate>` (`Activate` is what
   `bevy_ui_widgets::Button` fires for both a real click and a focused
   Enter/Space, so one handler covers both). An earlier version routed
-  `Activate` through a synthetic re-triggered `Pointer<Click>` so ~130
+  `Activate` through a synthetic re-triggered `PointerClick` so ~130
   existing handlers wouldn't need retyping — that bridge could recurse
   into `bevy_ui_widgets`' own `button_on_pointer_click` (which reacts to
   the synthetic click and, seeing the real click's still-`Pressed`
   component, re-emits `Activate`) and overflow the stack on an ordinary
   mouse click. A new button-shaped click handler must therefore take
-  `On<Activate>`, not `On<Pointer<Click>>` — and only ever on an entity
+  `On<Activate>`, not `On<PointerClick>` — and only ever on an entity
   that actually carries a real `WidgetButton`; retyping a handler on a
   legacy `bevy_ui::widget::Button` (or on a plain `Node` with no Button at
   all, e.g. the Song Editor's note-grid drag surfaces or harmonica-diagram
@@ -370,23 +370,28 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   `Button` alongside it — it already has independent Enter/Space and
   click handling that doesn't go through `Activate`, and adding `Button`
   risks a double-toggle (see `dialogs::checkbox.rs`).
-- **Bevy 0.19 scene spawning:** use `WorldAssetRoot(handle)` for GLB/scene
+- **Bevy scene spawning:** use `WorldAssetRoot(handle)` for GLB/scene
   assets, not `SceneRoot`.
 - **Localization is enforced:** user-visible strings must come from
   `loc.msg()` (Fluent); a `build.rs` scan + `LocalizedStr` newtype fail the
-  build on raw literals. Locales: en-US, pt-BR, es-ES — add keys to all;
+  build on raw literals. **`Localization`/`Locale` are this repo's own
+  types** (`harmonicon_platform::localization`), not `bevy_fluent`'s —
+  that crate's asset layer was absorbed into `localization::ftl`
+  (`LICENSE-bevy_fluent` carries its notice) because it tracks Bevy's
+  version and had no 0.20 release; the Fluent crates themselves
+  (`fluent`, `fluent_content`, `fluent-langneg`, `intl-memoizer`) are
+  plain dependencies with no Bevy in them, so they don't gate an engine
+  upgrade. Locales: en-US, pt-BR, es-ES — add keys to all;
   `locales_define_the_same_keys` walks the directory and enforces parity.
   **A key with a variable uses Fluent's own `{$name}` syntax** (e.g.
   `jam-generate-key = Key: {$key}`) — `LocalizationExt::msg_args`
-  (`localization.rs`) builds a real `fluent::FluentArgs` from the
+  (`localization/mod.rs`) builds a real `fluent::FluentArgs` from the
   `&[(&str, String)]` it's given and resolves it through
   `fluent_content::Request::args`/`Content::content`, i.e. Fluent's own
   `format_pattern`, not a hand-rolled string replace. One wrinkle:
   Fluent wraps every interpolated argument in bidi-isolation marks
   (FSI/PDI, U+2068/U+2069) by default, meant for prose mixing scripts —
-  overkill for short single-language UI labels, and `bevy_fluent`'s
-  bundle loader exposes no setting to turn it off
-  (`FluentBundle::set_use_isolating` isn't reachable through it), so
+  overkill for short single-language UI labels, so
   `msg_args` strips those marks from the result via the pure, tested
   `strip_bidi_isolates` helper rather than let invisible formatting
   characters leak into rendered/logged text. `msg` (no args) skips all of
@@ -396,8 +401,7 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   (`locales/<lang>/main.ftl.ron`), not `AssetServer::load_folder` — the
   wasm build's HTTP asset reader can't enumerate a directory
   (`bevy_asset::io::wasm::HttpWasmAssetReader`), and `load_folder` needing
-  exactly that is what used to hard-panic the game on startup under wasm
-  (`bevy_fluent`'s `LocalizationBuilder::build` indexing an empty map).
+  exactly that is what used to hard-panic the game on startup under wasm.
   `locales_const_matches_the_assets_directory` keeps `LOCALES` honest
   against what's actually on disk, since nothing else does anymore now
   that nothing scans the directory at runtime. The same directory-listing
@@ -497,7 +501,7 @@ because prose is not a check.
 | Rule | The default it overrides | Enforced by |
 |---|---|---|
 | No `Co-Authored-By` trailer on commits | most tooling and assistants add one automatically | `scripts/git-hooks/commit-msg` + the `commit_messages` CI job |
-| Click handlers are `On<Activate>`, never `On<Pointer<Click>>` | `Pointer<Click>` is the obvious Bevy reflex, and compiles fine — it just skips keyboard users | `build.rs` (`pointer_click_violations`); a genuinely non-button surface opts out with a `not-a-widget-button:` comment |
+| Click handlers are `On<Activate>`, never `On<PointerClick>` | `PointerClick` is the obvious Bevy reflex, and compiles fine — it just skips keyboard users | `build.rs` (`pointer_click_violations`); a genuinely non-button surface opts out with a `not-a-widget-button:` comment |
 | `WorldAssetRoot`, not `SceneRoot`, for GLB/scene assets | `SceneRoot` is what Bevy examples show, and it compiles — it just renders nothing | `build.rs` (`scene_root_violations`) |
 | Vibrato integrates frequency over time, never `freq × t` | the naive form looks right and drifts pitch upward | `synth::vibrato_phase_mod` + its boundedness test |
 | Every character drawn must be in a bundled font | picking a nice-looking glyph "just works" in an editor and silently draws a box in the game | `tests/glyph_coverage.rs` (reads the fonts' cmaps, not the fallback lists) |

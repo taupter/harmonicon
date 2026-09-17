@@ -2,7 +2,7 @@
 
 use bevy::input_focus::InputFocus;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::{ComputedNode, RelativeCursorPosition};
@@ -554,7 +554,7 @@ pub(super) fn spawn_resize_grips(
             // user, and `bevy_ui_widgets::Button` would only add one.
             // not-a-widget-button: resize grip, drag-only
             .observe(
-                move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
+                move |_: On<PointerDragStart>, mut state: ResMut<EditorState>| {
                     if state.dragging.is_some() || state.locked() {
                         return;
                     }
@@ -565,7 +565,7 @@ pub(super) fn spawn_resize_grips(
                 },
             )
             .observe(
-                move |ev: On<Pointer<Drag>>,
+                move |ev: On<PointerDrag>,
                       mut state: ResMut<EditorState>,
                       ui_scale: Res<UiScale>| {
                     let Some(drag) = state.dragging.clone() else {
@@ -625,7 +625,7 @@ pub(super) fn spawn_resize_grips(
                 },
             )
             .observe(
-                move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
+                move |_: On<PointerDragEnd>, mut state: ResMut<EditorState>| {
                     let Some(drag) = state.dragging.clone() else {
                         return;
                     };

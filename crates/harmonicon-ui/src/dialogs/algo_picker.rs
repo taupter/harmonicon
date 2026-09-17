@@ -10,13 +10,12 @@
 //! effect everywhere immediately.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use crate::dialogs::combobox::ComboboxSelect;
 use crate::dialogs::tooltip::Tooltip;
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::PitchAlgorithm;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 /// Marks an entity (a pitch-algorithm combobox's root, from
 /// [`attach_algo_tooltip`]) whose [`Tooltip`] should always describe

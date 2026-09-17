@@ -30,14 +30,13 @@ use super::playback::build_harp;
 use super::save_feedback::SaveFeedback;
 use super::state::{EditorState, Expr, GridNote, HarmonicaKind};
 use super::{MIDI_PURPOSE, TICKS_PER_BEAT};
-use bevy_fluent::prelude::Localization;
 use harmonicon_core::chart::{TempoPoint, seconds_to_tick};
 use harmonicon_core::midi_file::{
     collect_tempo_map, collect_time_signature_map, extract_notes, notes_to_phrase, tick_to_seconds,
     ticks_per_quarter,
 };
 use harmonicon_core::synth::render_pcm;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_score::midi::MidiScore;
 use harmonicon_score::{ScoreFile, ScoreTrack, pick_harmonica_track};
 use harmonicon_ui::dialogs::combobox::{ComboboxSelect, spawn_combobox};

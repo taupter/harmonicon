@@ -11,7 +11,6 @@
 
 use bevy::ui_widgets::Activate;
 use bevy::{audio::Volume, prelude::*};
-use bevy_fluent::Localization;
 
 use harmonicon_app::profile::{PlayerProfile, record_lesson, save_profile, training_key};
 use harmonicon_audio::AudioSettings;
@@ -19,7 +18,7 @@ use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Position, Progression, progression_bars, semitone};
 use harmonicon_core::pitch_map::{HarpKind, harp_for_key};
 use harmonicon_core::training::{Tier, drill_chart};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::lessons::training_criteria;
 use harmonicon_song::lessons::{

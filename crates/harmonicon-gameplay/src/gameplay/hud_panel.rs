@@ -15,7 +15,6 @@
 //! `docs/gameplay_improvement_plan.md`'s implementation boundaries.
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_core::chart::Modifier;
 

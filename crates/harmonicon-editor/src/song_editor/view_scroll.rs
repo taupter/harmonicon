@@ -12,7 +12,7 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::input::touch::{Touch, Touches};
 use bevy::input_focus::InputFocus;
-use bevy::picking::events::{Drag, Pointer};
+use bevy::picking::events::{Pointer, PointerDrag};
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::text::EditableText;
@@ -106,7 +106,7 @@ pub(super) fn two_finger_pan_delta(touch_deltas: &[Vec2]) -> Option<Vec2> {
 /// drag once the pointer actually *moves* while pressed, so a stationary
 /// press still resolves to the button's own `Activate`.
 pub(super) fn drag_toolbar(
-    ev: On<Pointer<Drag>>,
+    ev: On<PointerDrag>,
     ui_scale: Res<UiScale>,
     mut scroll: ResMut<ToolbarScroll>,
     toolbars: Query<(&ComputedNode, &Children), With<EditorToolbar>>,
@@ -443,7 +443,7 @@ pub(super) fn update_scrollbar_markers(
 /// dragging the thumb all the way across the track scrolls the full song,
 /// not just `track_w` worth of it.
 pub(super) fn drag_grid_scrollbar(
-    ev: On<Pointer<Drag>>,
+    ev: On<PointerDrag>,
     ui_scale: Res<UiScale>,
     state: Res<EditorState>,
     tracks: Query<&ComputedNode, With<GridScrollTrack>>,

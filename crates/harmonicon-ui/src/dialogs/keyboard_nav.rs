@@ -11,12 +11,12 @@
 //! `bevy::prelude::*` resolves the bare `Button` name to `bevy_ui`'s
 //! *legacy*, pre-headless-widgets marker instead, which has no keyboard
 //! support at all), and every click handler in this codebase is written
-//! as `on(...): On<Activate>` rather than `On<Pointer<Click>>` — `Activate`
+//! as `on(...): On<Activate>` rather than `On<PointerClick>` — `Activate`
 //! is `bevy_ui_widgets::Button`'s own unified "this was activated" event,
 //! fired for a real click *and* a focused Enter/Space alike (see
 //! `button_on_pointer_click`/`button_on_key_event` in the vendored crate).
 //! An earlier version of this module instead re-triggered a synthetic
-//! `Pointer<Click>` from `Activate` to avoid retyping every click handler
+//! `PointerClick` from `Activate` to avoid retyping every click handler
 //! — that bridge could recurse into itself through `bevy_ui_widgets`' own
 //! `button_on_pointer_click` (which reacts to the synthetic click and,
 //! seeing a real click's still-`Pressed` component, re-emits `Activate`)

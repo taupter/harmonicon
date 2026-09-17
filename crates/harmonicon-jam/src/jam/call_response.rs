@@ -22,7 +22,6 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::SelectedSong;
 use harmonicon_audio::AudioSettings;
@@ -30,7 +29,7 @@ use harmonicon_core::midi::{midi_to_freq_hz, midi_to_note};
 use harmonicon_core::synth::{Expr, PhraseNote, SAMPLE_RATE, TICKS_PER_BEAT, render_pcm};
 use harmonicon_core::wav::encode_wav;
 use harmonicon_gameplay::gameplay::{AbsoluteBar, BarChanged, CurrentBar, GameplayRoot};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::SongManifest;
 
 use super::session::{JamHoleGuide, note_class};

@@ -19,7 +19,6 @@ use super::ranges::normalize_range;
 use super::state::{EditorState, TimelineDrag, TimelineSelection, TimelineTool};
 use super::timeline::request_confirm;
 use super::ui::{BendDot, ModButton, ModButtonLabel, ModeButton, TimelineToolButton};
-use bevy_fluent::prelude::Localization;
 use harmonicon_platform::localization::LocalizedStr;
 use harmonicon_platform::settings::ActionButtonStyle;
 use harmonicon_platform::theme::SongEditorColors;

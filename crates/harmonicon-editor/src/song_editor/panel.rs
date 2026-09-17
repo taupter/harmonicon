@@ -13,9 +13,8 @@ use super::ui::{
     RecordModeGroup, SnapModeText, StatusMsg, TimelineToolButton, UndoRedoButton,
 };
 use super::undo::UndoHistory;
-use bevy_fluent::prelude::Localization;
 use harmonicon_audio::AudioSettings;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_ui::dialogs::button::BaseButtonColor;
 

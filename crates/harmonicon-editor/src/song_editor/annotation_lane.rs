@@ -6,8 +6,7 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
-use bevy_fluent::prelude::Localization;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 

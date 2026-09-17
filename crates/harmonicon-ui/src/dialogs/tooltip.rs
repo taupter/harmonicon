@@ -14,7 +14,7 @@
 //! ```
 
 use bevy::picking::Pickable;
-use bevy::picking::events::{Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 use bevy::window::PrimaryWindow;
@@ -84,7 +84,7 @@ fn spawn_tooltip_root(mut commands: Commands) {
 }
 
 fn on_hover_start(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     tooltips: Query<&Tooltip>,
     mut hovered: ResMut<HoveredTooltip>,
 ) {
@@ -93,7 +93,7 @@ fn on_hover_start(
     }
 }
 
-fn on_hover_end(ev: On<Pointer<Out>>, mut hovered: ResMut<HoveredTooltip>) {
+fn on_hover_end(ev: On<PointerOut>, mut hovered: ResMut<HoveredTooltip>) {
     if hovered.0 == Some(ev.entity) {
         hovered.0 = None;
     }

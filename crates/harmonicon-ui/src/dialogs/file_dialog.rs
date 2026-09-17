@@ -22,10 +22,9 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
 use bevy::ui_widgets::ScrollArea;
-use bevy_fluent::Localization;
 
 use crate::dialogs::button;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 /// Identifies who opened a dialog, so a caller only reacts to its own results.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

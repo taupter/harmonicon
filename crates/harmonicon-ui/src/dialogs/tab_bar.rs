@@ -24,7 +24,7 @@
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui::Checked;
 use bevy::ui_widgets::{RadioButton, RadioGroup, ValueChange, radio_self_update};
@@ -133,7 +133,7 @@ fn tab_scene(label: String, active: bool) -> impl Scene {
 }
 
 fn tab_over(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     tabs: Query<&TabButton>,
     bars: Query<&TabBarSelected>,
     mut colors: Query<&mut BackgroundColor>,
@@ -148,7 +148,7 @@ fn tab_over(
 }
 
 fn tab_out(
-    ev: On<Pointer<Out>>,
+    ev: On<PointerOut>,
     tabs: Query<&TabButton>,
     bars: Query<&TabBarSelected>,
     mut colors: Query<&mut BackgroundColor>,

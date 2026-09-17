@@ -238,10 +238,10 @@ remains:
   (`index.html`, `Trunk.toml`) produces a real, servable bundle, and the
   app now genuinely boots and keeps running in a browser (verified with
   headless Chromium, checked for zero panics across a full run): WGPU
-  initializes, localization loads (`harmonicon-platform`'s `localization.rs`'s fixed
+  initializes, localization loads (`harmonicon-platform`'s `localization`'s fixed
   `LOCALES` list, loaded by explicit path instead of `AssetServer::
   load_folder`'s directory scan — the wasm HTTP asset reader can't
-  enumerate a directory, which used to hard-panic `bevy_fluent` on
+  enumerate a directory, which used to hard-panic locale loading on
   startup), mic capture fails gracefully exactly like a real
   permission-less browser would (`MicStatus::Failed`, no panic), and
   bundled songs, note themes, harmonica models, and UI themes now actually

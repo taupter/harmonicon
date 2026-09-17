@@ -23,9 +23,8 @@ use super::ui::{
     TimeSignatureComboboxSlot,
 };
 use super::{HEADER_H, MIDI_PURPOSE, MUSIC_PURPOSE, ROW_H, SILENCE_ROW_H, grid_height};
-use bevy_fluent::prelude::Localization;
 use harmonicon_core::chart::Scale;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::button::make_interactive;
 use harmonicon_ui::dialogs::checkbox::spawn_checkbox;

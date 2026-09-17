@@ -41,7 +41,7 @@
 
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
@@ -55,9 +55,8 @@ use super::state::{
     pitch_forced_dir,
 };
 use super::ui::{ExpectedNotesGroup, GridContent, ModButton, ModeButton};
-use bevy_fluent::prelude::Localization;
 use harmonicon_app::app::AppState;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::settings::ActionButtonStyle;
 use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
@@ -563,7 +562,7 @@ fn rebuild_expected_notes_overlay(
                 state.expected_selected = Some(id);
             })
             .observe(
-                move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
+                move |_: On<PointerDragStart>, mut state: ResMut<EditorState>| {
                     if state.expected_dragging.is_some() {
                         return;
                     }
@@ -575,7 +574,7 @@ fn rebuild_expected_notes_overlay(
                 },
             )
             .observe(
-                move |ev: On<Pointer<Drag>>,
+                move |ev: On<PointerDrag>,
                       mut state: ResMut<EditorState>,
                       ui_scale: Res<UiScale>,
                       mut nodes: Query<&mut Node, With<ExpectedNoteVisual>>| {
@@ -606,7 +605,7 @@ fn rebuild_expected_notes_overlay(
                 },
             )
             .observe(
-                move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
+                move |_: On<PointerDragEnd>, mut state: ResMut<EditorState>| {
                     if matches!(&state.expected_dragging, Some(d) if d.kind == DragKind::Move) {
                         state.expected_dragging = None;
                     }
@@ -666,7 +665,7 @@ fn spawn_expected_resize_handle(
             pick,
         ))
         .observe(
-            move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
+            move |_: On<PointerDragStart>, mut state: ResMut<EditorState>| {
                 if state.expected_dragging.is_some() {
                     return;
                 }
@@ -678,7 +677,7 @@ fn spawn_expected_resize_handle(
             },
         )
         .observe(
-            move |ev: On<Pointer<Drag>>,
+            move |ev: On<PointerDrag>,
                   mut state: ResMut<EditorState>,
                   ui_scale: Res<UiScale>,
                   mut boxes: Query<(&ExpectedNoteVisual, &mut Node)>| {
@@ -707,7 +706,7 @@ fn spawn_expected_resize_handle(
             },
         )
         .observe(
-            move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
+            move |_: On<PointerDragEnd>, mut state: ResMut<EditorState>| {
                 if matches!(&state.expected_dragging, Some(d) if d.kind == DragKind::Resize(edge)) {
                     state.expected_dragging = None;
                 }

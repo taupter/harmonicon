@@ -4,16 +4,15 @@ use bevy::{
     audio::{AudioSource, Volume},
     input_focus::tab_navigation::TabIndex,
     picking::Pickable,
-    picking::events::{Out, Over, Pointer},
+    picking::events::{Pointer, PointerOut, PointerOver},
     prelude::*,
     ui_widgets::Activate,
     ui_widgets::Button as WidgetButton,
 };
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, SelectedSong};
 use harmonicon_audio::AudioSettings;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::{SongManifest, chart::Feel};
 pub use harmonicon_ui::dialogs::metronome::{
     MetronomeFeel, click_for_tick, is_downbeat, tick_index,
@@ -400,13 +399,13 @@ fn toggle_feel(_: On<Activate>, mut feel: ResMut<MetronomeFeel>) {
 }
 
 /// Shared hover highlight for the small HUD pill buttons.
-fn pill_over(ev: On<Pointer<Over>>, mut colors: Query<&mut BackgroundColor>) {
+fn pill_over(ev: On<PointerOver>, mut colors: Query<&mut BackgroundColor>) {
     if let Ok(mut bg) = colors.get_mut(ev.entity) {
         *bg = BackgroundColor(PILL_HOVER);
     }
 }
 
-fn pill_out(ev: On<Pointer<Out>>, mut colors: Query<&mut BackgroundColor>) {
+fn pill_out(ev: On<PointerOut>, mut colors: Query<&mut BackgroundColor>) {
     if let Ok(mut bg) = colors.get_mut(ev.entity) {
         *bg = BackgroundColor(PILL_IDLE);
     }

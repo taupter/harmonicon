@@ -10,11 +10,10 @@ use bevy::{
     camera::visibility::RenderLayers, input_focus::tab_navigation::TabGroup, prelude::*,
     ui_widgets::Activate,
 };
-use bevy_fluent::Localization;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use harmonicon_platform::assets_management::SelectedHarmonicaModel;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use crate::menu::scene::spawn_back_button;
 use harmonicon_app::app::AppState;

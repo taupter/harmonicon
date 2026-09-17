@@ -219,9 +219,9 @@ rectangle "Button N\nTrackMuteCell(N)" as bn
 rectangle "toggle_track_mute\n(one system, cloned onto\nevery button as an observer)" as observer
 rectangle "JamMidiMute\n(Vec<bool>)" as mute
 
-b0 -down-> observer : Pointer<Click>
-b1 -down-> observer : Pointer<Click>
-bn -down-> observer : Pointer<Click>
+b0 -down-> observer : PointerClick
+b1 -down-> observer : PointerClick
+bn -down-> observer : PointerClick
 observer -down-> mute : looks up which track fired\nvia TrackMuteCell on ev.entity,\nnot a captured index
 @enduml
 ```

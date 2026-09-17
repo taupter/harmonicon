@@ -6,7 +6,6 @@
 
 use bevy::audio::Volume;
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, EffectiveHarmonica, GameplayMode, SelectedSong};
 use harmonicon_audio::audio_input::AudioCapture;

@@ -20,14 +20,13 @@
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, EffectiveHarmonica, SelectedSong};
 use harmonicon_core::chart::HarpChart;
 use harmonicon_core::harmonica::{Harmonica, detected_harp_key};
 use harmonicon_core::harp_remap::{HarpMapping, RemapCost, remap_event};
 use harmonicon_core::pitch_map::{HARP_KEYS, HarpKind, harp_for_key};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::{SongManifest, TrackChart};
 use harmonicon_ui::dialogs::combobox;

@@ -41,7 +41,7 @@
 //! [`RequestLoopRange`] rather than writing `LoopConfig` directly, keeping
 //! the drag interaction and the loop-adoption policy decoupled.
 
-use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
@@ -655,7 +655,7 @@ fn sync_progress_bar_mode(paused: Res<Paused>, mut mode: ResMut<ProgressBarMode>
 }
 
 fn on_drag_start(
-    ev: On<Pointer<DragStart>>,
+    ev: On<PointerDragStart>,
     mode: Res<ProgressBarMode>,
     duration: Res<AudioDuration>,
     surfaces: Query<&RelativeCursorPosition, With<ProgressBarDragSurface>>,
@@ -678,7 +678,7 @@ fn on_drag_start(
 }
 
 fn on_drag(
-    ev: On<Pointer<Drag>>,
+    ev: On<PointerDrag>,
     mode: Res<ProgressBarMode>,
     duration: Res<AudioDuration>,
     surfaces: Query<&RelativeCursorPosition, With<ProgressBarDragSurface>>,
@@ -699,7 +699,7 @@ fn on_drag(
 /// see [`RequestLoopRange`]'s doc comment for why this doesn't just write
 /// `LoopConfig` directly.
 fn on_drag_end(
-    ev: On<Pointer<DragEnd>>,
+    ev: On<PointerDragEnd>,
     mut drag: ResMut<LoopDrag>,
     mut requests: MessageWriter<RequestLoopRange>,
 ) {
@@ -845,7 +845,7 @@ fn sync_note_marker_colors(
 // sized to the phrase rather than to a hit target; the keyboard route to a
 // phrase is the pause menu's phrase list.
 fn on_phrase_rect_click(
-    ev: On<Pointer<Click>>,
+    ev: On<PointerClick>,
     rects: Query<&PhraseSectionRect>,
     mode: Res<ProgressBarMode>,
     mut selected: ResMut<SelectedPhraseIndex>,

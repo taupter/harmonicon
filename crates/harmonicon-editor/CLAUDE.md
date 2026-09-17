@@ -500,8 +500,8 @@ load-bearing about *this* crate.
   *and* shifts every later note earlier, closing the gap). Selecting
   works two ways — click-hover-click on a placed split point
   (`EditorState::timeline_split`), or click-drag-release for an explicit
-  span — both driven entirely by `Pointer<DragStart>`/`Drag`/`DragEnd`,
-  deliberately **not** `Pointer<Click>`: `bevy_picking` fires
+  span — both driven entirely by `PointerDragStart`/`Drag`/`DragEnd`,
+  deliberately **not** `PointerClick`: `bevy_picking` fires
   `DragStart` on any nonzero pixel motion while pressed (mouse jitter
   routinely produces one on an intended click), and fires `Click` *and*
   `DragEnd` on the same release, `Click` first — so
@@ -523,7 +523,7 @@ load-bearing about *this* crate.
     drag on. `sync_timeline_surface` keeps it glued to the visible
     viewport (`left = Scroll::px`).
   - **A mid-drag wheel pan extends the selection**: the span end is
-    pointer motion (`Pointer<Drag>::distance` ÷ `UiScale`, same as note
+    pointer motion (`PointerDrag::distance` ÷ `UiScale`, same as note
     drags — a drag routinely leaves the ruler's thin strip) *plus* the
     scroll delta since the press (`TimelineDrag::scroll_px`,
     `drag_end_tick`); and since `Drag` only fires on pointer *motion*,
@@ -808,7 +808,7 @@ load-bearing about *this* crate.
   `TEMPO_STEP_BPM` above whatever BPM is already in effect there
   (`bpm_at`) — unlike Erase/Remove it never opens a confirm dialog (one
   tempo point is trivially undoable with another click), so it wires
-  `Pointer<Click>` directly rather than reusing the Drag-based span
+  `PointerClick` directly rather than reusing the Drag-based span
   machinery those tools need to dodge the Click/DragEnd race (see that
   tool's own doc above). Points are rendered as vertical markers + a
   `♩=<bpm>` label on the grid header (`grid.rs`). Save/load

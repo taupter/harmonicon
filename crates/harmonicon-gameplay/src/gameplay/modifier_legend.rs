@@ -6,12 +6,11 @@ use bevy::prelude::*;
 use bevy::ui_render::prelude::MaterialNode;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
-use bevy_fluent::Localization;
 
 use super::gameplay_2d::{note_anim_mode, note_techniques};
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use harmonicon_core::chart::Modifier;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 /// Whether the techniques legend body is collapsed, toggled by clicking its
 /// header. Not reset on song load — like [`super::metronome_overlay::

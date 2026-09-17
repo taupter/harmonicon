@@ -2,7 +2,6 @@
 
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
-use bevy_fluent::prelude::Localization;
 
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::PitchEvent;

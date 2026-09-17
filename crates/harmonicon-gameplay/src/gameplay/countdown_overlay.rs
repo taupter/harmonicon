@@ -4,11 +4,10 @@ use bevy::{
     audio::{AudioSource, Volume},
     prelude::*,
 };
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{AppState, GameplayMode, SelectedSong};
 use harmonicon_audio::AudioSettings;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::SongManifest;
 
 use super::{

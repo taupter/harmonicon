@@ -8,14 +8,13 @@ use bevy::prelude::*;
 use bevy::ui_widgets::{
     Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
 };
-use bevy_fluent::Localization;
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::song_progress_overlay::BAR_HEIGHT;
 use super::{GameplayRoot, LoopConfig, MusicPlayer, Paused, SongInfo, spawn_song_details};
 use harmonicon_app::app::{AppState, GameplayMode, ReturnToSongList, SelectedSong};
 use harmonicon_app::profile::PlayerProfile;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::{MODAL_BACKDROP_BG, MODAL_PANEL_BG, MODAL_PANEL_BORDER};
 use harmonicon_song::lessons::LessonContext;
 use harmonicon_song::song::SongManifest;

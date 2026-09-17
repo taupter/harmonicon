@@ -53,8 +53,8 @@ to load "every locale we ship" would be `AssetServer::load_folder
 ("locales")` — but that needs the asset reader to *list* the directory's
 contents, which `bevy_asset::io::wasm::HttpWasmAssetReader` cannot do
 over plain HTTP. This used to hard-panic the game on startup under wasm
-(`bevy_fluent`'s bundle builder indexing an empty map, since
-`load_folder` silently found nothing). The fix: `localization::LOCALES`
+(the bundle builder indexing an empty map, since `load_folder` silently
+found nothing). The fix: `localization::LOCALES`
 is a fixed, three-element array of language tags, each loaded by an
 *explicit* path (`locales/<lang>/main.ftl.ron`) — no directory listing
 involved at all, so it works identically on native and wasm. A unit

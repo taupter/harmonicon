@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use bevy::picking::Pickable;
-use bevy::picking::events::{Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
 use bevy::ui_render::prelude::MaterialNode;
@@ -24,10 +24,9 @@ use super::{
     BEAT_W, HEADER_H, ROW_H, SILENCE_ROW_H, TICK_W, TICKS_PER_BEAT, WAVEFORM_H, WAVEFORM_TOP,
     grid_height, silence_row_top,
 };
-use bevy_fluent::prelude::Localization;
 use harmonicon_core::harmonica::Harmonica;
 use harmonicon_core::midi::{freq_to_midi, midi_to_note};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 use harmonicon_ui::dialogs::twelve_bar_grid::bar_bg;
 use std::collections::HashSet;
@@ -738,7 +737,7 @@ pub(super) fn spawn_note(
             },
         )
         .observe(
-            move |_: On<Pointer<DragStart>>, mut state: ResMut<EditorState>| {
+            move |_: On<PointerDragStart>, mut state: ResMut<EditorState>| {
                 if state.dragging.is_some() {
                     return;
                 }
@@ -764,7 +763,7 @@ pub(super) fn spawn_note(
             },
         )
         .observe(
-            move |ev: On<Pointer<Drag>>,
+            move |ev: On<PointerDrag>,
                   mut state: ResMut<EditorState>,
                   loc: Res<Localization>,
                   ui_scale: Res<UiScale>| {
@@ -775,7 +774,7 @@ pub(super) fn spawn_note(
                     return;
                 }
                 let hole_count = state.hole_count();
-                // `Pointer<Drag>::distance` is raw window-pixel motion, but
+                // `PointerDrag::distance` is raw window-pixel motion, but
                 // `TICK_W`/`ROW_H` are logical sizes that `UiScale` (the
                 // arrow-key UI zoom, `dialogs::ui_scale`) multiplies up for
                 // display — without dividing it back out here, dragging a
@@ -839,7 +838,7 @@ pub(super) fn spawn_note(
             },
         )
         .observe(
-            move |_: On<Pointer<DragEnd>>, mut state: ResMut<EditorState>| {
+            move |_: On<PointerDragEnd>, mut state: ResMut<EditorState>| {
                 let Some(drag) = state.dragging.take() else {
                     return;
                 };

@@ -16,7 +16,6 @@ use bevy::ui_widgets::{ControlOrientation, ScrollArea, Scrollbar, ScrollbarThumb
 use super::lesson_form::spawn_lesson_form;
 use super::meta_form::spawn_meta_form;
 use super::ui::StatusMsg;
-use bevy_fluent::prelude::Localization;
 use harmonicon_platform::theme::SongEditorColors;
 
 /// Hides the editor's vertical scrollbar entirely once the current content

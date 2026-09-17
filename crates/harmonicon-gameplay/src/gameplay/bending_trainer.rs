@@ -20,10 +20,9 @@
 //! plus its technique hint.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
-use bevy::picking::events::{Click, Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerClick, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::AppState;
 use harmonicon_app::profile::{DrillRecord, PlayerProfile};
@@ -32,7 +31,7 @@ use harmonicon_audio::pitch_detect::{PITCH_RANGE_MARGIN_SEMITONES, PitchRange};
 use harmonicon_core::harmonica::{Harmonica, HoleNotes, hole_notes, richter_harp};
 use harmonicon_core::midi::NOTE_NAMES;
 use harmonicon_core::wav::encode_wav;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_ui::dialogs::algo_picker::{algo_labels, attach_algo_tooltip, on_algo_selected};
 use harmonicon_ui::dialogs::button;
 use harmonicon_ui::dialogs::button::BaseButtonColor;
@@ -205,7 +204,7 @@ fn row_to_technique(row: Row) -> Option<Technique> {
 // not buttons — the keyboard path to a cell is the trainer's own key
 // handling, not Tab focus.
 fn on_diagram_cell_clicked(
-    ev: On<Pointer<Click>>,
+    ev: On<PointerClick>,
     cells: Query<&DiagramCellTarget>,
     mut target: ResMut<TrainerTarget>,
 ) {
@@ -997,7 +996,7 @@ pub fn update_hint_label(
 
 /// Show what Drill mode does while the button is hovered.
 fn show_drill_explanation(
-    _: On<Pointer<Over>>,
+    _: On<PointerOver>,
     mut labels: Query<&mut Text, With<DrillExplanation>>,
 ) {
     for mut text in &mut labels {
@@ -1006,10 +1005,7 @@ fn show_drill_explanation(
 }
 
 /// Hide the Drill explanation once the pointer leaves the button.
-fn hide_drill_explanation(
-    _: On<Pointer<Out>>,
-    mut labels: Query<&mut Text, With<DrillExplanation>>,
-) {
+fn hide_drill_explanation(_: On<PointerOut>, mut labels: Query<&mut Text, With<DrillExplanation>>) {
     for mut text in &mut labels {
         *text = Text::new("");
     }

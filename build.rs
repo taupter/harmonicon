@@ -207,7 +207,7 @@ fn build() {
     if !click_violations.is_empty() {
         eprintln!();
         eprintln!("────────────────────────────────────────────────────────────");
-        eprintln!("  Click-handler enforcement: On<Pointer<Click>> without a reason");
+        eprintln!("  Click-handler enforcement: On<PointerClick> without a reason");
         eprintln!("────────────────────────────────────────────────────────────");
         for v in &click_violations {
             eprintln!("  {v}");
@@ -215,7 +215,7 @@ fn build() {
         eprintln!();
         eprintln!("  A `bevy_ui_widgets::Button` fires `Activate` for both a real");
         eprintln!("  click and a focused Enter/Space, so a button's handler must take");
-        eprintln!("  `On<Activate>` — `On<Pointer<Click>>` compiles but skips keyboard");
+        eprintln!("  `On<Activate>` — `On<PointerClick>` compiles but skips keyboard");
         eprintln!("  users entirely.");
         eprintln!();
         eprintln!("  If the entity genuinely has no Button on it (a drag surface, a");
@@ -236,15 +236,15 @@ fn build() {
     }
 }
 
-/// The opt-out marker a legitimate `On<Pointer<Click>>` handler must carry.
+/// The opt-out marker a legitimate `On<PointerClick>` handler must carry.
 const NOT_A_BUTTON: &str = "not-a-widget-button:";
 
-/// Flags `On<Pointer<Click>>` handlers that haven't declared themselves as
+/// Flags `On<PointerClick>` handlers that haven't declared themselves as
 /// non-button surfaces.
 ///
 /// `bevy_ui_widgets::Button` fires `Activate` for a real click *and* for a
 /// focused Enter/Space, so a button's handler must take `On<Activate>` to be
-/// keyboard-reachable — `On<Pointer<Click>>` compiles fine and simply skips
+/// keyboard-reachable — `On<PointerClick>` compiles fine and simply skips
 /// keyboard users. The reverse is worse: `On<Activate>` on a plain `Node`
 /// also compiles and then never fires at all.
 ///
@@ -254,7 +254,7 @@ const NOT_A_BUTTON: &str = "not-a-widget-button:";
 ///
 /// ```ignore
 /// // not-a-widget-button: the backdrop is a plain Node, no Button on it
-/// fn backdrop_click(ev: On<Pointer<Click>>, ...)
+/// fn backdrop_click(ev: On<PointerClick>, ...)
 /// ```
 ///
 /// That keeps the exception explicit and reviewable instead of letting a
@@ -266,7 +266,12 @@ fn pointer_click_violations(sources: &[(String, String)]) -> Vec<String> {
         for (i, line) in lines.iter().enumerate() {
             // A doc/line comment discussing the rule isn't a handler.
             let trimmed = line.trim_start();
-            if trimmed.starts_with("//") || !line.contains("On<Pointer<Click>>") {
+            // `Pointer<Click>` is Bevy 0.19's spelling: it no longer
+            // compiles, but matching it keeps the error legible if someone
+            // pastes pre-0.20 code in.
+            if trimmed.starts_with("//")
+                || !(line.contains("On<PointerClick>") || line.contains("On<Pointer<Click>>"))
+            {
                 continue;
             }
             // Walk back over the signature (the parameter can sit several
@@ -287,7 +292,7 @@ fn pointer_click_violations(sources: &[(String, String)]) -> Vec<String> {
                 .take_while(|l| is_comment(l) || l.trim().is_empty())
                 .any(|l| l.contains(NOT_A_BUTTON));
             if !excused {
-                out.push(format!("{path}:{}: `On<Pointer<Click>>`", i + 1));
+                out.push(format!("{path}:{}: `On<PointerClick>`", i + 1));
             }
         }
     }

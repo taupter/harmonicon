@@ -29,7 +29,7 @@
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Click, Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerClick, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
@@ -231,7 +231,7 @@ pub fn spawn_combobox<M: 'static>(
     //
     // Marking `items_area` a `ScrollArea` also gives the dropdown its "acts
     // as its own modal panel" behaviour for wheel input: `bevy_ui_widgets`'
-    // `Pointer<Scroll>` observer calls `propagate(false)` the moment it
+    // `PointerScroll` observer calls `propagate(false)` the moment it
     // reaches a `ScrollArea` ancestor of the hovered item, so a wheel
     // scroll over the open dropdown is consumed there and never reaches
     // whatever page-level `ScrollArea` the combobox happens to be nested
@@ -476,7 +476,7 @@ fn toggle_click(
 // job is catching clicks outside the dropdown; it has no Button and is not
 // keyboard-reachable by design (Escape closes the dropdown instead).
 fn backdrop_click(
-    mut ev: On<Pointer<Click>>,
+    mut ev: On<PointerClick>,
     backdrops: Query<&ComboboxRoot>,
     links: Query<&ComboboxLinks>,
     mut nodes: Query<&mut Node>,
@@ -530,7 +530,7 @@ fn item_click(
 }
 
 fn item_over(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     items: Query<&ComboboxItemButton>,
     values: Query<&ComboboxValue>,
     mut colors: Query<&mut BackgroundColor>,
@@ -545,7 +545,7 @@ fn item_over(
 }
 
 fn item_out(
-    ev: On<Pointer<Out>>,
+    ev: On<PointerOut>,
     items: Query<&ComboboxItemButton>,
     values: Query<&ComboboxValue>,
     mut colors: Query<&mut BackgroundColor>,

@@ -14,14 +14,13 @@
 
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Out, Over, Pointer};
+use bevy::picking::events::{Pointer, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
-use bevy_fluent::Localization;
 
 use harmonicon_platform::assets_management::{AvailableThemes, SelectedTheme, ThemesRescanned};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::{LoadedTheme, theme_source_prefix};
 use harmonicon_ui::dialogs::button;
 
@@ -186,7 +185,7 @@ fn theme_button_scene(name: String, is_selected: bool) -> impl Scene {
 
 /// Hover highlight, but never override the green of the currently-selected theme.
 fn theme_over(
-    ev: On<Pointer<Over>>,
+    ev: On<PointerOver>,
     selected: Res<SelectedTheme>,
     mut buttons: Query<(&ThemeButton, &mut BackgroundColor)>,
 ) {
@@ -198,7 +197,7 @@ fn theme_over(
 }
 
 fn theme_out(
-    ev: On<Pointer<Out>>,
+    ev: On<PointerOut>,
     selected: Res<SelectedTheme>,
     mut buttons: Query<(&ThemeButton, &mut BackgroundColor)>,
 ) {

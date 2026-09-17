@@ -8,14 +8,13 @@
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::{GeneratedJamSession, GeneratedSong};
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Position, Progression};
 use harmonicon_core::midi::NOTE_NAMES;
 use harmonicon_jam::jam::backing::{Genre, JamGenre, build_generated_manifest};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::combobox;

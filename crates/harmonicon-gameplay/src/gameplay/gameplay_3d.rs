@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use bevy_fluent::Localization;
 use harmonicon_core::chart::{Action, HarpChart};
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};

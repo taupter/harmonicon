@@ -13,9 +13,8 @@ use super::playback::{EditorAudio, EditorProgressFill, Playhead, PlayheadLine};
 use super::state::{Edge, EditorState, Scroll, TimelineTool};
 use super::view_scroll::drag_grid_scrollbar;
 use super::{BEAT_W, HOLE_COL_W, NOTE_PAD, ROW_H, grid_height};
-use bevy_fluent::prelude::Localization;
 use harmonicon_audio::AudioSettings;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::settings::ActionButtonStyle;
 use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 

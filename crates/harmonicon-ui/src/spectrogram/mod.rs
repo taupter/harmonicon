@@ -18,11 +18,10 @@ mod oscilloscope;
 use bevy::prelude::*;
 use bevy::ui_render::prelude::UiMaterialPlugin;
 use bevy::ui_widgets::Activate;
-use bevy_fluent::Localization;
 
 use harmonicon_app::app::AppState;
 use harmonicon_audio::pitch_detect::AudioFrame;
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 pub use oscilloscope::OscMaterial;
 use oscilloscope::OscilloscopeMaterial;

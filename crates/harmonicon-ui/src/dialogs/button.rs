@@ -1,7 +1,9 @@
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Cancel, DragEnd, Out, Over, Pointer, Press, Release};
+use bevy::picking::events::{
+    Pointer, PointerCancel, PointerDragEnd, PointerOut, PointerOver, PointerPress, PointerRelease,
+};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
@@ -66,13 +68,13 @@ fn darken(base: Color) -> Color {
     mix_toward(base, Color::BLACK, 0.35)
 }
 
-fn mouse_over(ev: On<Pointer<Over>>, mut states: Query<&mut ButtonInteractionState>) {
+fn mouse_over(ev: On<PointerOver>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.hovered = true;
     }
 }
 
-fn mouse_out(ev: On<Pointer<Out>>, mut states: Query<&mut ButtonInteractionState>) {
+fn mouse_out(ev: On<PointerOut>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.hovered = false;
     }
@@ -83,13 +85,13 @@ fn mouse_out(ev: On<Pointer<Out>>, mut states: Query<&mut ButtonInteractionState
 /// removed on [`Release`]/[`DragEnd`]/[`Cancel`] — see its own observers),
 /// so this mirrors that exact same event set purely for the visual, rather
 /// than polling `Pressed` in a separate system.
-fn mouse_press(ev: On<Pointer<Press>>, mut states: Query<&mut ButtonInteractionState>) {
+fn mouse_press(ev: On<PointerPress>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.pressed = true;
     }
 }
 
-fn mouse_release(ev: On<Pointer<Release>>, mut states: Query<&mut ButtonInteractionState>) {
+fn mouse_release(ev: On<PointerRelease>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.pressed = false;
     }
@@ -97,10 +99,7 @@ fn mouse_release(ev: On<Pointer<Release>>, mut states: Query<&mut ButtonInteract
 
 /// A press that ends without releasing over the button (dragged off, or
 /// picking cancelled the gesture).
-fn mouse_press_interrupted(
-    ev: On<Pointer<Cancel>>,
-    mut states: Query<&mut ButtonInteractionState>,
-) {
+fn mouse_press_interrupted(ev: On<PointerCancel>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.pressed = false;
         s.hovered = false;
@@ -109,7 +108,7 @@ fn mouse_press_interrupted(
 
 /// Same as [`mouse_press_interrupted`], for the other event
 /// `bevy_ui_widgets::Button` treats as ending a press without a click.
-fn mouse_drag_end(ev: On<Pointer<DragEnd>>, mut states: Query<&mut ButtonInteractionState>) {
+fn mouse_drag_end(ev: On<PointerDragEnd>, mut states: Query<&mut ButtonInteractionState>) {
     if let Ok(mut s) = states.get_mut(ev.entity) {
         s.pressed = false;
         s.hovered = false;

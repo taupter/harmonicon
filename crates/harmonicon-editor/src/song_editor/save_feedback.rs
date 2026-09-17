@@ -61,8 +61,7 @@ pub(super) fn tick_save_feedback(time: Res<Time>, mut feedback: ResMut<SaveFeedb
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy_fluent::prelude::Localization;
-    use harmonicon_platform::localization::LocalizationExt;
+    use harmonicon_platform::localization::{Localization, LocalizationExt};
 
     fn msg(text: &str) -> LocalizedStr {
         // `Localization::default()` has no bundle loaded, so `loc.msg(key)`

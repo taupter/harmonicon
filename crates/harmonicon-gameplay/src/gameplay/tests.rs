@@ -1141,7 +1141,7 @@ fn update_score_display_only_writes_text_when_score_moved() {
     world.insert_resource(ScoringConfig::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(Time::<()>::default());
-    world.insert_resource(bevy_fluent::Localization::default());
+    world.insert_resource(harmonicon_platform::localization::Localization::default());
     world.init_resource::<Messages<NoteScored>>();
 
     let score_entity = world.spawn((Text::new(""), ScoreText)).id();
@@ -1208,7 +1208,7 @@ fn the_detail_line_explains_a_wrong_pitch_and_clears_on_the_next_judgment() {
     world.insert_resource(ScoringConfig::default());
     world.insert_resource(HitFeedback::default());
     world.insert_resource(Time::<()>::default());
-    world.insert_resource(bevy_fluent::Localization::default());
+    world.insert_resource(harmonicon_platform::localization::Localization::default());
     world.init_resource::<Messages<NoteScored>>();
     let detail_entity = world
         .spawn((

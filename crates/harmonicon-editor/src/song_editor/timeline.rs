@@ -17,8 +17,8 @@
 //! it (`panel_widgets::timeline_tool_button`), each opening the confirm
 //! dialog via [`request_confirm`].
 //!
-//! Both paths are driven entirely by `Pointer<DragStart>`/`Drag`/`DragEnd`,
-//! deliberately not `Pointer<Click>` even for the "plain click" case:
+//! Both paths are driven entirely by `PointerDragStart`/`Drag`/`DragEnd`,
+//! deliberately not `PointerClick` even for the "plain click" case:
 //! `bevy_picking` fires `DragStart` on any nonzero pixel motion while
 //! pressed, so mouse jitter during an intended click routinely produces a
 //! same-tick drag anyway, and `Click` fires *alongside* `DragEnd` on the
@@ -34,10 +34,9 @@
 //! `ranges::erase_range`/`ranges::remove_range` pair; this module is just
 //! the interaction/UI wiring around them.
 
-use bevy::picking::events::{Click, Drag, DragEnd, DragStart, Pointer};
+use bevy::picking::events::{Pointer, PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
-use bevy_fluent::prelude::Localization;
 
 use super::playback::{Playhead, secs_per_tick};
 use super::ranges::{normalize_range, split_side_range};
@@ -47,7 +46,7 @@ use super::state::{
     toggle_tempo_point,
 };
 use super::{BEAT_W, TICK_W};
-use harmonicon_platform::localization::LocalizationExt;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_ui::dialogs::confirm_dialog::{ConfirmChosen, DialogId, OpenConfirmDialog};
 use harmonicon_ui::music_score::MeterMap;
 
@@ -176,7 +175,7 @@ fn hovered_tick(
 /// The Tempo tool's whole interaction: a plain click toggles a tempo-change
 /// point at the clicked tick (see `state::toggle_tempo_point`) — no confirm
 /// dialog, no drag-span selection, unlike Select/Erase/Remove. Reacting to
-/// `Pointer<Click>` directly (rather than routing through `Drag*` like
+/// `PointerClick` directly (rather than routing through `Drag*` like
 /// every other timeline tool) is safe *only* because this tool never cares
 /// about a drag span at all; the module doc's "`Click`/`DragEnd` race" only
 /// matters for tools that read `EditorState::timeline_drag`, which this one
@@ -184,7 +183,7 @@ fn hovered_tick(
 // not-a-widget-button: the timeline is a continuous drag surface, so the
 // click position itself is the input; there is no discrete Button to focus.
 pub(super) fn on_timeline_click_tempo(
-    ev: On<Pointer<Click>>,
+    ev: On<PointerClick>,
     geoms: Query<&TimelineSurfaceGeometry>,
     rels: Query<&RelativeCursorPosition>,
     mut state: ResMut<EditorState>,
@@ -243,7 +242,7 @@ pub(super) fn cycle_meter_point(state: &mut EditorState, tick: usize) {
 /// plain-`Click` reasoning as [`on_timeline_click_tempo`] above.
 // not-a-widget-button: same continuous drag surface as the tempo handler.
 pub(super) fn on_timeline_click_meter(
-    ev: On<Pointer<Click>>,
+    ev: On<PointerClick>,
     geoms: Query<&TimelineSurfaceGeometry>,
     rels: Query<&RelativeCursorPosition>,
     mut state: ResMut<EditorState>,
@@ -268,7 +267,7 @@ pub(super) fn on_timeline_click_meter(
 // not-a-widget-button: same continuous drag surface as the tempo handler
 // above — the seek target is the x position, not a focusable control.
 pub(super) fn on_timeline_click_seek(
-    ev: On<Pointer<Click>>,
+    ev: On<PointerClick>,
     geoms: Query<&TimelineSurfaceGeometry>,
     rels: Query<&RelativeCursorPosition>,
     state: Res<EditorState>,
@@ -289,7 +288,7 @@ pub(super) fn on_timeline_click_seek(
 }
 
 pub(super) fn on_timeline_drag_start(
-    ev: On<Pointer<DragStart>>,
+    ev: On<PointerDragStart>,
     geoms: Query<&TimelineSurfaceGeometry>,
     rels: Query<&RelativeCursorPosition>,
     state: Res<EditorState>,
@@ -338,7 +337,7 @@ pub(super) fn drag_end_tick(
 }
 
 pub(super) fn on_timeline_drag(
-    ev: On<Pointer<Drag>>,
+    ev: On<PointerDrag>,
     state: Res<EditorState>,
     scroll: Res<Scroll>,
     mut sel: ResMut<TimelineSelection>,
@@ -364,7 +363,7 @@ pub(super) fn on_timeline_drag(
 }
 
 /// Re-derives an in-progress drag's `end` whenever the grid scrolls —
-/// `Pointer<Drag>` only fires on pointer *motion*, so a wheel pan under a
+/// `PointerDrag` only fires on pointer *motion*, so a wheel pan under a
 /// stationary held pointer would otherwise leave the span's end stale
 /// (including at release, silently dropping the scrolled-to extent). Same
 /// math as [`on_timeline_drag`], fed the stored [`TimelineDrag::pointer_px`]
@@ -394,7 +393,7 @@ pub(super) fn sync_selection_with_scroll(scroll: Res<Scroll>, mut sel: ResMut<Ti
 /// span for the Erase/Remove buttons to act on — nothing here opens the
 /// confirm dialog itself.
 pub(super) fn on_timeline_drag_end(
-    _ev: On<Pointer<DragEnd>>,
+    _ev: On<PointerDragEnd>,
     mut state: ResMut<EditorState>,
     mut sel: ResMut<TimelineSelection>,
 ) {
@@ -415,7 +414,7 @@ pub(super) fn on_timeline_drag_end(
         return;
     }
     // The span never moved a tick — an ordinary click (see the module docs
-    // for why this, not `Pointer<Click>`, is what decides that). Not yet a
+    // for why this, not `PointerClick`, is what decides that). Not yet a
     // selection, so drop it rather than leaving a zero-width span shadowing
     // the split-point overlay.
     sel.drag = None;
