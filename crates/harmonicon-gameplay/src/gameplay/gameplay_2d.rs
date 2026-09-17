@@ -15,6 +15,7 @@ use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{self, BravuraFont};
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
+use super::beat_guides;
 use super::countdown_overlay::spawn_countdown;
 use super::metronome_overlay::spawn_metronome;
 use super::modifier_legend::{build_legend_materials, spawn_modifier_legend};
@@ -271,6 +272,9 @@ pub fn setup(
                 }
             });
         });
+
+    // Beat/downbeat guides scroll inside the highway, behind the notes.
+    beat_guides::spawn_beat_guides(&mut commands, highway);
 
     // Score/combo/judgment, sitting just above the highway's own hit band
     // rather than in a corner of the screen — the judgment has to be

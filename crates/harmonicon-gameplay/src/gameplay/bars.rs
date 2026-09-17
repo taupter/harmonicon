@@ -41,6 +41,44 @@ pub fn chart_meter(chart: &HarpChart) -> MusicScoreMeter {
     parse_time_signature(sig)
 }
 
+/// How many ticks one beat of `meter` lasts, given the chart's `resolution`
+/// (ticks per quarter note).
+///
+/// The meter's *own* beat, not a quarter note — an eighth in 6/8, matching
+/// `MusicScoreMeter::beat_secs`'s `60/bpm × 4/denominator`. Reading the
+/// numerator alone and calling it a beat count is the mistake
+/// [`chart_meter`]'s comment documents; this is the tick-space sibling of
+/// that rule.
+pub fn ticks_per_beat(resolution: u32, meter: &MusicScoreMeter) -> u64 {
+    let denominator = u64::from(meter.denominator.max(1));
+    (u64::from(resolution) * 4 / denominator).max(1)
+}
+
+/// Every meter beat whose tick falls in `start_tick..=end_tick`, as
+/// `(tick, is_downbeat)` — a downbeat being the first beat of a bar,
+/// counting from tick 0.
+///
+/// Tick space rather than seconds so a chart with a real tempo map gets
+/// beats where the *music* has them: the caller converts each tick back with
+/// `chart::tick_to_seconds`, which already honours that map. Nothing here
+/// re-derives a scroll position or a second notion of "now".
+pub fn beat_ticks_in_range(
+    start_tick: u64,
+    end_tick: u64,
+    ticks_per_beat: u64,
+    beats_per_bar: usize,
+) -> Vec<(u64, bool)> {
+    if ticks_per_beat == 0 || end_tick < start_tick {
+        return Vec::new();
+    }
+    let beats_per_bar = beats_per_bar.max(1) as u64;
+    let first = start_tick.div_ceil(ticks_per_beat);
+    let last = end_tick / ticks_per_beat;
+    (first..=last)
+        .map(|beat| (beat * ticks_per_beat, beat % beats_per_bar == 0))
+        .collect()
+}
+
 /// How many whole bars have elapsed since the clock last hit 0 (song/jam
 /// start, or a loop rewind) — unlike [`current_bar_index`], not wrapped to
 /// the 12-bar cycle.

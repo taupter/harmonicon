@@ -13,6 +13,7 @@ use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::PitchRange;
 
 use super::bars::{self, AbsoluteBar, BarChanged, CurrentBar};
+use super::beat_guides;
 use super::clock::{self, GameplayClock};
 use super::hud;
 use super::judge;
@@ -296,6 +297,7 @@ impl Plugin for GameplayPlugin {
                 gameplay_2d::size_note_tails,
                 gameplay_2d::update_note_visuals,
                 gameplay_2d::update_holes,
+                beat_guides::update_beat_guides,
             )
                 .chain()
                 .after(GameplayLogic)

@@ -51,27 +51,33 @@ Two things it does not cover, and why:
 
 ## Phase 1: make the highway the visual focus
 
-- Add beat and downbeat guides derived from `GameplayClock`, the tempo map, and
-  `bars::chart_meter`; do not introduce a second timing calculation in the
-  renderer.
+Landed so far:
 
-  *(Done: `hud::spawn_score_readout` is one shared readout anchored at each
-  mode's own hit line rather than a screen corner, and `song_info` moved the
-  key/harp/description/author to the countdown and pause menu, leaving a title
-  header — which gave the 2D highway 60% → 74% of the width.)*
+- `hud::spawn_score_readout` is one shared score/combo/judgment readout,
+  anchored at each mode's own hit line instead of a screen corner.
+- `song_info` moved key, harp, description and author to the countdown and the
+  pause menu, leaving a title header — which gave the 2D highway 60% → 74% of
+  the width.
+- Beat and downbeat guides scroll the 2D highway (`gameplay/beat_guides.rs`),
+  placed through the chart's tempo map and the notes' own
+  `note_head_bottom_pct` rather than a second timing calculation.
+- The technique legend lists only techniques the chart actually uses.
+
+Still open:
+
 - Strengthen the hit line and align hole numbers with it. Use shape or labels in
   addition to blow/draw color so the colorblind palette is not the only cue.
 - Keep technique symbols close to the notes that use them; the legend is
-  supporting help, not permanent primary content. (Restricting the legend to
-  techniques the chart actually uses is done.)
-- Apply the same information hierarchy to Play 3D. Preserve the different lane
-  rendering, but share the surrounding HUD composition so the two modes do not
-  drift again.
+  supporting help, not permanent primary content.
+- Apply the same information hierarchy to Play 3D. It has no hole map, puts the
+  song panel top-left where 2D puts it right, and keeps the BLOW/DRAW legend
+  inside that panel — and the beat guides are 2D-only, since the 3D lane is
+  world-space geometry with no UI node to hang percentages off.
 
 Acceptance: at 1920×1080, the next notes, hit line, expected hole/direction,
 score, and pause control are all legible without overlap. A non-blues chart
-shows no invented blues form. *(The invented blues form is gone; the layout
-work is open.)*
+shows no invented blues form. *(The invented blues form is gone; the hit-line
+and 3D-parity work is open.)*
 
 ## Phase 2: report what happened at each note
 

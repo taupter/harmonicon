@@ -69,6 +69,7 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
 | Each judged note reports *why* it turned out that way (early/late hit, no-attack vs. wrong-pitch vs. incomplete-chord miss, unconfirmed sustained technique), attributed from the frames the note was actually pending rather than reconstructed at the miss | `gameplay::tests::score_notes_reports_a_good_hit_played_before_the_beat_as_early`, `…::score_notes_blames_*`, `…::score_notes_reports_an_unconfirmed_sustained_technique_when_the_sustain_ends` |
 | Loop boundary rewinds the clock and resets only the notes inside the loop range | `gameplay::tests::loop_boundary_rewinds_the_clock_and_resets_notes_in_range`, `…::loop_boundary_is_a_no_op_before_end_time_or_when_inactive` |
 | Windowed note-visual spawning: a note's window opens/closes at the right time, already-spawned notes aren't respawned, far-out notes are excluded | `gameplay::tests::notes_needing_spawn_*` |
+| Beat guides land on the meter's own beat and mark bar starts from tick 0, not from the visible window | `gameplay::tests::ticks_per_beat_*`, `…::beat_ticks_*` |
 | Adaptive difficulty: phrase grouping, unlock-fraction curve, per-note unlock/section tagging, learned-fraction bump on a clean clear | `gameplay::adaptive_difficulty::tests::*` |
 | Pause-menu phrase selector/adaptive-difficulty labels and stepping | `gameplay::pause_menu::tests::next_phrase_index_*`, `…::prev_phrase_index_*`, `…::phrase_selector_text_*`, `…::adaptive_difficulty_label_*`, `…::adjust_learned_*` |
 | Progress-bar phrase-section rectangle geometry/color | `gameplay::song_progress_overlay::tests::phrase_rect_geometry_*`, `…::phrase_fill_color_*` |
@@ -84,6 +85,15 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
   `gameplay::tests::end_to_end_synthetic_song_drives_score_combo_and_stats`;
   this check is now just about the HUD actually *displaying* those numbers —
   manual: rendering)*
+- [ ] **Beat guides line up with the notes (Play 2D).** Faint horizontal lines
+  should scroll up the highway at the chart's pulse, with a brighter, thicker
+  line on each bar's first beat. A note's head should reach the hit line at the
+  same moment a guide does — if the notes and the lines drift apart over a
+  minute, something in the chain is deriving time separately (see
+  `gameplay/beat_guides.rs`). Check a 3/4 chart (Amazing Grace) and a 6/8 one
+  (Greensleeves): 6/8 should show six lines to the bar, not three.
+  *(manual: rendering; the tick-space placement is unit-tested — see the table
+  above — but only a live run shows the guides tracking the notes over time)*
 - [ ] **The judgment label says what actually happened, in the current
   language.** Hit a note dead on (`PERFECT!`), slightly ahead (`EARLY`) and
   slightly behind (`LATE`); then miss one by playing nothing (`MISS`) and

@@ -9,6 +9,7 @@
 
 mod adaptive_difficulty;
 mod bars;
+mod beat_guides;
 mod bending_trainer;
 mod call_response;
 mod clock;

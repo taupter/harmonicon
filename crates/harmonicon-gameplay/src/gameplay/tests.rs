@@ -11,6 +11,7 @@ use harmonicon_core::chart::Modifier;
 use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::scoring::{combo_label, compute_multiplier};
 
+use super::bars::{beat_ticks_in_range, ticks_per_beat};
 use super::lifecycle::cleanup_gameplay;
 use super::*;
 use harmonicon_core::chart::HarpChart;
@@ -159,6 +160,84 @@ fn chart_meter_keeps_the_denominator() {
     let m = chart_meter(&chart_with_meter(Some("6/8"), None));
     assert_eq!(m.beats_per_bar(), 3.0);
     assert!((m.bar_secs(180.0) - 1.0).abs() < 1e-9);
+}
+
+// ── beat guides (tick-space beat placement) ──────────────────────────────
+
+#[test]
+fn ticks_per_beat_is_the_meters_own_beat_not_a_quarter() {
+    // 480 ticks per quarter note. In 4/4 a beat *is* a quarter; in 6/8 it's
+    // an eighth, so half as many ticks — the same rule `MusicScoreMeter::
+    // beat_secs` applies in seconds. Reading the numerator alone and calling
+    // it a beat count is the mistake `chart_meter`'s comment documents.
+    assert_eq!(
+        ticks_per_beat(480, &chart_meter(&chart_with_meter(Some("4/4"), None))),
+        480
+    );
+    assert_eq!(
+        ticks_per_beat(480, &chart_meter(&chart_with_meter(Some("6/8"), None))),
+        240
+    );
+    assert_eq!(
+        ticks_per_beat(480, &chart_meter(&chart_with_meter(Some("3/4"), None))),
+        480
+    );
+}
+
+#[test]
+fn ticks_per_beat_never_returns_zero() {
+    // A denominator big enough to divide below one tick would otherwise make
+    // the beat stride zero, and `beat_ticks_in_range` loop forever on it.
+    assert!(ticks_per_beat(1, &chart_meter(&chart_with_meter(Some("4/64"), None))) >= 1);
+    assert!(ticks_per_beat(0, &chart_meter(&chart_with_meter(Some("4/4"), None))) >= 1);
+}
+
+#[test]
+fn beat_ticks_marks_every_bar_start_as_a_downbeat() {
+    // Two bars of 4/4 at 480 ticks per beat: beats 0 and 4 start a bar.
+    let beats = beat_ticks_in_range(0, 480 * 7, 480, 4);
+    assert_eq!(beats.len(), 8);
+    let downbeats: Vec<u64> = beats
+        .iter()
+        .filter(|(_, is_downbeat)| *is_downbeat)
+        .map(|(tick, _)| *tick)
+        .collect();
+    assert_eq!(downbeats, vec![0, 480 * 4]);
+}
+
+#[test]
+fn beat_ticks_counts_the_bar_from_tick_zero_not_from_the_window() {
+    // A window starting mid-bar must not relabel its first visible beat as a
+    // downbeat — the bar phase belongs to the song, not to whatever happens
+    // to be on screen.
+    let beats = beat_ticks_in_range(480 * 5, 480 * 9, 480, 4);
+    assert_eq!(beats.first(), Some(&(480 * 5, false)));
+    assert!(
+        beats.contains(&(480 * 8, true)),
+        "beat 8 starts bar 3: {beats:?}"
+    );
+}
+
+#[test]
+fn beat_ticks_includes_a_beat_exactly_on_the_window_edge() {
+    assert_eq!(beat_ticks_in_range(480, 480, 480, 4), vec![(480, false)]);
+}
+
+#[test]
+fn beat_ticks_is_empty_for_an_inverted_or_degenerate_window() {
+    assert!(beat_ticks_in_range(960, 480, 480, 4).is_empty());
+    assert!(beat_ticks_in_range(0, 960, 0, 4).is_empty());
+}
+
+#[test]
+fn beat_ticks_treats_a_zero_beat_count_as_one_bar_per_beat() {
+    // `numerator.max(1)` upstream should make this unreachable; guard the
+    // modulo anyway rather than divide by zero if a chart ever says 0/4.
+    let beats = beat_ticks_in_range(0, 480 * 2, 480, 0);
+    assert!(
+        beats.iter().all(|(_, is_downbeat)| *is_downbeat),
+        "{beats:?}"
+    );
 }
 
 // `advance_clock`'s own tests live in `clock.rs` alongside the type.

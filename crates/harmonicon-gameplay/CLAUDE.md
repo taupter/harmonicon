@@ -196,6 +196,22 @@ load-bearing about *this* crate.
   and leaves the middle clear, so it doesn't sit on top of the lanes a note
   actually falls down.
 
+- **Beat guides reuse the note's own time→screen path, not a second one**
+  (`gameplay/beat_guides.rs`, 2D only — the 3D lane is world-space geometry
+  with no UI highway to hang percentages off). A guide's position is
+  `bars::beat_ticks_in_range` (off `chart_meter`, so 6/8 gets six eighths to
+  the bar) → `chart::seconds_to_tick`/`tick_to_seconds` (which honour the
+  tempo map) → `gameplay_2d::note_head_bottom_pct` (the same mapping the
+  notes get). A local `60.0 / bpm` anywhere in that chain puts the guides
+  somewhere the notes aren't, on exactly the charts where a visible pulse
+  would have earned its keep. Two implementation notes:
+  - **They carry no `GlobalZIndex`.** `GlobalZIndex(0)` reads like "behind
+    the notes" and instead drops them below the gameplay root's own
+    `GlobalZIndex(1)` background, which paints over them — the trap
+    `spawn_gameplay_music_score` documents. Child order already puts them
+    behind notes, which join the highway later.
+  - Entities are a fixed pool repositioned each frame, not spawned per beat.
+
 - **Score HUD is message-driven, not polled:** `score_notes` emits a
   `NoteScored` message at the instant a note is judged;
   `update_score_display` is a `MessageReader` consumer, not a per-frame
