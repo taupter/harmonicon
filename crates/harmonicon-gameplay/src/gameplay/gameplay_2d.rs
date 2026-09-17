@@ -17,16 +17,15 @@ use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::beat_guides;
 use super::countdown_overlay::spawn_countdown;
 use super::highway_2d::{spawn_harmonica_strip, spawn_highway};
-use super::metronome_overlay::spawn_metronome;
-use super::modifier_legend::{build_legend_materials, spawn_modifier_legend};
+use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::modifier_legend::build_legend_materials;
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
-use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
     MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, SongNotes,
-    ValidHarpNotes, spawn_score_readout, spawn_song_header,
+    ValidHarpNotes, spawn_score_readout,
 };
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 
@@ -112,14 +111,7 @@ pub fn setup(
 
     // Animated tail previews for the techniques legend (built up front so the UI
     // closures only borrow a ready slice, not the material store).
-    let used_modifiers: Vec<Modifier> = chart
-        .track
-        .iter()
-        .flat_map(|item| &item.events)
-        .flat_map(|event| event.modifiers.as_deref().unwrap_or_default())
-        .cloned()
-        .collect();
-    let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers);
+    let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers(chart));
 
     let key = chart.song.key.as_str();
     let bpm = chart.song.tempo_bpm;
@@ -242,33 +234,19 @@ pub fn setup(
             })
             .with_children(|right| {
                 if !compact {
-                    // Title only while notes are falling; the key, harp,
-                    // description and author are read material and now live
-                    // where there is time to read them — the countdown and
-                    // the pause menu (`song_info::spawn_song_details`).
-                    right.spawn(Node::default()).with_children(|col| {
-                        spawn_song_header(col, &song_info);
-                    });
-
-                    // Live phrase / groove banner (driven by phrase_overlay::update_phrase)
-                    spawn_phrase_banner(right);
-                    // Tab-notation ribbon for the current phrase (phrase_overlay::update_tab_ribbon)
-                    spawn_tab_ribbon(right);
-
-                    // Metronome
-                    right
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(6.0),
-                            ..default()
-                        })
-                        .with_children(|metro| {
-                            spawn_metronome(metro, &loc, beats_per_bar, bpm);
-                        });
-
-                    if !legend_materials.is_empty() {
-                        spawn_modifier_legend(right, &loc, &legend_materials);
-                    }
+                    spawn_hud_panel(
+                        right,
+                        HudPanel {
+                            song_info: &song_info,
+                            loc: &loc,
+                            beats_per_bar,
+                            bpm,
+                            legend_materials: &legend_materials,
+                            // 2D's key goes under the hole strip instead,
+                            // beside the colours it explains.
+                            blow_draw_legend: false,
+                        },
+                    );
                 }
             });
         });

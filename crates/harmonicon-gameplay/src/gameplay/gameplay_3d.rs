@@ -4,13 +4,13 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use bevy_fluent::Localization;
-use harmonicon_core::chart::{Action, HarpChart, Modifier};
+use harmonicon_core::chart::{Action, HarpChart};
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_platform::assets_management::{
     HarmonicaModelConfig, HoleConfig, SelectedHarmonicaModel, SelectedNoteTheme3d, ShowNoteNumbers,
 };
-use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
+use harmonicon_platform::theme::{HUD_PANEL_BG, LoadedTheme, NoteColors, effective_note_colors};
 use harmonicon_song::song::NoteCube3dConfig;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{self, BravuraFont};
@@ -18,16 +18,15 @@ use harmonicon_ui::music_score::{self, BravuraFont};
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::countdown_overlay::spawn_countdown;
 use super::gameplay_2d::{note_anim_mode, note_techniques};
-use super::metronome_overlay::spawn_metronome;
-use super::modifier_legend::{build_legend_materials, spawn_modifier_legend};
+use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::modifier_legend::build_legend_materials;
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_tail_3d::NoteTail3dMaterial;
-use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
     MusicStarted, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, ValidHarpNotes,
-    spawn_score_readout, spawn_song_header,
+    spawn_score_readout,
 };
 
 // ── 3D layout constants ───────────────────────────────────────────────────────
@@ -782,76 +781,52 @@ fn spawn_hud_overlay(
     song_info: &SongInfo,
     compact: bool,
 ) {
-    // Top-left info box: song info, phrase/tab aids, metronome, legends —
-    // all supplementary, so it's skipped entirely in compact mode rather
-    // than trimmed piecemeal (nothing essential lives in it).
+    // The same panel 2D carries, on the same side of the screen. It used to
+    // sit top-left here and right in 2D, with the same contents in a
+    // different order — the drift `hud_panel` exists to stop. All of it is
+    // supplementary, so compact mode skips the panel outright rather than
+    // trimming it piecemeal.
     if !compact {
+        let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers(chart));
         commands
             .spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    // Below the song-progress bar (`BAR_HEIGHT`, pinned at the very
-                    // top across the full width and always painted above the HUD —
-                    // see `BAR_Z_INDEX`) so its text is never covered by it.
+                    // Below the song-progress bar (`BAR_HEIGHT`, pinned at the
+                    // very top across the full width and always painted above
+                    // the HUD — see `BAR_Z_INDEX`) so its text is never covered.
                     top: Val::Px(8.0 + BAR_HEIGHT + music_score::PANEL_HEIGHT),
-                    left: Val::Px(8.0),
+                    right: Val::Px(8.0),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    padding: UiRect::all(Val::Px(8.0)),
-                    // Fixed so the panel doesn't grow or shrink with the current
-                    // song's title/description length — long text wraps instead.
+                    row_gap: Val::Px(12.0),
+                    padding: UiRect::all(Val::Px(12.0)),
+                    // Fixed so the panel doesn't grow or shrink with the
+                    // current song's title length — long text wraps instead.
                     max_width: Val::Px(420.0),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+                // `HUD_PANEL_BG`, not another hand-tuned near-black: 2D
+                // darkens the whole screen behind its panel, but here the
+                // song's own artwork shows through, and a 55%-black wash
+                // leaves the technique legend unreadable over a bright one.
+                BackgroundColor(HUD_PANEL_BG),
                 GlobalZIndex(1),
                 GameplayRoot,
             ))
-            .with_children(|p| {
-                // Title only; the rest of `SongInfo` is read material and
-                // now shows during the countdown and in the pause menu.
-                spawn_song_header(p, song_info);
-
-                // Live phrase / groove banner (driven by phrase_overlay::update_phrase)
-                spawn_phrase_banner(p);
-                // Tab-notation ribbon for the current phrase (phrase_overlay::update_tab_ribbon)
-                spawn_tab_ribbon(p);
-
-                // Blow/draw legend
-                super::highway_2d::spawn_blow_draw_legend(p, loc, 12.0, 4.0);
-
-                // Metronome
-                p.spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    margin: UiRect::top(Val::Px(8.0)),
-                    ..default()
-                })
-                .with_children(|metro| {
-                    spawn_metronome(metro, loc, beats_per_bar, bpm);
-                });
-
-                // Animated tail previews for the techniques legend (built up front so the UI
-                // closures only borrow a ready slice, not the material store).
-                let used_modifiers: Vec<Modifier> = chart
-                    .track
-                    .iter()
-                    .flat_map(|item| &item.events)
-                    .flat_map(|event| event.modifiers.as_deref().unwrap_or_default())
-                    .cloned()
-                    .collect();
-                let legend_materials =
-                    build_legend_materials(&mut shape_materials, &used_modifiers);
-
-                if !legend_materials.is_empty() {
-                    p.spawn(Node {
-                        margin: UiRect::top(Val::Px(8.0)),
-                        ..default()
-                    })
-                    .with_children(|leg| {
-                        spawn_modifier_legend(leg, loc, &legend_materials);
-                    });
-                }
+            .with_children(|panel| {
+                spawn_hud_panel(
+                    panel,
+                    HudPanel {
+                        song_info,
+                        loc,
+                        beats_per_bar,
+                        bpm,
+                        legend_materials: &legend_materials,
+                        // No hole strip here to print the key under, unlike
+                        // 2D — so it goes in the panel.
+                        blow_draw_legend: true,
+                    },
+                );
             });
     }
 

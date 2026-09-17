@@ -196,6 +196,26 @@ load-bearing about *this* crate.
   and leaves the middle clear, so it doesn't sit on top of the lanes a note
   actually falls down.
 
+- **The scored-play HUD is one spawner, not two.** `hud_panel::
+  spawn_hud_panel` builds the side panel — song title, phrase banner, tab
+  ribbon, metronome, technique legend — and both modes call it, on the same
+  side of the screen, in the same order. 2D and 3D used to build that column
+  separately and identically except for where it sat (right vs. top-left),
+  which is how they drifted into reading as different games. Likewise
+  `hud_panel::used_modifiers`: both flattened `chart.track` themselves, and a
+  technique legend that disagrees with the notes is worse than none.
+  - **The one honest difference is the blow/draw key**, and it follows from
+    the lane surface rather than from drift: 2D prints it under its hole
+    strip, beside the colours it explains; 3D has no strip, so it asks for
+    the key inside the panel (`HudPanel::blow_draw_legend`).
+  - 3D's panel uses `theme::HUD_PANEL_BG`, not its own near-black. 2D
+    darkens the whole screen behind its panel; 3D shows the song's artwork
+    through, so a lighter wash left the technique legend unreadable over a
+    bright background.
+  - Still mode-specific and deliberately so: 3D has no hole map, and the
+    beat guides are 2D-only (its lane is world-space geometry with no UI
+    node to hang percentages off).
+
 - **Beat guides reuse the note's own time→screen path, not a second one**
   (`gameplay/beat_guides.rs`, 2D only — the 3D lane is world-space geometry
   with no UI highway to hang percentages off). A guide's position is

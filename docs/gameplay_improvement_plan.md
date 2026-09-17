@@ -69,6 +69,10 @@ Landed so far:
   hole strip derives its lanes from the same `100.0 / hole_count` the highway
   does, so the numbers already line up under their lanes.
 
+- Play 3D shares the panel: `hud_panel::spawn_hud_panel` is one spawner both
+  modes call, on the same side, in the same order, off the same
+  `used_modifiers` reading of the chart.
+
 Still open:
 
 - Keep technique symbols close to the notes that use them; the legend is
@@ -76,10 +80,10 @@ Still open:
   label deliberately drops the bend/overblow/slide suffix today — that detail
   lives in the tab ribbon — so this is a real design reversal, not an
   oversight.
-- Apply the same information hierarchy to Play 3D. It has no hole map, puts the
-  song panel top-left where 2D puts it right, and keeps the BLOW/DRAW legend
-  inside that panel — and the beat guides are 2D-only, since the 3D lane is
-  world-space geometry with no UI node to hang percentages off.
+- 3D still has no hole map, and no beat guides: its lane is world-space
+  geometry, so guides there mean projecting `HIT_Z` per beat rather than
+  reusing a UI percentage. That is a different technique, not a shared
+  spawner, and worth deciding deliberately.
 
 Acceptance: at 1920×1080, the next notes, hit line, expected hole/direction,
 score, and pause control are all legible without overlap. A non-blues chart

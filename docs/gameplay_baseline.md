@@ -64,15 +64,17 @@ since that bar deliberately paints *above* the pause menu so a loop range can
 be dragged while paused. Dimming controls emphasis; only an opaque surface
 controls legibility.
 
-### 2. 2D and 3D have drifted into different HUDs — partly fixed
+### 2. 2D and 3D had drifted into different HUDs — fixed
 
-Same information, different corners. The score/combo/judgment readout is now
-shared (`hud::spawn_score_readout`) and sits at each mode's own hit line
-instead of bottom-right in 2D and top-right in 3D — it was two separate
-spawns at different font sizes before. What is still divergent: the song
-panel is right-hand in 2D and top-left in 3D, the BLOW/DRAW legend is
-centre-bottom in 2D and inside the info panel in 3D, and 3D has no hole/note
-map at all.
+Same information, different corners: two separate score readouts at different
+font sizes in opposite corners, and two separately-built side panels on
+opposite sides. Both are now single spawners (`hud::spawn_score_readout`,
+`hud_panel::spawn_hud_panel`) that each mode calls.
+
+What stays different follows from the lane surface rather than from drift:
+3D has no hole map, prints the blow/draw key inside its panel because it has
+no hole strip to print it under, and has no beat guides because its lane is
+world-space geometry.
 
 ### 3. Song metadata held a whole column for the whole performance — fixed
 
