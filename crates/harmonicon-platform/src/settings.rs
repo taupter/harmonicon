@@ -92,7 +92,10 @@ impl ActionButtonStyle {
     /// that deals in the combobox's plain selected string rather than the
     /// enum itself. `None` for anything that isn't one of [`Self::all`]'s
     /// current labels.
-    pub fn from_localized_label(loc: &bevy_fluent::Localization, label: &str) -> Option<Self> {
+    pub fn from_localized_label(
+        loc: &crate::localization::Localization,
+        label: &str,
+    ) -> Option<Self> {
         use crate::localization::LocalizationExt;
         Self::all()
             .iter()
@@ -432,8 +435,7 @@ fn apply_fullscreen(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::localization::LocalizationExt;
-    use bevy_fluent::Localization;
+    use crate::localization::{Localization, LocalizationExt};
 
     // ── AdaptiveDifficultyEnabled ────────────────────────────────────────────────
 

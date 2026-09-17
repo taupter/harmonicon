@@ -10,10 +10,16 @@ harmonicon-core = { path = "../harmonicon-core", version = "*" }
 harmonicon-score = { path = "../harmonicon-score", version = "*" }
 harmonicon-audio = { path = "../harmonicon-audio", version = "*" }
 bevy = { workspace = true }
-bevy_fluent = { workspace = true }
+# The Fluent stack, used directly: `localization::ftl` owns the `.ftl`/
+# `.ftl.ron` asset loaders and `localization::Locale` the negotiation, so
+# there is no `bevy_fluent` between this crate and Fluent itself. See
+# LICENSE-bevy_fluent — that crate is where the asset layer came from.
 fluent = { workspace = true }
 fluent_content = { workspace = true }
+fluent-langneg = { workspace = true }
+intl-memoizer = { workspace = true }
 unic-langid = { workspace = true }
+ron = { workspace = true }
 sys-locale = { workspace = true }
 figment = { workspace = true }
 dirs = { workspace = true }

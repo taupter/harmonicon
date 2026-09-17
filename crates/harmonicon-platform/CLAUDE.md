@@ -50,6 +50,23 @@ load-bearing about *this* crate.
     shipped builds, which is exactly the `--features dev`-only behavior
     this file's Commands section says never to ship.
 
+- **This crate owns the whole Fluent stack**, down to the asset loaders.
+  `localization::ftl` holds the `.ftl`/`.ftl.ron` `AssetLoader`s and the
+  `LocaleBundle` asset; `localization::Locale` does the language
+  negotiation; `localization::Localization` is the negotiated bundle set
+  every other crate takes as `Res<Localization>`. All of that used to be
+  `bevy_fluent`, whose version tracks Bevy's — absorbed here (see
+  `LICENSE-bevy_fluent`, MIT) so a Bevy upgrade can't be blocked on a
+  third-party plugin's release cadence. Everything *below* it (`fluent`,
+  `fluent_content`, `fluent-langneg`, `intl-memoizer`) has no Bevy in its
+  tree and stays a plain dependency.
+  - Two things the absorbed version deliberately doesn't have: the
+    `.ftl.yaml`/`.ftl.yml` bundle formats (only `.ftl.ron` ships) and
+    upstream's `LocalizationBuilder`, which builds from a
+    `Handle<LoadedFolder>` — `build_from_bundles` negotiates from the
+    explicit per-locale handles instead, because this module never
+    enumerates a directory (see its own doc comment for why).
+
 - **Settings:** figment-layered `<config>/harmonicon/settings.json`
   (`settings.rs`); saves are debounced (`PendingSave`, 0.5 s) with a flush
   on `AppExit` — route new persisted fields through that path.

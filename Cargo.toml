@@ -27,15 +27,22 @@ accesskit = "0.24.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 midly = "0.5"
-bevy = { version = "0.19.1", features = ["wav"] }
+bevy = { git = "https://github.com/bevyengine/bevy", tag = "v0.20.0-rc.1", features = ["wav"] }
 cpal = "0.17"
 rustfft = "6.4"
 crossbeam-channel = "0.5"
 rodio = { version = "0.22", default-features = false, features = ["vorbis"] }
-bevy_fluent = "0.15.0"
+# The Fluent stack, used directly: `harmonicon-platform`'s `localization`
+# module owns the `.ftl`/`.ftl.ron` asset loaders and the locale negotiation
+# that `bevy_fluent` used to provide (see that module's `ftl` submodule).
 fluent = "0.16"
 fluent_content = "0.0.5"
-unic-langid = "0.9"
+fluent-langneg = "0.13"
+intl-memoizer = "0.5"
+# `serde` so a `main.ftl.ron` manifest can deserialize its `locale:` field
+# straight into a `LanguageIdentifier`.
+unic-langid = { version = "0.9", features = ["serde"] }
+ron = "0.12"
 sys-locale = "0.3"
 figment = { version = "0.10", features = ["json"] }
 dirs = "5"
@@ -85,19 +92,9 @@ dirs = { workspace = true }
 # Window icon: winit must match Bevy's version; image decodes the PNG.
 winit = "0.30"
 image = { workspace = true }
-bevy_fluent = { workspace = true }
-# The `Content` trait used to resolve Fluent message keys; bevy_fluent builds on
-# this same version but does not re-export the trait.
-fluent_content = { workspace = true }
-# `FluentArgs`, for native `{$name}` variable interpolation via `msg_args`;
-# bevy_fluent builds on this same version but does not re-export it.
-fluent = { workspace = true }
-unic-langid = { workspace = true }
-# Detect the OS UI language so the game starts in the player's locale.
-sys-locale = { workspace = true }
 regex = "1.13.1"
 rand = { workspace = true }
-clap = { version = "4.6.6", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 # Watches ~/Harmonicon (songs/, themes/) so drop-in content is picked up
 # live instead of needing a manual refresh or restart. crossbeam-channel
 # feature: bridges the watcher's background thread into ECS the same way
@@ -205,7 +202,7 @@ debug = false
 # the target so desktop keeps the fast path.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
-getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+getrandom03 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 
 [dev-dependencies]
 # Reads the bundled fonts' cmaps in tests/glyph_coverage.rs, so "does this

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-//! UI localization, built on [`bevy_fluent`].
+//! UI localization, built on [Fluent].
 //!
-//! Translations live under `assets/locales/<lang>/` as [Fluent] files: one
+//! Translations live under `assets/locales/<lang>/` as Fluent files: one
 //! `main.ftl.ron` bundle per locale listing the `.ftl` resources it pulls in
 //! (see `assets/locales/en-US/`). At startup each locale's bundle is loaded
 //! by an explicit path — [`LOCALES`], not a directory scan — since the wasm
@@ -14,24 +14,33 @@
 //! back to [`DEFAULT_LANGUAGE`] so the UI never shows an untranslated key.
 //! The language is not persisted — to change it, change the system locale.
 //!
+//! The asset layer underneath — the `.ftl` and `.ftl.ron` [`AssetLoader`]s
+//! and the [`LocaleBundle`] they produce — lives in [`ftl`].
+//!
 //! Call sites fetch strings through [`LocalizationExt::msg`]:
 //!
 //! ```no_run
-//! # use bevy_fluent::prelude::Localization;
-//! # use harmonicon_platform::localization::LocalizationExt;
+//! # use harmonicon_platform::localization::{Localization, LocalizationExt};
 //! # fn example(localization: &Localization) {
 //! let label = localization.msg("menu-play");
 //! # }
 //! ```
 //!
 //! [Fluent]: https://projectfluent.org/
+//! [`AssetLoader`]: bevy::asset::AssetLoader
+
+pub mod ftl;
+
+use std::borrow::Borrow;
+use std::fmt;
 
 use bevy::prelude::*;
-use bevy_fluent::exts::fluent::BundleExt;
-use bevy_fluent::prelude::*;
 use fluent::FluentArgs;
 use fluent_content::{Content, Request};
+use fluent_langneg::{NegotiationStrategy, negotiate_languages};
 use unic_langid::LanguageIdentifier;
+
+use self::ftl::{FtlResource, FtlResourceLoader, LocaleBundle, LocaleBundleLoader};
 
 /// Every shipped locale, matched 1:1 with a folder under `assets/locales/`
 /// — a fixed list rather than a directory scan (see the module doc
@@ -41,7 +50,7 @@ const LOCALES: [&str; 3] = ["en-US", "pt-BR", "es-ES"];
 
 /// Fallback language, used when neither the player's choice nor the system locale
 /// has a matching bundle. Must always have a folder under `assets/locales/`, so it
-/// is the one guaranteed translation. Also the `bevy_fluent` negotiation default.
+/// is the one guaranteed translation. Also the language negotiation default.
 pub const DEFAULT_LANGUAGE: &str = "en-US";
 
 /// The OS UI language as a BCP-47 tag (e.g. `"pt-BR"`), or [`DEFAULT_LANGUAGE`]
@@ -65,8 +74,7 @@ pub fn system_language() -> String {
 ///
 /// Set once at startup from the [`system_language`] and not persisted: the game
 /// always follows the OS locale, so changing the language means changing the
-/// system locale. The value is mirrored onto the `bevy_fluent` [`Locale`] by
-/// [`sync_locale`].
+/// system locale. The value is mirrored onto the [`Locale`] by [`sync_locale`].
 #[derive(Resource, Clone, Debug)]
 pub struct SelectedLanguage(pub String);
 
@@ -80,7 +88,7 @@ impl Default for SelectedLanguage {
 /// kept around so [`build_localization`] can (re)build [`Localization`]
 /// from them on demand.
 #[derive(Resource)]
-struct LocaleBundles(Vec<Handle<BundleAsset>>);
+struct LocaleBundles(Vec<Handle<LocaleBundle>>);
 
 /// Set once the first [`Localization`] has been built, so later frames only
 /// rebuild when the [`Locale`] actually changes. Also drives [`localization_ready`]
@@ -99,7 +107,10 @@ pub struct LocalizationPlugin;
 
 impl Plugin for LocalizationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(FluentPlugin)
+        app.init_asset::<FtlResource>()
+            .register_asset_loader(FtlResourceLoader)
+            .init_asset::<LocaleBundle>()
+            .register_asset_loader(LocaleBundleLoader)
             .init_resource::<SelectedLanguage>()
             .init_resource::<LocalizationReady>()
             // An empty Localization until the folder loads, so consumers can
@@ -129,10 +140,10 @@ fn default_locale() -> Locale {
 }
 
 /// Kick off the asynchronous load of every [`LOCALES`] entry's bundle — one
-/// explicit `load()` per locale, each of which (via `BundleAssetLoader`)
-/// transitively loads its own referenced `.ftl` resource by an equally
-/// explicit path, so nothing in this whole chain ever needs to enumerate a
-/// directory.
+/// explicit `load()` per locale, each of which (via
+/// [`LocaleBundleLoader`](ftl::LocaleBundleLoader)) transitively loads its
+/// own referenced `.ftl` resource by an equally explicit path, so nothing
+/// in this whole chain ever needs to enumerate a directory.
 fn load_locales(mut commands: Commands, asset_server: Res<AssetServer>) {
     let handles = LOCALES
         .iter()
@@ -141,7 +152,7 @@ fn load_locales(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(LocaleBundles(handles));
 }
 
-/// Mirror the persisted [`SelectedLanguage`] onto the `bevy_fluent` [`Locale`].
+/// Mirror the persisted [`SelectedLanguage`] onto the [`Locale`].
 /// Marking `Locale` changed is what triggers [`build_localization`] to rebuild.
 fn sync_locale(selected: Res<SelectedLanguage>, mut locale: ResMut<Locale>) {
     if selected.is_changed() {
@@ -157,7 +168,7 @@ fn sync_locale(selected: Res<SelectedLanguage>, mut locale: ResMut<Locale>) {
 fn build_localization(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    bundles: Res<Assets<BundleAsset>>,
+    bundles: Res<Assets<LocaleBundle>>,
     locale: Res<Locale>,
     handles: Option<Res<LocaleBundles>>,
     mut ready: ResMut<LocalizationReady>,
@@ -182,15 +193,17 @@ fn build_localization(
 /// the [`Locale`]'s own fallback-chain order (most-preferred first —
 /// [`Localization`]'s own `content` lookup returns the first bundle with a
 /// matching key, so insertion order is what makes the fallback actually
-/// take effect). The hand-rolled equivalent of `bevy_fluent::
-/// LocalizationBuilder::build`, which expects a `Handle<LoadedFolder>` this
-/// module deliberately doesn't have — see the module doc comment.
+/// take effect).
+///
+/// Works from the explicit per-locale handles [`load_locales`] collected
+/// rather than a `Handle<LoadedFolder>`, since this module deliberately
+/// never enumerates a directory — see the module doc comment.
 fn build_from_bundles(
-    handles: &[Handle<BundleAsset>],
-    bundles: &Assets<BundleAsset>,
+    handles: &[Handle<LocaleBundle>],
+    bundles: &Assets<LocaleBundle>,
     locale: &Locale,
 ) -> Localization {
-    let entries: Vec<(LanguageIdentifier, &Handle<BundleAsset>, &BundleAsset)> = handles
+    let entries: Vec<(LanguageIdentifier, &Handle<LocaleBundle>, &LocaleBundle)> = handles
         .iter()
         .filter_map(|handle| {
             let asset = bundles.get(handle)?;
@@ -206,6 +219,116 @@ fn build_from_bundles(
         }
     }
     localization
+}
+
+// ── Locale negotiation ────────────────────────────────────────────────────────
+
+/// Which language the UI should be in, and which to fall back to.
+///
+/// Held as a resource and kept in step with [`SelectedLanguage`] by
+/// [`sync_locale`]; [`build_localization`] watches it for changes.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct Locale {
+    /// The language the player's system asked for.
+    pub requested: LanguageIdentifier,
+    /// Where to land when `requested` has no bundle — [`DEFAULT_LANGUAGE`]
+    /// in practice, so the UI always has *some* translation.
+    pub default: Option<LanguageIdentifier>,
+}
+
+impl Locale {
+    pub fn new(requested: LanguageIdentifier) -> Self {
+        Self {
+            requested,
+            default: None,
+        }
+    }
+
+    pub fn with_default(mut self, default: LanguageIdentifier) -> Self {
+        self.default = Some(default);
+        self
+    }
+
+    /// The available locales that can serve [`Self::requested`], best first,
+    /// with [`Self::default`] appended as the last resort.
+    ///
+    /// `Filtering` is Fluent's broadest strategy: it keeps every acceptable
+    /// match rather than just the single best one, which is what gives
+    /// [`Localization`] a real chain to walk when a key is missing from the
+    /// preferred locale but present in another.
+    pub fn fallback_chain<'a, I>(&'a self, available: I) -> Vec<&'a LanguageIdentifier>
+    where
+        I: Iterator<Item = &'a LanguageIdentifier>,
+    {
+        let available = &available.collect::<Vec<_>>();
+        let default = self.default.as_ref();
+        let supported = negotiate_languages(
+            std::slice::from_ref(&self.requested),
+            available,
+            default.as_ref(),
+            NegotiationStrategy::Filtering,
+        );
+        supported.into_iter().copied().collect()
+    }
+}
+
+// ── The negotiated bundle set ─────────────────────────────────────────────────
+
+/// The loaded locale bundles that can answer a message lookup, in fallback
+/// order: most-preferred first, [`DEFAULT_LANGUAGE`] last.
+///
+/// Reach for strings through [`LocalizationExt`] rather than [`Content`]
+/// directly — `msg`/`msg_args` add the missing-key fallback and the
+/// bidi-mark cleanup [`strip_bidi_isolates`] describes.
+///
+/// [`Default`] is an empty set, which answers every lookup with `None`: it's
+/// what the plugin inserts before the locale bundles finish loading (so a
+/// system can take `Res<Localization>` without ordering against the load),
+/// and what tests construct to assert on the key-echoing fallback.
+#[derive(Resource, Default)]
+pub struct Localization(Vec<(Handle<LocaleBundle>, LocaleBundle)>);
+
+impl Localization {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Every locale in this set, in the order lookups consult them.
+    pub fn locales(&self) -> impl Iterator<Item = &LanguageIdentifier> {
+        self.0.iter().map(|(_, bundle)| bundle.locale())
+    }
+
+    /// Appends `bundle` to the end of the fallback order.
+    ///
+    /// The `handle` is kept alongside it purely to hold the asset alive, so
+    /// `Assets<LocaleBundle>` can't drop the bundle out from under a
+    /// long-lived `Localization`. Callers are expected to insert each
+    /// locale at most once — [`build_from_bundles`] walks a fallback chain
+    /// of distinct languages, so it does.
+    fn insert(&mut self, handle: &Handle<LocaleBundle>, bundle: &LocaleBundle) {
+        self.0.push((handle.clone(), bundle.clone()));
+    }
+}
+
+impl<'a, T, U> Content<'a, T, U> for Localization
+where
+    T: Copy + Into<Request<'a, U>>,
+    U: Borrow<FluentArgs<'a>>,
+{
+    /// The first bundle in fallback order that defines `request`'s key.
+    fn content(&self, request: T) -> Option<String> {
+        self.0
+            .iter()
+            .find_map(|(_, bundle)| (**bundle).content(request))
+    }
+}
+
+impl fmt::Debug for Localization {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Localization")
+            .field(&self.locales().collect::<Vec<_>>())
+            .finish()
+    }
 }
 
 // ── Localized-string newtype ──────────────────────────────────────────────────
@@ -262,8 +385,7 @@ pub trait LocalizationExt {
     /// ```
     /// Call site:
     /// ```no_run
-    /// # use bevy_fluent::prelude::Localization;
-    /// # use harmonicon_platform::localization::LocalizationExt;
+    /// # use harmonicon_platform::localization::{Localization, LocalizationExt};
     /// # fn example(loc: &Localization, hits: u32, total: u32, score: u32) {
     /// loc.msg_args(
     ///     "practice-done",
@@ -275,6 +397,8 @@ pub trait LocalizationExt {
     /// );
     /// # }
     /// ```
+    ///
+    /// [`msg`]: LocalizationExt::msg
     fn msg_args(&self, key: &str, args: &[(&str, String)]) -> LocalizedStr;
 }
 
@@ -303,11 +427,10 @@ impl LocalizationExt for Localization {
 /// Strips Fluent's bidi-isolation marks (FSI/PDI, U+2068/U+2069), which
 /// `format_pattern` wraps around every interpolated argument by default so
 /// RTL/LTR content can't bleed into each other — meant for prose mixing
-/// scripts, not our short, single-language UI labels. `bevy_fluent`'s
-/// bundle loader has no setting to turn this off
-/// (`FluentBundle::set_use_isolating` isn't reachable through it), so this
-/// strips them after the fact rather than letting invisible formatting
-/// characters leak into rendered/logged text.
+/// scripts, not our short, single-language UI labels. Stripped after the
+/// fact rather than turned off at the bundle, so a locale that *does* mix
+/// scripts still gets correct isolation from Fluent itself and only the
+/// rendered label loses the invisible marks.
 fn strip_bidi_isolates(s: String) -> String {
     s.replace(['\u{2068}', '\u{2069}'], "")
 }
@@ -343,6 +466,30 @@ mod tests {
     fn strip_bidi_isolates_removes_fsi_pdi_marks() {
         let wrapped = "Score: \u{2068}100\u{2069} pts".to_string();
         assert_eq!(super::strip_bidi_isolates(wrapped), "Score: 100 pts");
+    }
+
+    /// The whole point of the fallback chain: the requested locale comes
+    /// first, [`super::DEFAULT_LANGUAGE`] last, and an unrelated locale
+    /// never gets consulted.
+    #[test]
+    fn fallback_chain_prefers_requested_then_default() {
+        let locale = super::default_locale();
+        let locale = super::Locale {
+            requested: super::parse_lang("pt-BR"),
+            ..locale
+        };
+        let available: Vec<_> = ["en-US", "pt-BR", "es-ES"]
+            .iter()
+            .map(|tag| super::parse_lang(tag))
+            .collect();
+
+        let chain: Vec<String> = locale
+            .fallback_chain(available.iter())
+            .into_iter()
+            .map(|lang| lang.to_string())
+            .collect();
+
+        assert_eq!(chain, vec!["pt-BR".to_string(), "en-US".to_string()]);
     }
 
     /// Every locale must define exactly the same message keys as the default
