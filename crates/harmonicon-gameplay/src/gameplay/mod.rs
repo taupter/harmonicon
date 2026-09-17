@@ -17,6 +17,7 @@ pub mod countdown_overlay;
 mod gameplay_2d;
 mod gameplay_3d;
 pub mod harmonica_overlay;
+mod highway_2d;
 mod hud;
 mod judge;
 pub mod lifecycle;

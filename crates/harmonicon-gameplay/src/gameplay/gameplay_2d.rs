@@ -8,7 +8,6 @@ use bevy::ui::ComputedNode;
 use bevy_fluent::Localization;
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_core::chart::{Action, Modifier};
-use harmonicon_platform::localization::LocalizationExt;
 use harmonicon_song::song::NoteThemeConfig;
 use harmonicon_song::song::SongManifest;
 
@@ -17,6 +16,7 @@ use harmonicon_ui::music_score::{self, BravuraFont};
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::beat_guides;
 use super::countdown_overlay::spawn_countdown;
+use super::highway_2d::{spawn_harmonica_strip, spawn_highway};
 use super::metronome_overlay::spawn_metronome;
 use super::modifier_legend::{build_legend_materials, spawn_modifier_legend};
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
@@ -410,68 +410,6 @@ pub fn note_head_bottom_pct(note_time: f64, elapsed: f64, lookahead: f64) -> f32
     (100.0 - hit_center_pct * progress) as f32
 }
 
-/// Spawns the static highway furniture (lane stripes, dividers, hit zone) —
-/// no notes. Notes are spawned later, lazily, by `spawn_visible_notes`.
-fn spawn_highway(hw: &mut ChildSpawnerCommands, chart: &harmonicon_core::chart::HarpChart) {
-    // Lane count/width come from the loaded harmonica, not a fixed 10 —
-    // a chromatic chart's 12+ holes need proportionally narrower lanes.
-    let hole_count = chart.harmonica.hole_count() as usize;
-    let lane_pct = 100.0 / hole_count as f32;
-
-    for h in 0..hole_count {
-        let left_pct = h as f32 * lane_pct;
-        let alpha = if h % 2 == 0 { 0.04f32 } else { 0.0f32 };
-        hw.spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(left_pct),
-                top: Val::Percent(0.0),
-                width: Val::Percent(lane_pct),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, alpha)),
-        ));
-        if h > 0 {
-            hw.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(left_pct),
-                    top: Val::Percent(0.0),
-                    width: Val::Px(1.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.08)),
-            ));
-        }
-    }
-
-    // Hit zone
-    hw.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Percent(0.0),
-            bottom: Val::Percent(0.0),
-            width: Val::Percent(100.0),
-            height: Val::Percent(HIT_H_PCT),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(1.0, 1.0, 0.55, 0.10)),
-    ));
-    hw.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Percent(0.0),
-            bottom: Val::Percent(HIT_H_PCT),
-            width: Val::Percent(80.0),
-            height: Val::Px(2.0),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(1.0, 1.0, 0.70, 0.55)),
-    ));
-}
-
 /// Spawns note visuals for any note that has newly entered the `LOOKAHEAD`
 /// window and doesn't have one yet. Runs every frame; cost is bounded by how
 /// many notes are near the playhead, not the song length. Self-healing
@@ -683,109 +621,6 @@ pub(super) fn note_techniques(
 fn note_rgb(colors: NoteColors, is_blow: bool) -> (f32, f32, f32) {
     let c = if is_blow { colors.blow } else { colors.draw }.to_srgba();
     (c.red, c.green, c.blue)
-}
-
-fn spawn_harmonica_strip(
-    col: &mut ChildSpawnerCommands,
-    chart: &harmonicon_core::chart::HarpChart,
-    loc: &Localization,
-) {
-    let hole_count = chart.harmonica.hole_count();
-    let lane_pct = 100.0 / hole_count as f32;
-    col.spawn(Node {
-        flex_direction: FlexDirection::Row,
-        width: Val::Percent(100.0),
-        ..default()
-    })
-    .with_children(|row| {
-        for hole in 1u8..=hole_count {
-            let b = chart.harmonica.wind_direction_label(hole, &Action::Blow);
-            let d = chart.harmonica.wind_direction_label(hole, &Action::Draw);
-            row.spawn((
-                Node {
-                    width: Val::Percent(lane_pct),
-                    // Fixed px, not Vh — Vh resolves from the physical
-                    // viewport and doesn't respond to `UiScale`, unlike this
-                    // cell's own text, so the cell would stay a fixed size on
-                    // screen while its labels scaled independently.
-                    height: Val::Px(96.0),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceAround,
-                    border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.10, 0.12, 0.16)),
-                BorderColor::all(Color::srgb(0.28, 0.30, 0.40)),
-                HoleCell(hole),
-            ))
-            .with_children(|cell| {
-                cell.spawn((
-                    Text::new(b),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.50, 0.75, 1.00)),
-                ));
-                cell.spawn((
-                    Text::new(format!("{hole}")),
-                    TextFont {
-                        font_size: FontSize::Px(16.0),
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                ));
-                cell.spawn((
-                    Text::new(d),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(1.00, 0.62, 0.35)),
-                ));
-            });
-        }
-    });
-
-    spawn_blow_draw_legend(col, loc, 20.0, 0.0);
-}
-
-/// The "Blow / Draw" colour-key legend — identical between the 2D harmonica
-/// strip and the 3D HUD overlay, differing only in the row's own spacing
-/// (`column_gap`/top `margin`, which each caller picks to match its
-/// surrounding layout).
-pub(super) fn spawn_blow_draw_legend(
-    parent: &mut ChildSpawnerCommands,
-    loc: &Localization,
-    column_gap: f32,
-    margin_top: f32,
-) {
-    parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(column_gap),
-            margin: UiRect::top(Val::Px(margin_top)),
-            ..default()
-        })
-        .with_children(|leg| {
-            leg.spawn((
-                Text::new(String::from(loc.msg("gameplay-legend-blow"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.50, 0.75, 1.00)),
-            ));
-            leg.spawn((
-                Text::new(String::from(loc.msg("gameplay-legend-draw"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(1.00, 0.62, 0.35)),
-            ));
-        });
 }
 
 // ── Per-frame systems ─────────────────────────────────────────────────────────

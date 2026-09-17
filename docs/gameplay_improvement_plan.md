@@ -62,13 +62,20 @@ Landed so far:
   placed through the chart's tempo map and the notes' own
   `note_head_bottom_pct` rather than a second timing calculation.
 - The technique legend lists only techniques the chart actually uses.
+- The hit line spans the full highway (it stopped at 80%), and is warmer and
+  heavier than a beat guide so the two can't be confused as they scroll past.
+- Breath direction was already readable without colour and needed nothing: a
+  note head reads `+7`/`-8`, or `↑`/`↓` when hole numbers are off, and the
+  hole strip derives its lanes from the same `100.0 / hole_count` the highway
+  does, so the numbers already line up under their lanes.
 
 Still open:
 
-- Strengthen the hit line and align hole numbers with it. Use shape or labels in
-  addition to blow/draw color so the colorblind palette is not the only cue.
 - Keep technique symbols close to the notes that use them; the legend is
-  supporting help, not permanent primary content.
+  supporting help, not permanent primary content. Note that the note-head
+  label deliberately drops the bend/overblow/slide suffix today — that detail
+  lives in the tab ribbon — so this is a real design reversal, not an
+  oversight.
 - Apply the same information hierarchy to Play 3D. It has no hole map, puts the
   song panel top-left where 2D puts it right, and keeps the BLOW/DRAW legend
   inside that panel — and the beat guides are 2D-only, since the 3D lane is
@@ -159,9 +166,11 @@ timing histogram buckets, and missed-range selection.
 
 ## Phase 5: polish and accessibility
 
-- Finish the colorblind-safe note palette work already listed in `PLAN.md`, with
-  shapes/marks for breath direction and hit state so color is never the sole
-  signal.
+- Finish the colorblind-safe note palette work already listed in `PLAN.md`.
+  Breath direction is already covered by the note-head label (see Phase 1), so
+  what is left is **hit state**: `gameplay_2d::note_tint` signals hit and miss
+  with gold and dim red and nothing else, which is the one place on the
+  highway where colour is still the sole cue.
 - Add reduced-motion and feedback-intensity settings before introducing camera
   shake or large pulses. Visual motion must never move the hit target.
 - Audit text contrast, focus order, touch target size and localization

@@ -818,7 +818,7 @@ fn spawn_hud_overlay(
                 spawn_tab_ribbon(p);
 
                 // Blow/draw legend
-                super::gameplay_2d::spawn_blow_draw_legend(p, loc, 12.0, 4.0);
+                super::highway_2d::spawn_blow_draw_legend(p, loc, 12.0, 4.0);
 
                 // Metronome
                 p.spawn(Node {
