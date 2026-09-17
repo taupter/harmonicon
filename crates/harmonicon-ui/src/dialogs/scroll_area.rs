@@ -11,7 +11,7 @@
 //! `menu::scene::spawn_menu_root` (any page whose content can outgrow the
 //! screen — a long artist/song/lesson/theme list) and the Song Editor.
 
-use bevy::picking::events::{Pointer, PointerDrag, PointerDragStart};
+use bevy::picking::events::{PointerDrag, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, Pressed, ScrollPosition};
 use bevy::ui_widgets::{

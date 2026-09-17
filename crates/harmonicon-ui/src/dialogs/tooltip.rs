@@ -14,7 +14,7 @@
 //! ```
 
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerOut, PointerOver};
+use bevy::picking::events::{PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 use bevy::window::PrimaryWindow;

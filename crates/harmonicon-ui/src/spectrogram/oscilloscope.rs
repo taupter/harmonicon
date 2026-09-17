@@ -24,7 +24,7 @@ pub struct OscilloscopeMaterial {
 
 impl UiMaterial for OscilloscopeMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/oscilloscope.wgsl".into()
+        "shaders/oscilloscope.wesl".into()
     }
 }
 

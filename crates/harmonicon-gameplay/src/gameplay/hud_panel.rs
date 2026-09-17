@@ -24,6 +24,7 @@ use super::modifier_legend::spawn_modifier_legend;
 use super::note_tail_2d::NoteTail2dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::song_info::{SongInfo, spawn_song_header};
+use harmonicon_platform::localization::Localization;
 
 /// What the panel needs to build itself. A struct rather than eight
 /// positional arguments, because the two call sites are in different files

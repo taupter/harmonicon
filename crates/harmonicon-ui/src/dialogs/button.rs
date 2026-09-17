@@ -2,7 +2,7 @@ use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::picking::events::{
-    Pointer, PointerCancel, PointerDragEnd, PointerOut, PointerOver, PointerPress, PointerRelease,
+    PointerCancel, PointerDragEnd, PointerOut, PointerOver, PointerPress, PointerRelease,
 };
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
@@ -183,7 +183,7 @@ pub fn make_interactive<'a, 'b>(
 /// controls. Same colours/hover as [`default`].
 pub fn small<M: 'static>(
     label: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> impl Scene {
     bsn! {
         WidgetButton
@@ -204,12 +204,10 @@ pub fn small<M: 'static>(
             flex_shrink: {0.0_f32},
         }
         Children [
-            (
-                Text({label.to_string()})
-                TextFont { font_size: {FontSize::Px(15.0)} }
-                TextColor({Color::WHITE})
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Text({label.to_string()})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::WHITE})
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -225,7 +223,7 @@ pub fn sized<M: 'static>(
     label: &str,
     width: f32,
     font_size: f32,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> impl Scene {
     bsn! {
         WidgetButton
@@ -248,13 +246,11 @@ pub fn sized<M: 'static>(
             flex_shrink: {0.0_f32},
         }
         Children [
-            (
                 Text({label.to_string()})
                 TextFont { font_size: {FontSize::Px(font_size)} }
                 TextColor({Color::WHITE})
                 TextLayout { justify: {Justify::Center} }
                 Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
         ]
     }
 }
@@ -265,7 +261,7 @@ pub fn sized<M: 'static>(
 /// visible text to explain the glyph.
 pub fn icon<M: 'static>(
     glyph: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> impl Scene {
     bsn! {
         WidgetButton
@@ -288,19 +284,17 @@ pub fn icon<M: 'static>(
             flex_shrink: {0.0_f32},
         }
         Children [
-            (
                 Text({glyph.to_string()})
                 TextFont { font_size: {FontSize::Px(20.0)} }
                 TextColor({Color::WHITE})
                 Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
         ]
     }
 }
 
 pub fn default<M: 'static>(
     label: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> impl Scene {
     bsn! {
         WidgetButton
@@ -324,12 +318,10 @@ pub fn default<M: 'static>(
             flex_shrink: {0.0_f32},
         }
         Children [
-            (
                 Text({label.to_string()})
                 TextFont { font_size: {FontSize::Px(20.0)} }
                 TextColor({Color::WHITE})
                 Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
         ]
     }
 }

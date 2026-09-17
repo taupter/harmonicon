@@ -11,7 +11,7 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerOut, PointerOver};
+use bevy::picking::events::{PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::ui_widgets::Button as WidgetButton;
@@ -502,12 +502,10 @@ fn zoom_slider_scene(value: f32, frac: f32) -> impl Scene {
         ZoomSlider
         on(set_zoom)
         Children [
-            (
-                Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
-                BackgroundColor({Color::srgb(0.55, 0.45, 0.85)})
-                ZoomSliderFill
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
+            BackgroundColor({Color::srgb(0.55, 0.45, 0.85)})
+            ZoomSliderFill
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -693,17 +691,14 @@ fn harmonica_button_scene(image: Handle<Image>, name: String, is_selected: bool)
         on(harm_over)
         on(harm_out)
         Children [
-            (
-                Node { width: {Val::Px(54.0)}, height: {Val::Px(54.0)} }
-                ImageNode { image: {image}, color: {Color::WHITE} }
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            ),
-            (
-                Text({label})
-                TextFont { font_size: {FontSize::Px(16.0)} }
-                TextColor({Color::WHITE})
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Px(54.0)}, height: {Val::Px(54.0)} }
+            ImageNode { image: {image}, color: {Color::WHITE} }
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
+            --
+            Text({label})
+            TextFont { font_size: {FontSize::Px(16.0)} }
+            TextColor({Color::WHITE})
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -969,12 +964,10 @@ fn mic_retry_button_scene(tooltip: String) -> impl Scene {
             commands.queue(audio_input::start_capture);
         })
         Children [
-            (
-                Text({"Retry".to_string()})
-                TextFont { font_size: {FontSize::Px(15.0)} }
-                TextColor({Color::WHITE})
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Text({"Retry".to_string()})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::WHITE})
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -1145,7 +1138,7 @@ fn spawn_volume_slider<M: 'static>(
     tooltip: &str,
     kind: VolumeSlider,
     value: f32,
-    on_change: impl IntoObserverSystem<ValueChange<f32>, (), M> + Clone + Sync + 'static,
+    on_change: impl IntoObserverSystem<ValueChange<f32>, M> + Clone + Sync + 'static,
 ) {
     let row = spawn_slider_row(commands, parent, label, tooltip);
 
@@ -1170,7 +1163,7 @@ fn spawn_volume_slider<M: 'static>(
 fn volume_slider_scene<M: 'static>(
     kind: VolumeSlider,
     value: f32,
-    on_change: impl IntoObserverSystem<ValueChange<f32>, (), M> + Clone + Sync + 'static,
+    on_change: impl IntoObserverSystem<ValueChange<f32>, M> + Clone + Sync + 'static,
 ) -> impl Scene {
     bsn! {
         Slider { track_click: {TrackClick::Snap} }
@@ -1180,13 +1173,11 @@ fn volume_slider_scene<M: 'static>(
         BackgroundColor({TRACK_BG})
         on(on_change)
         Children [
-            (
-                Node { width: {Val::Percent(value * 100.0)}, height: {Val::Percent(100.0)} }
-                BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
-                SliderFill({kind})
-                // Don't let the fill steal the slider's pointer events.
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Percent(value * 100.0)}, height: {Val::Percent(100.0)} }
+            BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
+            SliderFill({kind})
+            // Don't let the fill steal the slider's pointer events.
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -1231,12 +1222,10 @@ fn latency_slider_scene(value: f32, frac: f32) -> impl Scene {
         LatencySlider
         on(set_input_latency)
         Children [
-            (
-                Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
-                BackgroundColor({Color::srgb(0.80, 0.55, 0.25)})
-                LatencySliderFill
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
+            BackgroundColor({Color::srgb(0.80, 0.55, 0.25)})
+            LatencySliderFill
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }

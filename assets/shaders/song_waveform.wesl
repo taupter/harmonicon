@@ -6,7 +6,7 @@
 // reads as a classic audio waveform silhouette rather than a bar chart or a
 // row of isolated spikes.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 @group(1) @binding(0) var<uniform> color: vec4<f32>;
 @group(1) @binding(1) var<uniform> amplitudes: array<vec4<f32>, 75>; // 300 buckets, packed

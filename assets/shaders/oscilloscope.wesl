@@ -5,7 +5,7 @@
 // For each pixel we light it by distance to the line segment spanning the two
 // samples that bracket its x, with a soft glow falloff — like a CRT scope.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 @group(1) @binding(0) var<uniform> color: vec4<f32>;
 @group(1) @binding(1) var<uniform> wave: array<vec4<f32>, 32>; // 128 samples, packed

@@ -20,7 +20,7 @@
 //! plus its technique hint.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
-use bevy::picking::events::{Pointer, PointerClick, PointerOut, PointerOver};
+use bevy::picking::events::{PointerClick, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 

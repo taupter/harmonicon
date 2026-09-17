@@ -39,12 +39,10 @@ pub fn spawn_wait_freeze_prompt(commands: &mut Commands) {
             GlobalZIndex(90)
             GameplayRoot
             Children [
-                (
-                    Text({""})
-                    TextFont { font_size: {FontSize::Px(28.0)} }
-                    TextColor({Color::srgb(1.0, 0.85, 0.35)})
-                    WaitFreezePrompt
-                )
+                Text({""})
+                TextFont { font_size: {FontSize::Px(28.0)} }
+                TextColor({Color::srgb(1.0, 0.85, 0.35)})
+                WaitFreezePrompt
             ]
         })
         .insert(Visibility::Hidden);

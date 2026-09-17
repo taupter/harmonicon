@@ -11,7 +11,7 @@
 // uv.y = 1 at the middle — the same "curves away from the notehead" shape
 // a real tie drawn below the staff has.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 // x = arc depth (fraction of the node's own height the middle dips to),
 // y = line thickness (fraction of the node's own height).

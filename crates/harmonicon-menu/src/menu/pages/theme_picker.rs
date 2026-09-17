@@ -14,7 +14,7 @@
 
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerOut, PointerOver};
+use bevy::picking::events::{PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
@@ -173,12 +173,10 @@ fn theme_button_scene(name: String, is_selected: bool) -> impl Scene {
         on(theme_over)
         on(theme_out)
         Children [
-            (
-                Text({label})
-                TextFont { font_size: {FontSize::Px(19.0)} }
-                TextColor({Color::WHITE})
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Text({label})
+            TextFont { font_size: {FontSize::Px(19.0)} }
+            TextColor({Color::WHITE})
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }

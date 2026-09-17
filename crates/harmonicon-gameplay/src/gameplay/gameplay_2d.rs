@@ -26,6 +26,7 @@ use super::{
     MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, SongNotes,
     ValidHarpNotes, spawn_score_readout,
 };
+use harmonicon_platform::localization::Localization;
 use harmonicon_platform::theme::{LoadedTheme, NoteColors, effective_note_colors};
 
 /// Height of the hit line, as a percentage of the play area — the region a

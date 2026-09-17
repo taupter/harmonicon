@@ -34,7 +34,7 @@
 //! `ranges::erase_range`/`ranges::remove_range` pair; this module is just
 //! the interaction/UI wiring around them.
 
-use bevy::picking::events::{Pointer, PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
+use bevy::picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
 

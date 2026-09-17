@@ -7,7 +7,7 @@ use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
 
 /// Editor-specific note overlay material. Renders Vibrato as a horizontal sine
 /// wave ribbon and Wah as an alternating thick/thin band. Drawn in
-/// `assets/shaders/editor_note.wgsl`.
+/// `assets/shaders/editor_note.wesl`.
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 pub(super) struct EditorNoteMaterial {
     #[uniform(0)]
@@ -23,7 +23,7 @@ pub(super) struct EditorNoteMaterial {
 
 impl UiMaterial for EditorNoteMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/editor_note.wgsl".into()
+        "shaders/editor_note.wesl".into()
     }
 }
 

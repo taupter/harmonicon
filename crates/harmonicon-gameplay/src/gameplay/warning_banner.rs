@@ -75,21 +75,17 @@ pub fn setup_warning_banner(mut commands: Commands) {
             GameplayRoot
             WarningRoot
             Children [
-                (
-                    Node {
-                        padding: {UiRect::axes(Val::Px(16.0), Val::Px(8.0))},
-                        border_radius: {BorderRadius::all(Val::Px(6.0))},
-                    }
-                    BackgroundColor({Color::srgba(0.35, 0.05, 0.05, 0.92)})
-                    Children [
-                        (
-                            Text({""})
-                            TextFont { font_size: {FontSize::Px(20.0)} }
-                            TextColor({Color::srgb(1.0, 0.85, 0.85)})
-                            WarningLabel
-                        )
-                    ]
-                )
+                Node {
+                    padding: {UiRect::axes(Val::Px(16.0), Val::Px(8.0))},
+                    border_radius: {BorderRadius::all(Val::Px(6.0))},
+                }
+                BackgroundColor({Color::srgba(0.35, 0.05, 0.05, 0.92)})
+                Children [
+                    Text({""})
+                    TextFont { font_size: {FontSize::Px(20.0)} }
+                    TextColor({Color::srgb(1.0, 0.85, 0.85)})
+                    WarningLabel
+                ]
             ]
         })
         .insert(Visibility::Hidden);

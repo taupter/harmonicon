@@ -12,7 +12,7 @@
 use bevy::input::mouse::MouseWheel;
 use bevy::input::touch::{Touch, Touches};
 use bevy::input_focus::InputFocus;
-use bevy::picking::events::{Pointer, PointerDrag};
+use bevy::picking::events::PointerDrag;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
 use bevy::text::EditableText;

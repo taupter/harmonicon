@@ -160,13 +160,11 @@ pub fn spawn_modifier_legend(
                 BackgroundColor({Color::NONE})
                 on(toggle_technique_legend)
                 Children [
-                    (
-                        Text({technique_legend_toggle_text(loc, false)})
-                        TextFont { font_size: {FontSize::Px(15.0)} }
-                        TextColor({Color::srgb(0.55, 0.55, 0.62)})
-                        TechniqueLegendToggleLabel
-                        Pickable { should_block_lower: {false}, is_hoverable: {false} }
-                    )
+                    Text({technique_legend_toggle_text(loc, false)})
+                    TextFont { font_size: {FontSize::Px(15.0)} }
+                    TextColor({Color::srgb(0.55, 0.55, 0.62)})
+                    TechniqueLegendToggleLabel
+                    Pickable { should_block_lower: {false}, is_hoverable: {false} }
                 ]
             });
 

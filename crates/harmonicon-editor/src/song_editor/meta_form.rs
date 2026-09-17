@@ -161,7 +161,7 @@ fn spawn_cycle_row<T: Component, M: 'static>(
     label_key: &str,
     tooltip_key: &str,
     marker: T,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) {
     col.spawn(Node {
         width: Val::Percent(100.0),

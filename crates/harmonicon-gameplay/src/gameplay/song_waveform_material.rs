@@ -31,7 +31,7 @@ pub struct SongWaveformMaterial {
 
 impl UiMaterial for SongWaveformMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/song_waveform.wgsl".into()
+        "shaders/song_waveform.wesl".into()
     }
 }
 
@@ -45,7 +45,7 @@ impl UiMaterial for SongWaveformMaterial {
 /// average over the buckets before packing them, which rounded the
 /// silhouette off enough that it stopped reading as an actual audio
 /// waveform at all — the shader's own inter-bucket interpolation
-/// (`song_waveform.wgsl`) is the only smoothing this applies.
+/// (`song_waveform.wesl`) is the only smoothing this applies.
 pub fn pack_amplitudes(waveform: &[f32], floor: f32) -> [Vec4; PACKED] {
     let mut amplitudes = [Vec4::ZERO; PACKED];
     for (i, &amplitude) in waveform.iter().take(WAVEFORM_BUCKETS).enumerate() {

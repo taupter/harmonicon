@@ -19,7 +19,7 @@ use super::ranges::normalize_range;
 use super::state::{EditorState, TimelineDrag, TimelineSelection, TimelineTool};
 use super::timeline::request_confirm;
 use super::ui::{BendDot, ModButton, ModButtonLabel, ModeButton, TimelineToolButton};
-use harmonicon_platform::localization::LocalizedStr;
+use harmonicon_platform::localization::{Localization, LocalizedStr};
 use harmonicon_platform::settings::ActionButtonStyle;
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::button::make_interactive;
@@ -56,7 +56,7 @@ fn spawn_button_shell<'a, M: 'static>(
     tooltip: LocalizedStr,
     icon: &str,
     style: ActionButtonStyle,
-    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, (), M>,
+    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, M>,
 ) -> EntityCommands<'a> {
     let mut ec = panel.spawn((
         WidgetButton,
@@ -94,7 +94,7 @@ pub(super) fn mode_button<M: 'static>(
     icon: &str,
     style: ActionButtonStyle,
     colors: SongEditorColors,
-    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, (), M>,
+    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, M>,
 ) {
     spawn_button_shell(panel, colors.btn_bg, label, tooltip, icon, style, on_click).insert(kind);
 }
@@ -249,7 +249,7 @@ pub(super) fn transport_button<'a, M: 'static>(
     icon: &str,
     style: ActionButtonStyle,
     bg: Color,
-    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, (), M>,
+    on_click: impl bevy::ecs::system::IntoObserverSystem<Activate, M>,
 ) -> EntityCommands<'a> {
     spawn_button_shell(panel, bg, label, tooltip, icon, style, on_click)
 }

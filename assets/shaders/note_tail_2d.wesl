@@ -17,7 +17,7 @@
 //
 // uv.y = 0 is the tip (top); uv.y = 1 is the base by the head (bottom).
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 // params: x = vibrato amplitude, y = vibrato cycles, z = animation time (seconds),
 //         w = bend amplitude (fraction of width; signed direction baked in)

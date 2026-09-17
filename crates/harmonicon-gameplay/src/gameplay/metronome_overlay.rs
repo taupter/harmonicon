@@ -4,7 +4,7 @@ use bevy::{
     audio::{AudioSource, Volume},
     input_focus::tab_navigation::TabIndex,
     picking::Pickable,
-    picking::events::{Pointer, PointerOut, PointerOver},
+    picking::events::{PointerOut, PointerOver},
     prelude::*,
     ui_widgets::Activate,
     ui_widgets::Button as WidgetButton,
@@ -172,13 +172,11 @@ pub fn spawn_metronome(
                     on(pill_over)
                     on(pill_out)
                     Children [
-                        (
-                            Text({String::from(loc.msg("metronome-click-on"))})
-                            TextFont { font_size: {FontSize::Px(15.0)} }
-                            TextColor({Color::srgb(0.65, 0.65, 0.70)})
-                            MetronomeMuteLabel
-                            Pickable { should_block_lower: {false}, is_hoverable: {false} }
-                        )
+                        Text({String::from(loc.msg("metronome-click-on"))})
+                        TextFont { font_size: {FontSize::Px(15.0)} }
+                        TextColor({Color::srgb(0.65, 0.65, 0.70)})
+                        MetronomeMuteLabel
+                        Pickable { should_block_lower: {false}, is_hoverable: {false} }
                     ]
                 })
                 .insert(BorderColor::all(PILL_BORDER));
@@ -198,13 +196,11 @@ pub fn spawn_metronome(
                     on(pill_over)
                     on(pill_out)
                     Children [
-                        (
-                            Text({String::from(loc.msg(feel_label_key(MetronomeFeel::default())))})
-                            TextFont { font_size: {FontSize::Px(15.0)} }
-                            TextColor({Color::srgb(0.65, 0.65, 0.70)})
-                            MetronomeFeelLabel
-                            Pickable { should_block_lower: {false}, is_hoverable: {false} }
-                        )
+                        Text({String::from(loc.msg(feel_label_key(MetronomeFeel::default())))})
+                        TextFont { font_size: {FontSize::Px(15.0)} }
+                        TextColor({Color::srgb(0.65, 0.65, 0.70)})
+                        MetronomeFeelLabel
+                        Pickable { should_block_lower: {false}, is_hoverable: {false} }
                     ]
                 })
                 .insert(BorderColor::all(PILL_BORDER));

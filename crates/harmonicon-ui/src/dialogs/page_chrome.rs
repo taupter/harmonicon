@@ -56,7 +56,7 @@ pub fn title_column_scene(title: String) -> impl Scene {
             flex_grow: {1.0_f32},
             row_gap: {Val::Px(6.0)},
         }
-        Children [ heading_scene(title, 52.0, Color::WHITE) ]
+        Children [ @heading_scene(title, 52.0, Color::WHITE) ]
     }
 }
 
@@ -70,7 +70,7 @@ pub fn spawn_back_button<M: 'static>(
     commands: &mut Commands,
     header: Entity,
     tooltip: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> Entity {
     let e = commands
         .spawn_scene(button::icon("\u{2190}", on_click))

@@ -854,7 +854,7 @@ fn spawn_timing_zones(bar: &mut ChildSpawnerCommands) {
 fn spawn_cal_button<M: 'static>(
     parent: &mut ChildSpawnerCommands,
     label: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) {
     parent
         .spawn_empty()

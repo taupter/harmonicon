@@ -48,7 +48,7 @@ pub fn spawn_numeric_input<M: 'static>(
     max: f32,
     bg: Color,
     border: Color,
-    on_commit: impl IntoObserverSystem<NumericInputCommitted, (), M>,
+    on_commit: impl IntoObserverSystem<NumericInputCommitted, M>,
 ) -> Entity {
     let value = value.clamp(min, max);
     let input = commands
@@ -185,7 +185,7 @@ pub fn spawn_text_input<M: 'static>(
     width: f32,
     bg: Color,
     border: Color,
-    on_commit: impl IntoObserverSystem<TextInputCommitted, (), M>,
+    on_commit: impl IntoObserverSystem<TextInputCommitted, M>,
 ) -> Entity {
     let input = commands
         .spawn((
@@ -231,7 +231,7 @@ pub fn spawn_multiline_text_input<M: 'static>(
     width: f32,
     bg: Color,
     border: Color,
-    on_commit: impl IntoObserverSystem<TextInputCommitted, (), M>,
+    on_commit: impl IntoObserverSystem<TextInputCommitted, M>,
 ) -> Entity {
     let mut editable = EditableText::new(value);
     editable.visible_lines = Some(4.0);

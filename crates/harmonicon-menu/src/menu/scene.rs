@@ -77,8 +77,9 @@ fn title_column_with_subtitle_scene(title: String, subtitle: String) -> impl Sce
             row_gap: {Val::Px(6.0)},
         }
         Children [
-            heading_scene(title, 52.0, Color::WHITE),
-            heading_scene(subtitle, 20.0, Color::srgb(0.6, 0.6, 0.7)),
+            @heading_scene(title, 52.0, Color::WHITE)
+            --
+            @heading_scene(subtitle, 20.0, Color::srgb(0.6, 0.6, 0.7))
         ]
     }
 }
@@ -245,7 +246,7 @@ pub fn spawn_button<M: 'static>(
     commands: &mut Commands,
     parent: Entity,
     label: &str,
-    on_click: impl IntoObserverSystem<Activate, (), M> + Clone + Sync + 'static,
+    on_click: impl IntoObserverSystem<Activate, M> + Clone + Sync + 'static,
 ) -> Entity {
     let node = Node {
         min_width: Val::Px(260.0),

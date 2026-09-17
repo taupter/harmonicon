@@ -202,7 +202,7 @@ debug = false
 # the target so desktop keeps the fast path.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
-getrandom03 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
 # Reads the bundled fonts' cmaps in tests/glyph_coverage.rs, so "does this

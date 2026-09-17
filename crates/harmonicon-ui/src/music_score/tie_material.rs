@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 //! A real curved tie, drawn as a [`UiMaterial`] fragment shader
-//! (`assets/shaders/music_score_tie.wgsl`) rather than the flat rectangle
+//! (`assets/shaders/music_score_tie.wesl`) rather than the flat rectangle
 //! plain `bevy_ui` `Node`/`BackgroundColor` primitives are limited to —
 //! the same "custom shader for a shape a plain `Node` can't express"
 //! pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
@@ -31,7 +31,7 @@ pub struct TieMaterial {
 
 impl UiMaterial for TieMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/music_score_tie.wgsl".into()
+        "shaders/music_score_tie.wesl".into()
     }
 }
 

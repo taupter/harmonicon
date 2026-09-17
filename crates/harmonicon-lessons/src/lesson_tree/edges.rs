@@ -45,7 +45,7 @@ pub(crate) struct LessonEdgeMaterial {
 
 impl UiMaterial for LessonEdgeMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/lesson_edge.wgsl".into()
+        "shaders/lesson_edge.wesl".into()
     }
 }
 

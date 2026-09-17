@@ -331,6 +331,24 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   message-based, `DialogId`-scoped shape as `dialogs::file_dialog`) rather
   than firing immediately or hand-rolling another modal; the Song Editor's
   Erase/Remove timeline tool (`song_editor::timeline`) is its first user.
+  - **Inside `Children [ … ]`, siblings are separated by `--`.** Bevy
+    0.20 deprecated both the parentheses that grouped one child's
+    components and the commas between siblings — a child is now just a
+    run of components, and `--` starts the next one. The old form still
+    compiles, with a deprecation warning, which CI's `cargo clippy
+    --all-targets -- -D warnings` turns into a failure; that is the whole
+    enforcement, so no separate check exists.
+    `scripts/bsn_children_to_dashes.py` did the original conversion and
+    still has a `--check` mode.
+  - **A scene-returning function used as a child needs `@`**:
+    `@button::small(label, on_click)`, not `button::small(...)`. Without
+    it the call is read as a component expression and fails on
+    `Template`/`SceneEffect` bounds — the error names those traits and
+    never mentions the missing sigil, so it is worth recognising by shape.
+    `bevy`'s own `examples/scene/bsn.rs` is the reference for both rules.
+  - **An observer callback's bound is `IntoObserverSystem<E, M>`** —
+    two parameters. 0.19's middle `()` was the observed `Bundle` and is
+    gone; `Out` is now the (defaulted) third.
 - **Keyboard navigation:** every interactive element must use a real
   `bevy_ui_widgets` widget (explicit `use bevy::ui_widgets::Button as
   WidgetButton` — plain `bevy::prelude::*` resolves the bare `Button` name

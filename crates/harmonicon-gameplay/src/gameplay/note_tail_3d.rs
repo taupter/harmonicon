@@ -24,7 +24,7 @@ pub struct NoteTail3dMaterial {
 
 impl Material for NoteTail3dMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/note_tail_3d.wgsl".into()
+        "shaders/note_tail_3d.wesl".into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {

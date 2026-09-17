@@ -30,7 +30,6 @@ use harmonicon_app::app::SelectedSong;
 use harmonicon_core::chart::{seconds_to_tick, tick_to_seconds};
 use harmonicon_song::song::SongManifest;
 
-use super::GameplayRoot;
 use super::bars::{beat_ticks_in_range, chart_meter, ticks_per_beat};
 use super::clock::GameplayClock;
 use super::gameplay_2d::note_head_bottom_pct;
@@ -74,7 +73,15 @@ pub(super) fn spawn_beat_guides(commands: &mut Commands, highway: Entity) {
                 Visibility::Hidden,
                 Pickable::IGNORE,
                 BeatGuide,
-                GameplayRoot,
+                // **No `GameplayRoot`.** That marker means "a top-level
+                // entity `cleanup_gameplay` sweeps on exit"; these are
+                // children of the highway, which is itself a descendant of
+                // the `GameplayRoot` node `gameplay_2d::setup` spawns, so
+                // that sweep already takes them via its recursive despawn.
+                // Tagging them too put them in the sweep's own query as
+                // well, and the second despawn then hit an entity its own
+                // ancestor had just removed — one `Entity despawned`
+                // warning per guide, every time you left Play 2D.
             ));
         }
     });

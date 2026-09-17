@@ -27,6 +27,7 @@ use super::{
     MusicStarted, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, ValidHarpNotes,
     spawn_score_readout,
 };
+use harmonicon_platform::localization::Localization;
 
 // ── 3D layout constants ───────────────────────────────────────────────────────
 

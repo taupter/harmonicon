@@ -8,7 +8,7 @@ use bevy::ui_render::prelude::{UiMaterial, UiMaterialPlugin};
 /// UI material for a note's comet **tail**. The round head is a separate image
 /// layered on top of the tail's base; this material draws the tapered, fading
 /// trail, shaped by the note's techniques and *animated* per technique. Drawn in
-/// `assets/shaders/note_tail_2d.wgsl`.
+/// `assets/shaders/note_tail_2d.wesl`.
 #[derive(Asset, TypePath, AsBindGroup, Clone)]
 pub struct NoteTail2dMaterial {
     #[uniform(0)]
@@ -26,7 +26,7 @@ pub struct NoteTail2dMaterial {
 
 impl UiMaterial for NoteTail2dMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/note_tail_2d.wgsl".into()
+        "shaders/note_tail_2d.wesl".into()
     }
 }
 

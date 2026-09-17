@@ -7,7 +7,7 @@
 // `wah.z` selects the per-technique animation and `params.z` is the live gameplay
 // clock. uv.y = 0 is the tip, uv.y = 1 is the base by the head.
 
-#import bevy_pbr::forward_io::VertexOutput
+import bevy_pbr::render::forward_io::VertexOutput;
 
 // params: x = vibrato amplitude, y = vibrato cycles, z = animation time (seconds),
 //         w = bend amplitude (signed)

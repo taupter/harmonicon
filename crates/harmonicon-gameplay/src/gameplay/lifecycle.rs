@@ -20,6 +20,7 @@ use super::state::{
     GameplayRoot, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicPlayer, MusicStarted, Paused,
     PitchGate, Score, ScoringConfig, SongEnd, SongStats,
 };
+use harmonicon_platform::localization::Localization;
 
 /// The capture stream's sample rate is fixed for as long as it is open, so
 /// the filter's onset lag is resolved once here rather than recomputed per

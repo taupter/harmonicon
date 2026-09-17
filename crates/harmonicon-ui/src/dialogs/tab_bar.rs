@@ -24,7 +24,7 @@
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerOut, PointerOver};
+use bevy::picking::events::{PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui::Checked;
 use bevy::ui_widgets::{RadioButton, RadioGroup, ValueChange, radio_self_update};
@@ -73,7 +73,7 @@ pub fn spawn_tab_bar<M: 'static>(
     parent: Entity,
     labels: &[String],
     selected: usize,
-    on_select: impl IntoObserverSystem<TabSelect, (), M>,
+    on_select: impl IntoObserverSystem<TabSelect, M>,
 ) -> Entity {
     let bar = commands
         .spawn((
@@ -122,12 +122,10 @@ fn tab_scene(label: String, active: bool) -> impl Scene {
         on(tab_over)
         on(tab_out)
         Children [
-            (
-                Text({label})
-                TextFont { font_size: {FontSize::Px(16.0)} }
-                TextColor({Color::WHITE})
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Text({label})
+            TextFont { font_size: {FontSize::Px(16.0)} }
+            TextColor({Color::WHITE})
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }

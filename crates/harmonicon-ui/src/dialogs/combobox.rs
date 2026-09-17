@@ -29,7 +29,7 @@
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerClick, PointerOut, PointerOver};
+use bevy::picking::events::{PointerClick, PointerOut, PointerOver};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
@@ -135,7 +135,7 @@ pub fn spawn_combobox<M: 'static>(
     label: &str,
     options: &[String],
     current: &str,
-    on_select: impl IntoObserverSystem<ComboboxSelect, (), M>,
+    on_select: impl IntoObserverSystem<ComboboxSelect, M>,
 ) -> Entity {
     let root = commands
         .spawn((
@@ -400,12 +400,10 @@ fn item_scene(value: String, is_selected: bool) -> impl Scene {
         on(item_over)
         on(item_out)
         Children [
-            (
                 Text({value})
                 TextFont { font_size: {FontSize::Px(16.0)} }
                 TextColor({Color::WHITE})
                 Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
         ]
     }
 }

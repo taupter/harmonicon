@@ -17,7 +17,7 @@
 // `in.size` alone, which also means a node that later stretches still
 // draws the right line. `params.y` picks which of the two diagonals.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 // x = half thickness, in pixels.
 // y = +1 when the line runs top-left to bottom-right, -1 when it runs

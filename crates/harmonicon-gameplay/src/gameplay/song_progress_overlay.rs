@@ -41,7 +41,7 @@
 //! [`RequestLoopRange`] rather than writing `LoopConfig` directly, keeping
 //! the drag interaction and the loop-adoption policy decoupled.
 
-use bevy::picking::events::{Pointer, PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
+use bevy::picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
@@ -284,7 +284,12 @@ pub fn spawn_song_progress(
             BackgroundColor(harmonicon_platform::theme::HUD_PANEL_BG),
             GlobalZIndex(BAR_Z_INDEX),
             GameplayRoot,
-            Button,
+            // No `Button` marker: this is a drag surface, and the three
+            // observers below are picking events, which any `Node` already
+            // receives (and blocks lower nodes from, via `Pickable`'s own
+            // default). The legacy `bevy_ui::widget::Button` only ever
+            // added `FocusPolicy::Block` + `Interaction` here, neither of
+            // which anything reads.
             RelativeCursorPosition::default(),
             ProgressBarDragSurface,
         ))
@@ -294,7 +299,7 @@ pub fn spawn_song_progress(
         .with_children(|bar| {
             // The waveform as the note-lanes strip's own background — a
             // single shader-drawn node (`SongWaveformMaterial`/`assets/
-            // shaders/song_waveform.wgsl`) instead of one `Node` per
+            // shaders/song_waveform.wesl`) instead of one `Node` per
             // bucket. A sibling of `strip` (not nested inside it) sized and
             // positioned to exactly overlap it, spawned *first* so it's the
             // bottom layer of this whole `bar`: under the phrase-mastery

@@ -153,12 +153,10 @@ pub fn spawn_call_response_banner(commands: &mut Commands) {
             GlobalZIndex(90)
             GameplayRoot
             Children [
-                (
-                    Text({""})
-                    TextFont { font_size: {FontSize::Px(28.0)} }
-                    TextColor({Color::srgb(1.0, 0.85, 0.35)})
-                    CallResponseBanner
-                )
+                Text({""})
+                TextFont { font_size: {FontSize::Px(28.0)} }
+                TextColor({Color::srgb(1.0, 0.85, 0.35)})
+                CallResponseBanner
             ]
         })
         .insert(Visibility::Hidden);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 use bevy::picking::Pickable;
-use bevy::picking::events::{Pointer, PointerDrag, PointerDragEnd, PointerDragStart};
+use bevy::picking::events::{PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
 use bevy::ui_render::prelude::MaterialNode;

@@ -66,7 +66,7 @@ load-bearing about *this* crate.
     accidental (a tie doesn't restate one) and draws a tie mark back to
     the segment before it. The tie itself is a *real curved arc*, not a
     flat rectangle: `music_score::tie_material::TieMaterial` is a
-    `UiMaterial` fragment shader (`assets/shaders/music_score_tie.wgsl`),
+    `UiMaterial` fragment shader (`assets/shaders/music_score_tie.wesl`),
     the same "custom shader for a shape a plain `Node` can't express"
     pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
     established — one shared material handle covers every tie, since

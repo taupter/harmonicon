@@ -750,3 +750,79 @@ fn theme_assets_are_complete() {
 
     assert!(report.is_empty(), "Incomplete theme assets:\n{report}");
 }
+
+/// Every `ShaderRef` path named in the workspace's Rust sources resolves to a
+/// real file under `assets/`.
+///
+/// A `ShaderRef` is a plain string: renaming or moving a shader compiles
+/// perfectly and only fails at *runtime*, when the material's pipeline is
+/// first built and the asset server has nothing to hand it. Worse, the
+/// failure surfaces as a wgpu validation error about the shader's contents
+/// rather than about its path, so it reads like a shader bug.
+///
+/// Bevy 0.20's move from naga_oil to WESL (`.wgsl` -> `.wesl`, since only
+/// `.wesl` resolves `import`s) renamed all seven of them at once, which is
+/// exactly the kind of sweep that leaves one behind.
+#[test]
+fn shader_ref_paths_exist() {
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let assets = repo.join("assets");
+
+    let mut sources = Vec::new();
+    collect_rust_sources(&repo.join("src"), &mut sources);
+    for crate_dir in subdirs(&repo.join("crates")) {
+        collect_rust_sources(&crate_dir.join("src"), &mut sources);
+    }
+    assert!(
+        !sources.is_empty(),
+        "found no Rust sources to scan for shader paths"
+    );
+
+    let mut referenced: Vec<(String, String)> = Vec::new();
+    for path in &sources {
+        let text = std::fs::read_to_string(path).expect("source file must be readable");
+        for rel in shader_refs(&text) {
+            referenced.push((label(path), rel));
+        }
+    }
+    assert!(
+        !referenced.is_empty(),
+        "found no `shaders/...` paths at all — has the ShaderRef convention changed?"
+    );
+
+    let mut report = String::new();
+    for (source, rel) in &referenced {
+        if !assets.join(rel).exists() {
+            report.push_str(&format!("  {source} references missing assets/{rel}\n"));
+        }
+    }
+    assert!(report.is_empty(), "Dangling shader paths:\n{report}");
+}
+
+/// Every `.rs` file under `dir`, recursively, appended to `out`.
+fn collect_rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rust_sources(&path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// The `shaders/<name>.<ext>` string literals in `text`.
+///
+/// Deliberately matches the whole `"shaders/..."` literal rather than a
+/// specific extension, so a stale `.wgsl` reference is *reported as
+/// dangling* instead of being skipped by the scan that was meant to catch it.
+fn shader_refs(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for (start, _) in text.match_indices("\"shaders/") {
+        let rest = &text[start + 1..];
+        if let Some(end) = rest.find('"') {
+            found.push(rest[..end].to_string());
+        }
+    }
+    found
+}

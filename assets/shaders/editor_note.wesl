@@ -13,7 +13,7 @@
 // a constant — so resizing a note repeats or truncates the pattern at a
 // steady rhythm instead of stretching/squeezing a fixed number of waves.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 @group(1) @binding(0) var<uniform> color: vec4<f32>;
 @group(1) @binding(1) var<uniform> params: vec4<f32>;

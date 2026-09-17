@@ -317,7 +317,7 @@ clip rect — correct for an axis-aligned quad, but on a rotated one it
 *shears* the quad rather than cutting it. The tree lives in a scroll
 area, which clips, so every edge running off the viewport came out
 skewed. `edges.rs` keeps the node axis-aligned and draws the line in a
-`UiMaterial` fragment shader (`assets/shaders/lesson_edge.wgsl`),
+`UiMaterial` fragment shader (`assets/shaders/lesson_edge.wesl`),
 putting clipping back on the path `bevy_ui` handles properly. Same
 "custom shader for a shape a plain `Node` can't express" pattern as
 `gameplay::note_tail_2d` and `music_score::tie_material`.

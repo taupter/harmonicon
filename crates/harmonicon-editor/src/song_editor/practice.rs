@@ -9,7 +9,7 @@ use harmonicon_core::midi::{freq_to_midi, midi_to_note};
 use harmonicon_core::scoring::{
     AttackGate, HitQuality, NoteOutcome, classify_note, compute_points, sustain_points,
 };
-use harmonicon_platform::localization::{LocalizationExt, LocalizedStr};
+use harmonicon_platform::localization::{Localization, LocalizationExt, LocalizedStr};
 
 #[cfg(test)]
 use super::TICKS_PER_BEAT;

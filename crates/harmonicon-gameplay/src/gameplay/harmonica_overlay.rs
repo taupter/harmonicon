@@ -10,7 +10,7 @@
 
 use std::collections::HashSet;
 
-use bevy::picking::events::{Pointer, PointerClick};
+use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 
 use harmonicon_core::chart::Action;
@@ -220,7 +220,7 @@ pub struct DiagramCellTarget {
 pub fn spawn_harmonica_overlay_selectable<M: 'static>(
     parent: &mut ChildSpawnerCommands,
     harp: &Harmonica,
-    on_click: impl bevy::ecs::system::IntoObserverSystem<PointerClick, (), M> + Clone + Sync + 'static,
+    on_click: impl bevy::ecs::system::IntoObserverSystem<PointerClick, M> + Clone + Sync + 'static,
     loc: &Localization,
 ) {
     if matches!(harp, Harmonica::Chromatic { .. }) {

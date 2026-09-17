@@ -47,7 +47,7 @@ pub fn spawn_checkbox<M: 'static>(
     parent: Entity,
     label: &str,
     checked: bool,
-    on_change: impl IntoObserverSystem<ValueChange<bool>, (), M> + Clone + Sync + 'static,
+    on_change: impl IntoObserverSystem<ValueChange<bool>, M> + Clone + Sync + 'static,
 ) -> Entity {
     let row = commands
         .spawn(Node {

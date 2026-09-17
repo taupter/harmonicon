@@ -163,12 +163,10 @@ fn practice_speed_slider_scene(value: f32) -> impl Scene {
         BackgroundColor({Color::srgb(0.14, 0.14, 0.22)})
         on(set_practice_speed)
         Children [
-            (
-                Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
-                BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
-                PracticeSpeedFill
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Percent(frac * 100.0)}, height: {Val::Percent(100.0)} }
+            BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
+            PracticeSpeedFill
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -466,12 +464,10 @@ fn phrase_learned_slider_scene(value: f32) -> impl Scene {
         PhraseLearnedSlider
         on(on_phrase_learned_slider_change)
         Children [
-            (
-                Node { width: {Val::Percent(value * 100.0)}, height: {Val::Percent(100.0)} }
-                BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
-                PhraseLearnedFill
-                Pickable { should_block_lower: {false}, is_hoverable: {false} }
-            )
+            Node { width: {Val::Percent(value * 100.0)}, height: {Val::Percent(100.0)} }
+            BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
+            PhraseLearnedFill
+            Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
     }
 }
@@ -698,13 +694,12 @@ pub(super) fn setup_pause_menu(
                     column_gap: {Val::Px(8.0)},
                 }
                 Children [
-                    button::small(&loc.msg("pause-wait-for-note-button"), on_toggle_wait_mode),
-                    (
-                        Text({wait_mode_label_text(&loc, false)})
-                        TextFont { font_size: {FontSize::Px(15.0)} }
-                        TextColor({Color::srgb(0.70, 0.70, 0.80)})
-                        WaitForNoteLabel
-                    ),
+                    @button::small(&loc.msg("pause-wait-for-note-button"), on_toggle_wait_mode)
+                    --
+                    Text({wait_mode_label_text(&loc, false)})
+                    TextFont { font_size: {FontSize::Px(15.0)} }
+                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                    WaitForNoteLabel
                 ]
             });
         });
@@ -734,13 +729,12 @@ pub(super) fn setup_pause_menu(
                     column_gap: {Val::Px(8.0)},
                 }
                 Children [
-                    button::small(&loc.msg("pause-adaptive-difficulty-button"), on_toggle_adaptive_difficulty),
-                    (
-                        Text({adaptive_difficulty_label_text(&loc, adaptive.enabled)})
-                        TextFont { font_size: {FontSize::Px(15.0)} }
-                        TextColor({Color::srgb(0.70, 0.70, 0.80)})
-                        AdaptiveDifficultyLabel
-                    ),
+                    @button::small(&loc.msg("pause-adaptive-difficulty-button"), on_toggle_adaptive_difficulty)
+                    --
+                    Text({adaptive_difficulty_label_text(&loc, adaptive.enabled)})
+                    TextFont { font_size: {FontSize::Px(15.0)} }
+                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                    AdaptiveDifficultyLabel
                 ]
             });
             // No prev/next buttons: the section itself is picked by clicking
@@ -777,13 +771,12 @@ pub(super) fn setup_pause_menu(
                 column_gap: {Val::Px(8.0)},
             }
             Children [
-                button::small(&loc.msg("pause-clear-loop"), on_clear_loop),
-                (
-                    Text({loop_label_text(&loc, &LoopConfig::default())})
-                    TextFont { font_size: {FontSize::Px(15.0)} }
-                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
-                    LoopRangeLabel
-                ),
+                @button::small(&loc.msg("pause-clear-loop"), on_clear_loop)
+                --
+                Text({loop_label_text(&loc, &LoopConfig::default())})
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                LoopRangeLabel
             ]
         });
         children.spawn_empty().apply_scene(bsn! {
