@@ -60,6 +60,23 @@ load-bearing about *this* crate.
     `min_width: 0` so it can actually shrink under the canvas, the same
     "min-height: auto" gotcha `scroll_area` documents one level further
     out.
+  - **That `min-*: 0` has to run the whole chain, root included.**
+    `menu_root_scene` and `body_scene` carry it too. `auto` means "at
+    least min-content", so with the two topmost nodes left at `auto` the
+    oversized canvas grew *the page root* instead: measured at 9177x1358
+    in a 1920x1080 window, with every descendant inheriting it through
+    `100%`/`flex_grow`. The scroll area then held 9039px of content in a
+    9177px box, so `content_size - size` went *negative* — nothing
+    overflowed, `update_scrollbar_visibility` correctly hid both bars,
+    and `scroll_area`'s drag-to-pan clamped every gesture to zero. The
+    symptom reads as "click and drag is broken", and the missing
+    background (you are seeing the left 1920px of a 4.8x-too-wide page)
+    is the same fault. Bevy 0.19 did not need the two upper overrides;
+    0.20 does. `scripts/audit_page_layout.py` (needs a `--features dev`
+    build) walks every page over BRP and flags a node bigger than the
+    window with no scrolling *or clipping* ancestor — the skill tree was
+    the only page that ever tripped it, because it owns the only
+    fixed-size `flex_shrink: 0.0` node in the menus.
   - `LessonsUiPlugin` registers the tree and reader lifecycles separately
     from `MenuPlugin`; this crate supplies their navigation state and shared
     page chrome.

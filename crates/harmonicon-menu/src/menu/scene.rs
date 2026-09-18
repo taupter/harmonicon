@@ -62,6 +62,17 @@ fn menu_root_scene() -> impl Scene {
         Node {
             width: {Val::Percent(100.0)},
             height: {Val::Percent(100.0)},
+            // The same "min-*: auto" defeat `scroll_area` documents, and it
+            // has to start *here*: `auto` means "at least min-content", so a
+            // page holding something bigger than the window (the skill
+            // tree's fixed-size, `flex_shrink: 0.0` canvas) grows the root
+            // past the viewport instead of letting the scroll area inside it
+            // overflow. Everything below inherits that via `100%`/
+            // `flex_grow`, so the scroll area ends up as wide as its own
+            // content: nothing overflows, no scrollbar appears, and
+            // drag-to-pan clamps every gesture to zero.
+            min_width: {Val::Px(0.0)},
+            min_height: {Val::Px(0.0)},
             flex_direction: {FlexDirection::Column},
         }
         BackgroundColor({menu_bg()})
@@ -101,6 +112,10 @@ fn body_scene() -> impl Scene {
             justify_content: {JustifyContent::Center},
             flex_grow: {1.0_f32},
             min_height: {Val::Px(0.0)},
+            // Paired with `min_height` for the same reason, and needed on
+            // both axes: the skill tree's canvas is oversized horizontally
+            // as well. See [`menu_root_scene`].
+            min_width: {Val::Px(0.0)},
             row_gap: {Val::Px(16.0)},
         }
     }
