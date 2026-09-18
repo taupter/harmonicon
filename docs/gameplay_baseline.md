@@ -84,16 +84,14 @@ run. It is now a title alone (`song_info::spawn_song_header`); the rest shows
 during the countdown and in the pause menu, the two moments the player is not
 playing. The 2D highway took the reclaimed width, 60% to 74%.
 
-### 4. The wait-for-note prompt is drawn at the note, not at the hit line
+### 4. The wait-for-note prompt was drawn mid-highway — fixed
 
-"Play Hole 8 ↓" renders at the frozen note's current position, mid-highway,
-overlapping the note it describes. Phase 3 wants this at the hit line.
+"Play Hole 8 ↓" rendered at a fixed height up the highway, over whichever
+note was scrolling past. It is now a card at the hit line, anchored the same
+way the score readout is, with a second line naming what the mic hears.
 
-### 5. Two smaller things worth fixing while nearby
+### 5. One smaller thing worth fixing while nearby
 
-- `wait_freeze_overlay.rs` builds that prompt with a bare
-  `format!("Play Hole {} {}")` — unlocalized. It escapes `build.rs`'s literal
-  check because the literal never directly reaches a `Text` constructor.
 - Für Elise's harp line reads `Chromatic · 12 holes · ? position`. A
   chromatic harp has no diatonic position, so the field should be omitted
   rather than rendered as a question mark.

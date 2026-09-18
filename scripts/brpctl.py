@@ -338,8 +338,10 @@ def _go(label, settle=2.0, exact=False, context=None):
     time.sleep(settle)
 
 
-# The pause menu's wait toggle and the HUD's pause control are both exactly
-# "⏸"; only the row around each tells them apart (see `buttons`).
+# The HUD's pause control is exactly "⏸"; the pause menu's wait toggle used
+# to read the same until `TextSpan` labels were included, and now reads
+# "⏸  Wait for Note". `context_exact` still guards the pause control against
+# any future icon-only sibling.
 def _pause(settle=2.0):
     click("⏸", exact=True, context="⏸", context_exact=True)
     time.sleep(settle)
@@ -353,13 +355,15 @@ def _set_wait(on, settle=2.0):
     "wait-for-note" capture of ordinary play, and left every later fixture
     frozen at the hit line.
     """
-    hits = find("⏸", exact=True, context="Wait for Note")
+    # The button reads "⏸  Wait for Note" (icon `Text` + name `TextSpan`);
+    # its row also carries the "Wait for Note: on/off" readout.
+    hits = find("Wait for Note", context="Wait for Note:")
     if not hits:
         raise SystemExit("the wait-for-note toggle is only in the pause menu")
     _, context, _ = hits[0]
     if ("Wait for Note: on" in context) == bool(on):
         return
-    click("⏸", exact=True, context="Wait for Note")
+    click("Wait for Note", context="Wait for Note:")
     time.sleep(settle)
 
 

@@ -851,6 +851,11 @@ gameplay-judgment-wrong-pitch-detail-unplaceable = wanted {$expected}
 gameplay-judgment-incomplete-chord = INCOMPLETE CHORD
 gameplay-judgment-technique = TECHNIQUE
 
+# Gameplay — the wait-for-note coaching card at the hit line
+gameplay-wait-play = Play {$tab}
+gameplay-wait-hearing = hearing {$tab}
+gameplay-wait-listening = listening…
+
 # Pause menu
 pause-group-playback-aids = PLAYBACK AIDS
 pause-group-phrase-practice = PHRASE PRACTICE

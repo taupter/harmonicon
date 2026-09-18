@@ -850,6 +850,11 @@ gameplay-judgment-incomplete-chord = ACORDE INCOMPLETO
 gameplay-judgment-technique = TÉCNICA
 
 # Menu de pausa
+# Gameplay — the wait-for-note coaching card at the hit line
+gameplay-wait-play = Toque {$tab}
+gameplay-wait-hearing = ouvindo {$tab}
+gameplay-wait-listening = escutando…
+
 pause-group-playback-aids = AJUDAS DE REPRODUÇÃO
 pause-group-phrase-practice = PRÁTICA DE TRECHO
 pause-quit-song = Sair da música

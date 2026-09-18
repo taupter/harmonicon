@@ -254,6 +254,14 @@ pub fn setup(
     // Beat/downbeat guides scroll inside the highway, behind the notes.
     beat_guides::spawn_beat_guides(&mut commands, highway);
 
+    // The wait-for-note coaching card, just clear of the hit band so the
+    // frozen note's head stays visible beneath it.
+    super::wait_freeze_overlay::spawn_wait_freeze_prompt(
+        &mut commands,
+        highway,
+        Val::Percent(HIT_H_PCT + 6.0),
+    );
+
     // Score/combo/judgment, sitting just above the highway's own hit band
     // rather than in a corner of the screen — the judgment has to be
     // readable without looking away from the notes being judged.
@@ -297,7 +305,6 @@ pub fn setup(
     {
         spawn_gameplay_music_score(&mut commands, bravura);
     }
-    super::wait_freeze_overlay::spawn_wait_freeze_prompt(&mut commands);
     let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
     spawn_countdown(&mut commands, &loc, Some(&harp_hint), Some(&song_info));
 }

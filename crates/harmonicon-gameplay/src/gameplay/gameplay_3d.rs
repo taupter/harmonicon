@@ -712,7 +712,6 @@ pub fn setup(
     {
         super::gameplay_2d::spawn_gameplay_music_score(&mut commands, bravura);
     }
-    super::wait_freeze_overlay::spawn_wait_freeze_prompt(&mut commands);
     let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
     spawn_countdown(
         &mut commands,
@@ -856,6 +855,12 @@ fn spawn_hud_overlay(
             width: Val::Percent(100.0),
             bottom: Val::Percent(HIT_PLANE_BOTTOM_PCT),
         },
+    );
+    // Same anchor for the wait-for-note card, a little above the hit plane.
+    super::wait_freeze_overlay::spawn_wait_freeze_prompt(
+        commands,
+        readout_root,
+        Val::Percent(HIT_PLANE_BOTTOM_PCT + 8.0),
     );
 }
 

@@ -187,7 +187,7 @@ fn observed_failure(
 /// most plausibly reaching for. Ties break low, and `attacked` arrives from a
 /// `HashSet` — so this has to pick by a rule rather than take the first, or
 /// the same frame could report different pitches on different runs.
-fn nearest_attacked(attacked: &[u8], expected: u8) -> Option<u8> {
+pub(super) fn nearest_attacked(attacked: &[u8], expected: u8) -> Option<u8> {
     attacked
         .iter()
         .copied()
@@ -198,7 +198,7 @@ fn nearest_attacked(attacked: &[u8], expected: u8) -> Option<u8> {
 /// holding. `None` when no harp is set up, or when it genuinely can't make
 /// that pitch — possible after a harp substitution, where a detected pitch
 /// passes `ValidHarpNotes` for the chart's harp but not the played one.
-fn heard_tab(pitch: u8, harp: &PlayedHarp) -> Option<HoleTab> {
+pub(super) fn heard_tab(pitch: u8, harp: &PlayedHarp) -> Option<HoleTab> {
     let assignment = map_pitch_playable(pitch, harp.0.as_ref()?)?;
     Some(HoleTab {
         hole: assignment.hole,

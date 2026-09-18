@@ -127,9 +127,12 @@ beat as the judged note.
 
 ## Phase 3: make practice controls part of the loop
 
-- Turn wait-for-note into a clear coaching state at the hit line: show the
-  expected tab and a live heard-pitch indicator while frozen, then give an
-  immediate success transition when play resumes.
+- *(Done)* Wait-for-note is a coaching card at the hit line
+  (`wait_freeze_overlay`): "Play 8↓" plus a live "hearing 4↑ / listening…"
+  line, the heard pitch resolved through the judge's own `heard_tab` so it
+  never names a hole the scorer wouldn't. The success transition is the
+  judgment readout itself — PERFECT/GOOD fires at the instant the freeze
+  lifts, at the same height — so no second flash was added.
 - Make A–B loop handles and the selected phrase visible without requiring the
   player to infer them from a thin progress strip. Keep range editing available
   while paused, where precise dragging is easier.
@@ -190,12 +193,11 @@ timing histogram buckets, and missed-range selection.
 Two defects the Phase 0 pass turned up, both small and both in this phase's
 territory (see `docs/gameplay_baseline.md`):
 
-- **The wait-for-note prompt is not localized.** `wait_freeze_overlay.rs`
-  builds it with a bare `format!("Play Hole {} {}")`. It escapes `build.rs`'s
-  literal check because the literal reaches `Text` through a variable rather
-  than directly — so fixing it means a Fluent key *and* deciding whether that
-  check should follow a binding one hop, since anything else written this way
-  is equally invisible.
+- **`build.rs`'s literal check doesn't follow a binding.** The wait-for-note
+  prompt was a bare `format!("Play Hole {} {}")` reaching `Text` through a
+  variable, and the check never saw it (it is localized now, as part of the
+  Phase 3 card). Anything else written that way is equally invisible; worth
+  deciding whether the scan should follow a `let` one hop.
 - **A chromatic harp renders `? position`.** Diatonic position is meaningless
   on a chromatic harp, so the field should be omitted rather than filled with
   a question mark.
