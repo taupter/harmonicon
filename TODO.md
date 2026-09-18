@@ -22,16 +22,6 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
   `localization::ftl` *could* go back to being a dependency — owning ~300
   lines is arguably the better trade, since that crate's version tracks
   Bevy's and gated this upgrade.
-- [ ] **Four shaders compile but have never been seen rendering** —
-  `note_tail_3d` (Play 3D), `editor_note` (Song Editor), `oscilloscope`
-  (spectrogram), `music_score_tie` (notation ties).
-  `tests/shader_compile.rs` validates their syntax and types against
-  stubbed Bevy modules; only a real pipeline build confirms the stub
-  assumptions and the bind-group layout matching the Rust side.
-- [ ] **Play 2D/3D, Jam Session and Results are not layout-audited.**
-  `scripts/audit_page_layout.py` reaches screens via `NextState`, and those
-  four need a `SelectedSong` first — they want the click-through route
-  `scripts/brpctl.py enter` uses.
 
 ## Bring your own harp, bring your own songs (post-1.0)
 

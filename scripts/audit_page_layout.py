@@ -20,12 +20,25 @@ Two things are reported per page:
 Needs a running `--features dev` build (scripts/run-dev.sh).
 
     python3 scripts/audit_page_layout.py [Page ...]
+
+Menu pages are reached by writing `NextState<MenuPage>`. The gameplay
+screens can't be — Play 2D/3D, Jam Session and Results all want a
+`SelectedSong` first, and that holds an asset handle no JSON value can
+express — so they are reached the way a player reaches them, by clicking
+through, using `brpctl.py`'s routes. Results additionally needs a song to
+*finish*, so it plays the shortest bundled chart to its end. The Song Editor
+is state-reachable but empty until a chart is loaded through its file
+dialog, so it goes the same way.
 """
 
 import json
+import os
 import sys
 import time
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import brpctl  # noqa: E402  (sibling script, same directory)
 
 URL = "http://127.0.0.1:15702"
 
@@ -34,6 +47,20 @@ PAGES = [
     "ModeSelect", "Options", "Theme", "LessonTree", "JamSessionMenu",
     "JamGenerate", "HelpAbout", "About",
 ]
+
+# Screens that need a `SelectedSong`: name → how to get there from the main
+# menu. Checked after `PAGES`, and each starts from `home` because a song
+# can end and move to Results on its own schedule.
+GAMEPLAY = {
+    "Play2D": lambda: brpctl.enter_song("Play 2D", "Traditional", "Amazing Grace"),
+    "Play3D": lambda: brpctl.enter_song("Play 3D", "Traditional", "Amazing Grace"),
+    "JamSession": lambda: brpctl.enter_jam("Traditional", "Amazing Grace"),
+    "SongEditor": lambda: brpctl.enter_editor("Traditional", "Amazing Grace"),
+    "Results": lambda: (
+        brpctl.enter_song("Play 2D", *brpctl.SHORTEST_SONG),
+        brpctl.wait_for_results(),
+    ),
+}
 
 COMPUTED = "bevy_ui::ui_node::ComputedNode"
 NODE = "bevy_ui::ui_node::Node"
@@ -117,7 +144,11 @@ def inside_scroller(nodes, e):
 
 
 def audit(page, window, slack=1.0):
-    goto(page)
+    if page in GAMEPLAY:
+        brpctl.to_main_menu()
+        GAMEPLAY[page]()
+    else:
+        goto(page)
     time.sleep(1.2)
     nodes = ui_nodes()
 
@@ -165,7 +196,7 @@ def subtree_extent(nodes, root):
 
 
 def main():
-    pages = sys.argv[1:] or PAGES
+    pages = sys.argv[1:] or (PAGES + list(GAMEPLAY))
     win = rpc("world.query", {
         "data": {"components": ["bevy_window::window::Window"]},
         "filter": {"with": ["bevy_window::window::Window"]},
@@ -185,6 +216,10 @@ def main():
         except Exception as exc:  # a page needing a prior selection, etc.
             print(f"{page:<15} SKIPPED    ({exc})")
             skipped.append(page)
+
+    # Leave the game on the main menu, not mid-song, for whoever runs next.
+    if any(page in GAMEPLAY for page in pages):
+        brpctl.to_main_menu()
 
     print()
     if bad:

@@ -14,6 +14,7 @@ tools beside it, this is meant to be reachable mid-debugging.
 
     python3 scripts/brpctl.py buttons              # what is clickable now
     python3 scripts/brpctl.py click Play
+    python3 scripts/brpctl.py click ↻ --in View       # icon-only, disambiguated by its row
     python3 scripts/brpctl.py shot                 # -> target/screenshots/
     python3 scripts/brpctl.py state menu Options
     python3 scripts/brpctl.py resize 1920 1080     # physical px
@@ -21,7 +22,10 @@ tools beside it, this is meant to be reachable mid-debugging.
 
     # Getting somewhere, and capturing it under a name you chose
     python3 scripts/brpctl.py home
-    python3 scripts/brpctl.py enter "Play 2D" Traditional Amazing Grace
+    python3 scripts/brpctl.py enter "Play 2D" Traditional "Amazing Grace"
+    python3 scripts/brpctl.py jam Traditional "Amazing Grace"
+    python3 scripts/brpctl.py editor Traditional "Amazing Grace"
+    python3 scripts/brpctl.py results        # play the shortest chart to its end
     python3 scripts/brpctl.py pause
     python3 scripts/brpctl.py wait on
     python3 scripts/brpctl.py capture /tmp/shots before-fix
@@ -45,6 +49,10 @@ import urllib.request
 URL = "http://127.0.0.1:15702"
 
 TEXT = "bevy_ui::widget::text::Text"
+# A label can also be assembled from spans — the file dialog's rows are one
+# `Text` holding the 📁 icon plus a `TextSpan` child holding the name. Reading
+# `Text` alone reports every row as "📁" and nothing else.
+TEXT_SPAN = "bevy_text::text::TextSpan"
 CHILD_OF = "bevy_ecs::hierarchy::ChildOf"
 # These two do *not* follow the same rule, and guessing either from the other
 # costs an afternoon. The component is registered under its declaring module
@@ -106,6 +114,7 @@ def snapshot():
     button doesn't exist".
     """
     labels = [(r["entity"], _unwrap(r["components"][TEXT])) for r in query([TEXT])]
+    labels += [(r["entity"], _unwrap(r["components"][TEXT_SPAN])) for r in query([TEXT_SPAN])]
     parent_of = {r["entity"]: _unwrap(r["components"][CHILD_OF]) for r in query([CHILD_OF])}
     button_ids = {r["entity"] for r in query(with_=[BUTTON])}
     return labels, parent_of, button_ids
@@ -216,8 +225,11 @@ def click(label, exact=False, context=None, context_exact=False, index=0):
 
 
 def texts():
-    """Every UI string currently on screen, in query order."""
-    return [_unwrap(r["components"][TEXT]) for r in query([TEXT])]
+    """Every UI string currently on screen, in query order — `Text` nodes,
+    then `TextSpan` children (see `TEXT_SPAN`)."""
+    return [_unwrap(r["components"][TEXT]) for r in query([TEXT])] + [
+        _unwrap(r["components"][TEXT_SPAN]) for r in query([TEXT_SPAN])
+    ]
 
 
 def shot():
@@ -375,6 +387,51 @@ def enter_song(mode, artist, song):
     _go("Play", exact=True, settle=COUNTDOWN_SETTLE)
 
 
+def enter_jam(artist, song):
+    """Main menu → a Jam Session on a real song. Play → Jam Session → Pick a
+    Song, then the same artist → song → harp-check tail as `enter_song`."""
+    _go("Play", exact=True)
+    _go("Jam Session")
+    _go("Pick a Song")
+    _go(artist)
+    _go(song)
+    _go("Play", exact=True, settle=COUNTDOWN_SETTLE)
+
+
+def enter_editor(artist, song, chart="chart.harpchart"):
+    """Main menu → the Song Editor with a bundled chart loaded, via its own
+    file dialog: 📂 → artist folder → song folder → `song/` → the chart.
+
+    The dialog's rows are a 📁 `Text` plus a `TextSpan` holding the name, so
+    they match on the name (see `TEXT_SPAN`)."""
+    set_state("app", "SongEditor2")
+    time.sleep(2.0)
+    _go("📂", exact=True)
+    _go(artist)
+    _go(song)
+    _go("song", exact=False)
+    _go(chart, settle=3.0)
+
+
+def wait_for_results(timeout_secs=180.0):
+    """Block until the song currently playing ends and the results screen is
+    up — recognised by its Retry button, which exists nowhere else.
+
+    Results can't be reached by state: it needs a finished run, and the
+    shortest bundled chart is the quickest honest way to one.
+    """
+    deadline = time.monotonic() + timeout_secs
+    while time.monotonic() < deadline:
+        if any("Retry" in label for label, _, _ in buttons()):
+            return True
+        time.sleep(2.0)
+    return False
+
+
+# The shortest bundled chart: what to play when only the *end* matters.
+SHORTEST_SONG = ("Example Artist", "Example Song 3")
+
+
 def take_all_screenshots(outdir="target/screenshots/tour"):
     for size_name, width, height in SIZES:
         resize(width, height)
@@ -405,15 +462,10 @@ def take_all_screenshots(outdir="target/screenshots/tour"):
         enter_song("Play 3D", *FIXTURES[0][1:])
         capture(outdir, f"play3d-{FIXTURES[0][0]}-{size_name}")
 
-        # Results needs a finished song rather than a quit one, and the
-        # shortest bundled chart is the quickest honest way there.
         to_main_menu()
-        enter_song("Play 2D", "Example Artist", "Example Song 3")
+        enter_song("Play 2D", *SHORTEST_SONG)
         print("  waiting for the song to end…")
-        for _ in range(90):
-            time.sleep(2.0)
-            if any("Retry" in label for label, _, _ in buttons()):
-                break
+        wait_for_results()
         capture(outdir, f"results-{size_name}")
 
     to_main_menu()
@@ -432,7 +484,14 @@ def _main(argv):
         for text in texts():
             print(repr(text))
     elif command == "click":
-        print(click(" ".join(args)))
+        # `click Label` or `click Label --in "row text"`, for the icon-only
+        # buttons that share a glyph and differ only by the row they sit in.
+        context = None
+        if "--in" in args:
+            i = args.index("--in")
+            context = " ".join(args[i + 1 :])
+            args = args[:i]
+        print(click(" ".join(args), context=context))
     elif command == "shot":
         print(shot())
     elif command == "video":
@@ -449,6 +508,13 @@ def _main(argv):
         to_main_menu()
     elif command == "enter":
         enter_song(args[0], args[1], " ".join(args[2:]))
+    elif command == "jam":
+        enter_jam(args[0], " ".join(args[1:]))
+    elif command == "editor":
+        enter_editor(args[0], " ".join(args[1:]))
+    elif command == "results":
+        enter_song("Play 2D", *SHORTEST_SONG)
+        print("finished" if wait_for_results() else "timed out waiting for the song to end")
     elif command == "pause":
         _pause()
     elif command == "wait":
