@@ -856,6 +856,11 @@ gameplay-wait-play = Play {$tab}
 gameplay-wait-hearing = hearing {$tab}
 gameplay-wait-listening = listening…
 
+# Gameplay — live badges for whichever practice aids are on
+gameplay-badge-speed = {$pct}% speed · music off
+gameplay-badge-wait = waiting for each note
+gameplay-badge-loop = loop {$start}s–{$end}s
+
 # Pause menu
 pause-group-playback-aids = PLAYBACK AIDS
 pause-group-phrase-practice = PHRASE PRACTICE

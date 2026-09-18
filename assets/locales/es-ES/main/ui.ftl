@@ -850,6 +850,11 @@ gameplay-judgment-incomplete-chord = ACORDE INCOMPLETO
 gameplay-judgment-technique = TÉCNICA
 
 # Menú de pausa
+# Gameplay — live badges for whichever practice aids are on
+gameplay-badge-speed = {$pct}% de velocidad · sin música
+gameplay-badge-wait = esperando cada nota
+gameplay-badge-loop = bucle {$start}s–{$end}s
+
 # Gameplay — the wait-for-note coaching card at the hit line
 gameplay-wait-play = Toca {$tab}
 gameplay-wait-hearing = oyendo {$tab}

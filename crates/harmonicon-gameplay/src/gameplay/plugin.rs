@@ -19,6 +19,7 @@ use super::hud;
 use super::judge;
 use super::lifecycle;
 use super::notes::SongNotes;
+use super::practice_badges;
 use super::state::{
     ActivePitches, ActiveTargets, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicStarted,
     NoteScored, Paused, PitchGate, PlayedHarp, Score, ScoringConfig, SongEnd, SongStats,
@@ -219,6 +220,7 @@ impl Plugin for GameplayPlugin {
             Update,
             (
                 pause_menu::update_wait_mode_label,
+                practice_badges::update_practice_badges,
                 pause_menu::update_loop_label,
                 pause_menu::update_practice_speed_slider,
                 pause_menu::update_phrase_selector_label,

@@ -136,12 +136,13 @@ beat as the judged note.
 - Make A–B loop handles and the selected phrase visible without requiring the
   player to infer them from a thin progress strip. Keep range editing available
   while paused, where precise dragging is easier.
-- Replace the pause menu's flat collection of controls with three groups:
-  session actions, playback aids, and phrase practice. Hide phrase controls when
-  the chart has no phrases and adaptive difficulty is unavailable.
-- Surface practice speed and wait-for-note state in the live HUD with compact
-  badges, so resuming does not make the player forget why audio is muted or the
-  highway has stopped.
+- *(Done)* The pause menu is three cards — session actions, playback aids,
+  phrase practice — on an opaque surface. Phrase controls are hidden in Jam
+  Session, the one mode with neither phrases nor adaptive difficulty.
+- *(Done)* `practice_badges` names whichever aids are on — "70% speed ·
+  music off", "waiting for each note", "loop 12s–20s" — under the title in
+  the shared HUD panel. Only active aids show; a row of "off" badges is
+  furniture.
 - Preserve the existing immediate resource updates and sink-safe rewind path;
   this is a presentation and navigation change around working mechanics.
 

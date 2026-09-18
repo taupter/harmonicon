@@ -23,6 +23,7 @@ use super::metronome_overlay::spawn_metronome;
 use super::modifier_legend::spawn_modifier_legend;
 use super::note_tail_2d::NoteTail2dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
+use super::practice_badges::spawn_practice_badges;
 use super::song_info::{SongInfo, spawn_song_header};
 use harmonicon_platform::localization::Localization;
 
@@ -50,6 +51,10 @@ pub(super) fn spawn_hud_panel(parent: &mut ChildSpawnerCommands, panel: HudPanel
     parent.spawn(Node::default()).with_children(|col| {
         spawn_song_header(col, panel.song_info);
     });
+
+    // Which practice aids are on — slowed, waiting, looping — so a resumed
+    // song explains its own silence or stops (`practice_badges`).
+    spawn_practice_badges(parent);
 
     // Both driven per-frame by `phrase_overlay`.
     spawn_phrase_banner(parent);

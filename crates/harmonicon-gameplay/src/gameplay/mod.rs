@@ -32,6 +32,7 @@ mod notes;
 pub mod pause_menu;
 mod phrase_overlay;
 pub mod plugin;
+mod practice_badges;
 mod results;
 mod song_info;
 pub mod song_progress_overlay;
