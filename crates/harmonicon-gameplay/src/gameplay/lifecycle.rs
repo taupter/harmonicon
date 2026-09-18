@@ -20,6 +20,7 @@ use super::state::{
     GameplayRoot, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicPlayer, MusicStarted, Paused,
     PitchGate, Score, ScoringConfig, SongEnd, SongStats,
 };
+use super::wait_freeze_overlay::WaitFreezeState;
 use harmonicon_platform::localization::Localization;
 
 /// The capture stream's sample rate is fixed for as long as it is open, so
@@ -50,12 +51,17 @@ pub(crate) fn reset_score(
     mut feedback: ResMut<HitFeedback>,
     mut paused: ResMut<Paused>,
     mut gate: ResMut<PitchGate>,
+    mut wait_freeze: ResMut<WaitFreezeState>,
 ) {
     *score = Score::default();
     *stats = SongStats::default();
     *feedback = HitFeedback::default();
     paused.0 = false;
     *gate = PitchGate::default();
+    // `tick_clock` would recompute this as `None` on the new song's first
+    // frame anyway; resetting here makes "no song starts frozen" true by
+    // construction rather than by system ordering.
+    *wait_freeze = WaitFreezeState::default();
 }
 
 /// Extra seconds after the last note before the results screen, so the final
