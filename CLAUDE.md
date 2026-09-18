@@ -80,7 +80,7 @@ doesn't break it.
 ```bash
 cargo run --features dev,dynamic_linking   # local iteration; ~7s relink
 cargo run --release             # playable build; never ship dev/dynamic_linking
-cargo test --features dev       # 1671 tests, whole workspace, incl. doctests
+cargo test --features dev       # 1675 tests, whole workspace, incl. doctests
 
 # The two loops want different things, which is why dynamic_linking is its
 # own feature rather than part of `dev`:
@@ -407,13 +407,29 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
     `@group(constants::MATERIAL_BIND_GROUP)` — while a `UiMaterial`
     hardcodes `@group(1)`, matching bevy's own `custom_ui_material.wesl`.
   - `#ifdef X` … `#endif` → `@if(X)` on the declaration itself.
-  Two tests guard this, because a shader is an *asset*: nothing here is a
-  compile error. `tests/asset_layout.rs::shader_ref_paths_exist` checks
-  every `ShaderRef` string resolves to a real file (it matches the whole
-  `"shaders/…"` literal, so a stale `.wgsl` reads as dangling rather than
-  being skipped), and `shaders_use_no_naga_oil_directives` rejects a `#`
-  anywhere outside a comment — anywhere, not just at line start, which is
-  how three mid-line `#{MATERIAL_BIND_GROUP}`s survived the first sweep.
+  Three tests guard this, because a shader is an *asset*: nothing here is
+  a compile error, and the runtime failure is a wgpu error about the
+  shader's *contents* rather than its path, so it reads like a shader bug.
+  - **`tests/shader_compile.rs::every_shader_compiles`** is the real one:
+    it runs `wesl` — the same compiler Bevy uses, already in the lock via
+    `bevy_shader`, so it costs the build nothing — with
+    `CompileOptions { validate: true }`, catching unknown identifiers,
+    wrong types and bad arity, not merely a parse failure. The Bevy
+    modules our shaders import live inside the Bevy crates at a path that
+    moves with each checkout, so they are **stubbed** in that file, as is
+    the virtual `constants` package. Using a field a stub lacks fails the
+    test; Bevy renaming a field we don't use would not — re-check the
+    stubs against `bevy_ui_render`/`bevy_pbr` on an engine upgrade.
+    `the_compiler_rejects_broken_shaders` beside it proves the check can
+    actually fail.
+  - `tests/asset_layout.rs::shader_ref_paths_exist` checks every
+    `ShaderRef` string resolves to a real file (it matches the whole
+    `"shaders/…"` literal, so a stale `.wgsl` reads as dangling rather
+    than being skipped) — `shader_compile` validates contents, not the
+    `ShaderRef` strings that name them.
+  - `shaders_use_no_naga_oil_directives` rejects a `#` anywhere outside a
+    comment — anywhere, not just at line start, which is how three
+    mid-line `#{MATERIAL_BIND_GROUP}`s survived the first sweep.
 - **Localization is enforced:** user-visible strings must come from
   `loc.msg()` (Fluent); a `build.rs` scan + `LocalizedStr` newtype fail the
   build on raw literals. **`Localization`/`Locale` are this repo's own

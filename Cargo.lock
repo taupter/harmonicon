@@ -3556,6 +3556,7 @@ dependencies = [
  "serde_json",
  "skrifa 0.47.0",
  "thiserror 2.0.20",
+ "wesl",
  "winit",
 ]
 

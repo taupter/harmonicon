@@ -218,5 +218,11 @@ getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 # Bevy's problem into ours and failed `cargo deny`.
 skrifa = "0.47"
 
+# Compiles `assets/shaders/*.wesl` in tests/shader_compile.rs with the same
+# compiler Bevy uses, so a broken shader fails `cargo test` rather than the
+# first frame that needs it. Already in the lock via `bevy_shader`, so it
+# adds nothing to build — same reasoning as `skrifa` above.
+wesl = "0.4.4"
+
 # Switches on the shared MIDI test constructors; see harmonicon-core's Cargo.toml.
 harmonicon-core = { path = "crates/harmonicon-core", features = ["test-support"] }
