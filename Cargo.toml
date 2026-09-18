@@ -216,7 +216,7 @@ getrandom03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 # `deny.toml` sets `unmaintained = "workspace"`, which exempts a transitive
 # crate and flags one this workspace names directly. Naming it here turned
 # Bevy's problem into ours and failed `cargo deny`.
-skrifa = "0.44"
+skrifa = "0.47"
 
 # Switches on the shared MIDI test constructors; see harmonicon-core's Cargo.toml.
 harmonicon-core = { path = "crates/harmonicon-core", features = ["test-support"] }

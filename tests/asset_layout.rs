@@ -826,3 +826,58 @@ fn shader_refs(text: &str) -> Vec<String> {
     }
     found
 }
+
+/// No shader still uses naga_oil's preprocessor syntax.
+///
+/// Bevy 0.20 swapped naga_oil for WESL, which has its own spellings:
+///
+/// | naga_oil | WESL |
+/// |---|---|
+/// | `#import path::Thing` | `import path::Thing;` |
+/// | `#{SHADER_DEF}` | `constants::SHADER_DEF` |
+/// | `#ifdef X` / `#endif` | `@if(X)` on the declaration |
+///
+/// A leftover directive is not a compile error — `.wesl` is an asset, so it
+/// only fails when the pipeline is first built, and the message points at
+/// the offending column rather than saying "this is naga_oil syntax". Both
+/// kinds were missed once during the port: the `#import`s were found and
+/// fixed, then three mid-line `#{MATERIAL_BIND_GROUP}`s survived a check
+/// that only looked for `#` at the start of a line. Hence a scan of the
+/// whole file, anchored nowhere.
+#[test]
+fn shaders_use_no_naga_oil_directives() {
+    let shaders = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/shaders");
+    let mut checked = 0;
+    let mut report = String::new();
+
+    for entry in std::fs::read_dir(&shaders).expect("assets/shaders must exist") {
+        let path = entry.expect("readable dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("wesl") {
+            continue;
+        }
+        checked += 1;
+        let source = std::fs::read_to_string(&path).expect("shader must be readable");
+        for (i, line) in source.lines().enumerate() {
+            // `#` has no meaning in WESL at all, so any occurrence outside a
+            // comment is a leftover directive. Checking the whole line (not
+            // just its start) is the point of this test.
+            let code = line.split("//").next().unwrap_or(line);
+            if let Some(col) = code.find('#') {
+                report.push_str(&format!(
+                    "  {}:{}:{}: naga_oil directive `{}`\n",
+                    path.file_name().unwrap().to_string_lossy(),
+                    i + 1,
+                    col + 1,
+                    code.trim(),
+                ));
+            }
+        }
+    }
+
+    assert!(checked > 0, "found no .wesl shaders to check");
+    assert!(
+        report.is_empty(),
+        "Shaders still using naga_oil preprocessor syntax \
+         (Bevy 0.20 uses WESL — see this test's doc comment):\n{report}"
+    );
+}

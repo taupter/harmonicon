@@ -14,6 +14,16 @@ load-bearing about *this* crate.
 
 ## Architecture (load-bearing facts)
 
+- **`GameplayRoot` goes on top-level entities only.** It is the marker
+  `lifecycle::cleanup_gameplay` sweeps on `OnExit(AppState::Playing)`, and
+  `despawn` is recursive — so a *child* that also carries it gets removed
+  by its ancestor's despawn first, and its own despawn then lands on a
+  dead entity. Bevy 0.20 reports that through the command error handler
+  (`Entity despawned: the entity with ID … is invalid`, once per entity);
+  0.19 passed it silently, which is why `beat_guides`' pool carried the
+  marker unnoticed. Anything spawned inside a `with_children` block under
+  a `GameplayRoot` needs no marker of its own.
+
 - **Time authority:** `GameplayClock`, ticked by `tick_clock` — both in
   `gameplay/clock.rs`, along with `should_anchor_to_sink` and
   `handle_loop_boundary` (the anchoring invariant lives in that one file).

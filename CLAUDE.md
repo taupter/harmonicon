@@ -80,7 +80,7 @@ doesn't break it.
 ```bash
 cargo run --features dev,dynamic_linking   # local iteration; ~7s relink
 cargo run --release             # playable build; never ship dev/dynamic_linking
-cargo test --features dev       # 1106 tests, whole workspace, incl. doctests
+cargo test --features dev       # 1671 tests, whole workspace, incl. doctests
 
 # The two loops want different things, which is why dynamic_linking is its
 # own feature rather than part of `dev`:
@@ -390,6 +390,30 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   risks a double-toggle (see `dialogs::checkbox.rs`).
 - **Bevy scene spawning:** use `WorldAssetRoot(handle)` for GLB/scene
   assets, not `SceneRoot`.
+- **Shaders are WESL (`assets/shaders/*.wesl`), not naga_oil WGSL.** Bevy
+  0.20 dispatches on extension: `.wgsl` goes to `Shader::from_wgsl` and is
+  parsed as *plain* WGSL with no import resolution at all, so a `.wgsl`
+  file containing directives fails at pipeline-build time with a parse
+  error pointing at the `#`. Only `.wesl` gets preprocessed. The three
+  translations:
+  - `#import a::b::C` → `import a::b::C;` (leading keyword, trailing
+    semicolon). Two paths also moved: `bevy_ui::ui_vertex_output` is now
+    **`bevy_ui_render::ui_vertex_output`**, and `bevy_pbr::forward_io` is
+    now **`bevy_pbr::render::forward_io`**.
+  - `#{SHADER_DEF}` → `constants::SHADER_DEF`, a real constant in a
+    virtual `constants` package the shader cache synthesises from the
+    pipeline's `ShaderDefVal`s (`bevy_shader`'s `ShaderResolver`). It
+    needs no `import`. A mesh `Material` needs this for its bind group —
+    `@group(constants::MATERIAL_BIND_GROUP)` — while a `UiMaterial`
+    hardcodes `@group(1)`, matching bevy's own `custom_ui_material.wesl`.
+  - `#ifdef X` … `#endif` → `@if(X)` on the declaration itself.
+  Two tests guard this, because a shader is an *asset*: nothing here is a
+  compile error. `tests/asset_layout.rs::shader_ref_paths_exist` checks
+  every `ShaderRef` string resolves to a real file (it matches the whole
+  `"shaders/…"` literal, so a stale `.wgsl` reads as dangling rather than
+  being skipped), and `shaders_use_no_naga_oil_directives` rejects a `#`
+  anywhere outside a comment — anywhere, not just at line start, which is
+  how three mid-line `#{MATERIAL_BIND_GROUP}`s survived the first sweep.
 - **Localization is enforced:** user-visible strings must come from
   `loc.msg()` (Fluent); a `build.rs` scan + `LocalizedStr` newtype fail the
   build on raw literals. **`Localization`/`Locale` are this repo's own

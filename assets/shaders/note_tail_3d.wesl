@@ -12,9 +12,9 @@ import bevy_pbr::render::forward_io::VertexOutput;
 // params: x = vibrato amplitude, y = vibrato cycles, z = animation time (seconds),
 //         w = bend amplitude (signed)
 // wah:    x = wah depth, y = wah cycles, z = animation mode, w = per-note phase
-@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> color: vec4<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(1) var<uniform> params: vec4<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(2) var<uniform> wah: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> color: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(1) var<uniform> params: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(2) var<uniform> wah: vec4<f32>;
 
 const TAU: f32 = 6.2831853;
 const PI: f32 = 3.1415927;
