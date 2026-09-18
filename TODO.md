@@ -13,6 +13,26 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
   traditional. Same rights-and-judgment constraint as the content item
   below — **not to be authored unsupervised**.
 
+- [ ] **Bevy is pinned to the `v0.20.0-rc.1` git tag**, because a release
+  candidate is not published to crates.io. When 0.20.0 final lands: drop the
+  `git`/`tag` keys from `Cargo.toml`'s `bevy` entry and the matching
+  `allow-git` exemption from `deny.toml` (`unknown-git = "deny"` rejects the
+  source otherwise). `bevy_fluent` may have a 0.20-compatible release by
+  then too, at which point `harmonicon-platform`'s absorbed
+  `localization::ftl` *could* go back to being a dependency — owning ~300
+  lines is arguably the better trade, since that crate's version tracks
+  Bevy's and gated this upgrade.
+- [ ] **Four shaders compile but have never been seen rendering** —
+  `note_tail_3d` (Play 3D), `editor_note` (Song Editor), `oscilloscope`
+  (spectrogram), `music_score_tie` (notation ties).
+  `tests/shader_compile.rs` validates their syntax and types against
+  stubbed Bevy modules; only a real pipeline build confirms the stub
+  assumptions and the bind-group layout matching the Rust side.
+- [ ] **Play 2D/3D, Jam Session and Results are not layout-audited.**
+  `scripts/audit_page_layout.py` reaches screens via `NextState`, and those
+  four need a `SelectedSong` first — they want the click-through route
+  `scripts/brpctl.py enter` uses.
+
 ## Bring your own harp, bring your own songs (post-1.0)
 
 `ROADMAP.md` has the reasoning, `PLAN.md` the order. Phase 0 blocks both.
