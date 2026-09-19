@@ -13,20 +13,21 @@ this file — prune it back to a one-line summary under "Shipped" below.
   into coaching. Execution phases and invariants are in
   `docs/gameplay_improvement_plan.md`.
 
-  **Resume here.** Phases 0, 1, 3 and 4 are done and Phase 2's message
-  contract has landed. Next up, in order:
+  **Resume here.** Phases 0–4 are done. What's left is Phase 5:
 
-  1. **Phase 2's tail** — animate the judged note; live hold progress on
-     sustained notes with vibrato/wah confirmed *during* the hold; keep
-     labels spatially stable in dense passages.
-  2. **Phase 5** — hit/miss is still colour-only on note heads (`note_tint`);
-     reduced-motion setting before any camera shake; `? position` on a
-     chromatic harp; and `build.rs`'s literal check doesn't follow a `let`.
+  1. A reduced-motion / feedback-intensity setting before any camera shake
+     or larger pulse (the judged-note pop is small and brief, and needs no
+     gate yet).
+  2. `? position` on a chromatic harp — omit the field rather than fill it.
+  3. `build.rs`'s literal check doesn't follow a `let` one hop.
+  4. The contrast / focus-order / localization-expansion audit, and
+     re-taking the player-guide captures — with `brpctl.py autoplay on`
+     first, so they show real hits instead of a wall of misses.
 
-  One thing Phase 4 could not verify without a mic: the timing bar and the
-  Input-lag button need *hits*, and the BRP tour produces none. The next
-  session with a harp should run the "Results screen" checks in
-  `docs/gameplay_validation.md`.
+  Only one thing still needs a real mic: the mid-hold drop-out and the
+  steady-vs-wobble contrast on a vibrato note (`docs/gameplay_validation.md`,
+  "A held note shows whether you're still holding it"). Everything else in
+  the pass has been seen on screen via autoplay.
 
   Verify anything visible with `./scripts/run-dev.sh` then
   `python3 scripts/brpctl.py enter "Play 2D" Traditional "Amazing Grace"` and

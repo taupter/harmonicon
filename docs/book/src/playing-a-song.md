@@ -34,6 +34,15 @@ what the chart expects, at that instant:
   group sounds *together* — playing the same holes correctly but one at a
   time doesn't count.
 
+Every judgment shows on the note itself, not just in the readout by the hit
+line: a hit note's head **pops** and turns gold with a **✓**; a missed one
+**shrinks**, dims to red and gets a **✗** — so hit and miss are told apart
+by shape as well as colour. While you hold a long note, the part of its
+tail still above the line stays **gold as long as the right pitch is
+sounding** and goes grey the moment it drops out; on a vibrato or wah note
+the gold **shimmers** once the wobble is heard at the right rate, before
+the hold ends, so you can correct it in time.
+
 A combo multiplier builds on consecutive hits and resets on a miss. The
 **Results screen** after each song is written as coaching, not just a
 scoreboard:

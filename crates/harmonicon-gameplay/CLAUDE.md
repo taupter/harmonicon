@@ -351,6 +351,45 @@ load-bearing about *this* crate.
     loop marker while looping, and clearing the loop mid-song still reaches
     Results.
 
+- **What a judged note does on the highway is decided once, in
+  `gameplay::note_feedback`, and applied by both renderers.** The head's
+  pop/shrink curve (`judged_scale`), the ✓/✗ stamp, and the tail's `hold`
+  uniform (`hold_uniform`) are pure functions; `gameplay_2d::
+  animate_judged_notes` and `gameplay_3d::animate_judged_notes_3d` only
+  differ in what they apply them to (`UiTransform` vs `Transform`). Three
+  things that follow:
+  - **The transition is observed, not the state.** Each note visual carries
+    a `JudgedState`; the renderer compares it with `judged_now(note)` and
+    only on a change inserts/removes `Judged { hit, at }` and rewrites the
+    label. That's what makes an A–B loop clean — `handle_loop_boundary`
+    clears `hit`/`missed`, the state reads the change back to `None`, and
+    the head is restored — and why nothing re-derives the animation from
+    `ScheduledNote` per frame.
+  - **The tail shows hold *state*, not a fill.** It scrolls through the hit
+    line time-accurately, so the part already credited is below the line
+    and off-screen within a fraction of a second; a fill was tried and is
+    invisible. The part above the line shows whether the expected pitch is
+    sounding this frame, how much of the hold so far was credited, and the
+    sustained technique's live status (`judge::live_technique_status`, the
+    same samples the end-of-hold verdict reads, with "not measurable yet"
+    distinct from "heard at the wrong rate"). Elapsed time is measured on
+    `judge::judged_instant` — the one definition of "when did this attack
+    happen", shared by the judge, the autoplayer and the renderers —
+    because `held` only starts once the judge sees the hit; measured on the
+    raw clock, every hold read as having lost its start.
+  - **A label that becomes an icon needs the font fallback to run after
+    it.** `dialogs::font_fallback` runs in `PostUpdate` before
+    `UiSystems::Content` for exactly this reason; in `Update` it was
+    unordered against the writer and the ✓ stamp drew one frame of tofu.
+- **`gameplay::autoplay` is the dev-only way to get hits without a mic**
+  (`#[cfg(feature = "dev")]`, `brpctl.py autoplay on [late_ms]`). It
+  writes `ActivePitches`/`AudioFrame` right after `collect_pitches` in the
+  `GameplayLogic` chain — never earlier, or a live mic's events would
+  overwrite it — and sounds notes on `judged_instant`, so a run reads as
+  on-time rather than early by the filter's onset lag. Anything a hit shows
+  (head pop, hold state, the results timing bar) is verified through it;
+  what it cannot verify is detection of a real harmonica.
+
 - **Call-and-response** (`gameplay::call_response`): a chart's consecutive
   `TrackItem::call: true` items are one phrase. Their notes are ordinary
   `ScheduledNote`s — scored the normal way — except each carries

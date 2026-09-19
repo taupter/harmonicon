@@ -90,7 +90,7 @@ score, and pause control are all legible without overlap. A non-blues chart
 shows no invented blues form. *(The invented blues form is gone; the hit-line
 and 3D-parity work is open.)*
 
-## Phase 2: report what happened at each note
+## Phase 2: report what happened at each note — done
 
 The message contract is in place. `NoteScored` carries a `JudgmentFeedback`
 (`gameplay/state.rs`) rather than a bare `HitQuality`: `Hit { quality, offset }`
@@ -111,13 +111,36 @@ A wrong-pitch miss captions itself with the expected and heard tabs
 The heard pitch is resolved to a hole in the judge against `PlayedHarp`, not in
 the HUD.
 
-Remaining in-play presentation work:
+The in-play presentation is done too (`gameplay::note_feedback`, shared by
+2D and 3D so the modes can't drift on what a hit looks like):
 
-- animate the judged note itself and reset cleanly across A–B loops;
-- show hold progress on sustained notes and confirm or reject vibrato/wah while
-  the hold is still happening, not only once it ends;
-- keep effects short and spatially stable so dense passages do not produce a
-  wall of labels.
+- **The judged note animates.** Its head pops to 1.35× and eases back over
+  0.22 s on a hit, or shrinks to 0.72× and stays there on a miss, and its
+  tab label becomes ✓ / ✗ — the transition is observed once through a
+  `JudgedState` component rather than re-derived per frame, which is also
+  what makes an A–B loop clean: the loop clears `hit`/`missed`, the state
+  reads the change back to pending, and the head is restored. The shrink
+  and stamp are the non-colour hit/miss cue Phase 5 asked for on the note
+  head itself. (The stamp exposed that `dialogs::font_fallback` ran in
+  `Update`, unordered against its writers, so any label that *became* an
+  icon flashed one frame of tofu; it now runs in `PostUpdate` ahead of UI
+  text measurement.)
+- **A hold shows live state, not a fill.** The tail scrolls through the hit
+  line time-accurately, so progress is already the line sweeping up it; the
+  part still above the line is what the player sees, and it now shows
+  whether the expected pitch is sounding this frame (gold / dim grey), how
+  much of the hold so far was credited (paler gold for time lost), and the
+  sustained technique's live status — `judge::live_technique_status`, from
+  the same samples the end-of-hold verdict uses, with "not measurable yet"
+  distinct from "heard at the wrong rate" — as a shimmer when confirmed or
+  a flattened gold while unheard. All of it rides a fourth `hold` uniform on
+  the existing tail materials.
+- **Labels stay put.** The judgment readout is one fixed-position line (plus
+  the wrong-pitch detail) that new judgments replace rather than stack, so
+  dense passages never produce a wall of labels; nothing per-note floats.
+
+A dev-only autoplayer (`gameplay::autoplay`, `brpctl.py autoplay on`) came
+out of verifying this: nothing a hit shows was capturable without a mic.
 
 Acceptance: pure/headless tests assert the emitted feedback for perfect,
 early/late good, no-attack miss, wrong-pitch miss, incomplete chord, and failed
@@ -194,11 +217,10 @@ the practice entry. `docs/gameplay_validation.md` has the live checks.
 
 ## Phase 5: polish and accessibility
 
-- Finish the colorblind-safe note palette work already listed in `PLAN.md`.
-  Breath direction is already covered by the note-head label (see Phase 1), so
-  what is left is **hit state**: `gameplay_2d::note_tint` signals hit and miss
-  with gold and dim red and nothing else, which is the one place on the
-  highway where colour is still the sole cue.
+- *(Done, in Phase 2's tail)* Hit state on the note head is no longer
+  colour-only: a hit pops and stamps ✓, a miss shrinks and stays shrunk with
+  ✗ (`gameplay::note_feedback`). Breath direction was already covered by
+  the note-head label (see Phase 1).
 - Add reduced-motion and feedback-intensity settings before introducing camera
   shake or large pulses. Visual motion must never move the hit target.
 - Audit text contrast, focus order, touch target size and localization

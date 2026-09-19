@@ -127,7 +127,28 @@ registered, which covers the whole UI tree, text, transforms and windows.
 `MicStatus`, `Scroll` and friends are plain `#[derive(Component)]`/
 `Resource`, so `world.list_resources` shows only the handful that derive
 `Reflect` and call `register_type` precisely so they can be driven from
-outside: `VideoCapture`, and `NextState<AppState>`/`NextState<MenuPage>`.
+outside: `VideoCapture`, `NextState<AppState>`/`NextState<MenuPage>`,
+`LoopConfig` (an A–B range is otherwise a pointer drag) and
+`gameplay::autoplay::Autoplay`.
+
+**Autoplay is how a headless run gets hits.** With no microphone every note
+is a miss, so nothing a hit shows — the head pop and ✓ stamp, the gold
+tail while a note is held, live vibrato/wah confirmation, the results
+screen's timing bar and Input-lag suggestion — was ever capturable. Switch
+it on before entering a song and the game sounds each note itself, on the
+judge's own timeline, with a wobble for a declared vibrato and a pumped
+loudness for a wah; `late_ms` plays every attack behind the beat to make
+the timing deliberately lopsided:
+
+```bash
+python3 scripts/brpctl.py autoplay on        # dead on
+python3 scripts/brpctl.py autoplay on 40     # 40 ms late, every note
+python3 scripts/brpctl.py autoplay off
+```
+
+It writes `ActivePitches`/`AudioFrame` right after `collect_pitches`, so the
+judge is exercised unchanged; it is `#[cfg(feature = "dev")]` like the rest
+of this. Turn it off before a screenshot that's meant to show a miss.
 
 Add `#[derive(Reflect)]` + `app.register_type::<T>()` per type as the need
 arises, rather than blanket-deriving it.

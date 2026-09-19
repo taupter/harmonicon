@@ -16,6 +16,12 @@ cargo test          # automated coverage below
 cargo run           # manual checks below (needs a mic, audio out, a display)
 ```
 
+Anything below marked *needs a mic* can also be exercised without one on a
+`--features dev` build: `python3 scripts/brpctl.py autoplay on` makes the
+game sound every note itself (`contributing/src/remote-control.md`). That
+verifies the judged path and what it draws, not that a real harmonica is
+detected — keep the mic run for that.
+
 Navigation to gameplay: **Play → Play Song → (2D | 3D) → artist → song**, or
 **Play → Jam Session → Pick a Song → artist → song**. In-game keys: **Esc**
 pause/resume, **M** metronome mute, **V** cycle spectrogram.
@@ -76,6 +82,9 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
 | Progress-bar note-marker rectangle geometry — horizontal (proportional to duration, floored/clamped) and vertical hole-lane placement (highest hole at top) — and the no-background-music duration fallback | `gameplay::song_progress_overlay::tests::note_marker_geometry_*`, `…::note_lane_geometry_*`/`highest_hole_is_*`/`lowest_hole_is_*`/`middle_hole_lands_*`/`lanes_are_narrower_*`, `…::effective_duration_*` |
 | Results as coaching: the one observation is picked in a fixed order with minimum sample sizes (one attempted bend is never advice), the timing histogram buckets and its early/on-time/late split, the Input-lag suggestion only for a lopsided distribution, technique rows ranked by practice opportunity, lesson progress toward the threshold, and the densest missed range for "Practice missed section" | `gameplay::coaching::tests::*` |
 | "Practice missed section" enters the existing loop and jumps to the range once music runs — once per request, with the skipped prefix resolved silently — and an active loop holds off Results until it is cleared | `gameplay::tests::practice_start_jumps_the_clock_once_music_is_running`, `…::skip_notes_before_resolves_exactly_the_prefix`, `…::an_active_loop_holds_off_the_results_screen_and_clearing_it_releases` |
+| A judged note pops (hit) or shrinks and stays shrunk (miss), stamped ✓/✗; the transition is observed once via `JudgedState`, so an A–B loop clearing the note restores it | `gameplay::note_feedback::tests::*` |
+| A held note's tail shows live state — pitch sounding now, hold integrity so far, and the sustained technique's live status, `None` while unmeasurable vs `Some(false)` when heard at the wrong rate — from the same samples the end-of-hold verdict uses | `gameplay::note_feedback::tests::hold_state_*`, `gameplay::tests::live_technique_status_distinguishes_unmeasurable_from_wrong` |
+| Dev autoplay attacks a note when due (optionally late), sustains it with a vibrato wobble / wah pump, releases before the end so a same-pitch successor is a fresh attack, and never sounds a resolved or unplayable note | `gameplay::autoplay::tests::*` |
 
 ## Manual checks
 
@@ -111,6 +120,9 @@ pause/resume, **M** metronome mute, **V** cycle spectrogram.
   and mic; which judgment each case produces is unit-tested — see the table
   above — but only a live run shows the label reaching the screen, reading
   legibly at speed, and being localized)*
+- [ ] **A judged note changes shape, not just colour.** Hit a note: its head pops larger for a fraction of a second and its tab label becomes ✓ — on the very frame of the hit, with no square box flashing first. Miss one: the head shrinks to about three quarters and stays that size, dim red, with a light ✗. Both survive the rest of the note's scroll off the highway. In Play 3D the cube head does the same and the floating hole label carries the stamp. *(manual: rendering; the scale curve and stamps are unit-tested — `gameplay::note_feedback::tests::*`; `brpctl.py autoplay on` produces the hits)*
+- [ ] **A held note shows whether you're still holding it.** Hit a long note and keep sounding it: the tail still above the hit line turns gold. Stop mid-note: the tail goes dim grey the same frame; resume and it comes back gold, slightly paler for the time lost. On a note with a declared vibrato, hold it dead steady: the gold is flat; wobble at roughly the chart's rate and it shimmers — *before* the hold ends and `TECHNIQUE` would otherwise judge it. *(manual: needs a harp and mic for the mid-note drop and the steady-vs-wobble contrast; autoplay only shows the well-held case)*
+- [ ] **A loop wrap puts judged notes back.** Set an A–B loop, let it wrap: notes inside the range reappear at full size with their tab labels (`+6`, `-4`), not stamped or shrunk from the previous lap. *(manual: rendering; the `JudgedState` transition back to pending is unit-tested)*
 - [ ] No errors/panics in the console while the gameplay chain runs. *(manual)*
 - [ ] **Long-song sync**: play a 3+ minute song end to end; the hit line still matches the beat at the end, with no accumulating drift. *(manual: audio + timing; correction math is unit-tested but real decoder/frame-hitch drift isn't)*
 - [ ] **Low-keyed harp detection**: load (or author) a chart with a Low-F/Low-D harmonica and confirm hole-1 blow/draw register — the detector range now derives from the chart's layout instead of a fixed 200 Hz floor. *(manual: needs a real low-keyed harp and mic)*
