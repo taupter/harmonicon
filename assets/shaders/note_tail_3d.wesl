@@ -12,9 +12,13 @@ import bevy_pbr::render::forward_io::VertexOutput;
 // params: x = vibrato amplitude, y = vibrato cycles, z = animation time (seconds),
 //         w = bend amplitude (signed)
 // wah:    x = wah depth, y = wah cycles, z = animation mode, w = per-note phase
+// hold:   x = pitch sounding now (1/0), y = hold integrity so far (0..1),
+//         z = technique status (1 confirmed, -1 not heard, 0 n/a), w = 1 once
+//         hit — all zero until then
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> color: vec4<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(1) var<uniform> params: vec4<f32>;
 @group(constants::MATERIAL_BIND_GROUP) @binding(2) var<uniform> wah: vec4<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(3) var<uniform> hold: vec4<f32>;
 
 const TAU: f32 = 6.2831853;
 const PI: f32 = 3.1415927;
@@ -82,8 +86,29 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let fade = pow(1.0 - s, 0.6);
 
     let alpha = clamp(max(body, side_glow) * fade * pulse, 0.0, 1.0);
-    let hot = body * (1.0 - s) * 0.4;
-    let rgb = mix(color.rgb, vec3<f32>(1.0, 1.0, 1.0), hot);
+    let hot = body * (1.0 - s) * 0.4; // brighten the core near the head
+    let base_rgb = mix(color.rgb, vec3<f32>(1.0, 1.0, 1.0), hot);
 
-    return vec4<f32>(rgb, alpha * color.a);
+    // Hold state, once the note is hit (hold is all zero before): the tail
+    // still above the hit line is what the player sees during the hold, so
+    // it shows *state* rather than a fill — gold while the expected pitch
+    // is sounding (hold.x), paler the more of the hold so far was lost
+    // (hold.y), and dim grey the moment the pitch drops out. A confirmed
+    // sustained technique (hold.z > 0) shimmers the gold; one not heard yet
+    // (hold.z < 0) flattens it, so the difference shows while there is
+    // still time to fix it. Arithmetic masks, not branches: `fwidth` above
+    // needs uniform control flow.
+    let held = f32(hold.x > 0.5);
+    let hit = f32(hold.w > 0.5);
+    let confirmed = f32(hold.z > 0.5);
+    let unheard = f32(hold.z < -0.5);
+    let shimmer = 0.5 + 0.5 * sin(s * 6.0 * TAU - t * 9.0 + phase);
+    let gold = vec3<f32>(1.0, 0.86, 0.35);
+    let gold_lift = (0.45 + 0.35 * hold.y) + 0.2 * shimmer * confirmed - 0.3 * unheard;
+    let held_rgb = mix(base_rgb, gold, clamp(gold_lift, 0.0, 1.0));
+    let dropped_rgb = mix(base_rgb, vec3<f32>(0.42, 0.42, 0.48), 0.75);
+    let rgb = mix(base_rgb, mix(dropped_rgb, held_rgb, held), hit);
+    let hold_alpha = mix(1.0, mix(0.45, 1.0, held), hit);
+
+    return vec4<f32>(rgb, alpha * color.a * hold_alpha);
 }

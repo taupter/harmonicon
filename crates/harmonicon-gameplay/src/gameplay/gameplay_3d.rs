@@ -16,9 +16,13 @@ use harmonicon_ui::music_score::{self, BravuraFont};
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::countdown_overlay::spawn_countdown;
-use super::gameplay_2d::{note_anim_mode, note_techniques};
+use super::gameplay_2d::{harp_pitches, note_anim_mode, note_techniques};
 use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::judge::{judged_instant, live_technique_status};
 use super::modifier_legend::build_legend_materials;
+use super::note_feedback::{
+    Judged, JudgedState, hold_uniform, judged_now, judged_scale, judged_stamp,
+};
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_tail_3d::NoteTail3dMaterial;
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
@@ -101,9 +105,19 @@ fn note_dimensions(assets: &NoteRenderAssets3D, hole: u8, duration: f64) -> (f32
     (note_w, head_depth, tail_len)
 }
 
-/// The cube head of a 3D note (child). Tinted gold/red on hit/miss.
+/// The cube head of a 3D note (child). Tinted gold/red on hit/miss and
+/// scaled by `animate_judged_notes_3d` the moment the note is judged —
+/// `base_scale` is what the pop/shrink multiplies, since the `Transform`
+/// itself is overwritten each frame.
 #[derive(Component)]
-pub(super) struct NoteHead3d;
+pub(super) struct NoteHead3d {
+    base_scale: f32,
+}
+
+/// The tab text inside a [`NoteHoleLabel3D`]. Replaced by a check or cross
+/// once the note is judged, as the 2D head label is.
+#[derive(Component)]
+pub(super) struct NoteHoleLabelText3D;
 
 /// The animated tail ribbon of a 3D note (child). Tinted gold/red on hit/miss.
 #[derive(Component)]
@@ -411,6 +425,7 @@ fn spawn_note_visual_3d(
         color: Color::srgba(r, g, b, 0.9).to_linear(),
         params,
         wah: wah_v,
+        hold: Vec4::ZERO,
     });
     let tail_w = note_w * cfg.tail_width;
     let tail_mesh = meshes.add(Mesh::from(Plane3d::new(
@@ -422,6 +437,7 @@ fn spawn_note_visual_3d(
         .spawn((
             Transform::from_xyz(note_x, LANE_Y + NOTE_H * 0.5, FAR_Z),
             NoteVisual3D { note_id },
+            JudgedState::default(),
             GameplayRoot,
         ))
         .with_children(|note_e| {
@@ -430,7 +446,9 @@ fn spawn_note_visual_3d(
                 Mesh3d(head_mesh.clone()),
                 MeshMaterial3d(head_mat),
                 Transform::from_scale(Vec3::splat(head_scale)),
-                NoteHead3d,
+                NoteHead3d {
+                    base_scale: head_scale,
+                },
             ));
             // Tail ribbon trailing behind the head (−Z), flat over the lane.
             note_e.spawn((
@@ -480,6 +498,7 @@ fn spawn_note_visual_3d(
                         ..default()
                     },
                     TextColor(Color::WHITE),
+                    NoteHoleLabelText3D,
                 ));
             });
     }
@@ -973,11 +992,12 @@ pub fn update_notes_3d(
     }
 }
 
-/// Head/emissive/tail appearance for a 3D note visual: gold while hit, dim
-/// red while missed, otherwise its base blow/draw appearance
-/// ([`note_base_appearance`]). Pulled out of `update_note_visuals_3d` so the
-/// tint decision is unit-testable without spinning up rendering — mirrors
-/// [`gameplay_2d::note_tint`].
+/// Head/emissive/tail appearance for a 3D note visual: a gold head while
+/// hit — the tail ribbon keeps its base colour so the shader's credited-hold
+/// fill can advance along it — dim red while missed, otherwise its base
+/// blow/draw appearance ([`note_base_appearance`]). Pulled out of
+/// `update_note_visuals_3d` so the tint decision is unit-testable without
+/// spinning up rendering — mirrors [`gameplay_2d::note_tint`].
 fn note_tint_3d(
     hit: bool,
     missed: bool,
@@ -985,10 +1005,11 @@ fn note_tint_3d(
     colors: NoteColors,
 ) -> (Color, LinearRgba, LinearRgba) {
     if hit {
+        let (r, g, b, ..) = note_base_appearance(colors, is_blow);
         (
             Color::srgb(1.0, 0.9, 0.3),
             LinearRgba::new(2.5, 2.0, 0.3, 1.0),
-            Color::srgba(1.0, 0.85, 0.25, 0.95).to_linear(),
+            Color::srgba(r, g, b, 0.9).to_linear(),
         )
     } else if missed {
         (
@@ -1015,6 +1036,11 @@ fn note_tint_3d(
 /// a `LOOKAHEAD` window's worth of notes are ever spawned.
 pub fn update_note_visuals_3d(
     song_notes: Res<super::SongNotes>,
+    clock: Res<super::GameplayClock>,
+    audio: Res<harmonicon_audio::AudioSettings>,
+    pitch_filter: Res<super::HarmonicaPitchFilter>,
+    active: Res<ActivePitches>,
+    valid_notes: Res<ValidHarpNotes>,
     notes: Query<(&NoteVisual3D, &Children)>,
     heads: Query<&MeshMaterial3d<StandardMaterial>, With<NoteHead3d>>,
     tails: Query<&MeshMaterial3d<NoteTail3dMaterial>, With<NoteTail3d>>,
@@ -1024,12 +1050,20 @@ pub fn update_note_visuals_3d(
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
 ) {
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
+    let judged = judged_instant(clock.get(), &audio, Some(&pitch_filter));
+    let sounding = harp_pitches(&active, &valid_notes);
     for (visual, children) in &notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
         let (base, emissive, tail_color) =
             note_tint_3d(note.hit, note.missed, note.is_blow, colors);
+        let hold = hold_uniform(
+            note,
+            judged,
+            note.expected_pitch.is_some_and(|m| sounding.contains(&m)),
+            live_technique_status(&note.modifiers, &note.pitch_samples, &note.amp_samples),
+        );
         for child in children {
             if let Ok(h) = heads.get(*child)
                 && let Some(mut m) = std_materials.get_mut(&h.0)
@@ -1041,6 +1075,78 @@ pub fn update_note_visuals_3d(
                 && let Some(mut m) = tail_materials.get_mut(&h.0)
             {
                 m.color = tail_color;
+                m.hold = hold;
+            }
+        }
+    }
+}
+
+/// The 3D twin of `gameplay_2d::animate_judged_notes`: pops the cube head
+/// on a hit, shrinks it on a miss, and stamps the floating hole label with
+/// a check or cross — once per judgment, via [`JudgedState`], and undone
+/// when an A–B loop clears the note.
+pub fn animate_judged_notes_3d(
+    mut commands: Commands,
+    song_notes: Res<super::SongNotes>,
+    clock: Res<super::GameplayClock>,
+    mut notes: Query<(
+        Entity,
+        &NoteVisual3D,
+        &mut JudgedState,
+        Option<&Judged>,
+        &Children,
+    )>,
+    mut heads: Query<(&NoteHead3d, &mut Transform)>,
+    labels: Query<(&NoteHoleLabel3D, &Children)>,
+    mut label_texts: Query<&mut Text, With<NoteHoleLabelText3D>>,
+) {
+    let now = clock.get();
+    for (entity, visual, mut state, judged, children) in &mut notes {
+        let Some(note) = song_notes.notes.get(visual.note_id) else {
+            continue;
+        };
+        let current = judged_now(note);
+        let transitioned = current != state.0;
+        let judged = if transitioned {
+            state.0 = current;
+            match current {
+                Some(hit) => {
+                    let j = Judged { hit, at: now };
+                    commands.entity(entity).insert(j);
+                    Some(j)
+                }
+                None => {
+                    commands.entity(entity).remove::<Judged>();
+                    None
+                }
+            }
+        } else {
+            judged.copied()
+        };
+        let scale = judged.map_or(1.0, |j| judged_scale(j.hit, (now - j.at) as f32));
+        for child in children {
+            if let Ok((head, mut transform)) = heads.get_mut(*child) {
+                let wanted = Vec3::splat(head.base_scale * scale);
+                if transform.scale != wanted {
+                    transform.scale = wanted;
+                }
+            }
+        }
+        if !transitioned {
+            continue;
+        }
+        let wanted = match current {
+            Some(hit) => judged_stamp(hit).to_string(),
+            None => super::phrase_overlay::tab_label(note.hole, note.is_blow, &[]),
+        };
+        for (label, label_children) in &labels {
+            if label.target != entity {
+                continue;
+            }
+            for grandchild in label_children {
+                if let Ok(mut text) = label_texts.get_mut(*grandchild) {
+                    text.0 = wanted.clone();
+                }
             }
         }
     }

@@ -209,8 +209,17 @@ pub struct FontFallbackPlugin;
 
 impl Plugin for FontFallbackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_fallback_fonts)
-            .add_systems(Update, apply_font_fallback);
+        // `PostUpdate`, ahead of the UI text measurement, so a `Text` written
+        // anywhere in `Update` is already split (or re-fonted) by the time
+        // the frame's glyphs are laid out. In `Update` it was unordered
+        // against every writer, and a label that *became* an icon on some
+        // frame — a note head stamped ✓ on the hit, a tuner flipping to
+        // in-tune — drew one frame of tofu whenever the writer happened to
+        // run after it.
+        app.add_systems(Startup, load_fallback_fonts).add_systems(
+            PostUpdate,
+            apply_font_fallback.before(bevy::ui::UiSystems::Content),
+        );
     }
 }
 

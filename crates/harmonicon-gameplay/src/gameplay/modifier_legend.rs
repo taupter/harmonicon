@@ -115,6 +115,7 @@ pub fn build_legend_materials(
                 color,
                 params,
                 wah: wah_v,
+                hold: Vec4::ZERO,
             });
             (handle, name)
         })

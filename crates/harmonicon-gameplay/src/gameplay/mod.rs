@@ -8,6 +8,8 @@
 //! song-lifetime systems `plugin.rs` wires together.
 
 mod adaptive_difficulty;
+#[cfg(feature = "dev")]
+pub mod autoplay;
 mod bars;
 mod beat_guides;
 mod bending_trainer;
@@ -26,6 +28,7 @@ pub mod lifecycle;
 pub mod metronome_overlay;
 mod modifier_legend;
 mod music_score_bridge;
+pub mod note_feedback;
 pub mod note_tail_2d;
 mod note_tail_3d;
 pub mod note_visual_2d;

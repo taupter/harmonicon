@@ -29,6 +29,7 @@ tools beside it, this is meant to be reachable mid-debugging.
     python3 scripts/brpctl.py pause
     python3 scripts/brpctl.py wait on
     python3 scripts/brpctl.py loop 12 20         # A–B range in seconds; `loop off` clears
+    python3 scripts/brpctl.py autoplay on [late_ms]  # play the chart itself (dev build only)
     python3 scripts/brpctl.py capture /tmp/shots before-fix
 
     # Drive every screen the gameplay work needs a baseline of into one
@@ -272,6 +273,22 @@ def set_loop(start_secs, end_secs):
             "resource": "harmonicon_gameplay::gameplay::state::LoopConfig",
             "path": "",
             "value": {"active": True, "start_time": float(start_secs), "end_time": float(end_secs)},
+        },
+    )
+
+
+def set_autoplay(enabled, late_ms=0.0):
+    """Have the game sound every note of the chart itself, as if a perfect
+    player were on the mic — the only way to get *hits* (head pops, hold
+    fills, a populated timing bar on the results screen) out of a headless
+    run. `late_ms` plays every attack that much behind the beat, to make the
+    results screen's timing lopsided on purpose."""
+    rpc(
+        "world.mutate_resources",
+        {
+            "resource": "harmonicon_gameplay::gameplay::autoplay::Autoplay",
+            "path": "",
+            "value": {"enabled": bool(enabled), "late_ms": float(late_ms)},
         },
     )
 
@@ -559,6 +576,9 @@ def _main(argv):
             clear_loop()
         else:
             set_loop(args[0], args[1])
+    elif command == "autoplay":
+        on = args[0].lower() in ("on", "true", "1")
+        set_autoplay(on, args[1] if len(args) > 1 else 0.0)
     elif command in ("--take-all-screenshots", "take-all-screenshots"):
         take_all_screenshots(*args[:1])
     else:

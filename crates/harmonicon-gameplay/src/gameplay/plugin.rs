@@ -260,6 +260,10 @@ impl Plugin for GameplayPlugin {
                 clock::handle_loop_boundary,
                 bars::track_current_bar,
                 collect_pitches,
+                // Dev-only: overwrites what `collect_pitches` produced when
+                // autoplay is on, so it has to sit exactly here.
+                #[cfg(feature = "dev")]
+                super::autoplay::autoplay_pitches,
                 judge::update_active_targets,
                 judge::score_notes,
                 hud::update_score_display,
@@ -301,6 +305,7 @@ impl Plugin for GameplayPlugin {
                 gameplay_2d::update_notes,
                 gameplay_2d::size_note_tails,
                 gameplay_2d::update_note_visuals,
+                gameplay_2d::animate_judged_notes,
                 gameplay_2d::update_holes,
                 beat_guides::update_beat_guides,
             )
@@ -320,6 +325,7 @@ impl Plugin for GameplayPlugin {
                 gameplay_3d::update_notes_3d,
                 gameplay_3d::update_note_hole_labels_3d,
                 gameplay_3d::update_note_visuals_3d,
+                gameplay_3d::animate_judged_notes_3d,
                 gameplay_3d::animate_note_tails_3d,
                 gameplay_3d::update_holes_3d,
                 gameplay_3d::groove_harmonica,
@@ -332,5 +338,8 @@ impl Plugin for GameplayPlugin {
                         .and_then(|m: Res<GameplayMode>| *m == GameplayMode::Play3D),
                 ),
         );
+        // Registered for reflection by `dev_capture`, so BRP can switch it.
+        #[cfg(feature = "dev")]
+        app.init_resource::<super::autoplay::Autoplay>();
     }
 }

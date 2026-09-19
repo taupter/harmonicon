@@ -17,7 +17,11 @@ use super::beat_guides;
 use super::countdown_overlay::spawn_countdown;
 use super::highway_2d::{spawn_harmonica_strip, spawn_highway};
 use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::judge::{judged_instant, live_technique_status};
 use super::modifier_legend::build_legend_materials;
+use super::note_feedback::{
+    Judged, JudgedState, head_label_color, hold_uniform, judged_now, judged_scale, judged_stamp,
+};
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
@@ -351,9 +355,16 @@ fn note_height_pct(duration: f64) -> f32 {
 #[derive(Component)]
 pub(super) struct NoteHighway;
 
-/// The round comet head (an `ImageNode`), child of a note. Tinted on hit/miss.
+/// The round comet head (an `ImageNode`), child of a note. Tinted on hit/miss
+/// and scaled by `animate_judged_notes` the moment the note is judged.
 #[derive(Component)]
 pub(super) struct NoteHead;
+
+/// The tab text on the head (`+4`, `↓`), child of [`NoteHead`]. Replaced by
+/// a check or cross once the note is judged — a cue that doesn't depend on
+/// telling gold from red.
+#[derive(Component)]
+pub(super) struct NoteHeadLabel;
 
 /// The comet tail (a shader `MaterialNode`), child of a note. Tinted on hit/miss
 /// and sized each frame to be time-accurate. Carries the note's duration as a
@@ -496,6 +507,7 @@ fn spawn_note_visual(
         color: Color::srgba(r, g, b, 0.95).to_linear(),
         params,
         wah: wah_v,
+        hold: Vec4::ZERO,
     });
 
     hw.spawn((
@@ -508,6 +520,7 @@ fn spawn_note_visual(
             ..default()
         },
         NoteVisual { note_id },
+        JudgedState::default(),
     ))
     .with_children(|note_e| {
         // Tail + head layout shared with the note_editor binary via
@@ -534,24 +547,14 @@ fn spawn_note_visual(
             },
             |cmd| {
                 cmd.insert(NoteHead).with_children(|head| {
-                    let label = if show_numbers {
-                        // `+`/`-` for blow/draw, no bend/overblow/slide
-                        // suffix — that level of detail lives in the tab
-                        // ribbon (`phrase_overlay`); the note-head label is
-                        // just "which hole, which direction".
-                        super::phrase_overlay::tab_label(hole, is_blow, &[])
-                    } else if is_blow {
-                        "\u{2191}".to_string()
-                    } else {
-                        "\u{2193}".to_string()
-                    };
                     head.spawn((
-                        Text::new(label),
+                        Text::new(head_label(hole, is_blow, show_numbers)),
                         TextFont {
                             font_size: FontSize::Px(15.0),
                             ..default()
                         },
-                        TextColor(Color::srgba(0.05, 0.05, 0.08, 0.95)),
+                        TextColor(head_label_color(None)),
+                        NoteHeadLabel,
                     ));
                 });
             },
@@ -664,15 +667,20 @@ pub fn size_note_tails(
     }
 }
 
-/// Head/tail tint for a note visual: gold while hit, dim red while missed,
-/// otherwise its base blow/draw colour (head at full alpha, tail slightly
+/// Head/tail tint for a note visual: a gold head while hit — the tail keeps
+/// its base colour so the shader's credited-hold fill (`hold` uniform) can
+/// advance up it in gold as the note is held — both dim red while missed,
+/// otherwise the base blow/draw colour (head at full alpha, tail slightly
 /// under, matching the alphas `spawn_note_visual` gives a freshly-spawned
 /// note). Pulled out of `update_note_visuals` so the tint decision is
 /// unit-testable without spinning up rendering.
 fn note_tint(hit: bool, missed: bool, is_blow: bool, colors: NoteColors) -> (Color, Color) {
     if hit {
-        let tint = Color::srgba(1.0, 0.85, 0.25, 1.0);
-        (tint, tint)
+        let (r, g, b) = note_rgb(colors, is_blow);
+        (
+            Color::srgba(1.0, 0.85, 0.25, 1.0),
+            Color::srgba(r, g, b, 0.95),
+        )
     } else if missed {
         let tint = Color::srgba(0.5, 0.13, 0.13, 1.0);
         (tint, tint)
@@ -690,6 +698,11 @@ fn note_tint(hit: bool, missed: bool, is_blow: bool, colors: NoteColors) -> (Col
 /// a `LOOKAHEAD` window's worth of notes are ever spawned.
 pub fn update_note_visuals(
     song_notes: Res<SongNotes>,
+    clock: Res<super::GameplayClock>,
+    audio: Res<harmonicon_audio::AudioSettings>,
+    pitch_filter: Res<super::HarmonicaPitchFilter>,
+    active: Res<ActivePitches>,
+    valid_notes: Res<ValidHarpNotes>,
     notes: Query<(&NoteVisual, &Children)>,
     mut heads: Query<&mut ImageNode, With<NoteHead>>,
     tails: Query<&MaterialNode<NoteTail2dMaterial>, With<NoteTail>>,
@@ -698,11 +711,21 @@ pub fn update_note_visuals(
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
 ) {
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
+    let judged = judged_instant(clock.get(), &audio, Some(&pitch_filter));
+    let sounding = harp_pitches(&active, &valid_notes);
     for (visual, children) in &notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
         let (head_tint, tail_tint) = note_tint(note.hit, note.missed, note.is_blow, colors);
+        // Live hold progress for the tail shader, from the same samples the
+        // judge will verify the technique from when the hold ends.
+        let hold = hold_uniform(
+            note,
+            judged,
+            note.expected_pitch.is_some_and(|m| sounding.contains(&m)),
+            live_technique_status(&note.modifiers, &note.pitch_samples, &note.amp_samples),
+        );
         for child in children {
             if let Ok(mut head) = heads.get_mut(*child) {
                 head.color = head_tint;
@@ -711,8 +734,91 @@ pub fn update_note_visuals(
                 && let Some(mut material) = shape_materials.get_mut(&tail.0)
             {
                 material.color = tail_tint.to_linear();
+                material.hold = hold;
             }
         }
+    }
+}
+
+/// Pops a head the instant its note is hit, shrinks it on a miss, and stamps
+/// the label with a check or cross — the transition is noticed through
+/// [`JudgedState`] rather than per-frame, so it fires exactly once per
+/// judgment, and an A–B loop clearing the note's state puts the head back
+/// (scale 1, tab label) the same way.
+pub fn animate_judged_notes(
+    mut commands: Commands,
+    song_notes: Res<SongNotes>,
+    clock: Res<super::GameplayClock>,
+    show_numbers: Res<harmonicon_platform::assets_management::ShowNoteNumbers>,
+    mut notes: Query<(
+        Entity,
+        &NoteVisual,
+        &mut JudgedState,
+        Option<&Judged>,
+        &Children,
+    )>,
+    mut heads: Query<(&mut UiTransform, &Children), With<NoteHead>>,
+    mut labels: Query<(&mut Text, &mut TextColor), With<NoteHeadLabel>>,
+) {
+    let now = clock.get();
+    for (entity, visual, mut state, judged, children) in &mut notes {
+        let Some(note) = song_notes.notes.get(visual.note_id) else {
+            continue;
+        };
+        let current = judged_now(note);
+        let transitioned = current != state.0;
+        let judged = if transitioned {
+            state.0 = current;
+            match current {
+                Some(hit) => {
+                    let j = Judged { hit, at: now };
+                    commands.entity(entity).insert(j);
+                    Some(j)
+                }
+                None => {
+                    commands.entity(entity).remove::<Judged>();
+                    None
+                }
+            }
+        } else {
+            judged.copied()
+        };
+        let scale = judged.map_or(1.0, |j| judged_scale(j.hit, (now - j.at) as f32));
+        for child in children {
+            let Ok((mut transform, head_children)) = heads.get_mut(*child) else {
+                continue;
+            };
+            if transform.scale != Vec2::splat(scale) {
+                transform.scale = Vec2::splat(scale);
+            }
+            if !transitioned {
+                continue;
+            }
+            let wanted = match current {
+                Some(hit) => judged_stamp(hit).to_string(),
+                None => head_label(note.hole, note.is_blow, show_numbers.0),
+            };
+            for grandchild in head_children {
+                if let Ok((mut text, mut color)) = labels.get_mut(*grandchild) {
+                    text.0 = wanted.clone();
+                    color.0 = head_label_color(current);
+                }
+            }
+        }
+    }
+}
+
+/// The tab shown on a note head: `+`/`-` and the hole with numbers on, a
+/// bare direction arrow with them off. No bend/overblow/slide suffix — that
+/// level of detail lives in the tab ribbon (`phrase_overlay`); the head is
+/// just "which hole, which direction".
+fn head_label(hole: u8, is_blow: bool, show_numbers: bool) -> String {
+    if show_numbers {
+        super::phrase_overlay::tab_label(hole, is_blow, &[])
+    } else if is_blow {
+        "\u{2191}".to_string()
+    } else {
+        "\u{2193}".to_string()
     }
 }
 
@@ -872,10 +978,12 @@ mod tests {
     // ── note_tint ──────────────────────────────────────────────────────────────
 
     #[test]
-    fn note_tint_is_gold_when_hit() {
-        let (head, tail) = note_tint(true, false, true, NoteColors::default());
+    fn note_tint_is_gold_when_hit_and_leaves_the_tail_for_the_hold_fill() {
+        let colors = NoteColors::default();
+        let (head, tail) = note_tint(true, false, true, colors);
         assert_eq!(head, Color::srgba(1.0, 0.85, 0.25, 1.0));
-        assert_eq!(tail, head);
+        let (r, g, b) = note_rgb(colors, true);
+        assert_eq!(tail, Color::srgba(r, g, b, 0.95));
     }
 
     #[test]

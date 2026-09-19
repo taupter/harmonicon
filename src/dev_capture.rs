@@ -107,6 +107,10 @@ impl Plugin for DevCapturePlugin {
             // gesture remote control can't make — so the range is written
             // directly instead, to reach the loop UI for captures.
             .register_type::<harmonicon_gameplay::gameplay::LoopConfig>()
+            // Plays the chart itself, so hits — and everything only a hit
+            // shows: head pops, hold fills, the results timing bar — can be
+            // captured without a microphone.
+            .register_type::<harmonicon_gameplay::gameplay::autoplay::Autoplay>()
             .add_observer(save_capture)
             .add_systems(Update, drive_video_capture);
         info!("Bevy Remote Protocol listening on 127.0.0.1:15702 (--features dev)");

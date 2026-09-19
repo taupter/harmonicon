@@ -62,9 +62,12 @@ fn note_depth_is_clamped() {
 // ── note_tint_3d ───────────────────────────────────────────────────────────
 
 #[test]
-fn note_tint_3d_is_gold_when_hit() {
-    let (base, _, _) = note_tint_3d(true, false, true, NoteColors::default());
+fn note_tint_3d_is_gold_when_hit_and_leaves_the_tail_for_the_hold_fill() {
+    let colors = NoteColors::default();
+    let (base, _, tail_color) = note_tint_3d(true, false, true, colors);
     assert_eq!(base, Color::srgb(1.0, 0.9, 0.3));
+    let (r, g, b, ..) = note_base_appearance(colors, true);
+    assert_eq!(tail_color, Color::srgba(r, g, b, 0.9).to_linear());
 }
 
 #[test]

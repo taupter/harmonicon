@@ -317,6 +317,7 @@ fn setup(
                                     color: LinearRgba::from(TAIL_IDLE),
                                     params,
                                     wah,
+                                    hold: Vec4::ZERO,
                                 });
                                 spawn_note_children(
                                     note,

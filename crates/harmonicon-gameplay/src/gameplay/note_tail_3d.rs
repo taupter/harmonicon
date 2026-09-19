@@ -20,6 +20,10 @@ pub struct NoteTail3dMaterial {
     /// x = wah depth, y = wah cycles, z = animation mode, w = per-note phase.
     #[uniform(2)]
     pub wah: Vec4,
+    /// Live hold progress once the note is hit — see
+    /// `note_feedback::hold_uniform` for the layout. Zero until then.
+    #[uniform(3)]
+    pub hold: Vec4,
 }
 
 impl Material for NoteTail3dMaterial {

@@ -824,6 +824,42 @@ fn technique_confirmed_requires_real_wobble_for_wah() {
 }
 
 #[test]
+fn live_technique_status_distinguishes_unmeasurable_from_wrong() {
+    let vibrato = Modifier::Vibrato {
+        oscillation_hz: 5.0,
+        intensity: None,
+    };
+    let modifiers = vec![vibrato.clone()];
+    // Nothing sustained declared (an overblow is judged at onset), or
+    // nothing measurable yet: no reading, not a fail.
+    assert_eq!(live_technique_status(&[Modifier::Overblow], &[], &[]), None);
+    assert_eq!(live_technique_status(&[], &[], &[]), None);
+    let steady: Vec<(f64, f32)> = (0..20).map(|i| (i as f64 / 60.0, 0.0)).collect();
+    assert_eq!(live_technique_status(&modifiers, &steady, &[]), None);
+    assert!(
+        !technique_confirmed(&vibrato, &steady, &[]),
+        "…but the end-of-hold verdict still counts a never-measured wobble as not played"
+    );
+    // A wobble at the declared rate reads as confirmed; at the wrong rate,
+    // as heard-but-wrong — the two the highway paints differently.
+    let right = timestamped_sine(5.0, 0.0, 25.0, 40, 1.0 / 60.0);
+    let wrong = timestamped_sine(1.5, 0.0, 25.0, 40, 1.0 / 60.0);
+    assert_eq!(live_technique_status(&modifiers, &right, &[]), Some(true));
+    assert_eq!(live_technique_status(&modifiers, &wrong, &[]), Some(false));
+    // Two declared techniques: both have to be right.
+    let both = vec![
+        vibrato,
+        Modifier::WahWah {
+            oscillation_hz: 3.0,
+            intensity: None,
+        },
+    ];
+    let pumping = timestamped_sine(3.0, 0.2, 0.06, 40, 1.0 / 60.0);
+    assert_eq!(live_technique_status(&both, &right, &pumping), Some(true));
+    assert_eq!(live_technique_status(&both, &wrong, &pumping), Some(false));
+}
+
+#[test]
 fn technique_confirmed_rejects_vibrato_at_the_wrong_rate() {
     // The chart declares a 5 Hz vibrato, but the player wobbled at ~1.5 Hz
     // — real oscillation, just not the declared rate. A flip-count-only

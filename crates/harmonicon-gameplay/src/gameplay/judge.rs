@@ -33,6 +33,7 @@ pub(crate) fn update_active_targets(
     clock: Res<GameplayClock>,
     config: Res<ScoringConfig>,
     audio: Res<AudioSettings>,
+    pitch_filter: Option<Res<HarmonicaPitchFilter>>,
     song_notes: Res<SongNotes>,
     mut targets: ResMut<ActiveTargets>,
 ) {
@@ -40,10 +41,9 @@ pub(crate) fn update_active_targets(
     if clock.get() < 0.0 {
         return;
     }
-    // Shift the judgment point back by the microphone pipeline latency so the
-    // highlighted hole tracks what the player is *actually* hearing, not what
-    // the raw clock says.
-    let judged = clock.get() - audio.input_latency_ms as f64 / 1000.0;
+    // The judge's own instant, so the highlighted hole tracks what the
+    // player is *actually* hearing, not what the raw clock says.
+    let judged = judged_instant(clock.get(), &audio, pitch_filter.as_deref());
     // Starting from `score_notes`'s cursor (possibly a frame stale — that's
     // fine, it only ever lags a monotonically-advancing lower bound) means
     // this never re-scans notes long done. `notes` is sorted by `time`, so
@@ -75,30 +75,79 @@ pub(crate) fn is_sustained_technique(modifier: &Modifier) -> bool {
 /// varies naturally between players and even between notes.
 const OSCILLATION_RATE_TOLERANCE_FRAC: f32 = 0.4;
 
-/// Did the player actually perform this sustained technique, judged from the
-/// pitch/loudness samples collected while the note was held — both that it
-/// swung enough to be a real wobble, and that it swung at roughly the
+/// Is the player performing this sustained technique, judged from the
+/// pitch/loudness samples collected while the note is held — both that it
+/// swings enough to be a real wobble, and that it swings at roughly the
 /// chart's declared `oscillation_hz` rather than some unrelated rate.
+/// `None` while there isn't yet enough of a swing to measure a rate from at
+/// all — distinct from `Some(false)`, a rate that was measured and is wrong.
 /// Non-sustained modifiers (bend, overblow, overdraw) are validated at onset
-/// instead — this always returns `true` for them since it shouldn't be asked.
+/// instead — this always answers `Some(true)` for them since it shouldn't
+/// be asked.
+pub(crate) fn technique_status(
+    modifier: &Modifier,
+    pitch_samples: &[(f64, f32)],
+    amp_samples: &[(f64, f32)],
+) -> Option<bool> {
+    match modifier {
+        Modifier::Vibrato { oscillation_hz, .. } => {
+            measured_oscillation_hz(pitch_samples, VIBRATO_MIN_SWING_CENTS).map(|hz| {
+                oscillation_matches_rate(hz, *oscillation_hz, OSCILLATION_RATE_TOLERANCE_FRAC)
+            })
+        }
+        Modifier::WahWah { oscillation_hz, .. } => {
+            measured_relative_oscillation_hz(amp_samples, WAH_MIN_SWING_FRAC).map(|hz| {
+                oscillation_matches_rate(hz, *oscillation_hz, OSCILLATION_RATE_TOLERANCE_FRAC)
+            })
+        }
+        _ => Some(true),
+    }
+}
+
+/// The verdict at the end of a hold: [`technique_status`] with "never
+/// measurable" counting as not performed — a declared vibrato that never
+/// wobbled wasn't played.
 pub(crate) fn technique_confirmed(
     modifier: &Modifier,
     pitch_samples: &[(f64, f32)],
     amp_samples: &[(f64, f32)],
 ) -> bool {
-    match modifier {
-        Modifier::Vibrato { oscillation_hz, .. } => {
-            measured_oscillation_hz(pitch_samples, VIBRATO_MIN_SWING_CENTS).is_some_and(|hz| {
-                oscillation_matches_rate(hz, *oscillation_hz, OSCILLATION_RATE_TOLERANCE_FRAC)
-            })
-        }
-        Modifier::WahWah { oscillation_hz, .. } => {
-            measured_relative_oscillation_hz(amp_samples, WAH_MIN_SWING_FRAC).is_some_and(|hz| {
-                oscillation_matches_rate(hz, *oscillation_hz, OSCILLATION_RATE_TOLERANCE_FRAC)
-            })
-        }
-        _ => true,
-    }
+    technique_status(modifier, pitch_samples, amp_samples) == Some(true)
+}
+
+/// The live status of a note's sustained techniques mid-hold, for the
+/// highway to show while the hold is still happening rather than only once
+/// it ends: `None` when the note declares none, or none of them can be
+/// measured yet; otherwise whether every measurable one is at the right
+/// rate so far. Derived from the same samples `technique_confirmed` judges
+/// at the end, so the live reading and the final verdict can't disagree.
+pub fn live_technique_status(
+    modifiers: &[Modifier],
+    pitch_samples: &[(f64, f32)],
+    amp_samples: &[(f64, f32)],
+) -> Option<bool> {
+    modifiers
+        .iter()
+        .filter(|m| is_sustained_technique(m))
+        .filter_map(|m| technique_status(m, pitch_samples, amp_samples))
+        .fold(None, |acc, ok| Some(acc.unwrap_or(true) && ok))
+}
+
+/// The instant on the chart's timeline that the sound arriving *now* was
+/// made at: the clock with the player's input latency and the pitch
+/// filter's onset lag taken off. The one definition of "when did this
+/// attack happen" — the judge classifies against it, the dev autoplayer
+/// sounds notes on it, and the highway measures a hold's elapsed time on it
+/// (so `held`, which only starts once the judge sees the hit, isn't read
+/// as a lost start).
+pub fn judged_instant(
+    clock: f64,
+    audio: &AudioSettings,
+    pitch_filter: Option<&HarmonicaPitchFilter>,
+) -> f64 {
+    clock
+        - f64::from(audio.input_latency_ms) / 1000.0
+        - pitch_filter.map_or(0.0, |filter| filter.onset_lag_secs(audio.pitch_algorithm))
 }
 
 /// The currently-detected frequency (Hz) matching `midi` (a MIDI note
@@ -237,9 +286,7 @@ pub(crate) fn score_notes(
     // being one instant for the whole frame to do that: a per-note judgment
     // time makes `offset` non-monotonic over notes sorted by `time`, and the
     // scan can then break before a later note that was still in range.
-    let judged = clock.get()
-        - audio.input_latency_ms as f64 / 1000.0
-        - pitch_filter.map_or(0.0, |filter| filter.onset_lag_secs(audio.pitch_algorithm));
+    let judged = judged_instant(clock.get(), &audio, pitch_filter.as_deref());
 
     if config.combo_enabled
         && should_decay_combo(
