@@ -550,7 +550,7 @@ pub fn spawn_song_progress(
 /// Sweeps the playhead from the left edge at song start to the right edge at
 /// the real end of the audio ([`AudioDuration`], not [`SongEnd`] — see its
 /// doc comment). Stays put at the left during the countdown (negative clock)
-/// and for looping songs (no finite `SongEnd`); once the real audio content
+/// and before a song has set a finite `SongEnd`; once the real audio content
 /// is behind it, clamps at the right edge rather than racing ahead of or
 /// lagging the waveform underneath it.
 fn update_progress(

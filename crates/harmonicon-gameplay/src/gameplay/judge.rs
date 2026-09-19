@@ -469,6 +469,7 @@ pub(crate) fn score_notes(
                     HitQuality::Good => stats.good += 1,
                 }
                 stats.offset_sum += offset;
+                stats.timing.record(offset);
                 score.last_hit_time = clock.get();
                 score.combo += 1;
                 score.max_combo = score.max_combo.max(score.combo);

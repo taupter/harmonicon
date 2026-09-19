@@ -14,11 +14,11 @@ use harmonicon_song::song::SongManifest;
 
 use super::bars::chart_meter;
 use super::clock::GameplayClock;
-use super::notes::{last_note_end, resolve_item_time};
+use super::notes::{ScheduledNote, SongNotes, last_note_end, resolve_item_time};
 use super::song_info::SongInfo;
 use super::state::{
     GameplayRoot, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicPlayer, MusicStarted, Paused,
-    PitchGate, Score, ScoringConfig, SongEnd, SongStats,
+    PitchGate, PracticeRequest, Score, ScoringConfig, SongEnd, SongStats, loop_range_valid,
 };
 use super::wait_freeze_overlay::WaitFreezeState;
 use harmonicon_platform::localization::Localization;
@@ -93,6 +93,7 @@ pub(crate) fn setup_scoring_config(
     mut loop_cfg: ResMut<LoopConfig>,
     mut song_end: ResMut<SongEnd>,
     mut pitch_range: ResMut<PitchRange>,
+    practice: Res<PracticeRequest>,
 ) {
     let Some(manifest) = manifests.get(&selected.0) else {
         return;
@@ -145,13 +146,22 @@ pub(crate) fn setup_scoring_config(
         }
     }
 
-    // Song end = last note's end + a tail, so the results screen appears once the
-    // content finishes. Looping songs never end.
-    song_end.0 = if loop_cfg.active {
-        f64::INFINITY
-    } else {
-        last_note_end(&chart.track, &chart.timing) + SONG_END_TAIL
-    };
+    // "Practice missed section" from the results screen: the player asked
+    // for this range, so it wins over the chart's own default.
+    if let Some(range) = practice.0
+        && loop_range_valid(range.start_time, range.end_time)
+    {
+        loop_cfg.active = true;
+        loop_cfg.start_time = range.start_time;
+        loop_cfg.end_time = range.end_time;
+    }
+
+    // Song end = last note's end + a tail, so the results screen appears once
+    // the content finishes. A loop doesn't change where the song ends — it
+    // just keeps the clock from getting there (`detect_song_end` waits on
+    // `LoopConfig` itself), so clearing the loop mid-song still finishes,
+    // and the progress bar keeps its playhead and loop marker meanwhile.
+    song_end.0 = last_note_end(&chart.track, &chart.timing) + SONG_END_TAIL;
 
     info!(
         "Scoring config: perfect={:.0}ms good={:.0}ms miss={:.0}ms combo={} beats/bar={}",
@@ -165,20 +175,85 @@ pub(crate) fn setup_scoring_config(
 
 /// Once the song's content has finished (and we're not looping or jamming),
 /// transition to the results screen. Gated on `music_started` so it never fires
-/// during the countdown.
+/// during the countdown, and on `LoopConfig` because a loop holds the clock
+/// short of the end — `handle_loop_boundary` runs earlier in the same chain,
+/// so an active loop has always already rewound by the time this reads it.
 pub(crate) fn detect_song_end(
     clock: Res<GameplayClock>,
     song_end: Res<SongEnd>,
     music_started: Res<MusicStarted>,
+    loop_cfg: Res<LoopConfig>,
     mode: Res<GameplayMode>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    if *mode == GameplayMode::JamSession || !music_started.0 {
+    if *mode == GameplayMode::JamSession || !music_started.0 || loop_cfg.active {
         return;
     }
     if clock.get() >= song_end.0 {
         next_state.set(AppState::Results);
     }
+}
+
+/// Jumps a "Practice missed section" run to its range the moment the music
+/// sink exists, then forgets the request so the jump happens once. Runs
+/// right after `tick_clock` in the `GameplayLogic` chain: the sink is
+/// spawned by `update_countdown` through `Commands`, so it's a frame late,
+/// and `rewind_to` has to seek it in the same step that moves the clock or
+/// the next anchoring pass would drag the clock straight back to 0.
+///
+/// Everything before the range is resolved silently first
+/// (`skip_notes_before`) — the player asked to practise *this* stretch,
+/// and a wall of `MISS` for notes the song never reached would say the
+/// opposite. A song with no backing audio has no sink to wait for and
+/// jumps immediately; one with several MIDI-stem sinks gets the same
+/// clock-only jump every other loop rewind already gives it (`rewind_to`
+/// only ever seeks a single sink).
+pub(crate) fn start_at_practice_range(
+    mut practice: ResMut<PracticeRequest>,
+    music_started: Res<MusicStarted>,
+    selected: Res<SelectedSong>,
+    manifests: Res<Assets<SongManifest>>,
+    mut clock: ResMut<GameplayClock>,
+    mut song_notes: ResMut<SongNotes>,
+    sinks: Query<&AudioSink, With<MusicPlayer>>,
+) {
+    let Some(range) = practice.0 else {
+        return;
+    };
+    if !music_started.0 {
+        return;
+    }
+    let has_music = manifests
+        .get(&selected.0)
+        .is_some_and(|m| m.music.is_some() || m.midi_tracks.is_some());
+    if has_music && sinks.is_empty() {
+        return;
+    }
+    practice.0 = None;
+    skip_notes_before(&mut song_notes.notes, range.start_time);
+    clock.rewind_to(range.start_time, sinks.single().ok());
+    info!(
+        "Practice range: {:.2}s – {:.2}s",
+        range.start_time, range.end_time
+    );
+}
+
+/// Marks every still-pending note that starts before `t` as resolved, so
+/// the judge neither scores nor tallies it. `notes` is sorted by `time`,
+/// so this is one prefix.
+pub(crate) fn skip_notes_before(notes: &mut [ScheduledNote], t: f64) {
+    let end = notes.partition_point(|n| n.time < t);
+    for note in &mut notes[..end] {
+        if !note.hit {
+            note.missed = true;
+        }
+    }
+}
+
+/// Clears a practice request the run never consumed — the player quit
+/// during the countdown — so it can't apply to whatever song comes next.
+pub(crate) fn clear_practice_request(mut practice: ResMut<PracticeRequest>) {
+    practice.0 = None;
 }
 
 /// Push the current music level onto the playing song's sink whenever the

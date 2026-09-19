@@ -22,8 +22,8 @@ use super::notes::SongNotes;
 use super::practice_badges;
 use super::state::{
     ActivePitches, ActiveTargets, HarmonicaPitchFilter, HitFeedback, LoopConfig, MusicStarted,
-    NoteScored, Paused, PitchGate, PlayedHarp, Score, ScoringConfig, SongEnd, SongStats,
-    ValidHarpNotes, collect_pitches,
+    NoteScored, Paused, PitchGate, PlayedHarp, PracticeRequest, Score, ScoringConfig, SongEnd,
+    SongStats, ValidHarpNotes, collect_pitches,
 };
 use super::{
     adaptive_difficulty, bending_trainer, call_response, countdown_overlay, gameplay_2d,
@@ -90,6 +90,7 @@ impl Plugin for GameplayPlugin {
         .init_resource::<ActiveTargets>()
         .init_resource::<Paused>()
         .init_resource::<LoopConfig>()
+        .init_resource::<PracticeRequest>()
         .init_resource::<CurrentBar>()
         .init_resource::<AbsoluteBar>()
         .add_message::<BarChanged>()
@@ -192,6 +193,7 @@ impl Plugin for GameplayPlugin {
         // Cleanup: shared entity despawn + restore camera on 3D exit
         .add_systems(OnExit(AppState::Playing), lifecycle::cleanup_gameplay)
         .add_systems(OnExit(AppState::Playing), lifecycle::reset_pitch_filter)
+        .add_systems(OnExit(AppState::Playing), lifecycle::clear_practice_request)
         .add_systems(
             OnExit(AppState::Playing),
             gameplay_3d::restore_camera.run_if(|m: Res<GameplayMode>| *m == GameplayMode::Play3D),
@@ -254,6 +256,7 @@ impl Plugin for GameplayPlugin {
             Update,
             (
                 clock::tick_clock,
+                lifecycle::start_at_practice_range,
                 clock::handle_loop_boundary,
                 bars::track_current_bar,
                 collect_pitches,

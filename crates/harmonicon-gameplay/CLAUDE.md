@@ -145,7 +145,8 @@ load-bearing about *this* crate.
     sorted by time, end the scan outright rather than just being skipped).
   - `input_latency_ms` shifts the judged clock; calibration screen exists,
     and the results screen offers one-click application of the measured
-    mean offset.
+    mean offset — only when the timing histogram says the lean is real
+    (`coaching::latency_suggestion`, below).
   - Bends are validated at onset via `target_pitch` (expected pitch is the
     bent one, rounded to the nearest semitone); vibrato/wah are verified
     from `(time, value)` samples collected during the sustain — measured
@@ -319,6 +320,36 @@ load-bearing about *this* crate.
   against something real instead of reading as empty. Only the waveform
   row itself stays blank in that case — there's genuinely no waveform
   data without decoded audio.
+
+- **The results screen decides nothing; `gameplay::coaching` does.** Every
+  judgment on it — the one observation, the timing lean, whether the
+  Input-lag button is offered, the technique ranking, lesson progress, the
+  range "Practice missed section" loops — is a pure function over
+  `SongStats` with a minimum sample size, and `results.rs` only renders
+  what those return. Keep it that way: a new thing to say to the player is
+  a new `Observation` variant with a test for its floor, not a branch in
+  the spawner. Two things that follow:
+  - **`SongStats::timing` is a histogram, recorded beside `offset_sum` in
+    `score_notes`.** The mean alone can't tell a consistently-late player
+    from a scattered one, and only the former should be handed an Input-lag
+    change (`latency_suggestion`: lopsided, enough hits, mean worth a
+    click). Anything else that reasons about timing should read the
+    buckets, not re-derive from the mean.
+  - **"Practice missed section" is the A–B loop, entered from outside the
+    song.** `PracticeRequest` is set by the results button and consumed in
+    two places: `setup_scoring_config` copies the range into `LoopConfig`
+    (after the chart's own default, so it wins), and `start_at_practice_
+    range` — in the `GameplayLogic` chain right after `tick_clock` — jumps
+    the clock via `rewind_to` the frame the music sink exists, having first
+    marked every note before the range as resolved (`skip_notes_before`) so
+    the judge doesn't tally the skipped stretch as misses. It has to wait
+    for the sink (spawned by `update_countdown` through `Commands`, so a
+    frame late) because a clock jump without the matching seek is exactly
+    the anchoring violation described above. `SongEnd` is always the
+    chart's real end — a loop doesn't make it infinite, `detect_song_end`
+    just waits on `LoopConfig` — so the progress bar keeps its playhead and
+    loop marker while looping, and clearing the loop mid-song still reaches
+    Results.
 
 - **Call-and-response** (`gameplay::call_response`): a chart's consecutive
   `TrackItem::call: true` items are one phrase. Their notes are ordinary

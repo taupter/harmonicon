@@ -13,6 +13,7 @@ mod beat_guides;
 mod bending_trainer;
 mod call_response;
 mod clock;
+pub mod coaching;
 pub mod countdown_overlay;
 mod gameplay_2d;
 mod gameplay_3d;

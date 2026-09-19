@@ -280,6 +280,124 @@ fn loop_test_note(time: f64) -> ScheduledNote {
     }
 }
 
+// ── start_at_practice_range ──────────────────────────────────────────────
+
+fn pending_note(time: f64) -> ScheduledNote {
+    ScheduledNote {
+        hit: false,
+        missed: false,
+        sustain_scored: false,
+        held: 0.0,
+        miss_evidence: None,
+        ..loop_test_note(time)
+    }
+}
+
+#[test]
+fn skip_notes_before_resolves_exactly_the_prefix() {
+    let mut hit_early = pending_note(1.0);
+    hit_early.hit = true;
+    let mut notes = vec![
+        pending_note(0.5),
+        hit_early,
+        pending_note(4.0),
+        pending_note(4.5),
+    ];
+    super::lifecycle::skip_notes_before(&mut notes, 4.0);
+    assert!(
+        notes[0].missed,
+        "an unplayed note before the range is skipped"
+    );
+    assert!(
+        notes[1].hit && !notes[1].missed,
+        "an already-hit note keeps its hit"
+    );
+    assert!(
+        !notes[2].missed && !notes[3].missed,
+        "notes from the range start on stay pending"
+    );
+}
+
+#[test]
+fn practice_start_jumps_the_clock_once_music_is_running() {
+    use harmonicon_app::app::SelectedSong;
+    use harmonicon_song::song::SongManifest;
+
+    let mut world = World::new();
+    world.insert_resource(PracticeRequest(Some(PracticeRange {
+        start_time: 8.0,
+        end_time: 12.0,
+    })));
+    world.insert_resource(MusicStarted(false));
+    world.insert_resource(SelectedSong(Handle::default()));
+    world.insert_resource(Assets::<SongManifest>::default());
+    world.insert_resource(GameplayClock::new(-1.0));
+    world.insert_resource(SongNotes {
+        notes: vec![pending_note(2.0), pending_note(9.0)],
+        cursor: 0,
+    });
+
+    let mut schedule = Schedule::default();
+    schedule.add_systems(super::lifecycle::start_at_practice_range);
+
+    // Still counting down: nothing happens, the request is kept.
+    schedule.run(&mut world);
+    assert_eq!(world.resource::<GameplayClock>().get(), -1.0);
+    assert!(world.resource::<PracticeRequest>().0.is_some());
+
+    // Music on (no sink: an unknown manifest reads as a music-less song, so
+    // there's nothing to wait for): jump, skip the prefix, consume.
+    world.resource_mut::<MusicStarted>().0 = true;
+    schedule.run(&mut world);
+    assert_eq!(world.resource::<GameplayClock>().get(), 8.0);
+    assert_eq!(world.resource::<PracticeRequest>().0, None);
+    let notes = &world.resource::<SongNotes>().notes;
+    assert!(notes[0].missed && !notes[1].missed);
+
+    // A second run is a no-op: the jump happens once per request.
+    world.resource_mut::<GameplayClock>().set_free(9.5);
+    schedule.run(&mut world);
+    assert_eq!(world.resource::<GameplayClock>().get(), 9.5);
+}
+
+#[test]
+fn an_active_loop_holds_off_the_results_screen_and_clearing_it_releases() {
+    use bevy::state::app::StatesPlugin;
+    use harmonicon_app::app::AppState;
+
+    let mut app = App::new();
+    app.add_plugins(StatesPlugin).init_state::<AppState>();
+    app.insert_resource(GameplayClock::new(30.0));
+    app.insert_resource(SongEnd(20.0));
+    app.insert_resource(MusicStarted(true));
+    app.insert_resource(GameplayMode::Play2D);
+    app.insert_resource(LoopConfig {
+        active: true,
+        start_time: 2.0,
+        end_time: 10.0,
+    });
+    app.add_systems(Update, super::lifecycle::detect_song_end);
+
+    app.update();
+    assert!(
+        matches!(
+            *app.world().resource::<NextState<AppState>>(),
+            NextState::Unchanged
+        ),
+        "a looping song must not finish, however far past SongEnd the clock is"
+    );
+
+    *app.world_mut().resource_mut::<LoopConfig>() = LoopConfig::default();
+    app.update();
+    assert!(
+        matches!(
+            *app.world().resource::<NextState<AppState>>(),
+            NextState::Pending(AppState::Results)
+        ),
+        "with the loop cleared, the song past its end goes to Results"
+    );
+}
+
 #[test]
 fn loop_boundary_rewinds_the_clock_and_resets_notes_in_range() {
     let mut world = World::new();

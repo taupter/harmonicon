@@ -191,6 +191,62 @@ impl TechniqueStats {
     }
 }
 
+/// Width of one [`TimingHistogram`] bucket, in milliseconds.
+pub const TIMING_BUCKET_MS: f64 = 20.0;
+/// Bucket count of a [`TimingHistogram`]; odd, so one bucket straddles zero.
+pub const TIMING_BUCKETS: usize = 11;
+
+/// Every hit's compensated timing offset, bucketed — the shape a mean alone
+/// hides. Eleven `TIMING_BUCKET_MS`-wide buckets centred on zero, so the
+/// middle one holds hits within ±10 ms and the outermost two absorb anything
+/// beyond ±90 ms (a `good` window is typically 100 ms, so those are the
+/// edge of what scores at all). The results screen reads it as an
+/// early / on-time / late split and only offers the Input-lag fix when the
+/// distribution is lopsided, not merely off-centre on average
+/// (`coaching::latency_suggestion`).
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimingHistogram {
+    pub buckets: [u32; TIMING_BUCKETS],
+}
+
+/// Hits inside this many milliseconds of the target read as "on time" in
+/// the histogram's three-way split — the centre bucket and its neighbours.
+pub const ON_TIME_MS: f64 = TIMING_BUCKET_MS * 1.5;
+
+impl TimingHistogram {
+    /// Bucket index for a signed offset in seconds; clamped at both ends.
+    pub fn bucket(offset_secs: f64) -> usize {
+        let centre = (TIMING_BUCKETS / 2) as f64;
+        let raw = (offset_secs * 1000.0 / TIMING_BUCKET_MS + 0.5).floor() + centre;
+        raw.clamp(0.0, (TIMING_BUCKETS - 1) as f64) as usize
+    }
+
+    pub fn record(&mut self, offset_secs: f64) {
+        self.buckets[Self::bucket(offset_secs)] += 1;
+    }
+
+    pub fn total(&self) -> u32 {
+        self.buckets.iter().sum()
+    }
+
+    /// Hits more than `ON_TIME_MS` before the target.
+    pub fn early(&self) -> u32 {
+        self.buckets[..TIMING_BUCKETS / 2 - 1].iter().sum()
+    }
+
+    /// Hits within ±`ON_TIME_MS` of the target.
+    pub fn on_time(&self) -> u32 {
+        self.buckets[TIMING_BUCKETS / 2 - 1..=TIMING_BUCKETS / 2 + 1]
+            .iter()
+            .sum()
+    }
+
+    /// Hits more than `ON_TIME_MS` after the target.
+    pub fn late(&self) -> u32 {
+        self.buckets[TIMING_BUCKETS / 2 + 2..].iter().sum()
+    }
+}
+
 /// Per-song hit tally shown on the results screen. Reset at the start of each
 /// song. `good` are on-time/early Good hits; `delayed` are late Good hits.
 #[derive(Resource, Default)]
@@ -205,6 +261,9 @@ pub struct SongStats {
     /// current `input_latency_ms` applied; increasing that setting by the mean
     /// (in ms) should centre the distribution.
     pub offset_sum: f64,
+    /// The same offsets as `offset_sum`, bucketed, so the results screen can
+    /// tell a consistently-late player from a merely inconsistent one.
+    pub timing: TimingHistogram,
     /// Notes with no technique modifier at all — the baseline every other
     /// category is implicitly compared against.
     pub normal: TechniqueStats,
@@ -262,7 +321,8 @@ pub(super) fn bump(stats: &mut TechniqueStats, hit: bool) {
 }
 
 /// Gameplay-clock time at which the song's content ends (so the results screen
-/// can appear). `INFINITY` for looping songs, which never finish.
+/// can appear). `INFINITY` only until a song's `setup_scoring_config` sets
+/// it — a loop doesn't make it infinite, it just stops the clock reaching it.
 #[derive(Resource)]
 pub struct SongEnd(pub f64);
 
@@ -436,6 +496,24 @@ impl Default for ScoringConfig {
 #[reflect(Resource)]
 pub struct LoopConfig {
     pub active: bool,
+    pub start_time: f64,
+    pub end_time: f64,
+}
+
+/// A loop range to practise on the *next* run of the current song — what the
+/// results screen's "Practice missed section" asks for. It rides the
+/// existing A–B loop rather than a mode of its own: `lifecycle::
+/// setup_scoring_config` copies the range into [`LoopConfig`] (after the
+/// chart's own default, so it wins), and `lifecycle::start_at_practice_range`
+/// jumps the clock to `start_time` once the music sink exists — skipping
+/// the part of the song the player isn't here to practise. Cleared on
+/// leaving `Playing`, so a range never leaks into a different song.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq)]
+pub struct PracticeRequest(pub Option<PracticeRange>);
+
+/// Seconds of gameplay-clock time bracketing the notes to practise.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PracticeRange {
     pub start_time: f64,
     pub end_time: f64,
 }
