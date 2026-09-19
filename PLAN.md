@@ -13,6 +13,27 @@ this file — prune it back to a one-line summary under "Shipped" below.
   into coaching. Execution phases and invariants are in
   `docs/gameplay_improvement_plan.md`.
 
+  **Resume here.** Phases 0, 1 and 3 are done and Phase 2's message contract
+  has landed (last commit on it: `21dfbc2`). Next up, in order:
+
+  1. **Phase 4, results as coaching** — the largest coherent block left, and
+     almost entirely pure functions over `SongStats` with a screen on top:
+     pick the one actionable observation (with minimum sample sizes), timing
+     as a bucketed distribution rather than a mean, ranked technique rows,
+     drop the redundant `Hits` row, and a *Practice missed section* action
+     that chooses a range and enters the existing loop machinery. Start with
+     the pure functions and their tests; `results.rs` is the only consumer.
+  2. **Phase 2's tail** — animate the judged note; live hold progress on
+     sustained notes with vibrato/wah confirmed *during* the hold; keep
+     labels spatially stable in dense passages.
+  3. **Phase 5** — hit/miss is still colour-only on note heads (`note_tint`);
+     reduced-motion setting before any camera shake; `? position` on a
+     chromatic harp; and `build.rs`'s literal check doesn't follow a `let`.
+
+  Verify anything visible with `./scripts/run-dev.sh` then
+  `python3 scripts/brpctl.py enter "Play 2D" Traditional "Amazing Grace"` and
+  `capture` — `results` plays the shortest chart to its end for Phase 4.
+
 ## Shipped
 
 Full design detail for anything below lives in `CLAUDE.md` (architecture)
