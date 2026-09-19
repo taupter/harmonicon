@@ -103,6 +103,10 @@ impl Plugin for DevCapturePlugin {
             // deliberately here, in the dev-only module, rather than
             // alongside the widget plumbing.
             .register_type::<bevy::ui_widgets::Activate>()
+            // An A–B loop is set by dragging on the progress bar — a pointer
+            // gesture remote control can't make — so the range is written
+            // directly instead, to reach the loop UI for captures.
+            .register_type::<harmonicon_gameplay::gameplay::LoopConfig>()
             .add_observer(save_capture)
             .add_systems(Update, drive_video_capture);
         info!("Bevy Remote Protocol listening on 127.0.0.1:15702 (--features dev)");

@@ -28,6 +28,7 @@ tools beside it, this is meant to be reachable mid-debugging.
     python3 scripts/brpctl.py results        # play the shortest chart to its end
     python3 scripts/brpctl.py pause
     python3 scripts/brpctl.py wait on
+    python3 scripts/brpctl.py loop 12 20         # A–B range in seconds; `loop off` clears
     python3 scripts/brpctl.py capture /tmp/shots before-fix
 
     # Drive every screen the gameplay work needs a baseline of into one
@@ -260,6 +261,32 @@ def set_state(kind, value):
     )
 
 
+def set_loop(start_secs, end_secs):
+    """Set an active A–B loop range directly. The real path is a pointer
+    drag on the progress bar while paused, which BRP cannot perform; this
+    writes `LoopConfig` whole, skipping `loop_range_valid`, so pass a range
+    with `end > start` yourself."""
+    rpc(
+        "world.mutate_resources",
+        {
+            "resource": "harmonicon_gameplay::gameplay::state::LoopConfig",
+            "path": "",
+            "value": {"active": True, "start_time": float(start_secs), "end_time": float(end_secs)},
+        },
+    )
+
+
+def clear_loop():
+    rpc(
+        "world.mutate_resources",
+        {
+            "resource": "harmonicon_gameplay::gameplay::state::LoopConfig",
+            "path": "",
+            "value": {"active": False, "start_time": 0.0, "end_time": 0.0},
+        },
+    )
+
+
 def window():
     result = query([WINDOW])
     if not result:
@@ -461,6 +488,10 @@ def take_all_screenshots(outdir="target/screenshots/tour"):
                 _pause()
                 _set_wait(False)  # every later fixture wants ordinary play
                 _go("Resume")
+                set_loop(12, 24)
+                time.sleep(1.0)
+                capture(outdir, f"play2d-loop-{size_name}")
+                clear_loop()
 
         to_main_menu()
         enter_song("Play 3D", *FIXTURES[0][1:])
@@ -523,6 +554,11 @@ def _main(argv):
         _pause()
     elif command == "wait":
         _set_wait(args[0].lower() in ("on", "true", "1"))
+    elif command == "loop":
+        if args and args[0].lower() in ("off", "clear"):
+            clear_loop()
+        else:
+            set_loop(args[0], args[1])
     elif command in ("--take-all-screenshots", "take-all-screenshots"):
         take_all_screenshots(*args[:1])
     else:

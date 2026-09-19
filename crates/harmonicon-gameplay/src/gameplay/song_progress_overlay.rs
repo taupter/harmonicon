@@ -141,6 +141,17 @@ const BAR_Z_INDEX: i32 = 250;
 #[derive(Component, Default, Clone)]
 pub struct ProgressPlayhead;
 
+/// Which end of the A–B range a handle marks.
+#[derive(Clone, Copy)]
+enum LoopEdge {
+    A,
+    B,
+}
+
+/// Solid, unlike the range wash it bounds: an edge has to be findable at a
+/// glance, and a translucent edge on a translucent band is neither.
+const LOOP_HANDLE_COLOR: Color = Color::srgb(1.0, 0.85, 0.35);
+
 /// Highlights the current A–B loop range within the bar — either the
 /// committed `LoopConfig` range, or a live preview of an in-progress drag
 /// (see [`LoopDrag`]). Absolutely positioned (unlike the waveform bars,
@@ -465,11 +476,60 @@ pub fn spawn_song_progress(
                     height: Val::Percent(100.0),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(1.0, 0.85, 0.35, 0.45)),
+                BackgroundColor(Color::srgba(1.0, 0.85, 0.35, 0.30)),
                 Visibility::Hidden,
                 Pickable::IGNORE,
                 LoopRangeMarker,
-            ));
+            ))
+            .with_children(|range| {
+                // A and B handles, children of the range so they ride along
+                // with it as `update_loop_marker` moves and resizes it. A
+                // translucent wash alone has no ends; these are what make
+                // it read as *from here to here*.
+                for (edge, label) in [(LoopEdge::A, "A"), (LoopEdge::B, "B")] {
+                    let mut node = Node {
+                        position_type: PositionType::Absolute,
+                        top: Val::Px(0.0),
+                        width: Val::Px(3.0),
+                        height: Val::Percent(100.0),
+                        justify_content: JustifyContent::FlexStart,
+                        ..default()
+                    };
+                    match edge {
+                        LoopEdge::A => node.left = Val::Px(0.0),
+                        LoopEdge::B => node.right = Val::Px(0.0),
+                    }
+                    range
+                        .spawn((node, BackgroundColor(LOOP_HANDLE_COLOR), Pickable::IGNORE))
+                        .with_children(|handle| {
+                            // The letter sits just outside the handle, on
+                            // the side away from the range, so it never
+                            // covers what it labels.
+                            let mut cap = Node {
+                                position_type: PositionType::Absolute,
+                                top: Val::Px(-1.0),
+                                padding: UiRect::axes(Val::Px(3.0), Val::Px(0.0)),
+                                ..default()
+                            };
+                            match edge {
+                                LoopEdge::A => cap.right = Val::Px(3.0),
+                                LoopEdge::B => cap.left = Val::Px(3.0),
+                            }
+                            handle
+                                .spawn((cap, BackgroundColor(LOOP_HANDLE_COLOR), Pickable::IGNORE))
+                                .with_children(|c| {
+                                    c.spawn((
+                                        Text::new(label),
+                                        TextFont {
+                                            font_size: FontSize::Px(10.0),
+                                            ..default()
+                                        },
+                                        TextColor(Color::srgb(0.08, 0.07, 0.03)),
+                                    ));
+                                });
+                        });
+                }
+            });
 
             bar.spawn((
                 Node {

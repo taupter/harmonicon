@@ -427,7 +427,13 @@ impl Default for ScoringConfig {
 
 /// Active loop region. When `active`, the gameplay clock resets to `start_time`
 /// each time it passes `end_time`, repeating that section indefinitely.
-#[derive(Resource, Default)]
+///
+/// `Reflect` so the dev build can set a range over BRP (`dev_capture`
+/// registers it): a loop is otherwise only reachable by a pointer drag on
+/// the progress bar, which remote control can't perform, and the loop
+/// handles can't be screenshotted without one.
+#[derive(Resource, Default, Reflect)]
+#[reflect(Resource)]
 pub struct LoopConfig {
     pub active: bool,
     pub start_time: f64,

@@ -133,9 +133,12 @@ beat as the judged note.
   never names a hole the scorer wouldn't. The success transition is the
   judgment readout itself — PERFECT/GOOD fires at the instant the freeze
   lifts, at the same height — so no second flash was added.
-- Make A–B loop handles and the selected phrase visible without requiring the
-  player to infer them from a thin progress strip. Keep range editing available
-  while paused, where precise dragging is easier.
+- *(Done)* The A–B range on the progress strip has solid A and B handles at
+  its ends, children of the range marker so they ride along with it; the
+  wash alone had no ends and did not read as *from here to here*. The badge
+  under the title carries the seconds. Range editing stays pause-only, as
+  before. The selected phrase already had a gold border on its progress-bar
+  rectangle while paused.
 - *(Done)* The pause menu is three cards — session actions, playback aids,
   phrase practice — on an opaque surface. Phrase controls are hidden in Jam
   Session, the one mode with neither phrases nor adaptive difficulty.

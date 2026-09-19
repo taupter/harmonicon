@@ -106,6 +106,9 @@ python3 scripts/brpctl.py --take-all-screenshots [outdir]
 Standard library only — no virtualenv, unlike the asset tools below, because
 this is meant to be reachable in the middle of debugging something else.
 
+`loop 12 24` sets an A–B range directly — the real path is a pointer drag
+the protocol can't perform — and `loop off` clears it.
+
 Getting to a screen a state write can't reach — anything that needs a song
 picked first — is a route: `enter "Play 2D" <artist> <song>`, `jam`,
 `editor` (loads a chart through the editor's own file dialog) and `results`
