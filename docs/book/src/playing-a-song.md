@@ -35,9 +35,30 @@ what the chart expects, at that instant:
   time doesn't count.
 
 A combo multiplier builds on consecutive hits and resets on a miss. The
-**Results screen** after each song breaks your accuracy down **by
-technique** (not just an overall percentage), so you can see at a glance
-whether it was your bends or your timing that need work.
+**Results screen** after each song is written as coaching, not just a
+scoreboard:
+
+- **Accuracy leads, with one observation under it** — the single most
+  useful thing the run showed: a technique that trailed your plain notes,
+  too many notes that never sounded, hits that consistently came in late
+  or early, or attacks with a neighbouring hole leaking. It only says
+  something it has evidence for — one attempted bend is never "your bends
+  need work" — and says "nothing stands out" when a run is solid.
+- **Timing as a distribution**, not an average: an early / on-time / late
+  bar with the counts. The one-click **Input lag** adjustment (see
+  [Calibrating Input Lag](calibration.md)) appears only when your hits
+  actually lean one way, since a wide scatter can average to a number
+  without any lag being the cause.
+- **By technique**, ranked by where practice would pay off most, always
+  with the sample counts alongside.
+- **Practice missed section** loops the two bars where you missed the
+  most, using the same A–B loop the pause menu offers, and starts you
+  there rather than from the top of the song. Leave it with **Esc** →
+  **Quit Song**, or clear the loop from the pause menu to carry on
+  through the rest.
+
+For a lesson, the pass/fail verdict and how far you got toward its goal
+sit above all of that.
 
 ![Results screen](images/results-screen.png)
 

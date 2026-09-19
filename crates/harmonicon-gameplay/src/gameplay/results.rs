@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-//! Post-song results screen: the hit breakdown and a letter grade.
+//! Post-song results screen, read as coaching: accuracy and the one thing
+//! worth working on lead, then the grade and score, then the evidence —
+//! the hit tally, timing as an early/on-time/late split, and the technique
+//! rows ranked by where practice would pay off. Every judgment shown comes
+//! from `coaching`'s pure functions; this file only lays them out.
 
+use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
@@ -11,46 +16,29 @@ use harmonicon_app::profile::{
 };
 use harmonicon_audio::AudioSettings;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
-use harmonicon_song::lessons::{LessonContext, lesson_passed};
+use harmonicon_song::lessons::{LessonContext, PassCriteria, lesson_passed};
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::button;
 
 use super::adaptive_difficulty::{
     AdaptiveDifficulty, bump_learned_sections, learned_vec_from_map, write_learned_into_map,
 };
-use super::{Score, SongNotes, SongStats, TechniqueStats};
+use super::coaching::{
+    Observation, latency_suggestion, lesson_progress, mean_offset_ms, missed_range, observation,
+    ranked_techniques, technique_buckets,
+};
+use super::state::{PracticeRange, PracticeRequest};
+use super::{Score, ScoringConfig, SongNotes, SongStats, TechniqueStats};
 
-/// Technique name paired with its `SongStats` field, in display order — the
-/// same keys `gameplay::modifier_fx_key` uses (`"normal"` added for the
-/// baseline/no-modifier bucket), so a song's per-technique bests in
-/// `PlayerProfile` line up with the same vocabulary the rest of scoring uses.
-fn technique_fields(stats: &SongStats) -> [(&'static str, TechniqueStats); 8] {
-    [
-        ("normal", stats.normal),
-        ("bend", stats.bend),
-        ("vibrato", stats.vibrato),
-        ("wah-wah", stats.wah),
-        ("overblow", stats.overblow),
-        ("overdraw", stats.overdraw),
-        ("slide", stats.slide),
-        ("clean-attack", stats.clean_attack),
-    ]
-}
+/// Bars of the song "Practice missed section" loops around the densest
+/// cluster of misses.
+const PRACTICE_WINDOW_BARS: f64 = 2.0;
+/// Beats of lead-in before the first missed note, so the loop doesn't
+/// start on the attack itself.
+const PRACTICE_LEAD_IN_BEATS: f64 = 1.0;
 
 #[derive(Component)]
 pub(super) struct ResultsRoot;
-
-/// Mean timing offset in milliseconds over all hits.
-/// Positive = player sounds notes after the target even with current compensation;
-/// increase `input_latency_ms` by this value to re-centre the window.
-/// Returns `None` when there are no hits to average.
-pub fn mean_offset_ms(stats: &SongStats) -> Option<f64> {
-    let hits = stats.perfect + stats.good + stats.delayed;
-    if hits == 0 {
-        return None;
-    }
-    Some(stats.offset_sum / hits as f64 * 1000.0)
-}
 
 /// Weighted accuracy in 0..1 from the hit tally (perfect counts full, good less,
 /// a late "delayed" hit least). Empty songs grade as 0.
@@ -85,6 +73,99 @@ fn grade_color(grade: &str) -> Color {
     }
 }
 
+/// Localization key for a technique bucket's display name, from the
+/// profile-vocabulary name `coaching::technique_buckets` uses.
+fn technique_key(name: &str) -> &'static str {
+    match name {
+        "bend" => "results-technique-bend",
+        "vibrato" => "results-technique-vibrato",
+        "wah-wah" => "results-technique-wah",
+        "overblow" => "results-technique-overblow",
+        "overdraw" => "results-technique-overdraw",
+        "slide" => "results-technique-slide",
+        "clean-attack" => "results-technique-clean-attack",
+        _ => "results-technique-normal",
+    }
+}
+
+/// The observation as one localized sentence.
+fn observation_text(loc: &Localization, obs: Observation) -> String {
+    let pct = |share: f32| format!("{:.0}", share * 100.0);
+    match obs {
+        Observation::Technique {
+            technique,
+            hits,
+            total,
+        } => loc
+            .msg_args(
+                "results-observation-technique",
+                &[
+                    ("technique", loc.msg(technique_key(technique)).to_string()),
+                    ("hits", hits.to_string()),
+                    ("total", total.to_string()),
+                ],
+            )
+            .into(),
+        Observation::MissedNotes { misses, total } => loc
+            .msg_args(
+                "results-observation-missed",
+                &[("misses", misses.to_string()), ("total", total.to_string())],
+            )
+            .into(),
+        Observation::Timing { late: true, share } => loc
+            .msg_args("results-observation-late", &[("pct", pct(share))])
+            .into(),
+        Observation::Timing { late: false, share } => loc
+            .msg_args("results-observation-early", &[("pct", pct(share))])
+            .into(),
+        Observation::LeakyAttacks { clean, total } => loc
+            .msg_args(
+                "results-observation-leaky",
+                &[("clean", clean.to_string()), ("total", total.to_string())],
+            )
+            .into(),
+        Observation::Solid => loc.msg("results-observation-solid").into(),
+    }
+}
+
+/// The lesson's goal and how far this run got, as two localized lines —
+/// the goal wording is the lesson reader's own, so the two screens agree.
+fn lesson_goal_lines(
+    loc: &Localization,
+    criteria: Option<&PassCriteria>,
+    acc: f32,
+    technique_accuracy: &[(&str, f32)],
+) -> Option<(String, String)> {
+    let (reached, goal) = lesson_progress(criteria, acc, technique_accuracy)?;
+    let pct = |t: f32| format!("{:.0}", t * 100.0);
+    let goal_line = match criteria? {
+        PassCriteria::Technique { technique, .. } => loc.msg_args(
+            "lesson-goal-technique",
+            &[("pct", pct(goal)), ("technique", technique.clone())],
+        ),
+        _ => loc.msg_args("lesson-goal-accuracy", &[("pct", pct(goal))]),
+    };
+    let reached_line = loc.msg_args("results-lesson-reached", &[("pct", pct(reached))]);
+    Some((goal_line.into(), reached_line.into()))
+}
+
+/// The loop range "Practice missed section" would enter, from the run's
+/// missed notes: two bars around the densest cluster, one beat of lead-in.
+fn practice_range(notes: &SongNotes, config: &ScoringConfig, bpm: f64) -> Option<PracticeRange> {
+    let misses: Vec<(f64, f64)> = notes
+        .notes
+        .iter()
+        .filter(|n| n.missed)
+        .map(|n| (n.time, n.time + n.duration))
+        .collect();
+    let window = config.meter.bar_secs(bpm) * PRACTICE_WINDOW_BARS;
+    let lead_in = config.meter.beat_secs(bpm) * PRACTICE_LEAD_IN_BEATS;
+    missed_range(&misses, window, lead_in).map(|(start_time, end_time)| PracticeRange {
+        start_time,
+        end_time,
+    })
+}
+
 pub(super) fn setup(
     mut commands: Commands,
     score: Res<Score>,
@@ -94,15 +175,14 @@ pub(super) fn setup(
     manifests: Res<Assets<SongManifest>>,
     mut profile: ResMut<PlayerProfile>,
     song_notes: Res<SongNotes>,
+    config: Res<ScoringConfig>,
     adaptive: Res<AdaptiveDifficulty>,
     lesson: Option<Res<LessonContext>>,
     loc: Res<Localization>,
 ) {
     let acc = accuracy(&stats);
     let g = grade(acc);
-    let hits = stats.perfect + stats.good + stats.delayed;
-    let mean_ms = mean_offset_ms(&stats);
-    let technique_accuracy: Vec<(&str, f32)> = technique_fields(&stats)
+    let technique_accuracy: Vec<(&str, f32)> = technique_buckets(&stats)
         .into_iter()
         .filter_map(|(name, s)| s.accuracy().map(|a| (name, a)))
         .collect();
@@ -131,7 +211,8 @@ pub(super) fn setup(
             }
         }
         save_profile(&profile);
-        passed
+        let goal = lesson_goal_lines(&loc, ctx.pass_criteria.as_ref(), acc, &technique_accuracy);
+        (passed, goal)
     });
 
     // Record this play against the song's persisted best — keyed by the
@@ -139,10 +220,11 @@ pub(super) fn setup(
     // `SelectedSong`), so repeated plays only ever improve what's shown here,
     // never regress it because of one worse run. Saved immediately (not
     // debounced) so quitting right after still keeps the new best.
+    let manifest = manifests.get(&selected.0);
     let new_best = if lesson.is_some() {
         None
     } else {
-        manifests.get(&selected.0).map(|manifest| {
+        manifest.map(|manifest| {
             let key = manifest.path.display().to_string();
             let record = profile.songs.entry(key).or_default();
             let improved = record_play(record, score.points, acc, &technique_accuracy);
@@ -155,6 +237,11 @@ pub(super) fn setup(
         })
     };
 
+    let practice = manifest
+        .and_then(|m| practice_range(&song_notes, &config, f64::from(m.chart.song.tempo_bpm)));
+    let obs = observation(&stats);
+    let latency_fix = latency_suggestion(&stats);
+
     commands
         .spawn((
             Node {
@@ -163,11 +250,12 @@ pub(super) fn setup(
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                row_gap: Val::Px(10.0),
+                row_gap: Val::Px(8.0),
                 ..default()
             },
             BackgroundColor(Color::srgb(0.04, 0.04, 0.07)),
             GlobalZIndex(300),
+            TabGroup::default(),
             ResultsRoot,
         ))
         .with_children(|root| {
@@ -179,23 +267,11 @@ pub(super) fn setup(
                 },
                 TextColor(Color::srgb(0.80, 0.82, 0.90)),
             ));
-            // Big grade.
-            root.spawn((
-                Text::new(g),
-                TextFont {
-                    font_size: FontSize::Px(120.0),
-                    ..default()
-                },
-                TextColor(grade_color(g)),
-                Node {
-                    margin: UiRect::bottom(Val::Px(8.0)),
-                    ..default()
-                },
-            ));
 
-            // Lesson verdict, when this run was a lesson.
-            if let Some(passed) = lesson_result {
-                let (key, color) = if passed {
+            // A lesson's verdict and its goal come first: they're what the
+            // run was for, and the song score below is incidental to them.
+            if let Some((passed, goal)) = &lesson_result {
+                let (key, color) = if *passed {
                     ("lesson-complete-banner", Color::srgb(0.45, 0.95, 0.50))
                 } else {
                     ("lesson-failed-banner", Color::srgb(0.95, 0.62, 0.30))
@@ -207,128 +283,79 @@ pub(super) fn setup(
                         ..default()
                     },
                     TextColor(color),
-                    Node {
-                        margin: UiRect::bottom(Val::Px(6.0)),
-                        ..default()
-                    },
                 ));
-            }
-
-            // Stat lines.
-            let rows = [
-                (
-                    "results-biggest-combo",
-                    score.max_combo,
-                    Color::srgb(0.90, 0.72, 0.20),
-                ),
-                (
-                    "results-perfect-hits",
-                    stats.perfect,
-                    Color::srgb(1.00, 0.85, 0.20),
-                ),
-                (
-                    "results-good-hits",
-                    stats.good,
-                    Color::srgb(0.45, 1.00, 0.45),
-                ),
-                ("results-hits", hits, Color::srgb(0.75, 0.85, 0.95)),
-                (
-                    "results-delayed-hits",
-                    stats.delayed,
-                    Color::srgb(0.95, 0.62, 0.30),
-                ),
-                ("results-misses", stats.miss, Color::srgb(0.95, 0.35, 0.35)),
-            ];
-            for (key, value, color) in rows {
-                spawn_stat_row(root, &loc.msg(key), value, color);
-            }
-
-            // Per-technique accuracy — only techniques the song actually used,
-            // so a simple song without bends doesn't show a clutter of "n/a"
-            // rows. This is the diagnostic a self-taught player needs: not
-            // just "you scored 82%" but "your bends are solid, your overblows
-            // need work".
-            let technique_rows: Vec<(&str, TechniqueStats)> = [
-                ("results-technique-normal", stats.normal),
-                ("results-technique-bend", stats.bend),
-                ("results-technique-vibrato", stats.vibrato),
-                ("results-technique-wah", stats.wah),
-                ("results-technique-overblow", stats.overblow),
-                ("results-technique-overdraw", stats.overdraw),
-                ("results-technique-slide", stats.slide),
-                ("results-technique-clean-attack", stats.clean_attack),
-            ]
-            .into_iter()
-            .filter(|(_, s)| s.total() > 0)
-            .collect();
-
-            if !technique_rows.is_empty() {
-                root.spawn((
-                    Text::new(String::from(loc.msg("results-by-technique"))),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.55, 0.58, 0.65)),
-                    Node {
-                        margin: UiRect::top(Val::Px(6.0)),
-                        ..default()
-                    },
-                ));
-                for (key, s) in technique_rows {
-                    spawn_technique_row(root, &loc.msg(key), s);
+                if let Some((goal_line, reached_line)) = goal {
+                    spawn_caption(root, goal_line, Color::srgb(0.75, 0.78, 0.85));
+                    spawn_caption(root, reached_line, color);
                 }
             }
 
-            // Timing offset row + calibration hint.
-            if let Some(ms) = mean_ms {
-                let sign = if ms >= 0.0 { "+" } else { "" };
-                let offset_color = if ms.abs() < 10.0 {
-                    Color::srgb(0.45, 1.00, 0.45) // green: well calibrated
-                } else {
-                    Color::srgb(0.95, 0.62, 0.30) // orange: needs adjustment
-                };
-                spawn_text_row(
-                    root,
-                    &loc.msg("results-avg-timing-offset"),
-                    &format!("{sign}{ms:.0}ms"),
-                    offset_color,
-                );
-
-                let adjustment = ms.round() as i32;
-                let new_latency = (audio.input_latency_ms + adjustment).max(0);
-                if adjustment.abs() >= 5 {
-                    let key = if adjustment > 0 {
-                        "results-increase-latency"
-                    } else {
-                        "results-decrease-latency"
-                    };
-                    let label = loc.msg_args(key, &[("ms", new_latency.to_string())]);
-                    root.spawn_empty().apply_scene(button::small(
-                        &label,
-                        move |_: On<Activate>, mut audio: ResMut<AudioSettings>| {
-                            audio.input_latency_ms = new_latency;
-                        },
-                    ));
-                }
-            }
-
-            // Final score.
+            // Accuracy leads, with the observation right under it — the two
+            // things a player should take away before the grade catches
+            // the eye.
             root.spawn((
-                Text::new(String::from(loc.msg_args(
-                    "results-score",
-                    &[("points", score.points.to_string())],
-                ))),
+                Text::new(format!("{:.0}%", acc * 100.0)),
                 TextFont {
-                    font_size: FontSize::Px(20.0),
+                    font_size: FontSize::Px(72.0),
                     ..default()
                 },
-                TextColor(Color::WHITE),
+                TextColor(grade_color(g)),
                 Node {
-                    margin: UiRect::top(Val::Px(8.0)),
+                    margin: UiRect::top(Val::Px(6.0)),
                     ..default()
                 },
             ));
+            spawn_caption(
+                root,
+                &loc.msg("results-accuracy-caption"),
+                Color::srgb(0.55, 0.58, 0.65),
+            );
+            if let Some(obs) = obs {
+                root.spawn((
+                    Text::new(observation_text(&loc, obs)),
+                    TextFont {
+                        font_size: FontSize::Px(19.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.95, 0.85, 0.45)),
+                    TextLayout::justify(Justify::Center),
+                    Node {
+                        max_width: Val::Px(620.0),
+                        margin: UiRect::vertical(Val::Px(4.0)),
+                        ..default()
+                    },
+                ));
+            }
+
+            // Grade and score together, one line.
+            root.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Baseline,
+                column_gap: Val::Px(18.0),
+                margin: UiRect::vertical(Val::Px(4.0)),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn((
+                    Text::new(g),
+                    TextFont {
+                        font_size: FontSize::Px(48.0),
+                        ..default()
+                    },
+                    TextColor(grade_color(g)),
+                ));
+                row.spawn((
+                    Text::new(String::from(loc.msg_args(
+                        "results-score",
+                        &[("points", score.points.to_string())],
+                    ))),
+                    TextFont {
+                        font_size: FontSize::Px(22.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            });
 
             // Persisted best for this song — always shown once known, with a
             // callout when this run just raised it.
@@ -352,20 +379,126 @@ pub(super) fn setup(
                 }
             }
 
-            // Retry / Continue buttons.
+            // The tally. No "Hits" row: it's the sum of the three hit kinds
+            // and reads as a fourth category beside them.
+            let rows = [
+                (
+                    "results-biggest-combo",
+                    score.max_combo,
+                    Color::srgb(0.90, 0.72, 0.20),
+                ),
+                (
+                    "results-perfect-hits",
+                    stats.perfect,
+                    Color::srgb(1.00, 0.85, 0.20),
+                ),
+                (
+                    "results-good-hits",
+                    stats.good,
+                    Color::srgb(0.45, 1.00, 0.45),
+                ),
+                (
+                    "results-delayed-hits",
+                    stats.delayed,
+                    Color::srgb(0.95, 0.62, 0.30),
+                ),
+                ("results-misses", stats.miss, Color::srgb(0.95, 0.35, 0.35)),
+            ];
+            for (key, value, color) in rows {
+                spawn_stat_row(root, &loc.msg(key), value, color);
+            }
+
+            // Timing as a distribution: the early / on-time / late split
+            // drawn as a bar, the mean as a caption. The Input-lag fix is
+            // offered only when the distribution is actually lopsided
+            // (`latency_suggestion`), not merely off-centre on average.
+            if let Some(ms) = mean_offset_ms(&stats) {
+                let sign = if ms >= 0.0 { "+" } else { "" };
+                spawn_section_heading(
+                    root,
+                    &loc.msg_args("results-timing", &[("ms", format!("{sign}{ms:.0}"))]),
+                );
+                spawn_timing_bar(root, &loc, &stats);
+                if let Some(adjustment) = latency_fix {
+                    let new_latency = (audio.input_latency_ms + adjustment).max(0);
+                    let key = if adjustment > 0 {
+                        "results-increase-latency"
+                    } else {
+                        "results-decrease-latency"
+                    };
+                    let label = loc.msg_args(key, &[("ms", new_latency.to_string())]);
+                    root.spawn_empty().apply_scene(button::small(
+                        &label,
+                        move |_: On<Activate>, mut audio: ResMut<AudioSettings>| {
+                            audio.input_latency_ms = new_latency;
+                        },
+                    ));
+                }
+            }
+
+            // Per-technique accuracy, most practice-worthy first, only for
+            // techniques the song actually used — a simple song without
+            // bends doesn't show a clutter of "n/a" rows. Sample counts stay
+            // on every row so a 0/1 can't read as a trend.
+            let technique_rows = ranked_techniques(&stats);
+            if !technique_rows.is_empty() {
+                spawn_section_heading(root, &loc.msg("results-by-technique"));
+                for (name, s) in technique_rows {
+                    spawn_technique_row(root, &loc.msg(technique_key(name)), s);
+                }
+            }
+
+            // Retry / Practice missed section / Continue.
             root.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(16.0),
-                margin: UiRect::top(Val::Px(18.0)),
+                margin: UiRect::top(Val::Px(14.0)),
                 ..default()
             })
             .with_children(|row| {
                 row.spawn_empty()
-                    .apply_scene(button::default("Retry", on_retry));
+                    .apply_scene(button::default(&loc.msg("results-retry"), on_retry));
+                if let Some(range) = practice {
+                    row.spawn_empty().apply_scene(button::default(
+                        &loc.msg("results-practice-missed"),
+                        move |_: On<Activate>,
+                              mut practice: ResMut<PracticeRequest>,
+                              mut next_state: ResMut<NextState<AppState>>| {
+                            practice.0 = Some(range);
+                            next_state.set(AppState::SongLoading);
+                        },
+                    ));
+                }
                 row.spawn_empty()
-                    .apply_scene(button::default("Continue", on_continue));
+                    .apply_scene(button::default(&loc.msg("results-continue"), on_continue));
             });
         });
+}
+
+fn spawn_caption(parent: &mut ChildSpawnerCommands, text: &str, color: Color) {
+    parent.spawn((
+        Text::new(text.to_string()),
+        TextFont {
+            font_size: FontSize::Px(16.0),
+            ..default()
+        },
+        TextColor(color),
+    ));
+}
+
+fn spawn_section_heading(parent: &mut ChildSpawnerCommands, text: &str) {
+    parent.spawn((
+        Text::new(text.to_string()),
+        TextFont {
+            font_size: FontSize::Px(15.0),
+            ..default()
+        },
+        TextColor(Color::srgb(0.55, 0.58, 0.65)),
+        Node {
+            margin: UiRect::top(Val::Px(6.0)),
+            ..default()
+        },
+    ));
 }
 
 fn spawn_text_row(parent: &mut ChildSpawnerCommands, label: &str, value: &str, color: Color) {
@@ -398,6 +531,67 @@ fn spawn_text_row(parent: &mut ChildSpawnerCommands, label: &str, value: &str, c
 
 fn spawn_stat_row(parent: &mut ChildSpawnerCommands, label: &str, value: u32, color: Color) {
     spawn_text_row(parent, label, &format!("{value}"), color);
+}
+
+const EARLY_COLOR: Color = Color::srgb(0.40, 0.70, 0.95);
+const ON_TIME_COLOR: Color = Color::srgb(0.45, 1.00, 0.45);
+const LATE_COLOR: Color = Color::srgb(0.95, 0.62, 0.30);
+
+/// The early / on-time / late split as one 320 px bar — each segment's
+/// width is its share of hits — with the three counts labelled beneath in
+/// the same colours.
+fn spawn_timing_bar(parent: &mut ChildSpawnerCommands, loc: &Localization, stats: &SongStats) {
+    let counts = [
+        ("results-timing-early", stats.timing.early(), EARLY_COLOR),
+        (
+            "results-timing-on-time",
+            stats.timing.on_time(),
+            ON_TIME_COLOR,
+        ),
+        ("results-timing-late", stats.timing.late(), LATE_COLOR),
+    ];
+    parent
+        .spawn(Node {
+            width: Val::Px(320.0),
+            height: Val::Px(10.0),
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(2.0),
+            ..default()
+        })
+        .with_children(|bar| {
+            for (_, count, color) in counts {
+                if count == 0 {
+                    continue;
+                }
+                bar.spawn((
+                    Node {
+                        flex_grow: count as f32,
+                        height: Val::Percent(100.0),
+                        ..default()
+                    },
+                    BackgroundColor(color),
+                ));
+            }
+        });
+    parent
+        .spawn(Node {
+            width: Val::Px(320.0),
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::SpaceBetween,
+            ..default()
+        })
+        .with_children(|row| {
+            for (key, count, color) in counts {
+                row.spawn((
+                    Text::new(String::from(loc.msg_args(key, &[("n", count.to_string())]))),
+                    TextFont {
+                        font_size: FontSize::Px(15.0),
+                        ..default()
+                    },
+                    TextColor(color),
+                ));
+            }
+        });
 }
 
 /// One "Bends  18/20  90%" row, color-coded by accuracy: green ≥ 80%,
@@ -461,24 +655,6 @@ mod tests {
             good,
             delayed,
             miss,
-            offset_sum: 0.0,
-            ..Default::default()
-        }
-    }
-
-    fn stats_with_offset(
-        perfect: u32,
-        good: u32,
-        delayed: u32,
-        miss: u32,
-        offset_sum: f64,
-    ) -> SongStats {
-        SongStats {
-            perfect,
-            good,
-            delayed,
-            miss,
-            offset_sum,
             ..Default::default()
         }
     }
@@ -521,34 +697,11 @@ mod tests {
         assert!(good > delayed);
     }
 
-    // ── mean_offset_ms ────────────────────────────────────────────────────────
-
     #[test]
-    fn no_hits_yields_none() {
-        assert_eq!(mean_offset_ms(&stats(0, 0, 0, 5)), None);
-    }
-
-    #[test]
-    fn perfectly_centred_hits_give_zero_offset() {
-        // 10 hits, offset_sum = 0.0 → mean = 0 ms
-        let s = stats_with_offset(10, 0, 0, 0, 0.0);
-        let ms = mean_offset_ms(&s).unwrap();
-        assert!(ms.abs() < 1e-6, "expected ~0, got {ms}");
-    }
-
-    #[test]
-    fn positive_offset_sum_reports_late_mean() {
-        // 5 hits at +50 ms each (offset_sum = 5 * 0.05 = 0.25 s)
-        let s = stats_with_offset(5, 0, 0, 0, 0.25);
-        let ms = mean_offset_ms(&s).unwrap();
-        assert!((ms - 50.0).abs() < 1e-6, "expected +50, got {ms}");
-    }
-
-    #[test]
-    fn misses_do_not_dilute_the_mean() {
-        // 4 hits at +40 ms each, 6 misses
-        let s = stats_with_offset(4, 0, 0, 6, 0.16);
-        let ms = mean_offset_ms(&s).unwrap();
-        assert!((ms - 40.0).abs() < 1e-4, "expected +40, got {ms}");
+    fn every_technique_bucket_has_a_display_key() {
+        for (name, _) in technique_buckets(&SongStats::default()) {
+            assert!(technique_key(name).starts_with("results-technique-"));
+        }
+        assert_ne!(technique_key("bend"), technique_key("normal"));
     }
 }

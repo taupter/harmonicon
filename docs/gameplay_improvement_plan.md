@@ -153,27 +153,44 @@ Acceptance: a player can select a phrase, slow it down, loop it, enable waiting,
 resume, and understand every active aid from the live screen. Restart and quit
 remain visually separated from practice adjustments.
 
-## Phase 4: turn results into coaching
+## Phase 4: turn results into coaching — done
 
-- Lead with accuracy and the best actionable observation, then show grade and
-  score. Examples: consistently late timing, weak bend accuracy, or many missed
-  attacks. Generate this from `SongStats` with deterministic pure functions.
-- Remove redundant rows. `Hits` is the sum of perfect/good/delayed and does not
-  need equal visual weight beside those components.
-- Present timing as a small centered distribution or early/on-time/late bar,
-  with the existing latency adjustment action only when the evidence is strong
-  enough. A mean alone can hide a wide, inconsistent distribution, so retain a
-  bounded set of per-hit offsets during a run or add histogram buckets.
-- Rank technique rows by the practice opportunity they reveal, while still
-  showing sample counts. Do not recommend work from one attempted note.
-- Add `Retry`, `Practice missed section`, and `Continue`. The practice action
-  should choose the densest missed phrase or a bounded range around misses and
-  enter the existing loop/practice machinery rather than create another mode.
-- For lessons, put pass/fail criteria and progress toward the threshold above
-  general song score.
+Everything the screen says comes from `gameplay::coaching`, pure functions
+over `SongStats`; `results.rs` only lays them out.
 
-Acceptance: pure tests cover coaching-message selection, minimum sample sizes,
-timing histogram buckets, and missed-range selection.
+- Accuracy leads, with **one observation** under it, chosen in a fixed
+  order — a technique trailing plain notes by a margin, a high miss rate,
+  a lopsided timing lean, leaky attacks — or "nothing stands out". Every
+  branch has a minimum sample size (`MIN_TECHNIQUE_SAMPLES`, `MIN_NOTES`,
+  `MIN_TIMING_SAMPLES`), so one attempted bend is never advice; fewer than
+  `MIN_NOTES` notes says nothing at all. Grade and score follow on one
+  line. The `Hits` row is gone.
+- Timing is a **histogram** (`SongStats::timing`, eleven 20 ms buckets
+  recorded beside `offset_sum`), shown as an early / on-time / late bar
+  with the mean as a caption. The Input-lag button appears only when
+  `latency_suggestion` finds the distribution lopsided (≥ 60% of hits on
+  the mean's side, ≥ 8 hits, |mean| ≥ 5 ms) — a symmetric scatter with a
+  nonzero mean earns no button.
+- Technique rows are ranked by misses, then accuracy (`ranked_techniques`),
+  sample counts kept on every row.
+- **Practice missed section** picks the two-bar window holding the most
+  missed notes (`missed_range`, one beat of lead-in, earliest window on a
+  tie) and enters the *existing* A–B loop through `PracticeRequest`:
+  `setup_scoring_config` copies it into `LoopConfig` and
+  `start_at_practice_range` jumps the clock — and seeks the sink — once
+  the music sink exists, with the skipped prefix resolved silently first so
+  it doesn't tally as misses. This exposed that a loop active at song start
+  used to make `SongEnd` infinite, which hid the playhead and loop marker
+  and meant clearing the loop could never reach Results; `SongEnd` is now
+  always the chart's real end and `detect_song_end` waits on `LoopConfig`.
+- A lesson's verdict, its "Goal: …" line (the lesson reader's own wording)
+  and "This run: N%" sit above the accuracy.
+
+Acceptance met: `gameplay::coaching::tests::*` cover observation selection
+and its floors, the histogram buckets and split, the latency rule, ranking,
+lesson progress and missed-range selection; `gameplay::tests::
+practice_start_*`/`skip_notes_before_*`/`an_active_loop_holds_off_*` cover
+the practice entry. `docs/gameplay_validation.md` has the live checks.
 
 ## Phase 5: polish and accessibility
 
