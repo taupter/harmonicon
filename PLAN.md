@@ -8,7 +8,7 @@ this file — prune it back to a one-line summary under "Shipped" below.
 ## In flight
 
 (Nothing in flight. The next candidates, in `ROADMAP.md`'s order, are the
-1.0 items under "Road to 1.0" below — the first-run flow first.)
+1.0 items under "Road to 1.0" below — mic trouble surfaced in-game next.)
 
 ## Shipped
 
