@@ -413,7 +413,12 @@ fn on_phrase_learned_slider_change(
 /// changes (clicking a different section on the progress-bar overlay) as
 /// well as when the value itself changes — see
 /// [`update_phrase_learned_slider`].
-fn spawn_phrase_learned_row(commands: &mut Commands, parent: Entity, value: f32) {
+fn spawn_phrase_learned_row(
+    commands: &mut Commands,
+    parent: Entity,
+    value: f32,
+    loc: &Localization,
+) {
     let row = commands
         .spawn(Node {
             flex_direction: FlexDirection::Row,
@@ -424,7 +429,7 @@ fn spawn_phrase_learned_row(commands: &mut Commands, parent: Entity, value: f32)
         .id();
     commands.entity(row).with_children(|r| {
         r.spawn((
-            Text::new("Learned:"),
+            Text::new(String::from(loc.msg("pause-learned-label"))),
             TextFont {
                 font_size: FontSize::Px(15.0),
                 ..default()
@@ -650,7 +655,7 @@ pub(super) fn setup_pause_menu(
         // song's own details are worth the space (see `song_info`).
         spawn_song_details(col, &song_info);
         col.spawn((
-            Text::new("PAUSED"),
+            Text::new(String::from(loc.msg("pause-paused"))),
             TextFont {
                 font_size: FontSize::Px(34.0),
                 ..default()
@@ -658,9 +663,9 @@ pub(super) fn setup_pause_menu(
             TextColor(Color::WHITE),
         ));
         col.spawn_empty()
-            .apply_scene(button::default("Resume", on_resume));
+            .apply_scene(button::default(&loc.msg("pause-resume"), on_resume));
         col.spawn_empty()
-            .apply_scene(button::default("Restart", on_restart));
+            .apply_scene(button::default(&loc.msg("pause-restart"), on_restart));
         col.spawn_empty()
             .apply_scene(button::default(&loc.msg("pause-quit-song"), on_quit));
         if is_lesson_jam {
@@ -748,7 +753,7 @@ pub(super) fn setup_pause_menu(
                 PhraseSelectorLabel
             });
         });
-        spawn_phrase_learned_row(&mut commands, practice, learned);
+        spawn_phrase_learned_row(&mut commands, practice, learned, &loc);
         commands.entity(practice).with_children(|children| {
             children.spawn_empty().apply_scene(bsn! {
                 Text({String::from(loc.msg("pause-drag-section-hint"))})

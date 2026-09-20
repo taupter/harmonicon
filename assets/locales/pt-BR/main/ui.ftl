@@ -51,11 +51,17 @@ credits-back-to-menu = Voltar ao Menu
 
 # Seleção de música / artista
 select-artist = Selecionar Artista
+circle-of-fifths-harp-label = gaita
+artist-song-count-one = {$n} música
+artist-song-count-many = {$n} músicas
 select-song = Selecionar Música
 no-songs-found = Nenhuma música encontrada. Adicione pastas em assets/songs/<artista>/<música>/
 
 # Opções
 options-title = Opções
+options-subtitle-audio = Áudio
+options-theme = Tema
+options-harmonica = Gaita
 options-language = Idioma
 options-adaptive-difficulty = Dificuldade Adaptativa
 options-adaptive-difficulty-tooltip = Ajusta automaticamente quantas notas da música são mostradas de uma vez, de acordo com o seu desempenho.
@@ -66,8 +72,10 @@ options-colorblind-palette-tooltip = Usa um par fixo de cores sopro/sucção seg
 options-reduced-motion = Menos movimento
 options-reduced-motion-tooltip = Para o movimento decorativo da pista — o pulo ao acertar, as caudas animadas das notas — enquanto as notas continuam rolando normalmente.
 options-zoom = Zoom
+options-music = Música
+options-metronome = Metrônomo
 options-zoom-tooltip = Ajusta o tamanho de toda a interface.
-options-zoom-label = Zoom: {$percent}%
+options-zoom-label = {$percent}%
 options-pitch-detect = Detecção de tom
 options-microphone = Microfone
 options-microphone-tooltip = De qual dispositivo de entrada captar sua gaita.
@@ -87,6 +95,7 @@ options-button-style-icon-only = Somente ícone
 options-button-style-text-beside-icon = Texto ao lado do ícone
 options-button-style-text-only = Somente texto
 theme-back-to-options = ← Voltar às Opções
+theme-title = Tema
 
 # Compartilhado
 back = ← Voltar
@@ -865,6 +874,10 @@ gameplay-wait-listening = escutando…
 pause-group-playback-aids = AJUDAS DE REPRODUÇÃO
 pause-group-phrase-practice = PRÁTICA DE TRECHO
 pause-quit-song = Sair da música
+pause-paused = PAUSADO
+pause-resume = Continuar
+pause-restart = Recomeçar
+pause-learned-label = Aprendido:
 pause-finish-lesson = Concluir lição
 pause-wait-for-note-button = ⏸ Esperar nota
 pause-wait-for-note-on = Esperar nota: ligado
@@ -964,6 +977,7 @@ results-continue = Continuar
 
 # Calibração de latência
 calibration-title = Calibração de Latência
+calibration-mic-label = Mic
 calibration-instructions = Toque qualquer nota em cada batida — o jogo mede o atraso com que o microfone detecta o som.
 calibration-mean-offset-placeholder = Deslocamento médio: —
 calibration-mean-offset = Deslocamento médio: {$sign}{$ms}ms
@@ -1044,6 +1058,18 @@ harp-check-cost-unreachable = {$count} nota(s) não podem ser tocadas nesta gait
 harp-check-chart-harp = Escrita para uma gaita {$kind} em {$key}.
 harp-kind-diatonic = diatônica
 harp-kind-chromatic = cromática
+harp-summary-diatonic = Diatônica
+harp-summary-chromatic = Cromática
+harp-summary-holes = {$n} furos
+harp-summary-position = {$pos} posição
+harp-banner-use = Use uma gaita em {$key}
+harp-banner-key = tom de {$key}
+harp-banner-fallback = Tocando em {$key}
+harp-row-blow = sopro
+harp-row-draw = sugada
+harp-row-overblow = overblow
+harp-row-overdraw = overdraw
+harp-row-slide = slide
 # O seletor de faixa na página de verificação da gaita, exibido apenas para
 # um arquivo importado com mais de uma parte tocável.
 harp-check-track = Parte a tocar

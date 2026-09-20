@@ -17,6 +17,7 @@
 use bevy::prelude::*;
 
 use harmonicon_core::chart::HarpChart;
+use harmonicon_core::harmonica::{Harmonica, HarpSummary, detected_harp_key};
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 /// Every song-describing string the HUD needs, resolved and localized once.
@@ -55,7 +56,7 @@ impl SongInfo {
                     ],
                 ),
             ),
-            harp: chart.harmonica.display(),
+            harp: harp_line(&chart.harmonica.summary(), loc),
             description: chart.metadata.as_ref().and_then(|m| m.description.clone()),
             chart_author: chart.metadata.as_ref().and_then(|m| {
                 m.author.as_ref().map(|author| {
@@ -66,6 +67,54 @@ impl SongInfo {
             }),
         }
     }
+}
+
+/// `"Diatonic · 10 holes · 2nd position · Richter"`, worded in the player's
+/// language: the kind and the hole/position phrases come from the locale,
+/// the tuning name is a proper noun and stays as-is, and a segment the
+/// chart doesn't declare is simply absent.
+fn harp_line(summary: &HarpSummary<'_>, loc: &Localization) -> String {
+    let mut parts = vec![
+        String::from(loc.msg(if summary.chromatic {
+            "harp-summary-chromatic"
+        } else {
+            "harp-summary-diatonic"
+        })),
+        String::from(loc.msg_args("harp-summary-holes", &[("n", summary.holes.to_string())])),
+    ];
+    parts.extend(
+        summary.position.map(|p| {
+            String::from(loc.msg_args("harp-summary-position", &[("pos", p.to_string())]))
+        }),
+    );
+    parts.extend(summary.profile.map(str::to_string));
+    parts.join(HarpSummary::SEPARATOR)
+}
+
+/// The one-line "which harp to grab" hint, in the player's language —
+/// `"Use a C harmonica · 2nd position · key of G"` — the localized twin of
+/// `harmonicon_core::harmonica::harp_banner`, which keeps the English join
+/// for logs and tests. Same derivation: a Richter harp's key is its hole-1
+/// blow note, paired with the chart's declared position (when it has one)
+/// and the song's key; just the key when the harp's can't be determined.
+pub fn harp_banner_text(harp: &Harmonica, song_key: &str, loc: &Localization) -> String {
+    let Some(harp_key) = detected_harp_key(harp) else {
+        return String::from(
+            loc.msg_args("harp-banner-fallback", &[("key", song_key.to_string())]),
+        );
+    };
+    let mut parts = vec![String::from(
+        loc.msg_args("harp-banner-use", &[("key", harp_key)]),
+    )];
+    parts.extend(
+        harp.position().map(|p| {
+            String::from(loc.msg_args("harp-summary-position", &[("pos", p.to_string())]))
+        }),
+    );
+    parts.push(String::from(
+        loc.msg_args("harp-banner-key", &[("key", song_key.to_string())]),
+    ));
+    parts.join("  \u{00B7}  ")
 }
 
 /// The title alone, for the strip that stays up while notes are falling.

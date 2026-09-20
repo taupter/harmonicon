@@ -309,7 +309,7 @@ pub fn setup(
     {
         spawn_gameplay_music_score(&mut commands, bravura);
     }
-    let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
+    let harp_hint = super::song_info::harp_banner_text(&chart.harmonica, key, &loc);
     spawn_countdown(&mut commands, &loc, Some(&harp_hint), Some(&song_info));
 }
 

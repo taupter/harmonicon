@@ -613,7 +613,7 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
         })
         .with_children(|row| {
             row.spawn((
-                Text::new("Mic"),
+                Text::new(String::from(loc.msg("calibration-mic-label"))),
                 TextFont {
                     font_size: FontSize::Px(15.0),
                     ..default()

@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use super::super::improv::{NoteFit, classify_note_fit};
 use super::*;
+use harmonicon_core::harmonica::harp_banner;
 
 // ── should_restart_jam_music ─────────────────────────────────────────────
 

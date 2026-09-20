@@ -88,6 +88,18 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
 Moved out of `CLAUDE.md`: these are status, not load-bearing
 architecture, so they belong with the rest of the planning docs.
 
+- [ ] **Enum labels in comboboxes are English in every locale.**
+  `Progression`/`Position`/`Scale`/`Genre::label()` in `harmonicon-core`
+  double as the *identity* the UI reads back (`from_label(&ev.value)` on
+  `ComboboxSelect`, the position string stored in a generated jam
+  manifest, `meta_form`'s scale picker), so they can't simply be
+  translated in place. The shape that fixes it: give `ComboboxSelect` an
+  `index` alongside `value`, keep `label()` as the stable id, and have
+  each page display `loc.msg("progression-<id>")` while mapping the
+  selection back by index. Found by `scripts/locale_tour.py` in pt-BR:
+  Generate Jam shows "Standard / 1st Position / Blues" under Portuguese
+  labels. Everything else on that tour is localized now.
+
 - Content: besides the Example Artist gameplay demos, bundled songs now
   include public-domain melodies (Greensleeves on a G harp, Jesu Joy and
   the Toccata in D minor on C harps, Für Elise on a C chromatic,

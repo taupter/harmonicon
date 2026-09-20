@@ -13,7 +13,7 @@ use bevy::ui_widgets::Activate;
 use harmonicon_core::chart::{Action, Scale};
 use harmonicon_core::harmonica::{
     ChordQuality, Harmonica, Position, Progression, chord_intervals, detected_harp_key,
-    harp_banner, progression_bars, semitone,
+    progression_bars, semitone,
 };
 
 use harmonicon_app::app::{JamProgression, JamScale, SelectedSong};
@@ -106,7 +106,7 @@ pub fn setup(
     let (holes_info, guide) = build_hole_guide(&chart.harmonica, key, progression, scale);
 
     // Which physical harp to grab: a Richter harp's key is its hole-1 blow note.
-    let harp_hint = harp_banner(&chart.harmonica, key);
+    let harp_hint = harmonicon_gameplay::gameplay::harp_banner_text(&chart.harmonica, key, &loc);
     // Same detection, bare (no banner sentence), plus whichever position the
     // chart itself declares — for the live position compass below.
     let harp_key = detected_harp_key(&chart.harmonica);

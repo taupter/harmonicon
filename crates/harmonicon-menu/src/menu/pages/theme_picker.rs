@@ -70,7 +70,13 @@ fn setup(
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
 ) {
-    let (root, header, _page_root) = spawn_menu_root(&mut commands, "Theme", None, &theme, "Theme");
+    let (root, header, _page_root) = spawn_menu_root(
+        &mut commands,
+        &loc.msg("theme-title"),
+        None,
+        &theme,
+        "Theme",
+    );
 
     spawn_back_button(
         &mut commands,

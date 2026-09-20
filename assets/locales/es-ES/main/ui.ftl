@@ -51,11 +51,17 @@ credits-back-to-menu = Volver al Menú
 
 # Selección de canción / artista
 select-artist = Seleccionar Artista
+circle-of-fifths-harp-label = armónica
+artist-song-count-one = {$n} canción
+artist-song-count-many = {$n} canciones
 select-song = Seleccionar Canción
 no-songs-found = No se encontraron canciones. Añade carpetas en assets/songs/<artista>/<canción>/
 
 # Opciones
 options-title = Opciones
+options-subtitle-audio = Audio
+options-theme = Tema
+options-harmonica = Armónica
 options-language = Idioma
 options-adaptive-difficulty = Dificultad Adaptativa
 options-adaptive-difficulty-tooltip = Ajusta automáticamente cuántas notas de la canción se muestran a la vez, según tu desempeño.
@@ -66,8 +72,10 @@ options-colorblind-palette-tooltip = Usa un par fijo de colores soplar/aspirar s
 options-reduced-motion = Menos movimiento
 options-reduced-motion-tooltip = Detiene el movimiento decorativo de la pista — el salto al acertar, las colas animadas de las notas — mientras las notas siguen desplazándose con normalidad.
 options-zoom = Zoom
+options-music = Música
+options-metronome = Metrónomo
 options-zoom-tooltip = Ajusta el tamaño de toda la interfaz.
-options-zoom-label = Zoom: {$percent}%
+options-zoom-label = {$percent}%
 options-pitch-detect = Detección de tono
 options-microphone = Micrófono
 options-microphone-tooltip = De qué dispositivo de entrada capturar tu armónica.
@@ -87,6 +95,7 @@ options-button-style-icon-only = Solo icono
 options-button-style-text-beside-icon = Texto junto al icono
 options-button-style-text-only = Solo texto
 theme-back-to-options = ← Volver a Opciones
+theme-title = Tema
 
 # Compartido
 back = ← Volver
@@ -865,6 +874,10 @@ gameplay-wait-listening = escuchando…
 pause-group-playback-aids = AYUDAS DE REPRODUCCIÓN
 pause-group-phrase-practice = PRÁCTICA DE FRASE
 pause-quit-song = Salir de la canción
+pause-paused = EN PAUSA
+pause-resume = Continuar
+pause-restart = Reiniciar
+pause-learned-label = Aprendido:
 pause-finish-lesson = Terminar lección
 pause-wait-for-note-button = ⏸ Esperar nota
 pause-wait-for-note-on = Esperar nota: activado
@@ -964,6 +977,7 @@ results-continue = Continuar
 
 # Calibración de latencia
 calibration-title = Calibración de Latencia
+calibration-mic-label = Mic
 calibration-instructions = Toca cualquier nota en cada pulso — el juego mide cuánto tarda el micrófono en detectar el sonido.
 calibration-mean-offset-placeholder = Desfase medio: —
 calibration-mean-offset = Desfase medio: {$sign}{$ms}ms
@@ -1046,6 +1060,18 @@ harp-check-cost-unreachable = {$count} nota(s) no se pueden tocar en esta armón
 harp-check-chart-harp = Escrita para una armónica {$kind} en {$key}.
 harp-kind-diatonic = diatónica
 harp-kind-chromatic = cromática
+harp-summary-diatonic = Diatónica
+harp-summary-chromatic = Cromática
+harp-summary-holes = {$n} agujeros
+harp-summary-position = {$pos} posición
+harp-banner-use = Usa una armónica en {$key}
+harp-banner-key = tono de {$key}
+harp-banner-fallback = Tocando en {$key}
+harp-row-blow = soplo
+harp-row-draw = aspiración
+harp-row-overblow = overblow
+harp-row-overdraw = overdraw
+harp-row-slide = slide
 # El selector de pista en la página de comprobación de la armónica, visible
 # solo para un archivo importado con más de una parte tocable.
 harp-check-track = Parte a tocar

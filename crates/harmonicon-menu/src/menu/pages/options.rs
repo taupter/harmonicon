@@ -136,6 +136,12 @@ fn audio_level(settings: &AudioSettings, kind: VolumeSlider) -> f32 {
     }
 }
 
+/// Width of the label column beside a slider or picker. Sized for the
+/// longest translation on the page ("Detecção de tom", "Atraso de
+/// entrada"), not the English, so a label never wraps onto two lines and
+/// pushes its control down. Mirrors `dialogs::combobox::LABEL_WIDTH`.
+const OPTIONS_LABEL_WIDTH: f32 = 190.0;
+
 // ── Page setup ────────────────────────────────────────────────────────────────
 
 fn setup_options_menu(
@@ -156,8 +162,13 @@ fn setup_options_menu(
     action_button_style: Res<harmonicon_platform::settings::ActionButtonStyle>,
     ui_scale: Res<UiScale>,
 ) {
-    let (root, header, page_root) =
-        spawn_menu_root(&mut commands, "Options", Some("Audio"), &theme, "Options");
+    let (root, header, page_root) = spawn_menu_root(
+        &mut commands,
+        &loc.msg("options-title"),
+        Some(&loc.msg("options-subtitle-audio")),
+        &theme,
+        "Options",
+    );
 
     spawn_back_button(
         &mut commands,
@@ -251,7 +262,7 @@ fn spawn_left_column(
     spawn_volume_slider(
         commands,
         parent,
-        "Music",
+        &loc.msg("options-music"),
         &loc.msg("options-music-volume-tooltip"),
         VolumeSlider::Music,
         settings.music_volume,
@@ -260,7 +271,7 @@ fn spawn_left_column(
     spawn_volume_slider(
         commands,
         parent,
-        "Metronome",
+        &loc.msg("options-metronome"),
         &loc.msg("options-metronome-volume-tooltip"),
         VolumeSlider::Metronome,
         settings.metronome_volume,
@@ -328,7 +339,7 @@ fn spawn_right_column(commands: &mut Commands, parent: Entity, loc: &Localizatio
     let theme_btn = spawn_button(
         commands,
         parent,
-        "Theme",
+        &loc.msg("options-theme"),
         |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::Theme),
     );
     commands
@@ -671,10 +682,10 @@ fn spawn_harmonica_row(
     commands.entity(row).with_children(|r| {
         r.spawn((
             Node {
-                width: Val::Px(110.0),
+                width: Val::Px(OPTIONS_LABEL_WIDTH),
                 ..default()
             },
-            Text::new("Harmonica"),
+            Text::new(String::from(loc.msg("options-harmonica"))),
             TextFont {
                 font_size: FontSize::Px(20.0),
                 ..default()
@@ -1120,7 +1131,7 @@ fn spawn_slider_row(commands: &mut Commands, parent: Entity, label: &str, toolti
     commands.entity(row).with_children(|r| {
         r.spawn((
             Node {
-                width: Val::Px(110.0),
+                width: Val::Px(OPTIONS_LABEL_WIDTH),
                 ..default()
             },
             Text::new(label.to_string()),

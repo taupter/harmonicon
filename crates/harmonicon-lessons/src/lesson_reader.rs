@@ -623,6 +623,7 @@ pub(crate) fn setup_lesson_reader(
                         harp_key,
                         &selected,
                         theme.circle_of_fifths_colors(),
+                        &loc.msg("circle-of-fifths-harp-label"),
                     );
                 });
                 let state = commands
@@ -642,6 +643,7 @@ pub(crate) fn setup_lesson_reader(
                     move |_: On<Activate>,
                           mut commands: Commands,
                           theme: Res<LoadedTheme>,
+                          loc: Res<Localization>,
                           mut q: Query<&mut LessonCircle>| {
                         let Ok(mut circle) = q.get_mut(target) else {
                             return;
@@ -655,6 +657,7 @@ pub(crate) fn setup_lesson_reader(
                                 &circle.harp_key,
                                 &circle.positions,
                                 theme.circle_of_fifths_colors(),
+                                &loc.msg("circle-of-fifths-harp-label"),
                             );
                         });
                         circle.diagram = diagram;
@@ -668,6 +671,7 @@ pub(crate) fn setup_lesson_reader(
                     move |_: On<Activate>,
                           mut commands: Commands,
                           theme: Res<LoadedTheme>,
+                          loc: Res<Localization>,
                           mut q: Query<&mut LessonCircle>| {
                         let Ok(mut circle) = q.get_mut(target) else {
                             return;
@@ -681,6 +685,7 @@ pub(crate) fn setup_lesson_reader(
                                 &circle.harp_key,
                                 &circle.positions,
                                 theme.circle_of_fifths_colors(),
+                                &loc.msg("circle-of-fifths-harp-label"),
                             );
                         });
                         circle.diagram = diagram;
@@ -1101,6 +1106,7 @@ pub(crate) fn setup_lesson_reader(
                 "C",
                 Position::all(),
                 theme.circle_of_fifths_colors(),
+                &loc.msg("circle-of-fifths-harp-label"),
             );
         });
     }

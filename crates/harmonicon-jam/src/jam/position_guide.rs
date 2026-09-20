@@ -157,7 +157,13 @@ fn spawn_position_caption(
     position: Position,
     colors: CircleOfFifthsColors,
 ) {
-    spawn_circle_of_fifths(parent, harp_key, &[position], colors);
+    spawn_circle_of_fifths(
+        parent,
+        harp_key,
+        &[position],
+        colors,
+        &loc.msg("circle-of-fifths-harp-label"),
+    );
     parent.spawn((
         Text::new(String::from(loc.msg_args(
             "jam-position-label",

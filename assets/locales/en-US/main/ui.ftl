@@ -53,11 +53,17 @@ credits-back-to-menu = Back to Menu
 
 # Song / artist selection
 select-artist = Select Artist
+circle-of-fifths-harp-label = harp
+artist-song-count-one = {$n} song
+artist-song-count-many = {$n} songs
 select-song = Select Song
 no-songs-found = No songs found. Add folders under assets/songs/<artist>/<song>/
 
 # Options
 options-title = Options
+options-subtitle-audio = Audio
+options-theme = Theme
+options-harmonica = Harmonica
 options-language = Language
 options-adaptive-difficulty = Adaptive Difficulty
 options-adaptive-difficulty-tooltip = Automatically adjusts how many of a song's charted notes you're given at once, based on how well you're doing.
@@ -68,8 +74,10 @@ options-colorblind-palette-tooltip = Use a fixed colorblind-safe blow/draw color
 options-reduced-motion = Reduced Motion
 options-reduced-motion-tooltip = Still the decorative motion on the highway — the pop on a hit, the flowing note tails — while notes keep scrolling as usual.
 options-zoom = Zoom
+options-music = Music
+options-metronome = Metronome
 options-zoom-tooltip = Scale the whole UI up or down.
-options-zoom-label = Zoom: {$percent}%
+options-zoom-label = {$percent}%
 options-pitch-detect = Pitch detect
 options-microphone = Microphone
 options-microphone-tooltip = Which input device to capture your harmonica from.
@@ -89,6 +97,7 @@ options-button-style-icon-only = Icon only
 options-button-style-text-beside-icon = Text beside icon
 options-button-style-text-only = Text only
 theme-back-to-options = ← Back to Options
+theme-title = Theme
 
 # Shared
 back = ← Back
@@ -867,6 +876,10 @@ gameplay-badge-loop = loop {$start}s–{$end}s
 pause-group-playback-aids = PLAYBACK AIDS
 pause-group-phrase-practice = PHRASE PRACTICE
 pause-quit-song = Quit Song
+pause-paused = PAUSED
+pause-resume = Resume
+pause-restart = Restart
+pause-learned-label = Learned:
 pause-finish-lesson = Finish Lesson
 pause-wait-for-note-button = ⏸ Wait for Note
 pause-wait-for-note-on = Wait for Note: on
@@ -966,6 +979,7 @@ results-continue = Continue
 
 # Latency calibration
 calibration-title = Latency Calibration
+calibration-mic-label = Mic
 calibration-instructions = Play any note on each beat — the game measures how late your mic detects sound.
 calibration-mean-offset-placeholder = Mean offset: —
 calibration-mean-offset = Mean offset: {$sign}{$ms}ms
@@ -1047,6 +1061,18 @@ harp-check-cost-unreachable = {$count} note(s) can't be played on this harmonica
 harp-check-chart-harp = Written for a {$key} {$kind} harmonica.
 harp-kind-diatonic = diatonic
 harp-kind-chromatic = chromatic
+harp-summary-diatonic = Diatonic
+harp-summary-chromatic = Chromatic
+harp-summary-holes = {$n} holes
+harp-summary-position = {$pos} position
+harp-banner-use = Use a {$key} harmonica
+harp-banner-key = key of {$key}
+harp-banner-fallback = Playing in {$key}
+harp-row-blow = blow
+harp-row-draw = draw
+harp-row-overblow = overblow
+harp-row-overdraw = overdraw
+harp-row-slide = slide
 # The track picker on the harp-check page, shown only for an imported score
 # file with more than one playable part.
 harp-check-track = Part to play

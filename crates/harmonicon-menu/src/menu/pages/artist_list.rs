@@ -47,7 +47,15 @@ pub(crate) fn setup_artist_list(
         artists.sort_unstable();
         for artist in artists {
             let n = songs.0[artist].len();
-            let label = format!("{artist}  ({n} song{})", if n == 1 { "" } else { "s" });
+            let count = loc.msg_args(
+                if n == 1 {
+                    "artist-song-count-one"
+                } else {
+                    "artist-song-count-many"
+                },
+                &[("n", n.to_string())],
+            );
+            let label = format!("{artist}  ({count})");
             let artist = artist.clone();
             spawn_button(
                 &mut commands,

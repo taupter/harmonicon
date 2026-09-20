@@ -731,7 +731,7 @@ pub fn setup(
     {
         super::gameplay_2d::spawn_gameplay_music_score(&mut commands, bravura);
     }
-    let harp_hint = harmonicon_core::harmonica::harp_banner(&chart.harmonica, key);
+    let harp_hint = super::song_info::harp_banner_text(&chart.harmonica, key, &hud.loc);
     spawn_countdown(
         &mut commands,
         &hud.loc,

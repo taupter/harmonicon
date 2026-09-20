@@ -854,42 +854,6 @@ impl Harmonica {
         }
     }
 
-    /// A human-readable line describing the harmonica type and settings —
-    /// `"Diatonic · 10 holes · 2nd position · Richter"`. The position
-    /// segment appears only when the chart declares one: a chart without it
-    /// used to print `? position`, which reads as a defect rather than an
-    /// absence, and on a chromatic harp (fully chromatic, so "position" is
-    /// mostly a diatonic idea) it's usually absent by design.
-    pub fn display(&self) -> String {
-        const SEP: &str = " \u{00B7} ";
-        match &self {
-            Harmonica::Diatonic {
-                holes,
-                bending_profile,
-                position,
-                ..
-            } => {
-                let profile = match bending_profile {
-                    BendingProfile::RichterStandard => "Richter",
-                    BendingProfile::CountryTuned => "Country",
-                    BendingProfile::PaddyRichter => "Paddy Richter",
-                    BendingProfile::NaturalMinor => "Natural Minor",
-                };
-                let mut parts = vec!["Diatonic".to_string(), format!("{holes} holes")];
-                parts.extend(position.as_deref().map(|p| format!("{p} position")));
-                parts.push(profile.to_string());
-                parts.join(SEP)
-            }
-            Harmonica::Chromatic {
-                holes, position, ..
-            } => {
-                let mut parts = vec!["Chromatic".to_string(), format!("{holes} holes")];
-                parts.extend(position.as_deref().map(|p| format!("{p} position")));
-                parts.join(SEP)
-            }
-        }
-    }
-
     // Build the complete set of MIDI note numbers this harmonica can
     // physically produce, including all bendable pitches between blow and
     // draw notes. Keying on the MIDI number (rather than a formatted name
@@ -980,6 +944,9 @@ impl Harmonica {
         Some((lo, hi))
     }
 }
+
+mod summary;
+pub use summary::HarpSummary;
 
 #[cfg(test)]
 mod tests;

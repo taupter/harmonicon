@@ -60,6 +60,7 @@ pub fn spawn_circle_of_fifths(
     harp_key: &str,
     positions: &[Position],
     colors: CircleOfFifthsColors,
+    harp_label: &str,
 ) -> Entity {
     // Circle-of-fifths order starting at `harp_key`: index i is i fifths
     // (7 semitones) clockwise from it (C, G, D, A, E, B, F#, C#, G#, D#,
@@ -135,7 +136,7 @@ pub fn spawn_circle_of_fifths(
                             ));
                         } else if is_harp_key {
                             cell.spawn((
-                                Text::new("harp"),
+                                Text::new(harp_label.to_string()),
                                 TextFont {
                                     font_size: FontSize::Px(10.0),
                                     ..default()

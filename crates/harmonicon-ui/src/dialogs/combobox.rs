@@ -41,7 +41,10 @@ use super::button;
 const PANEL_BG: Color = Color::srgba(0.08, 0.08, 0.12, 0.98);
 const PANEL_BORDER: Color = Color::srgb(0.30, 0.30, 0.40);
 const TOGGLE_MIN_WIDTH: f32 = 220.0;
-const LABEL_WIDTH: f32 = 110.0;
+/// Sized for the longest translated label on the Options page ("Detecção
+/// de tom"), so a label never wraps beside its dropdown; matches
+/// `options::OPTIONS_LABEL_WIDTH`.
+const LABEL_WIDTH: f32 = 190.0;
 const LABEL_GAP: f32 = 14.0;
 
 // The dropdown list caps itself to `MAX_VISIBLE_ITEMS` rows and scrolls

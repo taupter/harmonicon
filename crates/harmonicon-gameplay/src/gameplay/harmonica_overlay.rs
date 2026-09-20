@@ -82,6 +82,24 @@ const ROWS: [(&str, Row, Color); 10] = [
     ("overdraw \u{2193}", Row::Overdraw, DRAW_COLOR),
 ];
 
+/// A [`ROWS`]/[`CHROMATIC_ROWS`] label in the player's language. The table
+/// keeps the English word as the row's identity (`"overblow ↑"`); only the
+/// word is translated here, the bend-depth rows (`"1½ ↑"`) and the arrow
+/// pass through — the arrow is the same glyph the hole map and note heads
+/// use everywhere.
+fn localized_row_label(label: &str, loc: &Localization) -> String {
+    let (word, rest) = label.split_once(' ').unwrap_or((label, ""));
+    let key = match word {
+        "blow" => "harp-row-blow",
+        "draw" => "harp-row-draw",
+        "overblow" => "harp-row-overblow",
+        "overdraw" => "harp-row-overdraw",
+        "slide" => "harp-row-slide",
+        _ => return label.to_string(),
+    };
+    format!("{} {rest}", loc.msg(key))
+}
+
 /// The note `row` shows for `hole`, or `None` if that row doesn't apply to
 /// this hole at all (wrong wing, or the technique isn't available here).
 fn note_for(h: &HoleNotes, hole: u8, row: Row) -> Option<&str> {
@@ -161,7 +179,7 @@ fn spawn_diagram<RowKind: Copy>(
                             ..default()
                         })
                         .with_children(|row| {
-                            spawn_label(row, label);
+                            spawn_label(row, &localized_row_label(label, loc));
                             for hole in 1..=hole_count {
                                 match note_for(hole, kind) {
                                     Some(note) => spawn_cell(row, &note, color, hole, kind),
