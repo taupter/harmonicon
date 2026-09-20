@@ -65,6 +65,7 @@ pub(crate) fn handle_menu_escape(
     keyboard: Res<ButtonInput<KeyCode>>,
     page: Res<State<MenuPage>>,
     mode: Res<GameplayMode>,
+    mut welcome: ResMut<harmonicon_app::app::WelcomeFlow>,
     mut next_page: ResMut<NextState<MenuPage>>,
 ) {
     if !keyboard.just_pressed(KeyCode::Escape) {
@@ -74,8 +75,16 @@ pub(crate) fn handle_menu_escape(
         MenuPage::Main => return,
         // Escape is the keyboard equivalent of the page's own "Skip for now".
         MenuPage::Welcome => MenuPage::Main,
-        MenuPage::Play | MenuPage::Options | MenuPage::HelpAbout => MenuPage::Main,
-        MenuPage::LessonTree | MenuPage::JamSessionMenu => MenuPage::Play,
+        // Options and the lesson tree are two of the welcome flow's steps:
+        // a player who came from Welcome goes back there for the next one.
+        MenuPage::Options => {
+            welcome.back_target(MenuPage::Main, MenuPage::Welcome, |w| w.mic_done = true)
+        }
+        MenuPage::LessonTree => {
+            welcome.back_target(MenuPage::Play, MenuPage::Welcome, |w| w.lesson_done = true)
+        }
+        MenuPage::Play | MenuPage::HelpAbout => MenuPage::Main,
+        MenuPage::JamSessionMenu => MenuPage::Play,
         MenuPage::ModeSelect => MenuPage::Play,
         // Shared by two flows — Play Song (via ModeSelect) and Jam
         // Session's "Pick a Song" — see the Back button in
@@ -122,6 +131,7 @@ pub(crate) fn route_menu_entry(
     mut ret_opts: ResMut<ReturnToOptions>,
     mut ret_play: ResMut<ReturnToPlay>,
     mut ret_help: ResMut<ReturnToHelpAbout>,
+    mut welcome: ResMut<harmonicon_app::app::WelcomeFlow>,
     mut next_page: ResMut<NextState<MenuPage>>,
     mut commands: Commands,
 ) {
@@ -135,6 +145,11 @@ pub(crate) fn route_menu_entry(
     if let Some(tour) = tour {
         next_page.set(tutorial::tour_menu_landing(&tour));
         if tutorial::tour_finished(&tour) {
+            // A tour started from Welcome lands back on Welcome (its
+            // `return_to`), and that page marks the step as taken.
+            if tour.return_to == MenuPage::Welcome {
+                welcome.tour_done = true;
+            }
             commands.remove_resource::<tutorial::TutorialTour>();
         }
         return;
@@ -202,6 +217,7 @@ mod tests {
             .init_resource::<ReturnToOptions>()
             .init_resource::<ReturnToPlay>()
             .init_resource::<ReturnToHelpAbout>()
+            .init_resource::<harmonicon_app::app::WelcomeFlow>()
             .add_systems(Update, route_menu_entry);
         app.world_mut()
             .resource_mut::<NextState<AppState>>()
@@ -267,5 +283,58 @@ mod tests {
         app.update();
         app.update();
         assert_eq!(current_page(&app), MenuPage::Main);
+    }
+
+    /// Presses Escape on `page`, with `WelcomeFlow` as given, and returns the
+    /// page landed on and the flow afterwards.
+    fn escape_from(
+        page: MenuPage,
+        flow: harmonicon_app::app::WelcomeFlow,
+    ) -> (MenuPage, harmonicon_app::app::WelcomeFlow) {
+        let mut app = routing_app(false);
+        app.add_systems(Update, handle_menu_escape)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<GameplayMode>();
+        app.insert_resource(flow);
+        app.world_mut()
+            .resource_mut::<NextState<MenuPage>>()
+            .set(page);
+        app.update();
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        app.update();
+        let flow = *app.world().resource::<harmonicon_app::app::WelcomeFlow>();
+        (current_page(&app), flow)
+    }
+
+    #[test]
+    fn a_welcome_step_returns_to_welcome_and_marks_itself_done() {
+        use harmonicon_app::app::WelcomeFlow;
+        let from_welcome = WelcomeFlow {
+            return_to_welcome: true,
+            ..Default::default()
+        };
+        let (page, flow) = escape_from(MenuPage::Options, from_welcome);
+        assert_eq!(page, MenuPage::Welcome);
+        assert!(
+            flow.mic_done && !flow.return_to_welcome,
+            "consumed: {flow:?}"
+        );
+
+        let (page, flow) = escape_from(MenuPage::LessonTree, from_welcome);
+        assert_eq!(page, MenuPage::Welcome);
+        assert!(flow.lesson_done && !flow.return_to_welcome);
+    }
+
+    #[test]
+    fn the_same_pages_go_where_they_always_did_outside_the_welcome_flow() {
+        let (page, flow) = escape_from(MenuPage::Options, Default::default());
+        assert_eq!(page, MenuPage::Main);
+        assert!(!flow.mic_done);
+        let (page, _) = escape_from(MenuPage::LessonTree, Default::default());
+        assert_eq!(page, MenuPage::Play);
     }
 }

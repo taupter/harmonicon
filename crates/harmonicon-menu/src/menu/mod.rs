@@ -43,6 +43,7 @@ impl Plugin for MenuPlugin {
             .init_resource::<ReturnToOptions>()
             .init_resource::<ReturnToPlay>()
             .init_resource::<ReturnToHelpAbout>()
+            .init_resource::<harmonicon_app::app::WelcomeFlow>()
             .init_resource::<TourActive>()
             // The Options, Calibration, Credits, and Theme pages own their own lifecycles.
             .add_plugins(pages::options::OptionsPlugin)

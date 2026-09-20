@@ -1029,6 +1029,7 @@ welcome-body = You play a real harmonica into your microphone, and Harmonicon li
 welcome-setup-mic = Set up your microphone
 welcome-tour = Take the guided tour
 welcome-lessons = Start with a lesson
+help-first-run = First-time setup
 welcome-skip = Skip for now
 # Microphone trouble. `mic-warning-*` is the in-play overlay
 # (gameplay::mic_warning_overlay), deliberately terse and free of the raw

@@ -510,8 +510,16 @@ fn next_available_lesson(nodes: &[PlacedNode]) -> Option<&PlacedNode> {
         .or_else(|| nodes.iter().find(|node| node.state == NodeState::Available))
 }
 
-fn back_to_play(_: On<Activate>, mut page: ResMut<NextState<MenuPage>>) {
-    page.set(MenuPage::Play);
+/// Back to Play — or to Welcome when the tree was opened as the first-run
+/// "start with a lesson" step, so the player can take the next one.
+fn back_to_play(
+    _: On<Activate>,
+    mut welcome: ResMut<harmonicon_app::app::WelcomeFlow>,
+    mut page: ResMut<NextState<MenuPage>>,
+) {
+    page.set(welcome.back_target(MenuPage::Play, MenuPage::Welcome, |w| {
+        w.lesson_done = true;
+    }));
 }
 
 /// A lesson dropped into `~/Harmonicon/lessons` while this page is open

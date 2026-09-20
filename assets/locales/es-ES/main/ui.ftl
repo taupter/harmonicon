@@ -1027,6 +1027,7 @@ welcome-body = Tocas una armónica real en tu micrófono, y Harmonicon escucha y
 welcome-setup-mic = Configurar el micrófono
 welcome-tour = Hacer el tour guiado
 welcome-lessons = Empezar con una lección
+help-first-run = Primeros pasos
 welcome-skip = Omitir por ahora
 # Problemas de micrófono. `mic-warning-*` es el aviso durante el juego
 # (gameplay::mic_warning_overlay), breve y sin el error bruto del

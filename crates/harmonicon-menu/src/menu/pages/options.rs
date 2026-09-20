@@ -174,7 +174,15 @@ fn setup_options_menu(
         &mut commands,
         header,
         &loc.msg("options-back-tooltip"),
-        |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::Main),
+        |_: On<Activate>,
+         mut welcome: ResMut<harmonicon_app::app::WelcomeFlow>,
+         mut page: ResMut<NextState<MenuPage>>| {
+            // Back to Welcome when this is the first-run "set up your
+            // microphone" step, else to Main as usual.
+            page.set(welcome.back_target(MenuPage::Main, MenuPage::Welcome, |w| {
+                w.mic_done = true;
+            }));
+        },
     );
 
     // Two columns, sized to their own content (like every other menu page's

@@ -120,6 +120,14 @@ pub(crate) fn setup_help_about_menu(
         &loc.msg("menu-tutorial"),
         tutorial::start_tutorial_tour,
     );
+    // The first-run welcome, re-runnable: the same three steps a fresh
+    // install offers, reachable without deleting the profile.
+    spawn_button(
+        &mut commands,
+        root,
+        &loc.msg("help-first-run"),
+        |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::Welcome),
+    );
     spawn_button(
         &mut commands,
         root,

@@ -206,6 +206,38 @@ pub struct ReturnToOptions(pub bool);
 #[derive(Resource, Default)]
 pub struct ReturnToPlay(pub bool);
 
+/// The first-run welcome flow's state for this session. The Welcome page
+/// offers three steps — microphone setup (Options), the guided tour, a
+/// first lesson — and a player who takes one should land back on Welcome
+/// afterwards to take the next, not on Main or Play where those pages
+/// ordinarily return: `return_to_welcome` is set by the Welcome page's
+/// buttons and consumed by the destination page's Back/Escape. The `*_done`
+/// flags mark the steps taken, so the page can show a check beside them
+/// when the player comes back. Reset with the session; the profile file's
+/// existence is what decides whether Welcome shows at all (`FirstRun`).
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WelcomeFlow {
+    pub return_to_welcome: bool,
+    pub mic_done: bool,
+    pub tour_done: bool,
+    pub lesson_done: bool,
+}
+
+impl WelcomeFlow {
+    /// Where a page's Back/Escape should go: Welcome if the player came
+    /// from there (consuming the flag), else `default`. `done` marks which
+    /// step the page was.
+    pub fn back_target<P>(&mut self, default: P, welcome: P, done: impl FnOnce(&mut Self)) -> P {
+        if self.return_to_welcome {
+            self.return_to_welcome = false;
+            done(self);
+            welcome
+        } else {
+            default
+        }
+    }
+}
+
 /// Set to `true` by the Credits screen (`AppState::Credits`) on every exit
 /// path so that returning to `AppState::Menu` lands on the Help/About page
 /// (where "Credits" lives) rather than the substate's own default of Main.

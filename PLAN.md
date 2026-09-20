@@ -315,13 +315,11 @@ not-gotten-to:
 `ROADMAP.md`'s 1.0 section defines the bar and why the scope is desktop
 only. Execution order, most valuable first:
 
-1. **First-run flow** (rc1). Nothing exists today — grep for `first_run`/
-   `has_seen` and the tree comes back empty. Build it as a state the app
-   enters when `profile.json` is absent, not as a flag each screen checks;
-   `AppState` already carries a `Startup` variant that currently just falls
-   through to `Menu`. Steps chain calibrate → tour → a beginner lesson,
-   each skippable, and the whole thing re-runnable from Help / About so
-   it's testable without deleting a profile.
+1. **First-run flow** (rc1) — **done.** `MenuPage::Welcome` opens when
+   `profile.json` is absent (`profile::FirstRun`, sampled once at plugin
+   build); its three steps each return to it when done (`app::WelcomeFlow`)
+   with a check beside them, Skip goes to Main, and **Help / About →
+   First-time setup** re-opens it without deleting a profile.
 2. **Mic trouble where it's noticed** (rc1). `MicStatus::{Failed,
    AwaitingPermission}` and the Options banner already exist; Play 2D/3D
    and Jam Session don't surface either, so a dead mic reads as "the game

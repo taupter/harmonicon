@@ -23,6 +23,7 @@
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
+use harmonicon_app::app::WelcomeFlow;
 use harmonicon_app::profile::{PlayerProfile, save_profile};
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
@@ -36,6 +37,7 @@ pub(crate) fn setup_welcome_menu(
     mut commands: Commands,
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
+    welcome: Res<WelcomeFlow>,
 ) {
     let (root, _header, _page_root) = spawn_menu_root(
         &mut commands,
@@ -76,23 +78,36 @@ pub(crate) fn setup_welcome_menu(
     commands.entity(scrim).add_child(body);
     commands.entity(root).add_child(scrim);
 
+    // Each step's page comes back here when it's done (see `WelcomeFlow`),
+    // and a step already taken this session is marked so the player can
+    // see what's left.
     spawn_button(
         &mut commands,
         root,
-        &loc.msg("welcome-setup-mic"),
-        |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::Options),
+        &step_label(&loc.msg("welcome-setup-mic"), welcome.mic_done),
+        |_: On<Activate>,
+         mut welcome: ResMut<WelcomeFlow>,
+         mut page: ResMut<NextState<MenuPage>>| {
+            welcome.return_to_welcome = true;
+            page.set(MenuPage::Options);
+        },
     );
     spawn_button(
         &mut commands,
         root,
-        &loc.msg("welcome-tour"),
+        &step_label(&loc.msg("welcome-tour"), welcome.tour_done),
         tutorial::start_tutorial_tour,
     );
     spawn_button(
         &mut commands,
         root,
-        &loc.msg("welcome-lessons"),
-        |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::LessonTree),
+        &step_label(&loc.msg("welcome-lessons"), welcome.lesson_done),
+        |_: On<Activate>,
+         mut welcome: ResMut<WelcomeFlow>,
+         mut page: ResMut<NextState<MenuPage>>| {
+            welcome.return_to_welcome = true;
+            page.set(MenuPage::LessonTree);
+        },
     );
     // No header Back button: there is nowhere "back" to on a first launch.
     // This is the deliberate way past the page, and Escape does the same via
@@ -113,6 +128,16 @@ pub(crate) fn setup_welcome_menu(
 /// other thing that writes one is the `AppExit` flush — which a crash skips.
 /// Saving here costs one write of an almost-empty profile and makes the
 /// question "have they been greeted?" durable at the moment it's answered.
+/// A step's button label, with a check in front once the step has been
+/// taken this session.
+fn step_label(label: &str, done: bool) -> String {
+    if done {
+        format!("\u{2713} {label}")
+    } else {
+        label.to_string()
+    }
+}
+
 pub(crate) fn persist_profile_on_welcome_exit(profile: Res<PlayerProfile>) {
     save_profile(&profile);
 }

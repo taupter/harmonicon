@@ -152,7 +152,7 @@ const TOUR_STEPS: &[(TourTarget, &str, &str, f32)] = &[
 pub(crate) struct TutorialTour {
     step: usize,
     timer: Timer,
-    return_to: MenuPage,
+    pub(crate) return_to: MenuPage,
 }
 
 /// The overlay's root — not `MenuRoot`/`GameplayRoot`, so none of the

@@ -30,15 +30,13 @@ be retaken. wasm has no mic at all until cpal gains Web Audio input.
 
 ### 1.0-rc1 — the first ten minutes
 
-There is **no first-run experience**: no `first_run`/`has_seen` flag exists
-anywhere in the tree. Calibration is reachable only from inside Options, and
-the guided tour only from Help / About. A new player is shown four buttons,
-none of which is "set up your microphone", by a game that does nothing
-useful without one.
+The first ten minutes decide whether a player with a working harmonica ever
+hears the game hear them.
 
-- First-launch detection (absence of `profile.json`, via
-  `harmonicon_platform::paths`) leading into calibrate → guided tour → a
-  beginner lesson, every step skippable and re-runnable.
+- *(Done)* First-launch detection (absence of `profile.json`) opens a
+  welcome page offering microphone setup → guided tour → a first lesson,
+  each returning to it when done, every step skippable, and the whole page
+  re-runnable from Help / About.
 - Surface mic trouble where a confused player is actually looking.
   `MicStatus::{Failed, AwaitingPermission}` and its Options banner already
   exist; nothing shows them on the screens where the silence is noticed.

@@ -28,6 +28,19 @@ music through your speakers/headphones.
   track/metronome from bleeding into the mic and being misread as notes
   you played.
 
+## The first launch
+
+The first time Harmonicon starts — before it has saved a profile — it opens
+on a welcome page instead of the main menu, with the three things worth
+doing before anything else: **Set up your microphone** (the Options page,
+with the device picker and the "no microphone" warning), **Take the guided
+tour**, and **Start with a lesson**. Each one brings you back here when
+you're done, with a check beside it, so you can take the next; **Skip for
+now** goes straight to the main menu. You can come back to this page any
+time from **Help / About → First-time setup**.
+
+![The welcome page](images/welcome.png)
+
 ## Picking your microphone
 
 Harmonicon uses whatever input device your system reports as default,
