@@ -221,8 +221,12 @@ the practice entry. `docs/gameplay_validation.md` has the live checks.
   colour-only: a hit pops and stamps ✓, a miss shrinks and stays shrunk with
   ✗ (`gameplay::note_feedback`). Breath direction was already covered by
   the note-head label (see Phase 1).
-- Add reduced-motion and feedback-intensity settings before introducing camera
-  shake or large pulses. Visual motion must never move the hit target.
+- *(Done)* A **Reduced Motion** setting (`settings::ReducedMotion`, Options
+  page, persisted) exists ahead of any camera shake or larger pulse: it
+  drops the hit pop, makes the miss shrink immediate (the shrunk head is a
+  state cue and stays), and freezes the tail animation clock, which also
+  stills the hold shimmer. Notes still scroll and the hit line never moves
+  either way. Anything new that moves must read it.
 - Audit text contrast, focus order, touch target size and localization
   expansion. Window size below Full HD is explicitly *not* in scope for
   desktop; `CompactLayout` earns its keep on Android portrait, and should be
@@ -236,14 +240,11 @@ the practice entry. `docs/gameplay_validation.md` has the live checks.
 Two defects the Phase 0 pass turned up, both small and both in this phase's
 territory (see `docs/gameplay_baseline.md`):
 
-- **`build.rs`'s literal check doesn't follow a binding.** The wait-for-note
-  prompt was a bare `format!("Play Hole {} {}")` reaching `Text` through a
-  variable, and the check never saw it (it is localized now, as part of the
-  Phase 3 card). Anything else written that way is equally invisible; worth
-  deciding whether the scan should follow a `let` one hop.
-- **A chromatic harp renders `? position`.** Diatonic position is meaningless
-  on a chromatic harp, so the field should be omitted rather than filled with
-  a question mark.
+- *(Done)* `build.rs`'s literal check follows a bare identifier one hop
+  back to its `let` binding (rule 5 in its header), and CI now runs the
+  build script's own tests, which nothing did before.
+- *(Done)* `Harmonica::display` omits the position segment when the chart
+  declares none, instead of `? position`.
 
 ## Implementation boundaries
 

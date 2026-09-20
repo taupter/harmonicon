@@ -54,6 +54,17 @@ pub struct FullscreenEnabled(pub bool);
 #[derive(Resource, Default)]
 pub struct ColorblindPalette(pub bool);
 
+/// Whether the highway's decorative motion is stilled: the head pop on a hit
+/// (a miss's shrink becomes immediate — it's a state, not a flourish), the
+/// flowing technique animations on note tails and the hold shimmer. The
+/// notes themselves still scroll: that *is* the game, and the hit line never
+/// moves either way. Off by default; edited on the Options page and read by
+/// `gameplay::note_feedback::judged_scale` and the tail animators. Exists
+/// ahead of any camera shake or larger pulse, so those can be gated from
+/// day one rather than retrofitted.
+#[derive(Resource, Default)]
+pub struct ReducedMotion(pub bool);
+
 /// How the Song Editor's action buttons (transport strip, mod panel,
 /// timeline tools, ...) render their icon/label — see
 /// `song_editor::panel_widgets::spawn_button_shell`, which is the one place
@@ -122,6 +133,7 @@ struct Settings {
     adaptive_difficulty_enabled: bool,
     fullscreen: bool,
     colorblind_palette: bool,
+    reduced_motion: bool,
     action_button_style: ActionButtonStyle,
 }
 
@@ -141,6 +153,7 @@ impl Default for Settings {
             adaptive_difficulty_enabled: false,
             fullscreen: false,
             colorblind_palette: false,
+            reduced_motion: false,
             action_button_style: ActionButtonStyle::default(),
         }
     }
@@ -202,6 +215,7 @@ impl Plugin for SettingsPlugin {
             .init_resource::<AdaptiveDifficultyEnabled>()
             .init_resource::<FullscreenEnabled>()
             .init_resource::<ColorblindPalette>()
+            .init_resource::<ReducedMotion>()
             .init_resource::<ActionButtonStyle>()
             .init_resource::<PendingSave>()
             .add_systems(Startup, apply_loaded_settings)
@@ -221,6 +235,7 @@ impl Plugin for SettingsPlugin {
                          adaptive_difficulty: Res<AdaptiveDifficultyEnabled>,
                          fullscreen: Res<FullscreenEnabled>,
                          colorblind_palette: Res<ColorblindPalette>,
+                         reduced_motion: Res<ReducedMotion>,
                          action_button_style: Res<ActionButtonStyle>| {
                             audio.is_changed()
                                 || theme_2d.is_changed()
@@ -231,6 +246,7 @@ impl Plugin for SettingsPlugin {
                                 || adaptive_difficulty.is_changed()
                                 || fullscreen.is_changed()
                                 || colorblind_palette.is_changed()
+                                || reduced_motion.is_changed()
                                 || action_button_style.is_changed()
                         },
                     ),
@@ -258,6 +274,7 @@ pub fn apply_loaded_settings(
     mut adaptive_difficulty: ResMut<AdaptiveDifficultyEnabled>,
     mut fullscreen: ResMut<FullscreenEnabled>,
     mut colorblind_palette: ResMut<ColorblindPalette>,
+    mut reduced_motion: ResMut<ReducedMotion>,
     mut action_button_style: ResMut<ActionButtonStyle>,
 ) {
     let settings = load_settings();
@@ -274,9 +291,10 @@ pub fn apply_loaded_settings(
     adaptive_difficulty.0 = settings.adaptive_difficulty_enabled;
     fullscreen.0 = settings.fullscreen;
     colorblind_palette.0 = settings.colorblind_palette;
+    reduced_motion.0 = settings.reduced_motion;
     *action_button_style = settings.action_button_style;
     info!(
-        "Loaded settings: music={:.2} metronome={:.2} latency={}ms themes(2d={}, 3d={}) harmonica={} ui_theme={} note_numbers={} adaptive_difficulty={} fullscreen={} colorblind_palette={} action_button_style={:?}",
+        "Loaded settings: music={:.2} metronome={:.2} latency={}ms themes(2d={}, 3d={}) harmonica={} ui_theme={} note_numbers={} adaptive_difficulty={} fullscreen={} colorblind_palette={} reduced_motion={} action_button_style={:?}",
         audio.music_volume,
         audio.metronome_volume,
         audio.input_latency_ms,
@@ -288,6 +306,7 @@ pub fn apply_loaded_settings(
         adaptive_difficulty.0,
         fullscreen.0,
         colorblind_palette.0,
+        reduced_motion.0,
         *action_button_style,
     );
 }
@@ -303,6 +322,7 @@ fn save_current(
     adaptive_difficulty: &AdaptiveDifficultyEnabled,
     fullscreen: &FullscreenEnabled,
     colorblind_palette: &ColorblindPalette,
+    reduced_motion: &ReducedMotion,
     action_button_style: &ActionButtonStyle,
 ) {
     save_settings(&Settings {
@@ -319,6 +339,7 @@ fn save_current(
         adaptive_difficulty_enabled: adaptive_difficulty.0,
         fullscreen: fullscreen.0,
         colorblind_palette: colorblind_palette.0,
+        reduced_motion: reduced_motion.0,
         action_button_style: *action_button_style,
     });
 }
@@ -358,6 +379,7 @@ fn tick_pending_save(
     adaptive_difficulty: Res<AdaptiveDifficultyEnabled>,
     fullscreen: Res<FullscreenEnabled>,
     colorblind_palette: Res<ColorblindPalette>,
+    reduced_motion: Res<ReducedMotion>,
     action_button_style: Res<ActionButtonStyle>,
 ) {
     let (should_save, remaining) = tick_debounce(pending.0, time.delta_secs());
@@ -373,6 +395,7 @@ fn tick_pending_save(
             &adaptive_difficulty,
             &fullscreen,
             &colorblind_palette,
+            &reduced_motion,
             &action_button_style,
         );
     }
@@ -392,6 +415,7 @@ fn flush_pending_save_on_exit(
     adaptive_difficulty: Res<AdaptiveDifficultyEnabled>,
     fullscreen: Res<FullscreenEnabled>,
     colorblind_palette: Res<ColorblindPalette>,
+    reduced_motion: Res<ReducedMotion>,
     action_button_style: Res<ActionButtonStyle>,
 ) {
     if exit.read().next().is_none() || pending.0.is_none() {
@@ -408,6 +432,7 @@ fn flush_pending_save_on_exit(
         &adaptive_difficulty,
         &fullscreen,
         &colorblind_palette,
+        &reduced_motion,
         &action_button_style,
     );
 }
@@ -479,6 +504,16 @@ mod tests {
     fn missing_colorblind_palette_field_defaults_off_via_serde_default() {
         let s: Settings = serde_json::from_str("{}").unwrap();
         assert!(!s.colorblind_palette);
+    }
+
+    // ── ReducedMotion ────────────────────────────────────────────────────────
+
+    #[test]
+    fn reduced_motion_is_off_by_default_and_when_the_field_is_missing() {
+        assert!(!ReducedMotion::default().0);
+        assert!(!Settings::default().reduced_motion);
+        let s: Settings = serde_json::from_str("{}").unwrap();
+        assert!(!s.reduced_motion);
     }
 
     // ── ActionButtonStyle ────────────────────────────────────────────────────

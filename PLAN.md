@@ -13,16 +13,20 @@ this file — prune it back to a one-line summary under "Shipped" below.
   into coaching. Execution phases and invariants are in
   `docs/gameplay_improvement_plan.md`.
 
-  **Resume here.** Phases 0–4 are done. What's left is Phase 5:
+  **Resume here.** Phases 0–4 are done, and of Phase 5 the reduced-motion
+  setting, `? position` and the `build.rs` `let` rule have landed. What's
+  left of Phase 5:
 
-  1. A reduced-motion / feedback-intensity setting before any camera shake
-     or larger pulse (the judged-note pop is small and brief, and needs no
-     gate yet).
-  2. `? position` on a chromatic harp — omit the field rather than fill it.
-  3. `build.rs`'s literal check doesn't follow a `let` one hop.
-  4. The contrast / focus-order / localization-expansion audit, and
-     re-taking the player-guide captures — with `brpctl.py autoplay on`
-     first, so they show real hits instead of a wall of misses.
+  1. The contrast / focus-order / touch-target / localization-expansion
+     audit — switch the locale to pt-BR and es-ES and walk every screen
+     for clipped or overflowing labels (the BRP tour +
+     `NextState<MenuPage>` reaches them all).
+  2. Re-take the remaining player-guide captures that show gameplay or
+     results — with `brpctl.py autoplay on` first, so they show real hits.
+     `play-2d.png`, `play-3d.png`, `results-screen.png` and `options.png`
+     are already current.
+  3. Judgment sounds stay deliberately unbuilt until tested against mic
+     capture (the phase doc explains why).
 
   Only one thing still needs a real mic: the mid-hold drop-out and the
   steady-vs-wobble contrast on a vibrato note (`docs/gameplay_validation.md`,

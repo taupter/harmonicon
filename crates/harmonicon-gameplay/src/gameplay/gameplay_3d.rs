@@ -1089,6 +1089,7 @@ pub fn animate_judged_notes_3d(
     mut commands: Commands,
     song_notes: Res<super::SongNotes>,
     clock: Res<super::GameplayClock>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     mut notes: Query<(
         Entity,
         &NoteVisual3D,
@@ -1123,7 +1124,9 @@ pub fn animate_judged_notes_3d(
         } else {
             judged.copied()
         };
-        let scale = judged.map_or(1.0, |j| judged_scale(j.hit, (now - j.at) as f32));
+        let scale = judged.map_or(1.0, |j| {
+            judged_scale(j.hit, (now - j.at) as f32, reduced_motion.0)
+        });
         for child in children {
             if let Ok((head, mut transform)) = heads.get_mut(*child) {
                 let wanted = Vec3::splat(head.base_scale * scale);
@@ -1156,8 +1159,12 @@ pub fn animate_judged_notes_3d(
 /// so the ribbons flow in time with the song and freeze on pause.
 pub fn animate_note_tails_3d(
     clock: Res<super::GameplayClock>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     mut materials: ResMut<Assets<NoteTail3dMaterial>>,
 ) {
+    if reduced_motion.0 {
+        return;
+    }
     let t = clock.get() as f32;
     for (_, material) in materials.iter_mut() {
         material.params.z = t;

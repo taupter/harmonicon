@@ -90,11 +90,17 @@ impl Plugin for NoteTail2dPlugin {
 }
 
 /// Drives every 2D note tail's animation clock (`params.z`) from the gameplay
-/// clock, so the tails flow in time with the song and freeze when paused.
+/// clock, so the tails flow in time with the song and freeze when paused —
+/// and stay frozen altogether under reduced motion, which also stills the
+/// hold shimmer (the shader animates both off this one clock).
 pub fn animate_note_tails(
     clock: Res<super::GameplayClock>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     mut materials: ResMut<Assets<NoteTail2dMaterial>>,
 ) {
+    if reduced_motion.0 {
+        return;
+    }
     let t = clock.get() as f32;
     for (_, material) in materials.iter_mut() {
         material.params.z = t;

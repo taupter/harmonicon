@@ -28,6 +28,15 @@
   unlocking for every song (see [Playing a Song](playing-a-song.md)). One
   setting shared by every song, not picked per song — the pause menu's own
   toggle during a song changes this same setting.
+- **Fullscreen** — borderless fullscreen on the current display.
+- **Colorblind Palette** — a fixed colorblind-safe blow/draw colour pair
+  on the highway instead of the current theme's note colours.
+- **Reduced Motion** — stills the decorative motion on the highway: the
+  pop when a note is hit and the flowing animation on note tails. Notes
+  keep scrolling as usual (that *is* the game), a missed note still
+  shrinks — just immediately, without the movement into it — and the hit
+  line never moves either way.
+- **Zoom** — scales the whole interface.
 - **Theme** — opens the [theme picker](themes.md).
 - **Calibrate input lag** — opens [input-lag calibration](calibration.md).
 

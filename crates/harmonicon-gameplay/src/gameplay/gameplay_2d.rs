@@ -750,6 +750,7 @@ pub fn animate_judged_notes(
     song_notes: Res<SongNotes>,
     clock: Res<super::GameplayClock>,
     show_numbers: Res<harmonicon_platform::assets_management::ShowNoteNumbers>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     mut notes: Query<(
         Entity,
         &NoteVisual,
@@ -783,7 +784,9 @@ pub fn animate_judged_notes(
         } else {
             judged.copied()
         };
-        let scale = judged.map_or(1.0, |j| judged_scale(j.hit, (now - j.at) as f32));
+        let scale = judged.map_or(1.0, |j| {
+            judged_scale(j.hit, (now - j.at) as f32, reduced_motion.0)
+        });
         for child in children {
             let Ok((mut transform, head_children)) = heads.get_mut(*child) else {
                 continue;

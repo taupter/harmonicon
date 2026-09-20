@@ -60,10 +60,15 @@ pub const SHRINK_SECS: f32 = 0.16;
 /// judgment. A hit pops to [`POP_PEAK`] and eases back to 1 over
 /// [`POP_SECS`]; a miss eases down to [`MISS_SCALE`] over [`SHRINK_SECS`]
 /// and holds. Ages before zero (a clock rewound under a still-spawned
-/// visual) read as unjudged.
-pub fn judged_scale(hit: bool, age: f32) -> f32 {
+/// visual) read as unjudged. With `reduced_motion` the pop is dropped
+/// entirely and the miss shrink is immediate — the shrunk head is a state
+/// cue that has to stay; only the movement into it goes.
+pub fn judged_scale(hit: bool, age: f32, reduced_motion: bool) -> f32 {
     if age < 0.0 {
         return 1.0;
+    }
+    if reduced_motion {
+        return if hit { 1.0 } else { MISS_SCALE };
     }
     if hit {
         let t = (age / POP_SECS).min(1.0);
@@ -193,28 +198,35 @@ mod tests {
 
     #[test]
     fn a_hit_pops_then_settles_back_to_one() {
-        assert!((judged_scale(true, 0.0) - POP_PEAK).abs() < 1e-6);
-        assert!(judged_scale(true, POP_SECS * 0.5) > 1.0);
-        assert!((judged_scale(true, POP_SECS) - 1.0).abs() < 1e-6);
+        assert!((judged_scale(true, 0.0, false) - POP_PEAK).abs() < 1e-6);
+        assert!(judged_scale(true, POP_SECS * 0.5, false) > 1.0);
+        assert!((judged_scale(true, POP_SECS, false) - 1.0).abs() < 1e-6);
         assert!(
-            (judged_scale(true, 10.0) - 1.0).abs() < 1e-6,
+            (judged_scale(true, 10.0, false) - 1.0).abs() < 1e-6,
             "and stays there"
         );
     }
 
     #[test]
     fn a_miss_shrinks_and_stays_shrunk() {
-        assert!((judged_scale(false, 0.0) - 1.0).abs() < 1e-6);
-        let mid = judged_scale(false, SHRINK_SECS * 0.5);
+        assert!((judged_scale(false, 0.0, false) - 1.0).abs() < 1e-6);
+        let mid = judged_scale(false, SHRINK_SECS * 0.5, false);
         assert!(mid < 1.0 && mid > MISS_SCALE);
-        assert!((judged_scale(false, SHRINK_SECS) - MISS_SCALE).abs() < 1e-6);
-        assert!((judged_scale(false, 10.0) - MISS_SCALE).abs() < 1e-6);
+        assert!((judged_scale(false, SHRINK_SECS, false) - MISS_SCALE).abs() < 1e-6);
+        assert!((judged_scale(false, 10.0, false) - MISS_SCALE).abs() < 1e-6);
+    }
+
+    #[test]
+    fn reduced_motion_keeps_the_miss_state_but_drops_the_movement() {
+        assert_eq!(judged_scale(true, 0.0, true), 1.0, "no pop");
+        assert_eq!(judged_scale(false, 0.0, true), MISS_SCALE, "shrunk at once");
+        assert_eq!(judged_scale(false, 10.0, true), MISS_SCALE);
     }
 
     #[test]
     fn a_negative_age_reads_as_unjudged() {
-        assert_eq!(judged_scale(true, -0.1), 1.0);
-        assert_eq!(judged_scale(false, -0.1), 1.0);
+        assert_eq!(judged_scale(true, -0.1, false), 1.0);
+        assert_eq!(judged_scale(false, -0.1, false), 1.0);
     }
 
     #[test]

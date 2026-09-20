@@ -152,6 +152,7 @@ fn setup_options_menu(
     adaptive_difficulty: Res<harmonicon_platform::settings::AdaptiveDifficultyEnabled>,
     fullscreen: Res<harmonicon_platform::settings::FullscreenEnabled>,
     colorblind_palette: Res<harmonicon_platform::settings::ColorblindPalette>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     action_button_style: Res<harmonicon_platform::settings::ActionButtonStyle>,
     ui_scale: Res<UiScale>,
 ) {
@@ -220,6 +221,7 @@ fn setup_options_menu(
         adaptive_difficulty,
         fullscreen,
         colorblind_palette,
+        reduced_motion,
         *action_button_style,
         ui_scale.0,
     );
@@ -241,6 +243,7 @@ fn spawn_left_column(
     adaptive_difficulty: Res<harmonicon_platform::settings::AdaptiveDifficultyEnabled>,
     fullscreen: Res<harmonicon_platform::settings::FullscreenEnabled>,
     colorblind_palette: Res<harmonicon_platform::settings::ColorblindPalette>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     action_button_style: harmonicon_platform::settings::ActionButtonStyle,
     ui_scale: f32,
 ) {
@@ -316,6 +319,7 @@ fn spawn_left_column(
     spawn_adaptive_difficulty_toggle(commands, parent, adaptive_difficulty.0, loc);
     spawn_fullscreen_toggle(commands, parent, fullscreen.0, loc);
     spawn_colorblind_palette_toggle(commands, parent, colorblind_palette.0, loc);
+    spawn_reduced_motion_toggle(commands, parent, reduced_motion.0, loc);
     spawn_zoom_slider(commands, parent, ui_scale, loc);
     spawn_action_button_style_combobox(commands, parent, page_root, loc, action_button_style);
 }
@@ -614,6 +618,34 @@ fn spawn_colorblind_palette_toggle(
     );
     commands.entity(row).insert(Tooltip(String::from(
         loc.msg("options-colorblind-palette-tooltip"),
+    )));
+}
+
+/// Stills the highway's decorative motion — see
+/// `settings::ReducedMotion`'s doc comment.
+fn set_reduced_motion(
+    ev: On<ValueChange<bool>>,
+    mut enabled: ResMut<harmonicon_platform::settings::ReducedMotion>,
+) {
+    enabled.0 = ev.value;
+}
+
+/// A checkbox bound to the reduced-motion setting.
+fn spawn_reduced_motion_toggle(
+    commands: &mut Commands,
+    parent: Entity,
+    enabled: bool,
+    loc: &Localization,
+) {
+    let row = checkbox::spawn_checkbox(
+        commands,
+        parent,
+        &loc.msg("options-reduced-motion"),
+        enabled,
+        set_reduced_motion,
+    );
+    commands.entity(row).insert(Tooltip(String::from(
+        loc.msg("options-reduced-motion-tooltip"),
     )));
 }
 
