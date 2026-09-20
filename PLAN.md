@@ -7,35 +7,8 @@ this file — prune it back to a one-line summary under "Shipped" below.
 
 ## In flight
 
-- **Scored-gameplay experience pass** — refocus Play 2D/3D on the highway
-  and hit line, remove unauthored contextual clutter, add actionable judgment
-  feedback, integrate practice controls with the live HUD, and turn results
-  into coaching. Execution phases and invariants are in
-  `docs/gameplay_improvement_plan.md`.
-
-  **Resume here.** Phases 0–4 are done, and of Phase 5 the reduced-motion
-  setting, `? position` and the `build.rs` `let` rule have landed. What's
-  left of Phase 5:
-
-  1. The contrast / focus-order / touch-target / localization-expansion
-     audit — switch the locale to pt-BR and es-ES and walk every screen
-     for clipped or overflowing labels (the BRP tour +
-     `NextState<MenuPage>` reaches them all).
-  2. Re-take the remaining player-guide captures that show gameplay or
-     results — with `brpctl.py autoplay on` first, so they show real hits.
-     `play-2d.png`, `play-3d.png`, `results-screen.png` and `options.png`
-     are already current.
-  3. Judgment sounds stay deliberately unbuilt until tested against mic
-     capture (the phase doc explains why).
-
-  Only one thing still needs a real mic: the mid-hold drop-out and the
-  steady-vs-wobble contrast on a vibrato note (`docs/gameplay_validation.md`,
-  "A held note shows whether you're still holding it"). Everything else in
-  the pass has been seen on screen via autoplay.
-
-  Verify anything visible with `./scripts/run-dev.sh` then
-  `python3 scripts/brpctl.py enter "Play 2D" Traditional "Amazing Grace"` and
-  `capture` — `results` plays the shortest chart to its end for Phase 4.
+(Nothing in flight. The next candidates, in `ROADMAP.md`'s order, are the
+1.0 items under "Road to 1.0" below — the first-run flow first.)
 
 ## Shipped
 
@@ -43,6 +16,15 @@ Full design detail for anything below lives in `CLAUDE.md` (architecture)
 and git history (implementation); this list is intentionally just a
 one-line index of what's landed.
 
+- **Scored-gameplay experience pass** — the five phases of
+  `docs/gameplay_improvement_plan.md`: highway hierarchy and authored-only
+  context, per-note judgment feedback (message contract, head pop/stamp,
+  hold-state tail, live technique status), practice aids in the live HUD,
+  results as coaching (`gameplay::coaching`, "Practice missed section"),
+  reduced motion, and a localization sweep. Dev autoplay
+  (`brpctl.py autoplay on`) and `scripts/locale_tour.py` came out of
+  verifying it. Still needing a real harp: the mid-hold drop-out and the
+  steady-vs-wobble vibrato contrast (`docs/gameplay_validation.md`).
 - **0.2 "Trustworthy"** — audio-synced clock, chart-derived detection
   range, mic device picker/retry, per-song persistence.
 - **0.3 "Practice"** — A–B looping, practice speed, wait-for-note, tab

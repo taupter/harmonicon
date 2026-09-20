@@ -219,6 +219,23 @@ jam grid, the results screen, the tour overlay, the microphone dropdown) by
 clicking through to them. If a screen changes, re-take that one PNG under
 the same filename; the `![...](images/foo.png)` references don't move.
 
+## Checking a translation
+
+The game follows the OS locale, so a language is chosen at launch, not over
+BRP. `scripts/locale_tour.py` then walks every menu page (by state), the
+song list / harp check / a lesson (by clicking that locale's own labels,
+resolved from its `.ftl`), a song with autoplay, the results screen, a jam
+and the editor, writing named PNGs:
+
+```bash
+LANG=pt_BR.UTF-8 LC_ALL=pt_BR.UTF-8 ./scripts/run-dev.sh --no-build
+LANG=pt_BR.UTF-8 LC_ALL=pt_BR.UTF-8 python3 scripts/locale_tour.py target/screenshots/pt-BR
+```
+
+A contact sheet of the output is the fastest way to spot an English label
+or a wrapped one — the pass that added this found a dozen single-word
+literals the localization lint's fingerprint deliberately skips.
+
 ## What this does *not* give you
 
 - **Rendering correctness.** BRP reports the *string* `"♬ Import MIDI"`

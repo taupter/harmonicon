@@ -215,7 +215,7 @@ lesson progress and missed-range selection; `gameplay::tests::
 practice_start_*`/`skip_notes_before_*`/`an_active_loop_holds_off_*` cover
 the practice entry. `docs/gameplay_validation.md` has the live checks.
 
-## Phase 5: polish and accessibility
+## Phase 5: polish and accessibility — done, with three deliberate leftovers
 
 - *(Done, in Phase 2's tail)* Hit state on the note head is no longer
   colour-only: a hit pops and stamps ✓, a miss shrinks and stays shrunk with
@@ -227,15 +227,25 @@ the practice entry. `docs/gameplay_validation.md` has the live checks.
   state cue and stays), and freezes the tail animation clock, which also
   stills the hold shimmer. Notes still scroll and the hit line never moves
   either way. Anything new that moves must read it.
-- Audit text contrast, focus order, touch target size and localization
-  expansion. Window size below Full HD is explicitly *not* in scope for
+- *(Done)* Localization expansion: `scripts/locale_tour.py` walks every
+  screen under `LANG=pt_BR.UTF-8` / `es_ES.UTF-8` (the game follows the
+  OS locale) and captured each; everything it found in English is
+  localized, and the Options label column is sized for the longest
+  translation rather than the English. The one leftover is enum labels
+  used as identity in comboboxes (`TODO.md`). Focus order: every screen
+  root carries a `TabGroup` (the results screen was the last without one).
+  Contrast: the ✗ stamp on a missed head goes light so it survives the dim
+  red. Touch target size is Android territory and stays with the mobile
+  items — window size below Full HD is explicitly *not* in scope for
   desktop; `CompactLayout` earns its keep on Android portrait, and should be
   re-tuned against a real device rather than against a small desktop window.
-- Add optional judgment sounds only after testing them with microphone capture;
-  speaker feedback can contaminate pitch detection. Visual feedback is the safe
-  default.
-- Re-capture the player-guide screenshots and update
-  `docs/gameplay_validation.md` as each visible phase lands.
+- *(Deliberately unbuilt)* Optional judgment sounds — only after testing
+  them with microphone capture; speaker feedback can contaminate pitch
+  detection. Visual feedback is the safe default.
+- *(Done)* The player-guide captures that changed (`play-2d`, `play-3d`,
+  `results-screen`, `options`) are re-taken — with autoplay on, so the
+  gameplay ones show real hits — and `docs/gameplay_validation.md` grew a
+  section per phase.
 
 Two defects the Phase 0 pass turned up, both small and both in this phase's
 territory (see `docs/gameplay_baseline.md`):
