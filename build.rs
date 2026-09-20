@@ -14,6 +14,13 @@
 //      shared spawn helpers (`KNOWN_LABEL_SINKS`) that all display it —
 //      whether on the same line as the call or, since these are often
 //      multi-line calls, on one of the next few argument lines.
+//   5. Any of the above given a bare identifier (`Text::new(prompt)`,
+//      `Text({label})`, `button::small(&label, ...)`) whose binding is a
+//      literal or `format!` template within the previous `LET_LOOKBACK_LINES`
+//      lines — `let prompt = format!("Play Hole {} {}", ...)`. One hop only:
+//      a binding that is itself built from another variable isn't followed.
+//      The wait-for-note prompt shipped as exactly this shape, invisible to
+//      rules 1–4.
 //
 // A "raw" string literal is one whose content contains at least one ASCII
 // letter AND at least one whitespace character — a reliable fingerprint of
@@ -105,6 +112,12 @@ const KNOWN_LABEL_SINKS: &[&str] = &[
 /// How many lines ahead of a [`KNOWN_LABEL_SINKS`] call (or a `format!(`
 /// left open at end of line) to look for its literal argument.
 const LOOKAHEAD_LINES: usize = 6;
+
+/// How many lines *back* from a sink given a bare identifier to look for
+/// that identifier's `let` binding (rule 5). A local built just before the
+/// spawn is the shape being caught; a binding further up is usually a
+/// parameter or a localized value, which rule 5 deliberately doesn't chase.
+const LET_LOOKBACK_LINES: usize = 40;
 
 fn build() {
     println!("cargo:rerun-if-changed=src");
@@ -426,7 +439,99 @@ fn check_source(source: &str, report: &mut dyn FnMut(usize, &str)) {
                 );
             }
         }
+
+        // 5: a bare identifier in any sink, bound to a literal just above.
+        let ident_sinks = TEXT_CTORS
+            .iter()
+            .chain(KNOWN_LABEL_SINKS)
+            .copied()
+            .chain(std::iter::once("Text({"));
+        for sink in ident_sinks {
+            let Some(ident) = identifier_argument(line, sink) else {
+                continue;
+            };
+            if let Some(binding_line) = let_literal_binding(&lines, i, &ident) {
+                report(
+                    i,
+                    &format!(
+                        "{sink}{ident}) where `{ident}` is bound to a natural-language literal on line {} — use loc.msg(\"key\") instead",
+                        binding_line + 1
+                    ),
+                );
+            }
+        }
     }
+}
+
+/// The bare identifier passed as `needle`'s first argument — `Text::new(
+/// prompt)`, `button::small(&label, …)`, `Text({label})` — or `None` when
+/// the argument is anything else (a literal, a call, a path).
+fn identifier_argument(line: &str, needle: &str) -> Option<String> {
+    let pos = line.find(needle)?;
+    let rest = line[pos + needle.len()..]
+        .trim_start()
+        .trim_start_matches('&');
+    let ident: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    if ident.is_empty() || ident.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let after = rest[ident.len()..].trim_start();
+    matches!(after.chars().next(), Some(')' | ',' | '}')).then_some(ident)
+}
+
+/// Line index of a `let <ident> = "…"` / `let <ident> = format!("…` binding
+/// within [`LET_LOOKBACK_LINES`] above `from` whose literal is natural
+/// language, or `None`. Stops at the nearest binding of that name either
+/// way — a shadowing `let` closer to the sink is the one in effect.
+fn let_literal_binding(lines: &[&str], from: usize, ident: &str) -> Option<usize> {
+    let start = from.saturating_sub(LET_LOOKBACK_LINES);
+    for j in (start..from).rev() {
+        let trimmed = lines[j].trim_start();
+        let Some(rest) = trimmed
+            .strip_prefix("let ")
+            .map(|r| r.strip_prefix("mut ").unwrap_or(r))
+        else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix(ident) else {
+            continue;
+        };
+        // `let ident =`, `let ident: T =` — not `let identifier_longer =`.
+        let rest = rest.trim_start();
+        let rest = match rest.strip_prefix(':') {
+            Some(typed) => typed.split_once('=').map(|(_, r)| r).unwrap_or(""),
+            None => match rest.strip_prefix('=') {
+                Some(r) => r,
+                None => continue,
+            },
+        };
+        let rest = rest.trim_start();
+        let content = if rest.starts_with('"') {
+            extract_quoted_after(rest, "\"")
+        } else if rest.starts_with("format!(\"") {
+            extract_quoted_after(rest, "format!(\"")
+        } else if rest.trim_end() == "format!(" {
+            // `format!(` left open: the template is the next non-blank line.
+            lines
+                .iter()
+                .skip(j + 1)
+                .take(LOOKAHEAD_LINES)
+                .map(|l| l.trim())
+                .find(|l| !l.is_empty())
+                .and_then(|l| {
+                    l.starts_with('"')
+                        .then(|| extract_quoted_after(l, "\""))
+                        .flatten()
+                })
+        } else {
+            None
+        };
+        return content.filter(|c| is_natural_language(c)).map(|_| j);
+    }
+    None
 }
 
 /// Every `#[derive(..., Message, ...)]` type declared in `source`, paired
@@ -591,10 +696,26 @@ fn extract_quoted_after(line: &str, needle: &str) -> Option<String> {
 }
 
 /// The two-feature fingerprint of natural-language text: at least one ASCII
-/// letter AND at least one ASCII whitespace character.
+/// letter AND at least one ASCII whitespace character — counted outside
+/// `{…}`, so a `format!` placeholder (`{title}`) or the body of a `\u{25B8}`
+/// escape (which [`extract_quoted_after`] leaves as `{25B8}`) can't supply
+/// the letters on its own. `"Key: {}"` still fingerprints; `"\u{25B8}
+/// {title}"` no longer does.
 fn is_natural_language(content: &str) -> bool {
-    content.chars().any(|c| c.is_ascii_alphabetic())
-        && content.chars().any(|c| c.is_ascii_whitespace())
+    let mut depth = 0usize;
+    let outside: String = content
+        .chars()
+        .filter(|&c| {
+            match c {
+                '{' => depth += 1,
+                '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            depth == 0 && c != '}'
+        })
+        .collect();
+    outside.chars().any(|c| c.is_ascii_alphabetic())
+        && outside.chars().any(|c| c.is_ascii_whitespace())
 }
 
 #[cfg(target_os = "windows")]
@@ -750,6 +871,43 @@ mod tests {
         assert!(violations(r#"Text::new("↑")"#).is_empty());
         assert!(violations(r#"Text::new("■")"#).is_empty());
         assert!(violations(r#"Text::new("Retry")"#).is_empty());
+    }
+
+    #[test]
+    fn follows_a_let_binding_one_hop() {
+        let src = "let prompt = format!(\"Play Hole {} {}\", hole, dir);\nText::new(prompt)";
+        assert_eq!(violations(src).len(), 1, "{src}");
+        let src = "let label = \"Wait for note\";\nlet x = 1;\nText({label})";
+        assert_eq!(violations(src).len(), 1);
+        let src = "let mut label: String = \"Wait for note\".to_string();\nbutton::small(&label, on_click)";
+        assert_eq!(violations(src).len(), 1);
+        let src = "let label = format!(\n    \"Play Hole {}\",\n    hole\n);\nText::new(label)";
+        assert_eq!(
+            violations(src).len(),
+            1,
+            "an open format!( binding is followed"
+        );
+    }
+
+    #[test]
+    fn placeholders_and_escape_bodies_are_not_words() {
+        assert!(violations(r#"Text::new(format!("\u{25B8} {title}"))"#).is_empty());
+        assert!(violations(r#"Text::new(format!("{artist} {title}"))"#).is_empty());
+        assert_eq!(violations(r#"Text::new(format!("Key: {key}"))"#).len(), 1);
+    }
+
+    #[test]
+    fn a_binding_that_is_not_a_literal_is_not_followed() {
+        assert!(violations("let label = loc.msg(\"key\");\nText::new(label)").is_empty());
+        assert!(violations("let label = format!(\"{}\", n);\nText::new(label)").is_empty());
+        assert!(violations("let label = other;\nText::new(label)").is_empty());
+        // A different binding with a longer name doesn't match a prefix.
+        assert!(violations("let labelled = \"two words\";\nText::new(label)").is_empty());
+        // The nearest binding wins: a clean shadow hides an earlier literal.
+        assert!(
+            violations("let label = \"two words\";\nlet label = loc.msg(\"k\");\nText::new(label)")
+                .is_empty()
+        );
     }
 
     #[test]

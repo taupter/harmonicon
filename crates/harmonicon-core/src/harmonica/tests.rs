@@ -739,3 +739,27 @@ fn the_valid_note_set_still_excludes_a_pitch_the_harp_cannot_produce() {
         .unwrap();
     assert!(!valid.contains(&below));
 }
+
+// ── display ──────────────────────────────────────────────────────────────
+
+#[test]
+fn display_omits_the_position_segment_when_the_chart_declares_none() {
+    assert_eq!(
+        richter_harp("C").display(),
+        "Diatonic \u{00B7} 10 holes \u{00B7} Richter"
+    );
+    assert_eq!(chromatic_harp("C").display(), "Chromatic \u{00B7} 12 holes");
+    assert!(!richter_harp("A").display().contains('?'));
+}
+
+#[test]
+fn display_names_a_declared_position() {
+    let mut harp = richter_harp("C");
+    if let Harmonica::Diatonic { position, .. } = &mut harp {
+        *position = Some("2nd".into());
+    }
+    assert_eq!(
+        harp.display(),
+        "Diatonic \u{00B7} 10 holes \u{00B7} 2nd position \u{00B7} Richter"
+    );
+}

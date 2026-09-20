@@ -58,6 +58,13 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
       - name: Run cargo test
         run: cargo test --workspace
+      # Cargo never runs a build script's own `#[cfg(test)]` module, so the
+      # source lints in build.rs (localization, message registration,
+      # PointerClick/SceneRoot) are tested by compiling it as a test binary
+      # directly — otherwise a broken lint rule is only noticed when it
+      # starts (or stops) failing real builds.
+      - name: Test the build.rs lints
+        run: rustc --edition 2024 --test build.rs -o target/build-rs-tests && target/build-rs-tests
 
   # Run cargo clippy -- -D warnings
   clippy_check:

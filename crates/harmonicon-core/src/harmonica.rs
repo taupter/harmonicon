@@ -854,8 +854,14 @@ impl Harmonica {
         }
     }
 
-    // Returns a human-readable string describing the harmonica type and settings.
+    /// A human-readable line describing the harmonica type and settings —
+    /// `"Diatonic · 10 holes · 2nd position · Richter"`. The position
+    /// segment appears only when the chart declares one: a chart without it
+    /// used to print `? position`, which reads as a defect rather than an
+    /// absence, and on a chromatic harp (fully chromatic, so "position" is
+    /// mostly a diatonic idea) it's usually absent by design.
     pub fn display(&self) -> String {
+        const SEP: &str = " \u{00B7} ";
         match &self {
             Harmonica::Diatonic {
                 holes,
@@ -863,26 +869,23 @@ impl Harmonica {
                 position,
                 ..
             } => {
-                let pos = position.as_deref().unwrap_or("?");
                 let profile = match bending_profile {
                     BendingProfile::RichterStandard => "Richter",
                     BendingProfile::CountryTuned => "Country",
                     BendingProfile::PaddyRichter => "Paddy Richter",
                     BendingProfile::NaturalMinor => "Natural Minor",
                 };
-                format!(
-                    "Diatonic \u{00B7} {} holes \u{00B7} {} position \u{00B7} {}",
-                    holes, pos, profile
-                )
+                let mut parts = vec!["Diatonic".to_string(), format!("{holes} holes")];
+                parts.extend(position.as_deref().map(|p| format!("{p} position")));
+                parts.push(profile.to_string());
+                parts.join(SEP)
             }
             Harmonica::Chromatic {
                 holes, position, ..
             } => {
-                let pos = position.as_deref().unwrap_or("?");
-                format!(
-                    "Chromatic \u{00B7} {} holes \u{00B7} {} position",
-                    holes, pos
-                )
+                let mut parts = vec!["Chromatic".to_string(), format!("{holes} holes")];
+                parts.extend(position.as_deref().map(|p| format!("{p} position")));
+                parts.join(SEP)
             }
         }
     }
