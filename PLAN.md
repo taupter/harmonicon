@@ -7,9 +7,11 @@ this file — prune it back to a one-line summary under "Shipped" below.
 
 ## In flight
 
-(Nothing in flight. The next candidates, in `ROADMAP.md`'s order, are the
-1.0 items under "Road to 1.0" below — what's left there is content and
-release engineering, neither of which is unsupervised work.)
+- **Jam Session feel pass** — improve `harmonicon-jam` as an unscored musical
+  space rather than another teaching surface: continuity and musical endings,
+  a generated rhythm section, chorus-level arrangement, a listening-first UI,
+  more musical call-and-response, then restrained band reactivity. See
+  `docs/jam_feel_plan.md`.
 
 ## Shipped
 
