@@ -127,7 +127,7 @@ fn scan_songs_for_manifest(root: &Path) -> Vec<(String, String, String)> {
                         .or_else(|| {
                             entries
                                 .iter()
-                                .find(|e| has_extension(e, harmonicon_score::IMPORT_EXTENSIONS))
+                                .find(|e| harmonicon_score::is_importable_file(&e.path()))
                         })
                         .map(|e| e.path())
                 });

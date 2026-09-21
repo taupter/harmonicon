@@ -31,17 +31,9 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
   guided tour still force the chart's own harmonica — deliberate for now (a
   lesson prescribes its harp as part of the teaching), but a player who
   doesn't own that key can't take those lessons at all.
-- [ ] **`.mxl` (zipped MusicXML) and `.gp2` are still unread.** Everything
-  else a player is likely to own now loads — MIDI, Guitar Pro 3 through 7,
-  MuseScore, plain MusicXML. `.mxl` is just a zip around a `.musicxml`, and
-  `zip` is already in the tree; `.gp2` predates what the `guitarpro` crate
-  reads. Neither is urgent.
-- [ ] **`.xml` is claimed for MusicXML.** The extension is generic, and a
-  song folder holding some unrelated `.xml` would be offered as a chart and
-  then fail to parse. It is claimed anyway because a large share of real
-  MusicXML exports use it. Narrowing this would mean sniffing the root
-  element rather than trusting the extension — `parse_import` takes the
-  bytes already, so there is somewhere to put that.
+- [ ] **`.gp2` is still unread.** Everything else a player is likely to own
+  now loads — MIDI, Guitar Pro 3 through 7, MuseScore, plain and compressed
+  MusicXML. `.gp2` predates what the `guitarpro` crate reads and is not urgent.
 - [ ] **Tab timing is reconstructed, and only round-trip-tested.** The
   `guitarpro` crate ships no fixtures, so `guitar_pro`'s measure/beat
   placement is verified against songs this codebase writes itself plus an

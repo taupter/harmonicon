@@ -33,7 +33,7 @@ one-line index of what's landed.
   the instrument (hole strip, hole glow, lane count, the "grab a G harp"
   hint and its sounding key, Jam Session's hole map) — see
   `harmonicon-gameplay`'s CLAUDE.md; `harmonicon-score` reading MIDI,
-  Guitar Pro 3–7, MuseScore and MusicXML behind one trait with
+  Guitar Pro 3–7, MuseScore and plain/compressed MusicXML behind one trait with
   name-based harmonica-track selection.
 - **0.2 "Trustworthy"** — audio-synced clock, chart-derived detection
   range, mic device picker/retry, per-song persistence.

@@ -61,8 +61,64 @@ pub const IMPORT_EXTENSIONS: &[&str] = &[
     "gp3", "gp4", "gp5", // Guitar Pro's binary formats
     "gpx", "gp",   // Guitar Pro 6 and 7, both zipped containers
     "mscz", // MuseScore
-    "musicxml", "xml", // MusicXML, the interchange format everything exports
+    "musicxml", "xml",
+    "mxl", // MusicXML, the interchange format everything exports; `.mxl` zipped
 ];
+
+/// Whether `path` is a score this crate can open — its extension is one of
+/// [`IMPORT_EXTENSIONS`], and for the generic `.xml` the file's head also
+/// has to look like MusicXML ([`looks_like_musicxml`]), so an unrelated
+/// XML in a song folder isn't offered as a chart and then fail to parse.
+/// The directory scans that pick a song folder's chart use this; the asset
+/// loader keeps [`IMPORT_EXTENSIONS`], since by then the file was chosen.
+pub fn is_importable_file(path: &std::path::Path) -> bool {
+    let Some(ext) = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+    else {
+        return false;
+    };
+    if !IMPORT_EXTENSIONS.contains(&ext.as_str()) {
+        return false;
+    }
+    if ext != "xml" {
+        return true;
+    }
+    let mut head = vec![0u8; SNIFF_BYTES];
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let n = std::io::Read::read(&mut file, &mut head).unwrap_or(0);
+    looks_like_musicxml(&head[..n])
+}
+
+/// How much of a `.xml` file to read to decide whether it's MusicXML: the
+/// prolog, DOCTYPE and root element fit comfortably; a large comment
+/// before the root would defeat it, which is the accepted trade.
+const SNIFF_BYTES: usize = 4096;
+
+/// Whether the start of an XML document is a MusicXML score: its root
+/// element is `score-partwise` or `score-timewise`, which the DOCTYPE
+/// usually also names. Pure, on bytes, so a scan can sniff a file's head
+/// without parsing it.
+pub fn looks_like_musicxml(head: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(head);
+    let mut reader = quick_xml::Reader::from_str(&text);
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(element))
+            | Ok(quick_xml::events::Event::Empty(element)) => {
+                return matches!(
+                    element.local_name().into_inner(),
+                    "score-partwise" | "score-timewise"
+                );
+            }
+            Ok(quick_xml::events::Event::Eof) | Err(_) => return false,
+            _ => {}
+        }
+    }
+}
 
 /// Reads `bytes` as whatever `extension` says they are.
 ///
@@ -75,7 +131,7 @@ pub const IMPORT_EXTENSIONS: &[&str] = &[
 pub fn parse_import(extension: &str, bytes: Vec<u8>) -> Result<Box<dyn ScoreFile>, ScoreError> {
     match extension.to_ascii_lowercase().as_str() {
         "mid" | "midi" => Ok(Box::new(midi::MidiScore::parse(bytes)?)),
-        gp @ ("gp3" | "gp4" | "gp5" | "gpx" | "gp" | "mscz" | "musicxml" | "xml") => {
+        gp @ ("gp3" | "gp4" | "gp5" | "gpx" | "gp" | "mscz" | "musicxml" | "xml" | "mxl") => {
             Ok(Box::new(guitar_pro::GpScore::parse(gp, bytes)?))
         }
         other => Err(ScoreError::UnsupportedFormat(other.to_string())),

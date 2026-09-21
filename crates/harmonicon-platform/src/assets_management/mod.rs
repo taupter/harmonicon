@@ -439,9 +439,10 @@ pub fn scan_artist_song(
                 .iter()
                 .find(|e| has_extension(e, &["harpchart"]))
                 .or_else(|| {
+                    // `.xml` is only offered when its head is MusicXML.
                     entries
                         .iter()
-                        .find(|e| has_extension(e, harmonicon_score::IMPORT_EXTENSIONS))
+                        .find(|e| harmonicon_score::is_importable_file(&e.path()))
                 })
                 .map(|e| e.path())
         })();

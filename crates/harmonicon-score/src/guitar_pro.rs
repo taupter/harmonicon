@@ -98,6 +98,10 @@ impl GpScore {
                 song = musicxml_song(&bytes)?;
                 ScoreFormat::MusicXml
             }
+            "mxl" => {
+                song = musicxml_song(&unzip_mxl(&bytes)?)?;
+                ScoreFormat::MusicXml
+            }
             other => return Err(ScoreError::UnsupportedFormat(other.to_string())),
         };
         Ok(Self::from_song(song, format))
@@ -412,6 +416,73 @@ fn mscz_song(bytes: &[u8]) -> Result<GpSong, ScoreError> {
     Ok(guitarpro::convert::legacy::loaded_score_to_legacy_song(
         &outcome.score,
     ))
+}
+
+/// `.mxl` is a zip holding the MusicXML plus a `META-INF/container.xml`
+/// that names it (`<rootfile full-path="…"/>`). Follows that when present,
+/// otherwise takes the first `.xml`/`.musicxml` entry outside `META-INF`.
+pub(crate) fn unzip_mxl(bytes: &[u8]) -> Result<Vec<u8>, ScoreError> {
+    use std::io::Read;
+    let mut archive =
+        zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| parse_error("mxl", e))?;
+    let names: Vec<String> = archive.file_names().map(str::to_string).collect();
+    let root = names
+        .iter()
+        .find(|n| *n == "META-INF/container.xml")
+        .and_then(|container| {
+            let mut text = String::new();
+            archive
+                .by_name(container)
+                .ok()?
+                .read_to_string(&mut text)
+                .ok()?;
+            container_rootfile(&text)
+        })
+        .or_else(|| {
+            names
+                .iter()
+                .find(|n| {
+                    let lower = n.to_ascii_lowercase();
+                    !lower.starts_with("meta-inf/")
+                        && (lower.ends_with(".xml") || lower.ends_with(".musicxml"))
+                })
+                .cloned()
+        })
+        .ok_or_else(|| parse_error("mxl", "no MusicXML inside the archive"))?;
+    let mut out = Vec::new();
+    archive
+        .by_name(&root)
+        .map_err(|e| parse_error("mxl", e))?
+        .read_to_end(&mut out)
+        .map_err(|e| parse_error("mxl", e))?;
+    Ok(out)
+}
+
+/// The `full-path` of the first `<rootfile>` in a container manifest.
+pub(crate) fn container_rootfile(container_xml: &str) -> Option<String> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(container_xml);
+    loop {
+        match reader.read_event().ok()? {
+            Event::Start(element) | Event::Empty(element)
+                if element.local_name().into_inner() == "rootfile" =>
+            {
+                return element
+                    .attributes()
+                    .filter_map(Result::ok)
+                    .find(|attribute| attribute.key.local_name().into_inner() == "full-path")
+                    .and_then(|attribute| {
+                        attribute
+                            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            .ok()
+                    })
+                    .map(|path| path.into_owned());
+            }
+            Event::Eof => return None,
+            _ => {}
+        }
+    }
 }
 
 /// MusicXML: the crate models `score-partwise` and can convert it, but has

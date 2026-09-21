@@ -336,3 +336,119 @@ fn garbage_bytes_are_refused_rather_than_panicking() {
         assert!(err.is_err(), ".{extension} accepted garbage");
     }
 }
+
+// ── .mxl and MusicXML sniffing ─────────────────────────────────────────────
+
+/// A minimal MusicXML document — one part named `Harmonica`, one bar, one
+/// quarter-note C4 — written by hand like an exporter would, since the
+/// `guitarpro` crate's own serializer doesn't round-trip through its
+/// deserializer.
+fn musicxml_bytes() -> Vec<u8> {
+    br#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Harmonica</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>1</duration>
+        <type>quarter</type>
+      </note>
+    </measure>
+  </part>
+</score-partwise>
+"#
+    .to_vec()
+}
+
+/// Zips `entries` as an `.mxl` would be laid out.
+fn zipped(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    use std::io::Write;
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut cursor);
+        let options = zip::write::SimpleFileOptions::default();
+        for (name, bytes) in entries {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+    cursor.into_inner()
+}
+
+#[test]
+fn an_mxl_is_read_through_its_container_manifest() {
+    let xml = musicxml_bytes();
+    let container = br#"<?xml version="1.0" encoding="UTF-8"?>
+<container><rootfiles><rootfile full-path="score.xml" media-type="application/vnd.recordare.musicxml+xml"/></rootfiles></container>"#;
+    let mxl = zipped(&[
+        ("META-INF/container.xml", container.as_slice()),
+        // A decoy first entry: the manifest, not entry order, decides.
+        ("readme.xml", b"<notes>not a score</notes>"),
+        ("score.xml", &xml),
+    ]);
+    let score = crate::parse_import("mxl", mxl).expect("read .mxl");
+    assert_eq!(score.tracks().len(), 1);
+    assert_eq!(score.tracks()[0].name.as_deref(), Some("Harmonica"));
+}
+
+#[test]
+fn an_mxl_without_a_manifest_falls_back_to_its_first_xml() {
+    let xml = musicxml_bytes();
+    let mxl = zipped(&[("anything.musicxml", &xml)]);
+    let plain = crate::parse_import("musicxml", xml.clone());
+    assert!(
+        plain.is_ok(),
+        "the serialized MusicXML itself: {:?}",
+        plain.err()
+    );
+    let read = crate::parse_import("mxl", mxl);
+    assert!(read.is_ok(), "{:?}", read.err());
+    let empty = zipped(&[("META-INF/container.xml", b"<container/>")]);
+    assert!(
+        crate::parse_import("mxl", empty).is_err(),
+        "nothing to read"
+    );
+    assert!(crate::parse_import("mxl", b"not a zip".to_vec()).is_err());
+}
+
+#[test]
+fn container_rootfile_reads_the_first_full_path() {
+    assert_eq!(
+        container_rootfile(r#"<rootfiles><rootfile full-path="a/b.xml"/></rootfiles>"#),
+        Some("a/b.xml".to_string())
+    );
+    assert_eq!(
+        container_rootfile(
+            r#"<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container"><ocf:rootfile media-type="application/vnd.recordare.musicxml+xml" full-path='escaped &amp; score.xml'/></ocf:container>"#
+        ),
+        Some("escaped & score.xml".to_string())
+    );
+    assert_eq!(container_rootfile("<container/>"), None);
+}
+
+#[test]
+fn only_a_musicxml_root_element_reads_as_a_score() {
+    use crate::looks_like_musicxml;
+    assert!(looks_like_musicxml(
+        b"<?xml version=\"1.0\"?>\n<!DOCTYPE score-partwise PUBLIC ...>\n<score-partwise version=\"4.0\">"
+    ));
+    assert!(looks_like_musicxml(b"<score-timewise>"));
+    assert!(!looks_like_musicxml(
+        b"<?xml version=\"1.0\"?><settings><volume>1</volume></settings>"
+    ));
+    assert!(!looks_like_musicxml(
+        b"<!-- <score-partwise> is only mentioned here --><settings/>"
+    ));
+    assert!(!looks_like_musicxml(b""));
+}
