@@ -343,8 +343,47 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
 /// Applies restrained phrase and turnaround variations to the base groove.
 /// `bar` is zero-based within the 12-bar form. Variations occupy only the
 /// tail of bars 4, 8, 11, and 12 so the next downbeat stays open and clear.
-pub(crate) fn groove_arrangement_for_bar(genre: Genre, bar: usize) -> GrooveArrangement {
+pub(crate) fn groove_arrangement_for_position(
+    genre: Genre,
+    chorus: usize,
+    bar: usize,
+) -> GrooveArrangement {
     let mut arrangement = groove_arrangement(genre);
+    match chorus % CHORUSES as usize {
+        0 => {
+            let mut heard = 0;
+            for event in &mut arrangement.comping {
+                if event.hit {
+                    event.hit = heard % 2 == 0;
+                    heard += 1;
+                }
+            }
+            for event in &mut arrangement.drums {
+                event.accent *= 0.78;
+            }
+        }
+        1 => {
+            for event in &mut arrangement.comping {
+                event.accent = (event.accent * 1.08).min(1.0);
+            }
+        }
+        2 => {
+            for event in &mut arrangement.drums {
+                event.accent = (event.accent * 1.08).min(1.0);
+            }
+            for event in &mut arrangement.comping {
+                event.accent = (event.accent * 1.12).min(1.0);
+            }
+        }
+        _ => {
+            for event in &mut arrangement.drums {
+                event.accent *= 0.88;
+            }
+            for event in &mut arrangement.comping {
+                event.accent *= 0.82;
+            }
+        }
+    }
     match bar % 12 {
         3 | 7 => {
             arrangement.drums[7].snare = true;
@@ -463,9 +502,9 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
     let short_secs = secs_per_beat - long_secs;
     let roots = progression_bars(key, progression).map(|(root, _)| root);
     let mut buf = Vec::new();
-    for _ in 0..CHORUSES {
+    for chorus in 0..CHORUSES as usize {
         for (bar, root) in roots.iter().enumerate() {
-            let arrangement = groove_arrangement_for_bar(genre, bar);
+            let arrangement = groove_arrangement_for_position(genre, chorus, bar);
             for (i, freq) in bar_beat_freqs(root, &arrangement.bass)
                 .into_iter()
                 .enumerate()
@@ -554,9 +593,9 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     };
     let short = secs_per_beat - long;
     let mut out = Vec::new();
-    for _ in 0..CHORUSES {
+    for chorus in 0..CHORUSES as usize {
         for bar in 0..12 {
-            let arrangement = groove_arrangement_for_bar(genre, bar);
+            let arrangement = groove_arrangement_for_position(genre, chorus, bar);
             for slot in 0..8 {
                 out.extend(drum_slot(
                     arrangement.drums[slot],
@@ -580,9 +619,9 @@ fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Ge
     let short = secs_per_beat - long;
     let bars = progression_bars(key, progression);
     let mut out = Vec::new();
-    for _ in 0..CHORUSES {
+    for chorus in 0..CHORUSES as usize {
         for (bar, (root, quality)) in bars.iter().enumerate() {
-            let arrangement = groove_arrangement_for_bar(genre, bar);
+            let arrangement = groove_arrangement_for_position(genre, chorus, bar);
             for slot in 0..8 {
                 let secs = if slot % 2 == 0 { long } else { short };
                 let event = arrangement.comping[slot];
@@ -876,18 +915,47 @@ mod tests {
     fn phrase_fills_are_restrained_and_turnaround_approaches_home() {
         for &genre in Genre::all() {
             let base = groove_arrangement(genre);
-            let bar_four = groove_arrangement_for_bar(genre, 3);
+            let bar_four = groove_arrangement_for_position(genre, 2, 3);
             assert_eq!(bar_four.bass, base.bass, "{genre:?} bar 4 bass");
             assert!(bar_four.drums[7].snare, "{genre:?} bar 4 fill");
 
-            let turnaround = groove_arrangement_for_bar(genre, 11);
+            let turnaround = groove_arrangement_for_position(genre, 2, 11);
             assert_eq!(turnaround.bass[5..], [Some(9), Some(10), Some(11)]);
             assert!(turnaround.drums[5..].iter().all(|event| event.snare));
             assert!(turnaround.comping[5..].iter().all(|event| !event.hit));
             assert_eq!(
-                groove_arrangement_for_bar(genre, 12),
-                base,
-                "{genre:?} next chorus returns to pocket"
+                groove_arrangement_for_position(genre, 2, 12),
+                groove_arrangement_for_position(genre, 2, 0),
+                "{genre:?} wrapped bar returns to the same chorus pocket"
+            );
+        }
+    }
+
+    #[test]
+    fn four_chorus_arc_opens_sparse_peaks_then_relaxes() {
+        for &genre in Genre::all() {
+            let active_comp = |chorus| {
+                groove_arrangement_for_position(genre, chorus, 0)
+                    .comping
+                    .into_iter()
+                    .filter(|event| event.hit)
+                    .count()
+            };
+            let drum_energy = |chorus| {
+                groove_arrangement_for_position(genre, chorus, 0)
+                    .drums
+                    .into_iter()
+                    .map(|event| event.accent)
+                    .sum::<f32>()
+            };
+            assert!(active_comp(0) <= active_comp(1), "{genre:?} sparse opening");
+            assert!(
+                drum_energy(2) > drum_energy(0),
+                "{genre:?} third chorus lift"
+            );
+            assert!(
+                drum_energy(3) < drum_energy(2),
+                "{genre:?} fourth chorus relax"
             );
         }
     }

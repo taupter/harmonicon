@@ -146,6 +146,11 @@ one role leaves the other roles synchronized; the harmonica has audible space.
 
 ### 3. Give each four-chorus arc a shape
 
+**In progress.** The generated buffer now follows a deterministic four-chorus
+dynamics arc: sparse comping and softer drums, a comping lift, the fullest
+band texture, then a relaxed chorus before repeating. Band energy and safe
+timing variation remain.
+
 Arrange at the chorus level instead of cloning one 12-bar block.
 
 - Chorus 1 establishes the pocket with sparse comping.

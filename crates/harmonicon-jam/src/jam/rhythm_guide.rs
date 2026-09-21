@@ -17,7 +17,7 @@ use harmonicon_gameplay::gameplay::GameplayClock;
 use harmonicon_gameplay::gameplay::metronome_overlay::MetronomeTempo;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 
-use super::backing::{Genre, JamGenre, groove_arrangement, groove_arrangement_for_bar};
+use super::backing::{Genre, JamGenre, groove_arrangement, groove_arrangement_for_position};
 
 /// Tags one of the 8 pulse-row cells with its slot index (matching
 /// `jam::backing::GrooveArrangement::bass`) so [`update_rhythm_guide`]
@@ -135,8 +135,9 @@ pub(crate) fn update_rhythm_guide(
     let secs_per_beat = tempo.beat_secs();
     let bar_secs = tempo.bar_secs();
     let bar_pos = clock.get().rem_euclid(bar_secs);
-    let bar = (clock.get() / bar_secs).floor().max(0.0) as usize % 12;
-    let arrangement = groove_arrangement_for_bar(genre.0, bar);
+    let absolute_bar = (clock.get() / bar_secs).floor().max(0.0) as usize;
+    let arrangement =
+        groove_arrangement_for_position(genre.0, absolute_bar / 12, absolute_bar % 12);
     let (current, phase) = active_slot(bar_pos, secs_per_beat, arrangement.swung);
 
     for (slot, mut bg, mut border) in &mut slots {

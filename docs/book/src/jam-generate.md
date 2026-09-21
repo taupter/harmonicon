@@ -8,6 +8,8 @@ content.
 The band marks the ends of each four-bar phrase with short drum pickups and
 uses the final bar for a bass-and-drum turnaround into the next chorus. These
 variations leave the next downbeat and the harmonica register clear.
+Across four choruses, the arrangement grows from a sparse opening to a fuller
+third chorus, then relaxes before beginning the arc again.
 
 ![Generate Jam setup screen](images/jam-generate.png)
 
