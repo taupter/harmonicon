@@ -191,7 +191,7 @@ pub(crate) struct CompingEvent {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GrooveArrangement {
     pub swung: bool,
-    pub bass: &'static [Option<i32>; 8],
+    pub bass: [Option<i32>; 8],
     pub drums: [DrumEvent; 8],
     pub comping: [CompingEvent; 8],
 }
@@ -213,7 +213,7 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
     let (swung, bass, drums, comping) = match genre {
         Genre::Blues => (
             true,
-            &BLUES_PATTERN,
+            BLUES_PATTERN,
             [
                 drum(true, false, true, 1.0),
                 drum(false, false, true, 0.55),
@@ -237,7 +237,7 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
         ),
         Genre::Jazz => (
             true,
-            &JAZZ_PATTERN,
+            JAZZ_PATTERN,
             [
                 drum(true, false, true, 0.65),
                 drum(false, false, true, 0.55),
@@ -261,7 +261,7 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
         ),
         Genre::Rock => (
             false,
-            &ROCK_PATTERN,
+            ROCK_PATTERN,
             [
                 drum(true, false, true, 1.0),
                 drum(false, false, true, 0.6),
@@ -285,7 +285,7 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
         ),
         Genre::Reggae => (
             false,
-            &REGGAE_PATTERN,
+            REGGAE_PATTERN,
             [
                 drum(false, false, false, 0.0),
                 drum(false, false, true, 0.5),
@@ -309,7 +309,7 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
         ),
         Genre::Country => (
             false,
-            &COUNTRY_PATTERN,
+            COUNTRY_PATTERN,
             [
                 drum(true, false, true, 0.9),
                 drum(false, false, true, 0.45),
@@ -338,6 +338,36 @@ pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
         drums,
         comping,
     }
+}
+
+/// Applies restrained phrase and turnaround variations to the base groove.
+/// `bar` is zero-based within the 12-bar form. Variations occupy only the
+/// tail of bars 4, 8, 11, and 12 so the next downbeat stays open and clear.
+pub(crate) fn groove_arrangement_for_bar(genre: Genre, bar: usize) -> GrooveArrangement {
+    let mut arrangement = groove_arrangement(genre);
+    match bar % 12 {
+        3 | 7 => {
+            arrangement.drums[7].snare = true;
+            arrangement.drums[7].accent = arrangement.drums[7].accent.max(0.65);
+        }
+        10 => {
+            arrangement.bass[7] = Some(11);
+            arrangement.drums[6].snare = true;
+            arrangement.drums[6].accent = arrangement.drums[6].accent.max(0.7);
+        }
+        11 => {
+            arrangement.bass[5] = Some(9);
+            arrangement.bass[6] = Some(10);
+            arrangement.bass[7] = Some(11);
+            for slot in 5..8 {
+                arrangement.drums[slot].snare = true;
+                arrangement.drums[slot].accent = 0.55 + (slot - 5) as f32 * 0.15;
+                arrangement.comping[slot].hit = false;
+            }
+        }
+        _ => {}
+    }
+    arrangement
 }
 
 /// The long eighth of a swung pair takes this fraction of the beat (the
@@ -419,8 +449,7 @@ fn bar_beat_freqs(root: &str, pattern: &[Option<i32>; 8]) -> [Option<f32>; 8] {
 /// `key`/`bpm`/`progression`/`genre`.
 pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let arrangement = groove_arrangement(genre);
-    let (pattern, swung) = (arrangement.bass, arrangement.swung);
+    let swung = groove_arrangement(genre).swung;
     // Each bar's 8 notes are 4 pairs, one pair per beat. A swung genre's
     // long note takes `SWING_LONG_FRAC` of the beat, the short note the
     // rest; a straight genre splits the beat evenly instead — either way
@@ -435,8 +464,12 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
     let roots = progression_bars(key, progression).map(|(root, _)| root);
     let mut buf = Vec::new();
     for _ in 0..CHORUSES {
-        for root in &roots {
-            for (i, freq) in bar_beat_freqs(root, pattern).into_iter().enumerate() {
+        for (bar, root) in roots.iter().enumerate() {
+            let arrangement = groove_arrangement_for_bar(genre, bar);
+            for (i, freq) in bar_beat_freqs(root, &arrangement.bass)
+                .into_iter()
+                .enumerate()
+            {
                 let note_secs = if i % 2 == 0 { long_secs } else { short_secs };
                 let gap_samples = ((note_secs * NOTE_GAP_FRAC) * SAMPLE_RATE as f32) as usize;
                 match freq {
@@ -513,8 +546,7 @@ fn comping_slot(
 
 fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let arrangement = groove_arrangement(genre);
-    let swung = arrangement.swung;
+    let swung = groove_arrangement(genre).swung;
     let long = if swung {
         secs_per_beat * SWING_LONG_FRAC
     } else {
@@ -522,13 +554,16 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     };
     let short = secs_per_beat - long;
     let mut out = Vec::new();
-    for _ in 0..CHORUSES * 12 {
-        for slot in 0..8 {
-            out.extend(drum_slot(
-                arrangement.drums[slot],
-                slot,
-                if slot % 2 == 0 { long } else { short },
-            ));
+    for _ in 0..CHORUSES {
+        for bar in 0..12 {
+            let arrangement = groove_arrangement_for_bar(genre, bar);
+            for slot in 0..8 {
+                out.extend(drum_slot(
+                    arrangement.drums[slot],
+                    slot,
+                    if slot % 2 == 0 { long } else { short },
+                ));
+            }
         }
     }
     out
@@ -536,8 +571,7 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
 
 fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let arrangement = groove_arrangement(genre);
-    let swung = arrangement.swung;
+    let swung = groove_arrangement(genre).swung;
     let long = if swung {
         secs_per_beat * SWING_LONG_FRAC
     } else {
@@ -547,7 +581,8 @@ fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Ge
     let bars = progression_bars(key, progression);
     let mut out = Vec::new();
     for _ in 0..CHORUSES {
-        for (root, quality) in &bars {
+        for (bar, (root, quality)) in bars.iter().enumerate() {
+            let arrangement = groove_arrangement_for_bar(genre, bar);
             for slot in 0..8 {
                 let secs = if slot % 2 == 0 { long } else { short };
                 let event = arrangement.comping[slot];
@@ -758,7 +793,7 @@ mod tests {
         // it clears the bar every other key does too.
         for genre in Genre::all() {
             let arrangement = groove_arrangement(*genre);
-            for &f in bar_beat_freqs("C", arrangement.bass).iter().flatten() {
+            for &f in bar_beat_freqs("C", &arrangement.bass).iter().flatten() {
                 assert!(
                     f > 100.0,
                     "{genre:?}: {f} Hz is below typical small-speaker cutoff"
@@ -833,6 +868,26 @@ mod tests {
                     .iter()
                     .all(|event| (0.0..=1.0).contains(&event.accent)),
                 "{genre:?} comping accent"
+            );
+        }
+    }
+
+    #[test]
+    fn phrase_fills_are_restrained_and_turnaround_approaches_home() {
+        for &genre in Genre::all() {
+            let base = groove_arrangement(genre);
+            let bar_four = groove_arrangement_for_bar(genre, 3);
+            assert_eq!(bar_four.bass, base.bass, "{genre:?} bar 4 bass");
+            assert!(bar_four.drums[7].snare, "{genre:?} bar 4 fill");
+
+            let turnaround = groove_arrangement_for_bar(genre, 11);
+            assert_eq!(turnaround.bass[5..], [Some(9), Some(10), Some(11)]);
+            assert!(turnaround.drums[5..].iter().all(|event| event.snare));
+            assert!(turnaround.comping[5..].iter().all(|event| !event.hit));
+            assert_eq!(
+                groove_arrangement_for_bar(genre, 12),
+                base,
+                "{genre:?} next chorus returns to pocket"
             );
         }
     }

@@ -5,6 +5,10 @@ synthesizes an endless 12-bar rhythm section on the spot, with separate bass,
 drum, and chordal-comping stems, so you can jam without needing any existing
 content.
 
+The band marks the ends of each four-bar phrase with short drum pickups and
+uses the final bar for a bass-and-drum turnaround into the next chorus. These
+variations leave the next downbeat and the harmonica register clear.
+
 ![Generate Jam setup screen](images/jam-generate.png)
 
 Before starting, pick:
