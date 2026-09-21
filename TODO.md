@@ -44,13 +44,6 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
 
 ## Mobile (post-1.0)
 
-- [ ] **`CompactLayout` is width-only.** `responsive::is_compact` takes just
-  an effective *width* against a 900 px breakpoint, but a phone in landscape
-  is wide and **short** — 2400x1080, roughly 400 logical px tall at Android
-  DPI — so nothing in the app adapts to limited height. The Song Editor
-  works around it (left toolbar, Details tab, two-finger pan), but Play
-  2D/3D have the same exposure and no workaround. A height-aware breakpoint
-  fixes it once for every screen rather than per-page.
 - [ ] **Touch gestures are unverified on real hardware.** The two-finger pan
   and the toolbar's drag-scroll are unit-tested and the sidebar was checked
   on an emulator, but multi-touch can't be scripted there (`adb shell input`

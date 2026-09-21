@@ -351,18 +351,9 @@ only. Execution order, most valuable first:
 
 ## Post-1.0 (mobile + tooling)
 
-Ordered by value, not effort. All three came out of actually running the
-Android build; see `TODO.md` for the full statements. Deliberately after
-1.0 — `ROADMAP.md` explains why an unverified mic path shouldn't carry a
-1.0 label.
-
-1. **Height-aware `CompactLayout`.** `is_compact` keys on width alone, so
-   nothing adapts to a short screen. The Song Editor has bespoke
-   workarounds; Play 2D/3D have the same exposure and none. Fix it in
-   `responsive.rs` so every screen benefits.
-
-Then, needing hardware: confirm the mic actually captures usably through a
-phone, and a touch/hit-target pass. `contributing/src/android-build.md` lists the rest.
+The remaining work needs hardware: confirm the mic actually captures usably
+on an Android tablet, and run a touch/hit-target pass.
+`contributing/src/android-build.md` lists the rest.
 
 ## Working practices
 
