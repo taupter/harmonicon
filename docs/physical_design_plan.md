@@ -37,9 +37,7 @@ Everything else ≤ ~1,100 lines with the same pattern repeating at smaller
 scale (`jam_session.rs`, `options.rs`, `calibration.rs`, `pitch_detect.rs`).
 
 `harmonicon-lessons/src/lesson_reader.rs` later crossed the budget as lesson
-widgets were added. Its tracked split is interactive widget state/update
-systems versus reader page assembly; it remains on the enforced allowlist
-until that mechanical move is complete.
+widgets were added, and was split the same way as the rest (Phase 6).
 
 ### B. Layering inversions (things imported from the wrong place)
 
@@ -239,14 +237,14 @@ scoring bullets to the new paths in the same PR.
 - `harmonicon-song`'s `lessons/`: split `lessons.rs` into `manifest.rs` / `catalog.rs` /
   `progress.rs`.
 
-### Phase 6 — the remaining big feature files, opportunistically
+### Phase 6 — the remaining big feature files — done
 
-`bending_trainer.rs` (drill logic vs UI), `gameplay_3d.rs` /
-`gameplay_2d.rs` (scene setup vs note spawn/despawn vs tails),
-`options.rs` (one section per file), `calibration.rs` (measurement logic
-vs UI). No dedicated push: rule 5 handles these as they're next touched.
-Listed so the allowlist in the physical-design test can name them with a
-destination.
+The four files the allowlist named are directory modules now:
+`options/` (one section per file), `gameplay_3d/` (scene vs the note
+path), `bending_trainer/` (drill vs screen), `lesson_reader/` (widget
+runtime vs page assembly). The allowlist is empty; a new entry is a debt
+with a named destination, not an exemption. `gameplay_2d.rs` and
+`calibration.rs` are under budget and stay whole until they aren't.
 
 ### Workspace/crate split — unblocked, in progress
 

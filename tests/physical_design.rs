@@ -24,15 +24,13 @@ use std::path::{Path, PathBuf};
 /// technical limit — just what `ALLOWLIST` measures every file against.
 const BUDGET: usize = 1000;
 
-/// Current offenders, one per line, with the split this file is nominally
-/// waiting on (see `docs/physical_design_plan.md`'s Phase 6 — "no dedicated
-/// push," split opportunistically when next touched). Remove an entry the
-/// moment its file drops under [`BUDGET`]; `allowlist_has_no_stale_entries`
-/// fails the build if one lingers past that point.
-const ALLOWLIST: &[&str] = &[
-    // Phase 6 targets named explicitly by the plan, with a destination:
-    "crates/harmonicon-lessons/src/lesson_reader.rs", // split: interactive widget runtime vs reader page assembly
-];
+/// Files over budget, one per line, each with the split it is waiting on
+/// (see `docs/physical_design_plan.md`). Empty: the last four splits landed
+/// as directory modules. A new entry is a debt with a named destination,
+/// not a permanent exemption — remove it the moment the file drops under
+/// [`BUDGET`]; `allowlist_has_no_stale_entries` fails the build if one
+/// lingers past that point.
+const ALLOWLIST: &[&str] = &[];
 
 /// Every workspace member's `src/`: this package's own, plus each crate
 /// under `crates/`. Both rules below must cover the whole tree — a file

@@ -8,7 +8,8 @@ this file — prune it back to a one-line summary under "Shipped" below.
 ## In flight
 
 (Nothing in flight. The next candidates, in `ROADMAP.md`'s order, are the
-1.0 items under "Road to 1.0" below — mic trouble surfaced in-game next.)
+1.0 items under "Road to 1.0" below — what's left there is content and
+release engineering, neither of which is unsupervised work.)
 
 ## Shipped
 
@@ -320,22 +321,24 @@ only. Execution order, most valuable first:
    build); its three steps each return to it when done (`app::WelcomeFlow`)
    with a check beside them, Skip goes to Main, and **Help / About →
    First-time setup** re-opens it without deleting a profile.
-2. **Mic trouble where it's noticed** (rc1). `MicStatus::{Failed,
-   AwaitingPermission}` and the Options banner already exist; Play 2D/3D
-   and Jam Session don't surface either, so a dead mic reads as "the game
-   isn't scoring me".
+2. **Mic trouble where it's noticed** (rc1) — **done.**
+   `gameplay::warning_banner` shows it during play in every mode, and
+   `audio_input::detect_stream_failure` turns a device that dies
+   mid-session into `MicStatus::Failed` (with tests), which the banner and
+   the Options page both react to.
 3. **Unwrap triage** (rc2) — **done, and it was almost entirely a
    measurement error.** The "92, 46 in the editor" figure counted
    `song_editor/tests.rs` as production code. The real count outside test
    code is four, all safe; the chart and theme loaders already degrade
    rather than abort. See `ROADMAP.md` for the breakdown and the counting
-   pitfall. Still open: a mic unplugged *mid-session*, which nothing has
-   exercised.
+   pitfall. A mic unplugged *mid-session* is handled by
+   `detect_stream_failure` (item 2).
 4. **Blues starter pack** (rc3) — **not to be authored unsupervised**, same
    rights/judgment reasoning as `TODO.md`'s content item. The automatable
    half is validation and difficulty calibration.
-5. **Release engineering**: version reconciliation, Flathub, signing keys,
-   and the four line-budget splits.
+5. **Release engineering**: Flathub and signing keys. Version
+   reconciliation is enforced (`release.yaml`'s `check_version_matches_tag`)
+   and the four line-budget splits are done — the allowlist is empty.
 
 ## Bring your own harp, bring your own songs
 
