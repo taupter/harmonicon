@@ -31,7 +31,6 @@ const BUDGET: usize = 1000;
 /// fails the build if one lingers past that point.
 const ALLOWLIST: &[&str] = &[
     // Phase 6 targets named explicitly by the plan, with a destination:
-    "crates/harmonicon-gameplay/src/gameplay/bending_trainer.rs", // split: drill logic vs UI
     "crates/harmonicon-lessons/src/lesson_reader.rs", // split: interactive widget runtime vs reader page assembly
 ];
 
