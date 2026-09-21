@@ -13,6 +13,7 @@
 use bevy::prelude::*;
 
 use harmonicon_core::chart::Action;
+use harmonicon_core::harmonica::Harmonica;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 
 use super::HoleCell;
@@ -20,13 +21,10 @@ use super::gameplay_2d::HIT_H_PCT;
 
 /// Spawns the static highway furniture (lane stripes, dividers, hit zone) —
 /// no notes. Notes are spawned later, lazily, by `spawn_visible_notes`.
-pub(super) fn spawn_highway(
-    hw: &mut ChildSpawnerCommands,
-    chart: &harmonicon_core::chart::HarpChart,
-) {
-    // Lane count/width come from the loaded harmonica, not a fixed 10 —
-    // a chromatic chart's 12+ holes need proportionally narrower lanes.
-    let hole_count = chart.harmonica.hole_count() as usize;
+pub(super) fn spawn_highway(hw: &mut ChildSpawnerCommands, harp: &Harmonica) {
+    // Lane count/width come from the harmonica being played, not a fixed
+    // 10 — a chromatic's 12+ holes need proportionally narrower lanes.
+    let hole_count = harp.hole_count() as usize;
     let lane_pct = 100.0 / hole_count as f32;
 
     for h in 0..hole_count {
@@ -88,12 +86,15 @@ pub(super) fn spawn_highway(
     ));
 }
 
+/// The hole strip under the highway, labelled with the notes of the harp
+/// the player is *holding* — a substituted harp has different notes in the
+/// same holes, and the strip is what the player reads them off.
 pub(super) fn spawn_harmonica_strip(
     col: &mut ChildSpawnerCommands,
-    chart: &harmonicon_core::chart::HarpChart,
+    harp: &Harmonica,
     loc: &Localization,
 ) {
-    let hole_count = chart.harmonica.hole_count();
+    let hole_count = harp.hole_count();
     let lane_pct = 100.0 / hole_count as f32;
     col.spawn(Node {
         flex_direction: FlexDirection::Row,
@@ -102,8 +103,8 @@ pub(super) fn spawn_harmonica_strip(
     })
     .with_children(|row| {
         for hole in 1u8..=hole_count {
-            let b = chart.harmonica.wind_direction_label(hole, &Action::Blow);
-            let d = chart.harmonica.wind_direction_label(hole, &Action::Draw);
+            let b = harp.wind_direction_label(hole, &Action::Blow);
+            let d = harp.wind_direction_label(hole, &Action::Draw);
             row.spawn((
                 Node {
                     width: Val::Percent(lane_pct),
@@ -189,4 +190,40 @@ pub(super) fn spawn_blow_draw_legend(
                 TextColor(Color::srgb(1.00, 0.62, 0.35)),
             ));
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harmonicon_core::harmonica::richter_harp;
+
+    /// Every `Text` under the strip, in spawn order.
+    fn strip_texts(harp: &Harmonica) -> Vec<String> {
+        let mut world = World::new();
+        let loc = Localization::default();
+        world
+            .commands()
+            .spawn(Node::default())
+            .with_children(|col| spawn_harmonica_strip(col, harp, &loc));
+        world.flush();
+        let mut texts: Vec<String> = world
+            .query::<&Text>()
+            .iter(&world)
+            .map(|t| t.0.clone())
+            .collect();
+        texts.retain(|t| !t.is_empty());
+        texts
+    }
+
+    #[test]
+    fn the_strip_names_the_played_harps_notes_not_the_charts() {
+        // A player holding an A harp for a chart written in C reads the
+        // strip to know what each hole sounds — so it has to be the A harp's
+        // notes on it, the same harp the judge and the hole glow use.
+        let a = strip_texts(&richter_harp("A"));
+        let c = strip_texts(&richter_harp("C"));
+        assert!(a.contains(&"A4".to_string()) && !a.contains(&"C4".to_string()));
+        assert!(c.contains(&"C4".to_string()) && !c.contains(&"A4".to_string()));
+        assert_eq!(a.len(), c.len(), "same hole count, same rows");
+    }
 }

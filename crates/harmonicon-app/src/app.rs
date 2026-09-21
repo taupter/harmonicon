@@ -11,7 +11,7 @@
 use bevy::prelude::*;
 
 use harmonicon_core::chart::{HarpChart, Scale};
-use harmonicon_core::harmonica::{Harmonica, Progression};
+use harmonicon_core::harmonica::{Harmonica, Progression, detected_harp_key, key_offset, semitone};
 use harmonicon_core::harp_remap::HarpMapping;
 use harmonicon_song::song::SongManifest;
 
@@ -172,6 +172,31 @@ impl EffectiveHarmonica {
         self.harp.is_some()
     }
 
+    /// The key the music actually sounds in. Under `HarpMapping::SameHoles`
+    /// the tab is kept and the tune moves with the harp — a C chart played
+    /// on a G harp sounds in G — so anything that *names* the key (the
+    /// "grab a G harmonica · key of …" hint) has to say so; under
+    /// `Transpose`, or with no substitution, it's the chart's own key.
+    /// Falls back to the chart's key when either harp's key can't be read
+    /// off its hole-1 blow note.
+    pub fn song_key_for(&self, chart: &HarpChart) -> String {
+        let chart_key = chart.song.key.as_str();
+        let Some(played) = self
+            .harp
+            .as_ref()
+            .filter(|_| self.mapping == HarpMapping::SameHoles)
+        else {
+            return chart_key.to_string();
+        };
+        match (
+            detected_harp_key(&chart.harmonica),
+            detected_harp_key(played),
+        ) {
+            (Some(from), Some(to)) => semitone(chart_key, key_offset(&to) - key_offset(&from)),
+            _ => chart_key.to_string(),
+        }
+    }
+
     /// Back to the chart's own harmonica. Called when a song ends, so one
     /// song's substitution can't leak into the next.
     pub fn clear(&mut self) {
@@ -243,3 +268,54 @@ impl WelcomeFlow {
 /// (where "Credits" lives) rather than the substate's own default of Main.
 #[derive(Resource, Default)]
 pub struct ReturnToHelpAbout(pub bool);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harmonicon_core::harmonica::richter_harp;
+
+    fn chart_in(key: &str, harp_key: &str) -> HarpChart {
+        let mut chart: HarpChart = serde_json::from_str(
+            r#"{
+            "song": { "title": "T", "artist": "A", "tempo_bpm": 120.0,
+                      "key": "C", "difficulty": "easy" },
+            "timing": { "resolution": 480, "tempo_map": [{"tick": 0, "bpm": 120.0}] },
+            "harmonica": { "type": "diatonic", "holes": 10,
+                           "bending_profile": "richter_standard",
+                           "layout": { "blow": ["C4"], "draw": ["D4"] } },
+            "track": [],
+            "scoring": { "perfect_window_ms": 50, "good_window_ms": 100,
+                         "miss_window_ms": 130 }
+        }"#,
+        )
+        .unwrap();
+        chart.song.key = key.to_string();
+        chart.harmonica = richter_harp(harp_key);
+        chart
+    }
+
+    #[test]
+    fn the_sounding_key_moves_with_the_harp_only_under_same_holes() {
+        // A chart in C for a C harp, played on a G harp.
+        let chart = chart_in("C", "C");
+        let on_g = |mapping| EffectiveHarmonica {
+            harp: Some(richter_harp("G")),
+            mapping,
+        };
+        assert_eq!(on_g(HarpMapping::SameHoles).song_key_for(&chart), "G");
+        assert_eq!(on_g(HarpMapping::Transpose).song_key_for(&chart), "C");
+        assert_eq!(EffectiveHarmonica::default().song_key_for(&chart), "C");
+    }
+
+    #[test]
+    fn the_offset_is_between_the_harps_not_from_the_song_key() {
+        // A tune in G on a C harp (2nd position), played on an A harp: the
+        // harp moved up a major sixth (C → A), so the tune moves G → E.
+        let chart = chart_in("G", "C");
+        let on_a = EffectiveHarmonica {
+            harp: Some(richter_harp("A")),
+            mapping: HarpMapping::SameHoles,
+        };
+        assert_eq!(on_a.song_key_for(&chart), "E");
+    }
+}

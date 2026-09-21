@@ -77,11 +77,14 @@ const SONG_END_TAIL: f64 = 2.5;
 pub(crate) fn setup_song_info(
     selected: Res<SelectedSong>,
     manifests: Res<Assets<SongManifest>>,
+    effective: Res<EffectiveHarmonica>,
     loc: Res<Localization>,
     mut song_info: ResMut<SongInfo>,
 ) {
     if let Some(manifest) = manifests.get(&selected.0) {
-        *song_info = SongInfo::from_chart(&manifest.chart, &loc);
+        let harp = effective.harp_for(&manifest.chart);
+        let key = effective.song_key_for(&manifest.chart);
+        *song_info = SongInfo::from_chart(&manifest.chart, harp, &key, &loc);
     }
 }
 

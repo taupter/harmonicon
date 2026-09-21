@@ -16,7 +16,7 @@ use harmonicon_core::harmonica::{
     progression_bars, semitone,
 };
 
-use harmonicon_app::app::{JamProgression, JamScale, SelectedSong};
+use harmonicon_app::app::{EffectiveHarmonica, JamProgression, JamScale, SelectedSong};
 use harmonicon_audio::AudioSettings;
 use harmonicon_gameplay::gameplay::{
     ActivePitches, COUNTDOWN, CurrentBar, GameplayClock, GameplayRoot, MidiTrackPlayer,
@@ -63,6 +63,7 @@ pub fn setup(
     jam_scale: Res<JamScale>,
     jam_genre: Res<JamGenre>,
     generated: Option<Res<GeneratedJamSession>>,
+    effective: Res<EffectiveHarmonica>,
     loc: Res<Localization>,
 ) {
     let Some(manifest) = manifests.get(&selected.0) else {
@@ -103,13 +104,20 @@ pub fn setup(
     // decides — `FirstPosition` (the blues hexatonic) unless "Generate Jam"
     // or a jam-based lesson picked something else.
     let scale = chart.harmonica.scale().unwrap_or(jam_scale.0);
-    let (holes_info, guide) = build_hole_guide(&chart.harmonica, key, progression, scale);
+    // The hole map, the overlay diagram and the "grab a C harp" hint all
+    // describe the harp the player is *holding* — the harp-check page runs
+    // before a jam too, and a substituted harp has other notes in the same
+    // holes. The backing stays in the chart's key regardless: a jam has no
+    // tab to transpose, only holes to name.
+    let harp = effective.harp_for(chart);
+    let (holes_info, guide) = build_hole_guide(harp, key, progression, scale);
 
     // Which physical harp to grab: a Richter harp's key is its hole-1 blow note.
-    let harp_hint = harmonicon_gameplay::gameplay::harp_banner_text(&chart.harmonica, key, &loc);
+    let harp_hint =
+        harmonicon_gameplay::gameplay::harp_banner_text(harp, &effective.song_key_for(chart), &loc);
     // Same detection, bare (no banner sentence), plus whichever position the
     // chart itself declares — for the live position compass below.
-    let harp_key = detected_harp_key(&chart.harmonica);
+    let harp_key = detected_harp_key(harp);
     let position = chart.harmonica.position().and_then(Position::from_label);
 
     commands
@@ -299,7 +307,7 @@ pub fn setup(
                         ..default()
                     })
                     .with_children(|right| {
-                        spawn_harmonica_overlay(right, &chart.harmonica, &loc);
+                        spawn_harmonica_overlay(right, harp, &loc);
                         spawn_hole_map(right, &holes_info, &loc);
                         spawn_position_compass(
                             right,
@@ -346,7 +354,7 @@ pub fn setup(
         &manifest.waveform,
         manifest.music_duration_secs,
         &note_markers,
-        chart.harmonica.hole_count(),
+        harp.hole_count(),
         &[],
         &[],
     );

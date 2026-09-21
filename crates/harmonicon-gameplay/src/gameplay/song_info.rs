@@ -35,14 +35,19 @@ pub struct SongInfo {
 }
 
 impl SongInfo {
-    pub fn from_chart(chart: &HarpChart, loc: &Localization) -> Self {
+    /// `harp` is the one being played — the chart's own unless the player
+    /// substituted one — since the line describes what to pick up.
+    /// `key` is the key the music sounds in — `EffectiveHarmonica::
+    /// song_key_for`, which differs from the chart's under a same-holes
+    /// substitution.
+    pub fn from_chart(chart: &HarpChart, harp: &Harmonica, key: &str, loc: &Localization) -> Self {
         Self {
             title: format!("{} \u{2014} {}", chart.song.artist, chart.song.title),
             meter: String::from(
                 loc.msg_args(
                     "gameplay-chart-info",
                     &[
-                        ("key", chart.song.key.clone()),
+                        ("key", key.to_string()),
                         ("bpm", (chart.song.tempo_bpm as u32).to_string()),
                         (
                             "time_sig",
@@ -56,7 +61,7 @@ impl SongInfo {
                     ],
                 ),
             ),
-            harp: harp_line(&chart.harmonica.summary(), loc),
+            harp: harp_line(&harp.summary(), loc),
             description: chart.metadata.as_ref().and_then(|m| m.description.clone()),
             chart_author: chart.metadata.as_ref().and_then(|m| {
                 m.author.as_ref().map(|author| {

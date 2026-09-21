@@ -244,16 +244,15 @@ pub fn update_holes_3d(
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
     targets: Res<ActiveTargets>,
-    selected: Res<SelectedSong>,
-    manifests: Res<Assets<SongManifest>>,
+    played: Res<PlayedHarp>,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut cells: Query<(&HoleCell, &HoleMesh3D, &mut HoleState)>,
 ) {
-    let Some(manifest) = manifests.get(&selected.0) else {
+    // The played harp's notes, as in `gameplay_2d::update_holes`.
+    let Some(harp) = played.0.as_ref() else {
         return;
     };
-    let chart = &manifest.chart;
     let dt = time.delta_secs();
 
     let attack = 1.0 - (-dt * 25.0_f32).exp();
@@ -261,8 +260,8 @@ pub fn update_holes_3d(
     let harp_pitches = super::super::gameplay_2d::harp_pitches(&active, &valid_notes);
 
     for (cell, hole_mat, mut state) in &mut cells {
-        let blow = chart.harmonica.wind_direction_midi(cell.0, &Action::Blow);
-        let draw = chart.harmonica.wind_direction_midi(cell.0, &Action::Draw);
+        let blow = harp.wind_direction_midi(cell.0, &Action::Blow);
+        let draw = harp.wind_direction_midi(cell.0, &Action::Draw);
         let hint = if lesson.as_ref().is_some_and(|lesson| lesson.aural) {
             None
         } else {

@@ -213,8 +213,9 @@ pub fn setup(
     }
 
     let chart = &manifest.chart;
-    let key = chart.song.key.as_str();
-    let model_cfg = load_model_config(&selected_model.0, chart.harmonica.hole_count());
+    // The instrument on screen is the one the player is holding, as for 2D.
+    let played = effective.harp_for(chart);
+    let model_cfg = load_model_config(&selected_model.0, played.hole_count());
 
     setup_camera_3d(&mut commands);
     setup_lighting(&mut commands);
@@ -307,7 +308,7 @@ pub fn setup(
         &manifest.waveform,
         manifest.music_duration_secs,
         &note_markers,
-        chart.harmonica.hole_count(),
+        played.hole_count(),
         &note_build.adaptive.sections,
         &note_build.adaptive.learned,
     );
@@ -317,7 +318,8 @@ pub fn setup(
     {
         super::gameplay_2d::spawn_gameplay_music_score(&mut commands, bravura);
     }
-    let harp_hint = super::song_info::harp_banner_text(&chart.harmonica, key, &hud.loc);
+    let harp_hint =
+        super::song_info::harp_banner_text(played, &effective.song_key_for(chart), &hud.loc);
     spawn_countdown(
         &mut commands,
         &hud.loc,

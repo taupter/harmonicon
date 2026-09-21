@@ -282,6 +282,17 @@ load-bearing about *this* crate.
     answers "may this pitch score"; `PlayedHarp` answers "which hole makes
     it". Both 2D and 3D setup go through that one call precisely so they
     cannot resolve the `EffectiveHarmonica` substitution differently.
+  - **Nothing on screen reads `chart.harmonica` for the instrument.** The
+    hole strip's notes, the hole glow (`update_holes`/`update_holes_3d`,
+    off `PlayedHarp` rather than re-fetching the manifest), the lane
+    count, `SongInfo`'s harp line, the countdown's "grab a G harp" hint and
+    Jam Session's hole map all take `effective.harp_for(chart)` — a
+    substituted harp has other notes in the same holes, and a strip
+    labelled with the chart's would contradict the judge. The hint's key
+    is `EffectiveHarmonica::song_key_for`: under `SameHoles` the tune moves
+    with the harp (C chart on a G harp sounds in G), under `Transpose` it
+    doesn't. The one legitimate `chart.harmonica` read left in the note
+    path is `harp_remap::remap_event`'s *source* harp.
 
 - **The song-progress bar is a per-hole note-lanes strip, with the phrase
   overlay painted over it, and its timescale survives a music-less song**

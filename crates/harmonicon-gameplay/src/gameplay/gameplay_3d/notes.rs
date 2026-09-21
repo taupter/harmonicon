@@ -52,7 +52,7 @@ pub(super) fn build_song_notes_3d(
     adaptive: &AdaptiveDifficulty,
 ) -> (super::super::SongNotes, NoteRenderAssets3D) {
     let (notes, _) = super::super::build_scheduled_notes(effective, chart, adaptive);
-    let hole_count = chart.harmonica.hole_count();
+    let hole_count = effective.harp_for(chart).hole_count();
     (
         super::super::SongNotes { notes, cursor: 0 },
         NoteRenderAssets3D {

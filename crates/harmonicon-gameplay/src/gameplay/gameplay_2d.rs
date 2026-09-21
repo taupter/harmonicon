@@ -98,6 +98,10 @@ pub fn setup(
     (*valid_notes, *played_harp) = ValidHarpNotes::for_played_harp(&effective, &manifest.chart);
 
     let chart = &manifest.chart;
+    // Everything the player *sees* about the instrument — lane count, the
+    // hole strip's notes, the "grab a C harp" hint — follows the harp they
+    // are holding, exactly as the judge does.
+    let played = effective.harp_for(chart);
 
     // Build every note's score state up front (cheap — plain data, no
     // entities/materials yet) plus the one piece of render data that isn't
@@ -117,7 +121,6 @@ pub fn setup(
     // closures only borrow a ready slice, not the material store).
     let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers(chart));
 
-    let key = chart.song.key.as_str();
     let bpm = chart.song.tempo_bpm;
 
     // The meter's own beat count, for the HUD's beat dots — from the one
@@ -193,7 +196,7 @@ pub fn setup(
                         NoteHighway,
                     ))
                     .with_children(|hw| {
-                        spawn_highway(hw, chart);
+                        spawn_highway(hw, played);
                     })
                     .id();
 
@@ -206,7 +209,7 @@ pub fn setup(
                     ..default()
                 })
                 .with_children(|col| {
-                    spawn_harmonica_strip(col, chart, &loc);
+                    spawn_harmonica_strip(col, played, &loc);
                 });
             });
 
@@ -299,7 +302,7 @@ pub fn setup(
         &manifest.waveform,
         manifest.music_duration_secs,
         &note_markers,
-        chart.harmonica.hole_count(),
+        played.hole_count(),
         &adaptive.sections,
         &adaptive.learned,
     );
@@ -309,7 +312,8 @@ pub fn setup(
     {
         spawn_gameplay_music_score(&mut commands, bravura);
     }
-    let harp_hint = super::song_info::harp_banner_text(&chart.harmonica, key, &loc);
+    let harp_hint =
+        super::song_info::harp_banner_text(played, &effective.song_key_for(chart), &loc);
     spawn_countdown(&mut commands, &loc, Some(&harp_hint), Some(&song_info));
 }
 
@@ -418,8 +422,7 @@ pub fn spawn_visible_notes(
     clock: Res<super::GameplayClock>,
     song_notes: Res<SongNotes>,
     render_assets: Res<NoteRenderAssets>,
-    selected: Res<SelectedSong>,
-    manifests: Res<Assets<SongManifest>>,
+    played: Res<PlayedHarp>,
     highway: Query<Entity, With<NoteHighway>>,
     existing: Query<&NoteVisual>,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
@@ -431,8 +434,8 @@ pub fn spawn_visible_notes(
     if lesson.is_some_and(|lesson| lesson.aural) {
         return;
     }
-    let (Some(manifest), Ok(highway_entity), Some(head_image), Some(tail_cfg)) = (
-        manifests.get(&selected.0),
+    let (Some(harp), Ok(highway_entity), Some(head_image), Some(tail_cfg)) = (
+        played.0.as_ref(),
         highway.single(),
         &render_assets.head_image,
         &render_assets.tail_cfg,
@@ -441,7 +444,9 @@ pub fn spawn_visible_notes(
     };
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
 
-    let hole_count = manifest.chart.harmonica.hole_count() as usize;
+    // Lanes are the played harp's holes — the same count the strip and
+    // highway were laid out with.
+    let hole_count = harp.hole_count() as usize;
     let lane_pct = 100.0 / hole_count as f32;
     let elapsed = clock.get();
 
@@ -886,15 +891,15 @@ pub fn update_holes(
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
     targets: Res<ActiveTargets>,
-    selected: Res<SelectedSong>,
-    manifests: Res<Assets<SongManifest>>,
+    played: Res<PlayedHarp>,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
     mut cells: Query<(&HoleCell, &mut BackgroundColor, &mut HoleState)>,
 ) {
-    let Some(manifest) = manifests.get(&selected.0) else {
+    // The harp the player is holding — the one the detected pitches belong
+    // to — not the chart's, or a substituted harp's holes never light.
+    let Some(harp) = played.0.as_ref() else {
         return;
     };
-    let chart = &manifest.chart;
     let dt = time.delta_secs();
 
     let attack = 1.0 - (-dt * 25.0_f32).exp();
@@ -902,8 +907,8 @@ pub fn update_holes(
     let harp_pitches = harp_pitches(&active, &valid_notes);
 
     for (cell, mut bg, mut state) in &mut cells {
-        let blow = chart.harmonica.wind_direction_midi(cell.0, &Action::Blow);
-        let draw = chart.harmonica.wind_direction_midi(cell.0, &Action::Draw);
+        let blow = harp.wind_direction_midi(cell.0, &Action::Blow);
+        let draw = harp.wind_direction_midi(cell.0, &Action::Draw);
         let hint = if lesson.as_ref().is_some_and(|lesson| lesson.aural) {
             None
         } else {
