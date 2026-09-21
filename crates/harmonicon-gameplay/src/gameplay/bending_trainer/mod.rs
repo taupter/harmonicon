@@ -269,10 +269,6 @@ pub struct DrillToggleButton;
 #[derive(Component)]
 pub struct DrillExplanation;
 
-/// What Drill mode actually does, shown only while hovering the button —
-/// it's not obvious from the label alone that it's adaptive/weighted.
-const DRILL_EXPLANATION: &str = "Auto-picks a random hole + technique, weighted toward whatever you've been missing most. Hold the note in tune to advance \u{2014} it keeps circling back to your weak spots until they're solid.";
-
 /// Practical "how do I actually play this" text for a technique on a given
 /// hole. Bends and overs go a different physical direction depending on
 /// which side of the harp the hole is on, so both are needed to be accurate:
@@ -768,12 +764,15 @@ pub fn update_hint_label(
 }
 
 /// Show what Drill mode does while the button is hovered.
+/// What Drill mode actually does, shown only while hovering the button —
+/// it's not obvious from the label alone that it's adaptive/weighted.
 fn show_drill_explanation(
     _: On<PointerOver>,
+    loc: Res<Localization>,
     mut labels: Query<&mut Text, With<DrillExplanation>>,
 ) {
     for mut text in &mut labels {
-        *text = Text::new(DRILL_EXPLANATION);
+        *text = Text::new(String::from(loc.msg("bending-drill-explanation")));
     }
 }
 

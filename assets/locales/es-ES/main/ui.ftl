@@ -905,6 +905,7 @@ metronome-feel-shuffle = ritmo: shuffle
 bending-drill-off = Ejercicio: apagado
 bending-drill-on = Ejercicio: encendido · racha {$streak}
 bending-hint = Esc para volver  ·  M silencia el clic  ·  feel alterna recto/shuffle
+bending-drill-explanation = Elige al azar un agujero + técnica, con más peso en lo que más has fallado. Mantén la nota afinada para avanzar — vuelve a tus puntos débiles hasta que estén sólidos.
 bending-no-note-for-technique = Este agujero no tiene nota para esa técnica.
 bending-key-label = Tono
 bending-listen-button = 🔊 Escuchar

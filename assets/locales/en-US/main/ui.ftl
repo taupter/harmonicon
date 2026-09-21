@@ -907,6 +907,7 @@ metronome-feel-shuffle = feel: shuffle
 bending-drill-off = Drill: off
 bending-drill-on = Drill: on · streak {$streak}
 bending-hint = Esc to go back  ·  M mutes the click  ·  feel toggles straight/shuffle
+bending-drill-explanation = Auto-picks a random hole + technique, weighted toward whatever you've been missing most. Hold the note in tune to advance — it keeps circling back to your weak spots until they're solid.
 bending-no-note-for-technique = This hole has no note for that technique.
 bending-key-label = Key
 bending-listen-button = 🔊 Listen

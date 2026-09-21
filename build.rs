@@ -17,9 +17,11 @@
 //   5. Any of the above given a bare identifier (`Text::new(prompt)`,
 //      `Text({label})`, `button::small(&label, ...)`) whose binding is a
 //      literal or `format!` template within the previous `LET_LOOKBACK_LINES`
-//      lines — `let prompt = format!("Play Hole {} {}", ...)`. One hop only:
-//      a binding that is itself built from another variable isn't followed.
-//      The wait-for-note prompt shipped as exactly this shape, invisible to
+//      lines — `let prompt = format!("Play Hole {} {}", ...)` — or a
+//      module-level `const NAME: &str = "…"` anywhere in the file. One hop
+//      only: a binding that is itself built from another variable isn't
+//      followed. The wait-for-note prompt and the Bending Trainer's drill
+//      explanation both shipped as exactly these shapes, invisible to
 //      rules 1–4.
 //
 // A "raw" string literal is one whose content contains at least one ASCII
@@ -487,6 +489,18 @@ fn identifier_argument(line: &str, needle: &str) -> Option<String> {
 /// language, or `None`. Stops at the nearest binding of that name either
 /// way — a shadowing `let` closer to the sink is the one in effect.
 fn let_literal_binding(lines: &[&str], from: usize, ident: &str) -> Option<usize> {
+    // A `const NAME: &str = "…"` is module-level and can sit anywhere in
+    // the file, so it's found by name rather than by proximity; a `let`
+    // shadowing it closer to the sink is checked first below.
+    let const_line = lines.iter().position(|l| {
+        let t = l.trim_start();
+        t.strip_prefix("const ")
+            .or_else(|| t.strip_prefix("pub const "))
+            .or_else(|| t.strip_prefix("pub(crate) const "))
+            .or_else(|| t.strip_prefix("pub(super) const "))
+            .and_then(|r| r.strip_prefix(ident))
+            .is_some_and(|r| r.starts_with(':'))
+    });
     let start = from.saturating_sub(LET_LOOKBACK_LINES);
     for j in (start..from).rev() {
         let trimmed = lines[j].trim_start();
@@ -531,7 +545,13 @@ fn let_literal_binding(lines: &[&str], from: usize, ident: &str) -> Option<usize
         };
         return content.filter(|c| is_natural_language(c)).map(|_| j);
     }
-    None
+    let j = const_line?;
+    let rest = lines[j].split_once('=').map(|(_, r)| r.trim_start())?;
+    rest.starts_with('"')
+        .then(|| extract_quoted_after(rest, "\""))
+        .flatten()
+        .filter(|c| is_natural_language(c))
+        .map(|_| j)
 }
 
 /// Every `#[derive(..., Message, ...)]` type declared in `source`, paired
@@ -894,6 +914,15 @@ mod tests {
         assert!(violations(r#"Text::new(format!("\u{25B8} {title}"))"#).is_empty());
         assert!(violations(r#"Text::new(format!("{artist} {title}"))"#).is_empty());
         assert_eq!(violations(r#"Text::new(format!("Key: {key}"))"#).len(), 1);
+    }
+
+    #[test]
+    fn follows_a_module_level_const() {
+        let src =
+            "const HELP: &str = \"Hold the note to advance\";\n\nfn f() {\n    Text::new(HELP)\n}";
+        assert_eq!(violations(src).len(), 1, "{src}");
+        let src = "const ICON: &str = \"\u{25B8}\";\nText::new(ICON)";
+        assert!(violations(src).is_empty());
     }
 
     #[test]
