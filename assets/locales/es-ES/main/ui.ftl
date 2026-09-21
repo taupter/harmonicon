@@ -66,6 +66,10 @@ jam-generate-progression = Progresión
 jam-generate-position = Posición
 jam-generate-scale = Escala
 jam-generate-genre = Género
+jam-generate-energy = Energía de la banda
+band-energy-low = Baja
+band-energy-medium = Media
+band-energy-high = Alta
 
 # Créditos
 credits-back-to-menu = Volver al Menú

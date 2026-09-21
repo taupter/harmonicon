@@ -10,6 +10,9 @@ uses the final bar for a bass-and-drum turnaround into the next chorus. These
 variations leave the next downbeat and the harmonica register clear.
 Across four choruses, the arrangement grows from a sparse opening to a fuller
 third chorus, then relaxes before beginning the arc again.
+Use **Band energy** to make that arc quieter and roomier or denser and more
+assertive. It changes accompaniment density and dynamics without changing the
+tempo or chord progression.
 
 ![Generate Jam setup screen](images/jam-generate.png)
 

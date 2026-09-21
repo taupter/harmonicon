@@ -63,6 +63,28 @@ pub enum Genre {
     Country,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum BandEnergy {
+    Low,
+    #[default]
+    Medium,
+    High,
+}
+
+impl BandEnergy {
+    pub fn all() -> &'static [BandEnergy] {
+        &[BandEnergy::Low, BandEnergy::Medium, BandEnergy::High]
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BandEnergy::Low => "Low",
+            BandEnergy::Medium => "Medium",
+            BandEnergy::High => "High",
+        }
+    }
+}
+
 impl Genre {
     /// Every selectable genre, in the order the "Generate Jam" combobox
     /// offers them.
@@ -348,6 +370,15 @@ pub(crate) fn groove_arrangement_for_position(
     chorus: usize,
     bar: usize,
 ) -> GrooveArrangement {
+    groove_arrangement_for_energy(genre, BandEnergy::Medium, chorus, bar)
+}
+
+fn groove_arrangement_for_energy(
+    genre: Genre,
+    energy: BandEnergy,
+    chorus: usize,
+    bar: usize,
+) -> GrooveArrangement {
     let mut arrangement = groove_arrangement(genre);
     match chorus % CHORUSES as usize {
         0 => {
@@ -382,6 +413,34 @@ pub(crate) fn groove_arrangement_for_position(
             for event in &mut arrangement.comping {
                 event.accent *= 0.82;
             }
+        }
+    }
+    match energy {
+        BandEnergy::Low => {
+            let mut heard = 0;
+            for event in &mut arrangement.comping {
+                if event.hit {
+                    event.hit = heard % 2 == 0;
+                    heard += 1;
+                }
+            }
+            for (slot, event) in arrangement.drums.iter_mut().enumerate() {
+                event.accent *= 0.72;
+                if slot % 2 == 1 {
+                    event.hat = false;
+                }
+            }
+        }
+        BandEnergy::Medium => {}
+        BandEnergy::High => {
+            for event in &mut arrangement.drums {
+                event.accent = (event.accent * 1.12).min(1.0);
+            }
+            for event in &mut arrangement.comping {
+                event.accent = (event.accent * 1.12).min(1.0);
+            }
+            arrangement.comping[7].hit = true;
+            arrangement.comping[7].accent = arrangement.comping[7].accent.max(0.55);
         }
     }
     match bar % 12 {
@@ -583,7 +642,7 @@ fn comping_slot(
         .collect()
 }
 
-fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
+fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
     let swung = groove_arrangement(genre).swung;
     let long = if swung {
@@ -595,7 +654,7 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     let mut out = Vec::new();
     for chorus in 0..CHORUSES as usize {
         for bar in 0..12 {
-            let arrangement = groove_arrangement_for_position(genre, chorus, bar);
+            let arrangement = groove_arrangement_for_energy(genre, energy, chorus, bar);
             for slot in 0..8 {
                 out.extend(drum_slot(
                     arrangement.drums[slot],
@@ -608,7 +667,13 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     out
 }
 
-fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
+fn generate_comping_pcm(
+    key: &str,
+    bpm: f32,
+    progression: Progression,
+    genre: Genre,
+    energy: BandEnergy,
+) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
     let swung = groove_arrangement(genre).swung;
     let long = if swung {
@@ -621,7 +686,7 @@ fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Ge
     let mut out = Vec::new();
     for chorus in 0..CHORUSES as usize {
         for (bar, (root, quality)) in bars.iter().enumerate() {
-            let arrangement = groove_arrangement_for_position(genre, chorus, bar);
+            let arrangement = groove_arrangement_for_energy(genre, energy, chorus, bar);
             for slot in 0..8 {
                 let secs = if slot % 2 == 0 { long } else { short };
                 let event = arrangement.comping[slot];
@@ -651,11 +716,12 @@ fn generate_backing_stems(
     bpm: f32,
     progression: Progression,
     genre: Genre,
+    energy: BandEnergy,
 ) -> [(String, Vec<f32>); 3] {
     let bass = generate_bass_pcm(key, bpm, progression, genre);
     let target = bass.len();
-    let mut drums = generate_drums_pcm(bpm, genre);
-    let mut comping = generate_comping_pcm(key, bpm, progression, genre);
+    let mut drums = generate_drums_pcm(bpm, genre, energy);
+    let mut comping = generate_comping_pcm(key, bpm, progression, genre, energy);
     drums.resize(target, 0.0);
     comping.resize(target, 0.0);
     drums.truncate(target);
@@ -758,11 +824,12 @@ pub fn build_generated_manifest(
     progression: Progression,
     position: Position,
     genre: Genre,
+    energy: BandEnergy,
     background: Handle<Image>,
     elements: Handle<Image>,
     sources: &mut Assets<AudioSource>,
 ) -> SongManifest {
-    let stems = generate_backing_stems(key, bpm, progression, genre);
+    let stems = generate_backing_stems(key, bpm, progression, genre, energy);
     let music_duration_secs = stems[0].1.len() as f64 / SAMPLE_RATE as f64;
     let mut mix = vec![0.0; stems[0].1.len()];
     for (_, pcm) in &stems {
@@ -960,6 +1027,46 @@ mod tests {
         }
     }
 
+    #[test]
+    fn band_energy_changes_density_without_changing_bass_or_feel() {
+        for &genre in Genre::all() {
+            let low = groove_arrangement_for_energy(genre, BandEnergy::Low, 2, 0);
+            let medium = groove_arrangement_for_energy(genre, BandEnergy::Medium, 2, 0);
+            let high = groove_arrangement_for_energy(genre, BandEnergy::High, 2, 0);
+            let comp_hits = |arrangement: &GrooveArrangement| {
+                arrangement.comping.iter().filter(|event| event.hit).count()
+            };
+            let drum_energy = |arrangement: &GrooveArrangement| {
+                arrangement
+                    .drums
+                    .iter()
+                    .map(|event| event.accent)
+                    .sum::<f32>()
+            };
+
+            assert_eq!(low.bass, medium.bass, "{genre:?} low bass");
+            assert_eq!(high.bass, medium.bass, "{genre:?} high bass");
+            assert_eq!(low.swung, medium.swung, "{genre:?} low feel");
+            assert_eq!(high.swung, medium.swung, "{genre:?} high feel");
+            assert!(
+                comp_hits(&low) <= comp_hits(&medium),
+                "{genre:?} low density"
+            );
+            assert!(
+                comp_hits(&high) >= comp_hits(&medium),
+                "{genre:?} high density"
+            );
+            assert!(
+                drum_energy(&low) < drum_energy(&medium),
+                "{genre:?} low dynamics"
+            );
+            assert!(
+                drum_energy(&high) >= drum_energy(&medium),
+                "{genre:?} high dynamics"
+            );
+        }
+    }
+
     // ── generate_bass_pcm ────────────────────────────────────────────────────
 
     #[test]
@@ -1060,7 +1167,8 @@ mod tests {
     #[test]
     fn rhythm_section_stems_are_audible_and_sample_aligned() {
         for &genre in Genre::all() {
-            let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre);
+            let stems =
+                generate_backing_stems("C", 90.0, Progression::Standard, genre, BandEnergy::Medium);
             let expected_len = stems[0].1.len();
             for (name, pcm) in stems {
                 assert_eq!(pcm.len(), expected_len, "{genre:?} {name} drifted");
@@ -1075,11 +1183,13 @@ mod tests {
     #[test]
     fn rhythm_section_mix_keeps_headroom() {
         for &genre in Genre::all() {
-            let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre);
-            let peak = (0..stems[0].1.len())
-                .map(|sample| stems.iter().map(|(_, pcm)| pcm[sample]).sum::<f32>().abs())
-                .fold(0.0_f32, f32::max);
-            assert!(peak <= 0.95, "{genre:?} mix peaks at {peak}");
+            for &energy in BandEnergy::all() {
+                let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre, energy);
+                let peak = (0..stems[0].1.len())
+                    .map(|sample| stems.iter().map(|(_, pcm)| pcm[sample]).sum::<f32>().abs())
+                    .fold(0.0_f32, f32::max);
+                assert!(peak <= 0.95, "{genre:?} {energy:?} mix peaks at {peak}");
+            }
         }
     }
 
@@ -1191,6 +1301,7 @@ mod tests {
             Progression::Standard,
             Position::First,
             Genre::Blues,
+            BandEnergy::Medium,
             Handle::default(),
             Handle::default(),
             &mut sources,

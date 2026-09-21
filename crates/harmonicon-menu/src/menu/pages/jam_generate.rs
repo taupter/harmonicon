@@ -13,7 +13,7 @@ use harmonicon_app::app::{GeneratedJamSession, GeneratedSong};
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Position, Progression};
 use harmonicon_core::midi::NOTE_NAMES;
-use harmonicon_jam::jam::backing::{Genre, JamGenre, build_generated_manifest};
+use harmonicon_jam::jam::backing::{BandEnergy, Genre, JamGenre, build_generated_manifest};
 use harmonicon_platform::localization::{Localization, LocalizationExt, enum_label_key};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::SongManifest;
@@ -38,6 +38,7 @@ pub(crate) struct JamGenerateConfig {
     pub position: Position,
     pub scale: Scale,
     pub genre: Genre,
+    pub energy: BandEnergy,
 }
 
 impl Default for JamGenerateConfig {
@@ -49,6 +50,7 @@ impl Default for JamGenerateConfig {
             position: Position::First,
             scale: Scale::FirstPosition,
             genre: Genre::Blues,
+            energy: BandEnergy::Medium,
         }
     }
 }
@@ -81,6 +83,10 @@ pub(crate) fn genre_key(g: Genre) -> String {
     enum_label_key("genre", g.label())
 }
 
+pub(crate) fn energy_key(energy: BandEnergy) -> String {
+    enum_label_key("band-energy", energy.label())
+}
+
 fn progression_labels(loc: &Localization) -> Vec<String> {
     Progression::all()
         .iter()
@@ -109,13 +115,20 @@ fn genre_labels(loc: &Localization) -> Vec<String> {
         .collect()
 }
 
+fn energy_labels(loc: &Localization) -> Vec<String> {
+    BandEnergy::all()
+        .iter()
+        .map(|energy| loc.msg(&energy_key(*energy)).into())
+        .collect()
+}
+
 pub(crate) fn setup_jam_generate_menu(
     mut commands: Commands,
     config: Res<JamGenerateConfig>,
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
 ) {
-    // `_plain`, not `spawn_menu_root`: this page's five comboboxes + tempo
+    // `_plain`, not `spawn_menu_root`: this page's six comboboxes + tempo
     // field + button will never realistically overflow a window, but a
     // combobox's open dropdown is a literal ECS child of its toggle and
     // gets clipped to a `ScrollArea` ancestor's own (content-sized, not
@@ -151,6 +164,20 @@ pub(crate) fn setup_jam_generate_menu(
         |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
             if let Some(p) = Progression::all().get(ev.index) {
                 cfg.progression = *p;
+            }
+        },
+    );
+
+    combobox::spawn_combobox(
+        &mut commands,
+        root,
+        page_root,
+        &loc.msg("jam-generate-energy"),
+        &energy_labels(&loc),
+        &loc.msg(&energy_key(config.energy)),
+        |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
+            if let Some(energy) = BandEnergy::all().get(ev.index) {
+                cfg.energy = *energy;
             }
         },
     );
@@ -255,6 +282,7 @@ pub(crate) fn setup_jam_generate_menu(
                 config.progression,
                 config.position,
                 config.genre,
+                config.energy,
                 background,
                 Handle::default(),
                 &mut sources,
@@ -326,6 +354,12 @@ mod tests {
         }
         for g in Genre::all() {
             let k = genre_key(*g);
+            if !has(&k) {
+                missing.push(k);
+            }
+        }
+        for energy in BandEnergy::all() {
+            let k = energy_key(*energy);
             if !has(&k) {
                 missing.push(k);
             }

@@ -148,8 +148,9 @@ one role leaves the other roles synchronized; the harmonica has audible space.
 
 **In progress.** The generated buffer now follows a deterministic four-chorus
 dynamics arc: sparse comping and softer drums, a comping lift, the fullest
-band texture, then a relaxed chorus before repeating. Band energy and safe
-timing variation remain.
+band texture, then a relaxed chorus before repeating. The Low, Medium, and
+High Band energy control changes accompaniment density and dynamics without
+changing the form. Safe timing variation remains.
 
 Arrange at the chorus level instead of cloning one 12-bar block.
 
