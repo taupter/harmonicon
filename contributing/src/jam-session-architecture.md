@@ -4,7 +4,7 @@ Jam Session (`harmonicon-jam`) is Harmonicon's free-play mode: a rolling
 12-bar backing, a live hole-map guide, and — deliberately — nothing
 scored. This chapter covers how it shares `gameplay`'s core
 infrastructure without being a `gameplay` submodule itself, the two ways
-it can produce backing audio (a procedurally generated bass line, or a
+it can produce backing audio (a procedurally generated rhythm section, or a
 picked song), and, in the most depth, the MIDI multi-track backing and
 per-track mute feature — the newest and architecturally most interesting
 piece of this subsystem, since it's the one place in the codebase that
@@ -28,7 +28,7 @@ title The gameplay <-> jam relationship, precisely
 skinparam componentStyle rectangle
 
 rectangle "gameplay::plugin\n(composition root: assembles\nthe WHOLE Playing schedule)" as plugin
-rectangle "gameplay (core primitives)\nGameplayClock, MusicPlayer,\nMidiTrackPlayer, Paused, ..." as core
+rectangle "gameplay (core primitives)\nGameplayClock, MusicPlayer,\nBackingStemPlayer, Paused, ..." as core
 rectangle "jam (feature code)\nsession, backing, midi_tracks,\nimprov, call_response" as jam
 
 plugin -down-> jam : registers jam's systems\ninto the shared schedule\n(orchestration dependency)
@@ -44,7 +44,7 @@ systems (`jam::session::update_hole_map`, `jam::midi_tracks::
 apply_midi_track_mute`, and so on) into that shared schedule, alongside
 `gameplay`'s own 2D/3D-specific systems. `jam`'s actual feature code, in
 turn, depends on `gameplay`'s core primitives — `GameplayClock`,
-`MusicPlayer`, `MidiTrackPlayer` — as shared low-level vocabulary, the
+`MusicPlayer`, `BackingStemPlayer` — as shared low-level vocabulary, the
 same way `song_editor` or any other feature would. What makes this
 *not* a real circular dependency in the problematic sense: a composition
 root is expected to depend on everything it wires together (that's its
@@ -81,13 +81,12 @@ described in [Chart Format and Asset Loading](chart-and-assets.md) —
 any bundled or `~/Harmonicon` song can be jammed over.
 
 **"Generate a Jam"** is the no-existing-song alternative:
-`jam::backing::build_generated_manifest` synthesizes a 12-bar bass line
-at runtime (`generate_bass_pcm` — a simple 3-harmonic sine "blues box"
-pattern, deliberately a *different*, plainer instrument voice from the
-harmonica-voice synth `song_editor::playback`/MIDI backing use, since a
-backing bass shouldn't compete with or resemble the thing the player is
-playing), encodes it to WAV, and registers it as a real `AudioSource`
-asset directly via `Assets::add` — never going through the
+`jam::backing::build_generated_manifest` synthesizes sample-aligned Bass,
+Drums, and Comping stems at runtime. The bass retains its speaker-aware
+harmonic tone, while deterministic percussion and chordal patterns establish
+the selected genre without occupying the harmonica voice. Each stem is encoded
+to WAV and registered as a real `AudioSource` asset directly via `Assets::add`
+— never going through the
 `AssetServer`'s load path or `AppState::SongLoading` at all, because
 there's no file on disk to load in the first place. A
 `GeneratedJamSession` marker resource is what lets the surrounding menu
@@ -96,7 +95,7 @@ this case and skip the loading screen, and lets "Quit Song" route back
 to the generation page instead of a song list a generated jam never
 went through.
 
-Generated backing is rendered in eight-chorus buffers, but the session is
+Generated backing is rendered in four-chorus buffers, but the session is
 continuous: when one buffer exhausts, Jam Session respawns it without rewinding
 the free-running gameplay clock, so the form display proceeds into chorus 9.
 This is separate from `JamLoop`, which remains an opt-in preference for a
@@ -113,8 +112,8 @@ simultaneously**.
 
 ### The constraint that shaped the design
 
-Every other audio-producing path in the codebase — the generated bass
-line above, the Song Editor's MIDI-import backing mixdown, every
+Every other audio-producing path in the codebase — the generated rhythm
+section above, the Song Editor's MIDI-import backing mixdown, every
 preview/practice/record playback, `gameplay::call_response`'s one-shot
 call demo — follows the same shape: build a note list, render it *once*
 to a flat PCM buffer via the shared additive synth, and hand the result
@@ -140,7 +139,7 @@ box "Load time (song::loader, off the main thread)" #LightBlue
 participant "song/music.mid" as midfile
 participant "load_midi_tracks" as loader
 participant "song::midi::render_track_pcm\n(per non-empty track)" as render
-participant "SongManifest::midi_tracks\nVec<MidiTrackAudio>" as manifest
+participant "SongManifest::backing_stems\nVec<BackingStemAudio>" as manifest
 end box
 
 box "Countdown → Playing (gameplay::countdown_overlay)" #LightYellow
@@ -149,7 +148,7 @@ participant "N × AudioPlayer/AudioSink\n(all spawned same frame)" as sinks
 end box
 
 box "Every frame, Jam Session only" #LightGreen
-participant "jam::midi_tracks::JamMidiMute\n(Vec<bool>, one per track)" as mute
+participant "jam::midi_tracks::JamStemMute\n(Vec<bool>, one per stem)" as mute
 participant "apply_midi_track_mute" as apply
 end box
 
@@ -158,8 +157,8 @@ loader -> render : one call per track\n(shares parsed tpq/tempo)
 render --> loader : Vec<f32> PCM
 loader -> manifest : encode_wav + add_labeled_asset\n(one AudioSource per track)
 
-countdown -> manifest : midi_tracks.is_some()?
-countdown -> sinks : spawn one AudioPlayer per track,\ntagged MusicPlayer + MidiTrackPlayer(index)
+countdown -> manifest : backing_stems.is_some()?
+countdown -> sinks : spawn one AudioPlayer per stem,\ntagged MusicPlayer + BackingStemPlayer(index)
 
 loop every frame
   apply -> mute : read mute state for this track's index
@@ -168,7 +167,7 @@ end
 @enduml
 ```
 
-### Why each sink is tagged `MusicPlayer` *and* `MidiTrackPlayer`
+### Why each sink is tagged `MusicPlayer` *and* `BackingStemPlayer`
 
 `MusicPlayer` is the ordinary, pre-existing marker component that tags
 "the currently-playing background-music entity" for pause/resume and
@@ -176,7 +175,7 @@ global-volume-slider application (`gameplay::lifecycle::
 apply_music_volume`, `gameplay::pause_menu`) — code written for the
 single-sink case, years before multi-track backing existed. Tagging
 every per-track sink with `MusicPlayer` *too* (alongside the new,
-per-track `MidiTrackPlayer(usize)`) means that existing pause and
+per-stem `BackingStemPlayer(usize)`) means that existing pause and
 global-volume code needs **zero changes** to correctly apply to N sinks
 instead of one — it already iterates every matching entity, never
 assumed there'd be exactly one. The two places in the codebase that
@@ -187,7 +186,7 @@ already handle gracefully for a music-less song — and neither code path
 is reachable in Jam Session anyway (no `SongNotes`, no A–B loop UI
 there), so this was verified safe rather than assumed safe.
 
-`MidiTrackPlayer(usize)` itself lives in `gameplay::state`, not in
+`BackingStemPlayer(usize)` itself lives in `gameplay::state`, not in
 `jam::midi_tracks` where it's *read* — the same "define shared
 low-level vocabulary where the lower layer needs it, not where the
 higher one reads it" placement `MusicPlayer` itself already follows
@@ -210,7 +209,7 @@ whichever order Bevy's scheduler happened to pick that frame.
 
 ### The UI: one shared observer, not N closures
 
-The per-track mute row (`jam::midi_tracks::spawn_midi_track_row`) spawns
+The per-stem mute row (`jam::midi_tracks::spawn_backing_stem_row`) spawns
 one button per track, each tagged `TrackMuteCell(index)`, all sharing
 **one** `toggle_track_mute` observer function (cloned onto every
 button's entity) rather than a distinct closure capturing a different
@@ -225,7 +224,7 @@ rectangle "Button 0\nTrackMuteCell(0)" as b0
 rectangle "Button 1\nTrackMuteCell(1)" as b1
 rectangle "Button N\nTrackMuteCell(N)" as bn
 rectangle "toggle_track_mute\n(one system, cloned onto\nevery button as an observer)" as observer
-rectangle "JamMidiMute\n(Vec<bool>)" as mute
+rectangle "JamStemMute\n(Vec<bool>)" as mute
 
 b0 -down-> observer : PointerClick
 b1 -down-> observer : PointerClick
@@ -245,7 +244,7 @@ reinventing per feature.
 
 `restart_finished_jam_music` (which re-spawns every track's sink
 together once the previous set has fully finished, when Loop is on)
-doesn't touch `JamMidiMute` at all — it's a resource independent of any
+doesn't touch `JamStemMute` at all — it's a resource independent of any
 particular sink's lifetime, so a track muted before the loop boundary
 stays muted after new sinks spawn, with no explicit hand-off code
 needed.

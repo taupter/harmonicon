@@ -10,7 +10,7 @@ use bevy::{
 use thiserror::Error;
 
 use super::{
-    MidiTrackAudio, SongManifest, TrackChart,
+    BackingStemAudio, SongManifest, TrackChart,
     chart::{CURRENT_FORMAT_VERSION, HarpChart, format_version_supported, migrate_chart_json},
 };
 use harmonicon_audio::waveform::{WAVEFORM_BUCKETS, bucket_peaks};
@@ -208,7 +208,7 @@ pub(super) async fn assemble_manifest(
     let ogg_path = sibling(song_folder.join("song/music.ogg"));
     let wav_path = sibling(song_folder.join("song/music.wav"));
     let mid_path = sibling(song_folder.join("song/music.mid"));
-    let (music, midi_tracks, waveform, music_duration_secs) =
+    let (music, backing_stems, waveform, music_duration_secs) =
         if let Ok(bytes) = load_context.read_asset_bytes(ogg_path.clone()).await {
             let (waveform, duration) = harmonicon_audio::waveform::analyze_ogg_waveform(
                 &bytes,
@@ -303,7 +303,7 @@ pub(super) async fn assemble_manifest(
         chart,
         background,
         music,
-        midi_tracks,
+        backing_stems,
         waveform,
         music_duration_secs,
         elements,
@@ -320,7 +320,7 @@ pub(super) async fn assemble_manifest(
 /// `AudioSource`, registered as a labeled sub-asset of the manifest being
 /// loaded (so it shares the manifest's own lifetime/dependency tracking,
 /// the same way the generated placeholder background below does) — see
-/// `SongManifest::midi_tracks`'s doc comment for why a song ships these as
+/// `SongManifest::backing_stems`'s doc comment for why a song ships these as
 /// separate stems instead of one pre-mixed file. Also returns a combined
 /// waveform/duration (every track's stem summed together) purely for the
 /// progress bar's display, so a MIDI-backed song's progress bar behaves
@@ -329,7 +329,7 @@ pub(super) async fn assemble_manifest(
 fn load_midi_tracks(
     bytes: &[u8],
     load_context: &mut LoadContext,
-) -> (Option<Vec<MidiTrackAudio>>, Vec<f32>, f64) {
+) -> (Option<Vec<BackingStemAudio>>, Vec<f32>, f64) {
     let Ok(smf) = midly::Smf::parse(bytes) else {
         return (None, Vec::new(), 0.0);
     };
@@ -357,7 +357,7 @@ fn load_midi_tracks(
             format!("midi_track_{index}"),
             AudioSource { bytes: wav.into() },
         );
-        tracks.push(MidiTrackAudio { name, source });
+        tracks.push(BackingStemAudio { name, source });
     }
 
     if tracks.is_empty() {

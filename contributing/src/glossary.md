@@ -60,10 +60,11 @@ its `ThemeJson` asset load resolves. See
 one variant per menu screen. See
 [Application States and Modes](app-states.md).
 
-**`MidiTrackAudio`** / **`MidiTrackPlayer`** — `MidiTrackAudio` (on
-`SongManifest`) is one MIDI track's own pre-rendered `AudioSource` stem;
-`MidiTrackPlayer(usize)` (a component, in `gameplay::state`) tags the
-live `AudioSink` entity playing that stem so per-track mute can find it.
+**`BackingStemAudio`** / **`BackingStemPlayer`** — `BackingStemAudio` (on
+`SongManifest`) is one independently rendered `AudioSource` stem, whether it
+came from MIDI or the generated rhythm section; `BackingStemPlayer(usize)`
+(a component, in `gameplay::state`) tags the live `AudioSink` entity playing
+that stem so per-stem mute can find it.
 See [Jam Session](jam-session-architecture.md).
 
 **`MusicPlayer`** — the component tagging whichever entity is currently

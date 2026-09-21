@@ -35,21 +35,19 @@ pub struct SongManifest {
     /// clock free-runs instead of anchoring to a sink; see `gameplay::
     /// should_anchor_to_sink`) rather than failing to load. Also `None`
     /// when the song ships `song/music.mid` instead — see
-    /// [`midi_tracks`](Self::midi_tracks), which carries that song's
+    /// [`backing_stems`](Self::backing_stems), which carries that song's
     /// backing audio in that case; the two are mutually exclusive.
     pub music: Option<Handle<AudioSource>>,
-    /// Present when the song ships `song/music.mid` instead of a single
-    /// pre-mixed `music.ogg`/`.wav` — one already-rendered `AudioSource`
-    /// per non-empty MIDI track (`song::midi::render_track_pcm`, the same
-    /// synth `song_editor::playback`/`gameplay::call_response` share), so a
-    /// Jam Session can play every track as its own simultaneous sink and
-    /// mute individual tracks by muting their sink — no live re-mixing
-    /// needed. Only Jam Session's UI (`jam::session`) shows a mute row;
+    /// Optional independently mixed backing stems. A MIDI-backed song puts
+    /// one already-rendered `AudioSource` here per non-empty MIDI track;
+    /// generated jams use the same representation for rhythm-section roles.
+    /// Jam Session can play every stem as its own simultaneous sink and mute
+    /// individual stems without live re-mixing. Only Jam Session's UI shows a mute row;
     /// scored Play2D/3D has nothing meaningful to do with a backing track
     /// regardless of stem count.
-    pub midi_tracks: Option<Vec<MidiTrackAudio>>,
-    /// Peak-amplitude waveform of `music` (or, when [`midi_tracks`]
-    /// (Self::midi_tracks) is populated instead, every track's stems
+    pub backing_stems: Option<Vec<BackingStemAudio>>,
+    /// Peak-amplitude waveform of `music` (or, when [`backing_stems`]
+    /// (Self::backing_stems) is populated instead, every stem
     /// summed together — a display-only reference mix; actual playback
     /// sums them for real, as separate simultaneous sinks), pre-analyzed
     /// at load time (see `audio_system::waveform`) so the gameplay
@@ -115,7 +113,7 @@ pub fn training_manifest(chart: HarpChart) -> SongManifest {
         chart,
         background: Handle::default(),
         music: None,
-        midi_tracks: None,
+        backing_stems: None,
         waveform: Vec::new(),
         music_duration_secs: 0.0,
         elements: Handle::default(),
@@ -128,13 +126,12 @@ pub fn training_manifest(chart: HarpChart) -> SongManifest {
     }
 }
 
-/// One MIDI track's own, independently-playable audio stem — see
-/// [`SongManifest::midi_tracks`].
+/// One independently playable backing stem — see
+/// [`SongManifest::backing_stems`].
 #[derive(Debug, Clone)]
-pub struct MidiTrackAudio {
-    /// The track's own name (`song::midi::track_name_of`), or `"Track
-    /// <index>"` when the MIDI file doesn't name it — shown as the mute
-    /// row's label in `jam::session`.
+pub struct BackingStemAudio {
+    /// A MIDI track's source name, or a generated rhythm-section role such
+    /// as `Bass`/`Drums`/`Comping`, shown in Jam Session's mute row.
     pub name: String,
     pub source: Handle<AudioSource>,
 }

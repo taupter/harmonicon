@@ -1,9 +1,9 @@
 # Generate a Jam
 
 **Play → Jam Session → Generate Jam** skips picking a song entirely: it
-synthesizes an endless 12-bar backing on the spot (a swung "blues box" bass
-line, not a second harmonica part), so you can jam without needing any
-existing content.
+synthesizes an endless 12-bar rhythm section on the spot, with separate bass,
+drum, and chordal-comping stems, so you can jam without needing any existing
+content.
 
 ![Generate Jam setup screen](images/jam-generate.png)
 
@@ -30,4 +30,5 @@ the chorus/bar readout remains continuous. Choose **End after this chorus**
 to resolve on the tonic at the next 12-bar boundary. **Restart** returns to
 the count-in and chorus 1; **Quit Song** returns to this setup page (with your
 key/progression/position/tempo remembered), not the song list, since there
-was never a song list involved.
+was never a song list involved. The stem buttons let you mute Bass, Drums, or
+Comping independently without disturbing the timing of the others.

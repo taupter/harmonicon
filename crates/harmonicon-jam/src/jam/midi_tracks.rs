@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! Per-track mute row for a MIDI-backed Jam Session song
-//! (`song::MidiTrackAudio`): each track plays as its own simultaneous,
+//! Per-stem mute row for a Jam Session backing
+//! (`song::BackingStemAudio`): each stem plays as its own simultaneous,
 //! synchronized `AudioSink` (spawned by `gameplay::countdown_overlay::
 //! update_countdown`), so muting one is just zeroing that sink's volume —
 //! no live re-mixing needed, since every stem is already a complete,
@@ -15,18 +15,18 @@ use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
 
 use harmonicon_audio::AudioSettings;
-use harmonicon_gameplay::gameplay::MidiTrackPlayer;
+use harmonicon_gameplay::gameplay::BackingStemPlayer;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
-use harmonicon_song::song::MidiTrackAudio;
+use harmonicon_song::song::BackingStemAudio;
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 
-/// Per-track mute state for the currently-playing MIDI-backed song — index
-/// matches `SongManifest::midi_tracks`. Sized (and reset to all-unmuted) by
+/// Per-stem mute state for the current Jam Session backing — index
+/// matches `SongManifest::backing_stems`. Sized (and reset to all-unmuted) by
 /// `jam::session::setup` for every jam, whether or not the song actually
-/// has MIDI tracks (empty otherwise, so the systems below are cheap no-ops
+/// has backing stems (empty otherwise, so the systems below are cheap no-ops
 /// for an ordinary song — nothing to iterate).
 #[derive(Resource, Default)]
-pub struct JamMidiMute(pub Vec<bool>);
+pub struct JamStemMute(pub Vec<bool>);
 
 /// Tags one mute-toggle button with which track it controls, so one shared
 /// `toggle_track_mute` observer (cloned onto every button) can look up
@@ -36,7 +36,7 @@ pub struct JamMidiMute(pub Vec<bool>);
 pub struct TrackMuteCell(usize);
 
 /// The "with sound"/"no sound" icon inside one mute button — its text is
-/// the only part [`update_track_mute_buttons`] rewrites; the track-name
+/// the only part [`update_stem_mute_buttons`] rewrites; the stem-name
 /// label next to it is static, set once at spawn.
 #[derive(Component, Clone, Copy)]
 pub struct TrackMuteIcon(usize);
@@ -50,12 +50,12 @@ const MUTED_ICON: &str = "\u{2298}";
 const MUTED_BG: Color = Color::srgb(0.30, 0.14, 0.14);
 const UNMUTED_BG: Color = Color::srgb(0.16, 0.30, 0.18);
 
-/// A horizontal row of per-track mute-toggle buttons, one per
-/// `SongManifest::midi_tracks` entry — only call this when the current
-/// song actually has MIDI tracks (`jam::session::setup` checks first).
-pub fn spawn_midi_track_row(
+/// A horizontal row of per-stem mute-toggle buttons, one per
+/// `SongManifest::backing_stems` entry — only call this when the current
+/// song actually has backing stems (`jam::session::setup` checks first).
+pub fn spawn_backing_stem_row(
     parent: &mut ChildSpawnerCommands,
-    tracks: &[MidiTrackAudio],
+    tracks: &[BackingStemAudio],
     loc: &Localization,
 ) {
     parent
@@ -116,7 +116,7 @@ pub fn spawn_midi_track_row(
 fn toggle_track_mute(
     ev: On<Activate>,
     cells: Query<&TrackMuteCell>,
-    mut mute: ResMut<JamMidiMute>,
+    mut mute: ResMut<JamStemMute>,
 ) {
     let Ok(cell) = cells.get(ev.entity) else {
         return;
@@ -126,9 +126,9 @@ fn toggle_track_mute(
     }
 }
 
-/// Keeps each mute button's icon/background in sync with `JamMidiMute`.
-pub fn update_track_mute_buttons(
-    mute: Res<JamMidiMute>,
+/// Keeps each mute button's icon/background in sync with `JamStemMute`.
+pub fn update_stem_mute_buttons(
+    mute: Res<JamStemMute>,
     mut icons: Query<(&TrackMuteIcon, &mut Text)>,
     mut cells: Query<(&TrackMuteCell, &mut BackgroundColor)>,
 ) {
@@ -144,16 +144,16 @@ pub fn update_track_mute_buttons(
     }
 }
 
-/// Applies `JamMidiMute` to each track's own sink volume — muted → silent,
+/// Applies `JamStemMute` to each track's own sink volume — muted → silent,
 /// unmuted → the configured music volume. Ordered `.after(gameplay::
 /// lifecycle::apply_music_volume)` so a mid-song global-volume change
 /// (which touches every `MusicPlayer` sink, these included, since
-/// `MidiTrackPlayer` entities carry that tag too) can never un-mute a
+/// `BackingStemPlayer` entities carry that tag too) can never un-mute a
 /// muted track — this system always has the last word.
-pub fn apply_midi_track_mute(
-    mute: Res<JamMidiMute>,
+pub fn apply_backing_stem_mute(
+    mute: Res<JamStemMute>,
     audio: Res<AudioSettings>,
-    mut sinks: Query<(&MidiTrackPlayer, &mut AudioSink)>,
+    mut sinks: Query<(&BackingStemPlayer, &mut AudioSink)>,
 ) {
     for (player, mut sink) in &mut sinks {
         let muted = mute.0.get(player.0).copied().unwrap_or(false);
@@ -166,7 +166,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn jam_midi_mute_defaults_to_empty() {
-        assert!(JamMidiMute::default().0.is_empty());
+    fn jam_stem_mute_defaults_to_empty() {
+        assert!(JamStemMute::default().0.is_empty());
     }
 }

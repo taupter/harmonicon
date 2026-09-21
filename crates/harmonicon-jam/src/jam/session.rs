@@ -19,7 +19,7 @@ use harmonicon_core::harmonica::{
 use harmonicon_app::app::{EffectiveHarmonica, JamProgression, JamScale, SelectedSong};
 use harmonicon_audio::AudioSettings;
 use harmonicon_gameplay::gameplay::{
-    ActivePitches, COUNTDOWN, CurrentBar, GameplayClock, GameplayRoot, MidiTrackPlayer,
+    ActivePitches, BackingStemPlayer, COUNTDOWN, CurrentBar, GameplayClock, GameplayRoot,
     MusicPlayer, MusicStarted, resolve_item_time,
 };
 use harmonicon_platform::localization::{Localization, LocalizationExt};
@@ -39,7 +39,7 @@ use harmonicon_ui::spectrogram::{OscMaterial, SpectrogramStyle, spawn_spectrogra
 use super::backing::JamGenre;
 use super::backing::generate_ending_pcm;
 use super::improv::classify_note_fit;
-use super::midi_tracks::{JamMidiMute, spawn_midi_track_row};
+use super::midi_tracks::{JamStemMute, spawn_backing_stem_row};
 use super::position_guide::spawn_position_compass;
 use super::rhythm_guide::spawn_rhythm_guide;
 use harmonicon_app::app::GeneratedJamSession;
@@ -62,7 +62,7 @@ pub fn setup(
     manifests: Res<Assets<SongManifest>>,
     mut clock: ResMut<GameplayClock>,
     mut music_started: ResMut<MusicStarted>,
-    mut midi_mute: ResMut<JamMidiMute>,
+    mut stem_mute: ResMut<JamStemMute>,
     spectrogram_style: Res<SpectrogramStyle>,
     osc_material: Res<OscMaterial>,
     theme: Res<LoadedTheme>,
@@ -86,7 +86,7 @@ pub fn setup(
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
     // iterate).
-    midi_mute.0 = vec![false; manifest.midi_tracks.as_ref().map_or(0, Vec::len)];
+    stem_mute.0 = vec![false; manifest.backing_stems.as_ref().map_or(0, Vec::len)];
 
     let chart = &manifest.chart;
     let key = chart.song.key.as_str();
@@ -378,8 +378,8 @@ pub fn setup(
 
             // MIDI-backed song only — an ordinary music/silent song has
             // nothing to mute, so nothing spawns here for it.
-            if let Some(tracks) = &manifest.midi_tracks {
-                spawn_midi_track_row(root, tracks, &loc);
+            if let Some(tracks) = &manifest.backing_stems {
+                spawn_backing_stem_row(root, tracks, &loc);
             }
         });
 
@@ -555,14 +555,14 @@ pub fn restart_finished_jam_music(
     let Some(manifest) = manifests.get(&selected.0) else {
         return;
     };
-    // A song with neither `song/*.ogg`/`*.wav` nor `midi_tracks` never had
+    // A song with neither `song/*.ogg`/`*.wav` nor `backing_stems` never had
     // a `MusicPlayer` to begin with (see `countdown_overlay::
     // update_countdown`) — nothing to loop.
-    if manifest.music.is_none() && manifest.midi_tracks.is_none() {
+    if manifest.music.is_none() && manifest.backing_stems.is_none() {
         return;
     }
     // A finite picked song really loops back to its own start. A generated
-    // backing is eight choruses cut into one buffer; respawning that buffer
+    // backing is four choruses cut into one buffer; respawning that buffer
     // continues the open jam at chorus nine, so its form clock must not jump.
     if generated.is_none() {
         clock.set_free(0.0);
@@ -574,8 +574,8 @@ pub fn restart_finished_jam_music(
             MusicPlayer,
             GameplayRoot,
         ));
-    } else if let Some(tracks) = &manifest.midi_tracks {
-        // Mute state (`JamMidiMute`) isn't touched here — it's a resource
+    } else if let Some(tracks) = &manifest.backing_stems {
+        // Mute state (`JamStemMute`) isn't touched here — it's a resource
         // independent of any particular sink, so a track muted before the
         // loop stays muted after it without needing to be re-applied.
         for (index, track) in tracks.iter().enumerate() {
@@ -583,7 +583,7 @@ pub fn restart_finished_jam_music(
                 AudioPlayer::<AudioSource>(track.source.clone()),
                 PlaybackSettings::DESPAWN.with_volume(Volume::Linear(audio.music_volume)),
                 MusicPlayer,
-                MidiTrackPlayer(index),
+                BackingStemPlayer(index),
                 GameplayRoot,
             ));
         }

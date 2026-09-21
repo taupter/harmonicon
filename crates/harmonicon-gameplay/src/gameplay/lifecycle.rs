@@ -228,7 +228,7 @@ pub(crate) fn start_at_practice_range(
     }
     let has_music = manifests
         .get(&selected.0)
-        .is_some_and(|m| m.music.is_some() || m.midi_tracks.is_some());
+        .is_some_and(|m| m.music.is_some() || m.backing_stems.is_some());
     if has_music && sinks.is_empty() {
         return;
     }

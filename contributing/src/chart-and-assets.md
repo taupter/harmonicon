@@ -93,7 +93,7 @@ class SongManifest {
   chart: HarpChart
   background: Handle<Image>
   music: Option<Handle<AudioSource>>
-  midi_tracks: Option<Vec<MidiTrackAudio>>
+  backing_stems: Option<Vec<BackingStemAudio>>
   waveform: Vec<f32>
   music_duration_secs: f64
   elements: Handle<Image>
@@ -103,12 +103,12 @@ class SongManifest {
   assets_3d_config: NoteCube3dConfig
 }
 
-class MidiTrackAudio {
+class BackingStemAudio {
   name: String
   source: Handle<AudioSource>
 }
 
-SongManifest o-- MidiTrackAudio
+SongManifest o-- BackingStemAudio
 @enduml
 ```
 

@@ -21,18 +21,20 @@ use harmonicon_core::chart::{
     Action, Difficulty, Feel, HarpChart, Metadata, NoteEvent, Scoring, Song, TempoPoint, Timing,
     TrackItem,
 };
-use harmonicon_core::harmonica::{Position, Progression, progression_bars, richter_harp, semitone};
+use harmonicon_core::harmonica::{
+    Position, Progression, chord_intervals, progression_bars, richter_harp, semitone,
+};
 use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::wav::encode_wav;
-use harmonicon_song::song::{NoteCube3dConfig, NoteThemeConfig, SongManifest};
+use harmonicon_song::song::{BackingStemAudio, NoteCube3dConfig, NoteThemeConfig, SongManifest};
 
 pub const SAMPLE_RATE: u32 = 44_100;
 
-/// How many 12-bar choruses to render into one generated backing loop —
-/// long enough for a real practice session (a few minutes) without an
-/// unreasonably large buffer/asset. `JamLoop` (the existing player toggle)
-/// still works normally once this runs out.
-pub const CHORUSES: u32 = 8;
+/// How many 12-bar choruses to render into one generated backing buffer.
+/// Four matches the musical arc planned for generated jams while keeping
+/// three sample-aligned stems reasonably small. Playback queues another
+/// buffer before this one ends, so session length is still unlimited.
+pub const CHORUSES: u32 = 4;
 
 const ATTACK_SECS: f32 = 0.01;
 const RELEASE_SECS: f32 = 0.05;
@@ -222,7 +224,9 @@ fn bass_tone(freq_hz: f32, duration_secs: f32) -> Vec<f32> {
             let s = (TAU * freq_hz * t).sin()
                 + 0.4 * (TAU * freq_hz * 2.0 * t).sin()
                 + 0.22 * (TAU * freq_hz * 3.0 * t).sin();
-            env * s * 0.5
+            // Leave room for drums and comping when Bevy mixes the three
+            // independently mutable stems.
+            env * s * 0.28
         })
         .collect()
 }
@@ -294,6 +298,160 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
         }
     }
     buf
+}
+
+fn drum_slot(genre: Genre, slot: usize, duration_secs: f32) -> Vec<f32> {
+    let n = (duration_secs * SAMPLE_RATE as f32).max(1.0) as usize;
+    let beat_slot = slot % 8;
+    let (kick, snare, hat) = match genre {
+        Genre::Blues => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
+        Genre::Jazz => (matches!(beat_slot, 0 | 5), matches!(beat_slot, 2 | 6), true),
+        Genre::Rock => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
+        Genre::Reggae => (
+            beat_slot == 4,
+            matches!(beat_slot, 2 | 6),
+            beat_slot % 2 == 1,
+        ),
+        Genre::Country => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
+    };
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            let mut sample = 0.0;
+            if kick {
+                let env = (-t * 18.0).exp();
+                let phase = TAU * (72.0 * t - 18.0 * t * t);
+                sample += phase.sin() * env * 0.24;
+            }
+            if snare {
+                let hash = (i as u32)
+                    .wrapping_mul(1_664_525)
+                    .wrapping_add(1_013_904_223);
+                let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
+                sample += noise * (-t * 24.0).exp() * 0.12;
+            }
+            if hat {
+                let hash = (i as u32)
+                    .wrapping_mul(22_695_477)
+                    .wrapping_add((slot as u32).wrapping_mul(1_103_515_245));
+                let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
+                sample += noise * (-t * 65.0).exp() * 0.055;
+            }
+            sample
+        })
+        .collect()
+}
+
+fn comping_slot(
+    root: &str,
+    quality: harmonicon_core::harmonica::ChordQuality,
+    secs: f32,
+) -> Vec<f32> {
+    let frequencies: Vec<f32> = chord_intervals(quality)
+        .iter()
+        .take(3)
+        .filter_map(|interval| note_to_midi(&format!("{}3", semitone(root, *interval))))
+        .map(|midi| midi_to_freq_hz(midi as f32))
+        .collect();
+    let n = (secs * SAMPLE_RATE as f32).max(1.0) as usize;
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            let attack = (t / 0.015).min(1.0);
+            let decay = (-t * 4.0).exp();
+            let chord = frequencies
+                .iter()
+                .map(|frequency| (TAU * frequency * t).sin())
+                .sum::<f32>()
+                / frequencies.len().max(1) as f32;
+            chord * attack * decay * 0.13
+        })
+        .collect()
+}
+
+fn comping_hits(genre: Genre, slot: usize) -> bool {
+    match genre {
+        Genre::Blues => matches!(slot, 1 | 3 | 5 | 7),
+        Genre::Jazz => matches!(slot, 1 | 5),
+        Genre::Rock => matches!(slot, 0 | 4),
+        Genre::Reggae => slot % 2 == 1,
+        Genre::Country => matches!(slot, 2 | 6),
+    }
+}
+
+fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
+    let secs_per_beat = 60.0 / bpm.max(1.0);
+    let (_, swung) = genre_pattern(genre);
+    let long = if swung {
+        secs_per_beat * SWING_LONG_FRAC
+    } else {
+        secs_per_beat * 0.5
+    };
+    let short = secs_per_beat - long;
+    let mut out = Vec::new();
+    for _ in 0..CHORUSES * 12 {
+        for slot in 0..8 {
+            out.extend(drum_slot(
+                genre,
+                slot,
+                if slot % 2 == 0 { long } else { short },
+            ));
+        }
+    }
+    out
+}
+
+fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
+    let secs_per_beat = 60.0 / bpm.max(1.0);
+    let (_, swung) = genre_pattern(genre);
+    let long = if swung {
+        secs_per_beat * SWING_LONG_FRAC
+    } else {
+        secs_per_beat * 0.5
+    };
+    let short = secs_per_beat - long;
+    let bars = progression_bars(key, progression);
+    let mut out = Vec::new();
+    for _ in 0..CHORUSES {
+        for (root, quality) in &bars {
+            for slot in 0..8 {
+                let secs = if slot % 2 == 0 { long } else { short };
+                if comping_hits(genre, slot) {
+                    out.extend(comping_slot(root, *quality, secs));
+                } else {
+                    out.extend(std::iter::repeat_n(
+                        0.0,
+                        (secs * SAMPLE_RATE as f32).max(1.0) as usize,
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Bass, drums and chordal comping rendered as sample-aligned stems. The bass
+/// renderer remains the duration authority; the other pure renderers are
+/// trimmed/padded to its length so independently spawned sinks cannot drift.
+fn generate_backing_stems(
+    key: &str,
+    bpm: f32,
+    progression: Progression,
+    genre: Genre,
+) -> [(String, Vec<f32>); 3] {
+    let bass = generate_bass_pcm(key, bpm, progression, genre);
+    let target = bass.len();
+    let mut drums = generate_drums_pcm(bpm, genre);
+    let mut comping = generate_comping_pcm(key, bpm, progression, genre);
+    drums.resize(target, 0.0);
+    comping.resize(target, 0.0);
+    drums.truncate(target);
+    comping.truncate(target);
+    [
+        ("Bass".to_string(), bass),
+        ("Drums".to_string(), drums),
+        ("Comping".to_string(), comping),
+    ]
 }
 
 /// The chart half of a generated jam: a diatonic Richter harp for `position`
@@ -374,8 +532,9 @@ pub fn generated_chart(
     }
 }
 
-/// Builds the full generated-jam `SongManifest`: synthesizes the bass line,
-/// registers it as a real `AudioSource` asset, and assembles the chart
+/// Builds the full generated-jam `SongManifest`: synthesizes independently
+/// mutable bass, drum and comping stems, registers each as an `AudioSource`,
+/// and assembles the chart
 /// around it. `background`/`elements` are the caller's choice of
 /// placeholder art — Jam Session never reads `elements` at all; `background`
 /// paints behind the hole map/12-bar grid (see `jam::session::setup`), so a
@@ -390,18 +549,31 @@ pub fn build_generated_manifest(
     elements: Handle<Image>,
     sources: &mut Assets<AudioSource>,
 ) -> SongManifest {
-    let pcm = generate_bass_pcm(key, bpm, progression, genre);
-    let music_duration_secs = pcm.len() as f64 / SAMPLE_RATE as f64;
-    let waveform = bucket_peaks(&pcm, WAVEFORM_BUCKETS);
-    let wav = encode_wav(&pcm, SAMPLE_RATE);
-    let music = sources.add(AudioSource { bytes: wav.into() });
+    let stems = generate_backing_stems(key, bpm, progression, genre);
+    let music_duration_secs = stems[0].1.len() as f64 / SAMPLE_RATE as f64;
+    let mut mix = vec![0.0; stems[0].1.len()];
+    for (_, pcm) in &stems {
+        for (mixed, sample) in mix.iter_mut().zip(pcm) {
+            *mixed += *sample;
+        }
+    }
+    let waveform = bucket_peaks(&mix, WAVEFORM_BUCKETS);
+    let backing_stems = stems
+        .into_iter()
+        .map(|(name, pcm)| BackingStemAudio {
+            name,
+            source: sources.add(AudioSource {
+                bytes: encode_wav(&pcm, SAMPLE_RATE).into(),
+            }),
+        })
+        .collect();
 
     SongManifest {
         path: PathBuf::from(format!("generated/{key}")),
         chart: generated_chart(key, bpm, progression, position, genre, music_duration_secs),
         background,
-        music: Some(music),
-        midi_tracks: None,
+        music: None,
+        backing_stems: Some(backing_stems),
         waveform,
         music_duration_secs,
         elements,
@@ -587,6 +759,32 @@ mod tests {
         assert_ne!(rock, reggae);
     }
 
+    #[test]
+    fn rhythm_section_stems_are_audible_and_sample_aligned() {
+        for &genre in Genre::all() {
+            let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre);
+            let expected_len = stems[0].1.len();
+            for (name, pcm) in stems {
+                assert_eq!(pcm.len(), expected_len, "{genre:?} {name} drifted");
+                assert!(
+                    pcm.iter().any(|sample| sample.abs() > 0.005),
+                    "{genre:?} {name} is silent"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rhythm_section_mix_keeps_headroom() {
+        for &genre in Genre::all() {
+            let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre);
+            let peak = (0..stems[0].1.len())
+                .map(|sample| stems.iter().map(|(_, pcm)| pcm[sample]).sum::<f32>().abs())
+                .fold(0.0_f32, f32::max);
+            assert!(peak <= 0.95, "{genre:?} mix peaks at {peak}");
+        }
+    }
+
     // ── generated_chart ──────────────────────────────────────────────────────
 
     #[test]
@@ -687,7 +885,7 @@ mod tests {
     // ── build_generated_manifest ─────────────────────────────────────────────
 
     #[test]
-    fn build_generated_manifest_registers_a_real_audio_asset() {
+    fn build_generated_manifest_registers_three_stem_assets() {
         let mut sources = Assets::<AudioSource>::default();
         let manifest = build_generated_manifest(
             "C",
@@ -699,8 +897,19 @@ mod tests {
             Handle::default(),
             &mut sources,
         );
-        let music = manifest.music.expect("generated jam always has music");
-        assert!(sources.get(&music).is_some());
+        assert!(manifest.music.is_none());
+        let stems = manifest
+            .backing_stems
+            .expect("generated jam always has rhythm-section stems");
+        assert_eq!(stems.len(), 3);
+        assert_eq!(
+            stems
+                .iter()
+                .map(|stem| stem.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Bass", "Drums", "Comping"]
+        );
+        assert!(stems.iter().all(|stem| sources.get(&stem.source).is_some()));
         assert!(manifest.music_duration_secs > 0.0);
         assert_eq!(manifest.waveform.len(), WAVEFORM_BUCKETS);
     }

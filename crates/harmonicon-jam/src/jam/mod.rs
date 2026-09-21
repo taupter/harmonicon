@@ -30,7 +30,7 @@ pub mod rhythm_guide;
 pub mod session;
 
 use call_response as jam_call_response;
-use midi_tracks as jam_midi_tracks;
+use midi_tracks as jam_stems;
 use position_guide as jam_position_guide;
 use rhythm_guide as jam_rhythm_guide;
 use session as jam_session;
@@ -41,7 +41,7 @@ impl Plugin for JamPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<jam_session::JamLoop>()
             .init_resource::<jam_session::JamEnding>()
-            .init_resource::<jam_midi_tracks::JamMidiMute>()
+            .init_resource::<jam_stems::JamStemMute>()
             .init_resource::<improv::ImprovGate>()
             .init_resource::<improv::ImprovStats>()
             .add_message::<jam_position_guide::PositionCalled>()
@@ -108,7 +108,7 @@ impl Plugin for JamPlugin {
                     jam_call_response::drive_call_response,
                     jam_call_response::update_call_response_banner,
                     jam_call_response::update_call_response_label,
-                    jam_midi_tracks::update_track_mute_buttons,
+                    jam_stems::update_stem_mute_buttons,
                 )
                     .after(GameplayLogic)
                     .run_if(
@@ -123,7 +123,7 @@ impl Plugin for JamPlugin {
             // of which order the two would otherwise run in.
             .add_systems(
                 Update,
-                jam_midi_tracks::apply_midi_track_mute
+                jam_stems::apply_backing_stem_mute
                     .after(harmonicon_gameplay::gameplay::plugin::MusicVolumeSet)
                     .run_if(
                         in_state(AppState::Playing)

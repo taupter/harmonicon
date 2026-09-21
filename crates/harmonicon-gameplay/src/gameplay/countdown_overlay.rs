@@ -11,8 +11,8 @@ use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::SongManifest;
 
 use super::{
-    GameplayClock, GameplayLogic, GameplayRoot, MidiTrackPlayer, MusicPlayer, MusicStarted, Paused,
-    SongInfo, spawn_song_details,
+    BackingStemPlayer, GameplayClock, GameplayLogic, GameplayRoot, MusicPlayer, MusicStarted,
+    Paused, SongInfo, spawn_song_details,
 };
 
 #[derive(Component, Default, Clone)]
@@ -110,10 +110,10 @@ pub fn update_countdown(
             // all (the clock free-runs on frame delta instead of anchoring
             // to a sink; see `gameplay::should_anchor_to_sink`), *unless*
             // the song ships `midi_tracks` instead (see `song::
-            // MidiTrackAudio`), in which case every track gets its own
+            // BackingStemAudio`), in which case every stem gets its own
             // sink, all spawned together this same frame so they start in
             // sync — muting one later is just zeroing that sink's volume
-            // (`jam::midi_tracks::apply_midi_track_mute`), no re-mixing.
+            // (`jam::midi_tracks::apply_backing_stem_mute`), no re-mixing.
             if let Some(manifest) = manifests.get(&selected.0) {
                 // Jam Session's own `restart_finished_jam_music` re-spawns
                 // these entities once they despawn themselves, if Loop is on
@@ -132,13 +132,13 @@ pub fn update_countdown(
                         MusicPlayer,
                         GameplayRoot,
                     ));
-                } else if let Some(tracks) = &manifest.midi_tracks {
+                } else if let Some(tracks) = &manifest.backing_stems {
                     for (index, track) in tracks.iter().enumerate() {
                         commands.spawn((
                             AudioPlayer::<AudioSource>(track.source.clone()),
                             settings.with_volume(Volume::Linear(audio.music_volume)),
                             MusicPlayer,
-                            MidiTrackPlayer(index),
+                            BackingStemPlayer(index),
                             GameplayRoot,
                         ));
                     }

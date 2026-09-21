@@ -80,7 +80,7 @@ load-bearing about *this* crate.
     look distinct — `generate_background_image`), `elements.png` (unused by
     gameplay today; falls back to `Handle::default()`), `song/music.ogg`
     — falling back to `song/music.wav`, then `song/music.mid` (see
-    `SongManifest::midi_tracks`, further below, for what that last one
+    `SongManifest::backing_stems`, further below, for what that last one
     does instead of populating `music`), before giving up
     (`SongManifest::music: Option<Handle<AudioSource>>` — `None` plays
     the chart with no backing track, clock free-running instead of
@@ -116,7 +116,7 @@ load-bearing about *this* crate.
     `MidiScore::parse` would have made every future format a copy of
     `score_song.rs`, which is the mistake the trait exists to prevent.
   - **`song/music.mid` already meant backing audio** for a charted song
-    (`SongManifest::midi_tracks`). Both readings are legitimate, so
+    (`SongManifest::backing_stems`). Both readings are legitimate, so
     `assets_management::scan_artist_song` looks for a `.harpchart` in one
     pass and only falls back to an importable extension in a second —
     first-match over one `read_dir` would sometimes have played a charted

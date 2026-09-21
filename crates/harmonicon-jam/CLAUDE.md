@@ -14,7 +14,7 @@ load-bearing about *this* crate.
 
 - **`SongManifest` doesn't have to come from the `AssetServer`.**
   `jam::backing::build_generated_manifest` synthesizes one at runtime (a
-  procedurally-generated 12-bar bass line + chart, for `menu::pages::
+  procedurally-generated 12-bar rhythm-section stems + chart, for `menu::pages::
   jam_generate`'s "Generate Jam" flow — Jam Session without picking an
   existing song) and registers it with a plain `Assets::add`. Such a
   manifest has no tracked `LoadState`, so `menu::routing::check_loading`'s
@@ -92,7 +92,7 @@ load-bearing about *this* crate.
 - **Generated jams continue independently of `JamLoop`.** `JamLoop` remains
   the persistent opt-in behavior for a picked finite song. The presence of
   `GeneratedJamSession` makes `session::restart_finished_jam_music` respawn an
-  exhausted eight-chorus backing buffer without rewinding `GameplayClock`, so
+  exhausted four-chorus backing buffer without rewinding `GameplayClock`, so
   the next buffer is chorus 9 rather than a new session. `JamEnding` can queue
   a stop at the next 12-bar boundary; `finish_generated_jam_at_chorus` stops
   the backing there, plays a short tonic punctuation, and pins the free-running
@@ -104,7 +104,7 @@ load-bearing about *this* crate.
   `music.ogg`/`music.wav` — mutually exclusive with those; whichever is
   found first wins). Unlike an ordinary chart's music, this isn't loaded
   as one `Handle<AudioSource>` — `SongManifest::music` stays `None` and
-  `SongManifest::midi_tracks: Option<Vec<MidiTrackAudio>>` is populated
+  `SongManifest::backing_stems: Option<Vec<BackingStemAudio>>` is populated
   instead, one already-rendered `AudioSource` per non-empty track
   (`song::midi::render_track_pcm`, the same additive harmonica-voice
   synth `song_editor::playback`/`gameplay::call_response` share; a
@@ -125,17 +125,17 @@ load-bearing about *this* crate.
   track, all in the same frame so they start in sync, each tagged both
   `MusicPlayer` (the ordinary single-track tag — pause and the global
   music-volume slider apply to every track's sink for free, no
-  duplicated plumbing) and the new `MidiTrackPlayer(index)` (defined
+  duplicated plumbing) and the new `BackingStemPlayer(index)` (defined
   alongside `MusicPlayer` in `gameplay::state`, not in `jam`, since
   `countdown_overlay` — which spawns it — can't depend on `jam` without
   a layering inversion; `jam::midi_tracks` reads it the other way).
   Muting a track is just zeroing that sink's volume — no live
   re-mixing, since each stem is already a complete, independent render.
-  `jam::session::setup` sizes a new `JamMidiMute(Vec<bool>)` resource to
+  `jam::session::setup` sizes a new `JamStemMute(Vec<bool>)` resource to
   the song's own track count (empty, and thus a no-op everywhere, for
   an ordinary song) and — only for a MIDI-backed song — spawns a
   horizontal row of per-track mute-toggle buttons
-  (`midi_tracks::spawn_midi_track_row`) below the 12-bar/harmonica
+  (`midi_tracks::spawn_backing_stem_row`) below the 12-bar/harmonica
   columns: the screen's root layout changed from a single Row to a
   Column wrapping those two columns in their own Row sub-container, so
   this new row can sit as a full-width sibling underneath both rather
@@ -149,6 +149,6 @@ load-bearing about *this* crate.
   touches every `MusicPlayer` sink, per-track ones included — can never
   un-mute a muted track; this system always has the last word. Looping
   (`jam::session::restart_finished_jam_music`) re-spawns every track's
-  sink together the same way, and doesn't need to touch `JamMidiMute`
+  sink together the same way, and doesn't need to touch `JamStemMute`
   at all — it's a resource independent of any particular sink, so a
   track muted before the loop stays muted after it for free.

@@ -30,7 +30,8 @@ The crate has a sound foundation:
 - real-song backing, including independently mutable MIDI tracks;
 - deterministic pure functions and focused tests around timing and harmony.
 
-The musical experience is weaker than the feature list suggests:
+At the start of this pass, the musical experience was weaker than the feature
+list suggested:
 
 1. The generated band is one sine-based bass voice. `Genre` changes an
    eight-slot bass pattern and straight/shuffle feel, but there is no drummer,
@@ -97,9 +98,16 @@ the audio and form display agree across repeated choruses.
 
 ### 2. Turn the generator into a small rhythm section
 
+**In progress.** Generated backing now consists of sample-aligned Bass, Drums,
+and Comping stems using the generalized backing-stem playback/mute path. The
+first deterministic genre patterns are in place; the arrangement model,
+fills, role-specific timbres, balance listening pass, and genre-credibility
+review remain.
+
 Model accompaniment as synchronized stems rather than one mixed bass buffer.
 Reuse the independent-sink and mute machinery already proven by MIDI backing,
-generalized from `MidiTrackAudio`/`JamMidiMute` to backing stems.
+generalized as `BackingStemAudio`/`JamStemMute` so generated and MIDI stems
+share one playback path.
 
 Start with three roles:
 
