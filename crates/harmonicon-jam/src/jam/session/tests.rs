@@ -10,22 +10,40 @@ use harmonicon_core::harmonica::harp_banner;
 
 #[test]
 fn restarts_once_finished_when_loop_is_on() {
-    assert!(should_restart_jam_music(true, true, false));
+    assert!(should_restart_jam_music(true, false, false, true, false));
 }
 
 #[test]
 fn does_not_restart_while_still_playing() {
-    assert!(!should_restart_jam_music(true, true, true));
+    assert!(!should_restart_jam_music(true, false, false, true, true));
 }
 
 #[test]
 fn does_not_restart_when_loop_is_off() {
-    assert!(!should_restart_jam_music(false, true, false));
+    assert!(!should_restart_jam_music(false, false, false, true, false));
 }
 
 #[test]
 fn does_not_restart_before_the_jam_has_started() {
-    assert!(!should_restart_jam_music(true, false, false));
+    assert!(!should_restart_jam_music(true, false, false, false, false));
+}
+
+#[test]
+fn generated_jam_restarts_without_the_finite_song_loop_toggle() {
+    assert!(should_restart_jam_music(false, true, false, true, false));
+}
+
+#[test]
+fn a_scheduled_or_completed_ending_prevents_restart() {
+    assert!(!should_restart_jam_music(false, true, true, true, false));
+}
+
+#[test]
+fn ending_is_scheduled_for_the_next_chorus_boundary() {
+    assert_eq!(next_chorus_boundary(0), 12);
+    assert_eq!(next_chorus_boundary(11), 12);
+    assert_eq!(next_chorus_boundary(12), 24);
+    assert_eq!(next_chorus_boundary(95), 96);
 }
 
 /// Standard Richter C diatonic, matching `harmonica.rs`'s test layout.

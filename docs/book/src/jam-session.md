@@ -9,7 +9,7 @@ The screen is split into two columns:
 
 - **Left — everything but the harmonica**: the song title, a **Loop**
   toggle (restarts the backing track when it ends, instead of stopping),
-  the **12-bar chord grid** (the current bar lights up as the backing
+  the chorus/bar position, the **12-bar chord grid** (the current bar lights up as the backing
   plays), the **metronome**, and a live **spectrogram** of what your mic is
   hearing.
 - **Right — the harmonica**: a reference bend diagram for every hole, plus
@@ -26,7 +26,8 @@ not a judge. It's the same live feedback the
 practicing here and in that lesson builds the same skill.
 
 Want a backing track without picking an existing song? See
-[Generate a Jam](jam-generate.md).
+[Generate a Jam](jam-generate.md). Generated jams continue automatically and
+replace the finite-song Loop control with **End after this chorus**.
 
 Press **Esc**, or click the **⏸** button in the bottom-right corner, to
 pause and reach the pause menu's Restart/Quit Session controls.

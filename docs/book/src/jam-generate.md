@@ -25,6 +25,9 @@ Before starting, pick:
 Click **Start Jam** and you're straight into an ordinary
 [Jam Session](jam-session.md) — same two-column layout, same live hole-map
 feedback, same 12-bar grid — just with a generated backing instead of a
-real song's. **Restart** resets the bass to the top of the loop; **Quit
-Song** returns to this setup page (with your key/progression/position/tempo
-remembered), not the song list, since there was never a song list involved.
+real song's. It keeps playing across backing-buffer boundaries automatically;
+the chorus/bar readout remains continuous. Choose **End after this chorus**
+to resolve on the tonic at the next 12-bar boundary. **Restart** returns to
+the count-in and chorus 1; **Quit Song** returns to this setup page (with your
+key/progression/position/tempo remembered), not the song list, since there
+was never a song list involved.

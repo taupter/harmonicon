@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
+use bevy::audio::{AudioPlayer, AudioSink, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
@@ -37,6 +37,7 @@ use harmonicon_ui::dialogs::twelve_bar_grid::{GridConfig, spawn_12_bar_grid};
 use harmonicon_ui::spectrogram::{OscMaterial, SpectrogramStyle, spawn_spectrogram};
 
 use super::backing::JamGenre;
+use super::backing::generate_ending_pcm;
 use super::improv::classify_note_fit;
 use super::midi_tracks::{JamMidiMute, spawn_midi_track_row};
 use super::position_guide::spawn_position_compass;
@@ -49,6 +50,12 @@ use harmonicon_app::app::GeneratedJamSession;
 /// live-tinted hole map. The shared gameplay clock/music/pause systems run
 /// for this mode too, so the chart tracks the song and the metronome clicks
 /// — there are just no falling notes.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct JamResetState<'w> {
+    ending: ResMut<'w, JamEnding>,
+    call_response: ResMut<'w, super::call_response::CallResponseState>,
+}
+
 pub fn setup(
     mut commands: Commands,
     selected: Res<SelectedSong>,
@@ -65,6 +72,7 @@ pub fn setup(
     generated: Option<Res<GeneratedJamSession>>,
     effective: Res<EffectiveHarmonica>,
     loc: Res<Localization>,
+    mut reset: JamResetState,
 ) {
     let Some(manifest) = manifests.get(&selected.0) else {
         error!("SongManifest not ready when entering Jam Session");
@@ -72,6 +80,8 @@ pub fn setup(
     };
     clock.set_free(-COUNTDOWN);
     music_started.0 = false;
+    *reset.ending = JamEnding::default();
+    *reset.call_response = super::call_response::CallResponseState::default();
     // Fresh, all-unmuted for this jam — sized to the song's own track
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
@@ -197,29 +207,76 @@ pub fn setup(
                             },
                             TextColor(Color::srgb(0.95, 0.80, 0.35)),
                         ));
-                        left.spawn(Node {
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            column_gap: Val::Px(8.0),
-                            ..default()
-                        })
-                        .with_children(|row| {
-                            row.spawn_empty().apply_scene(button::small(
-                                &loc.msg("jam-loop-button"),
-                                |_: On<Activate>, mut jam_loop: ResMut<JamLoop>| {
-                                    jam_loop.0 = !jam_loop.0;
-                                },
-                            ));
-                            row.spawn((
-                                Text::new(String::from(loc.msg("jam-loop-off"))),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                JamLoopLabel,
-                            ));
-                        });
+                        if generated.is_some() {
+                            left.spawn(Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(8.0),
+                                ..default()
+                            })
+                            .with_children(|row| {
+                                row.spawn_empty().apply_scene(button::small(
+                                    &loc.msg("jam-end-after-chorus-button"),
+                                    |_: On<Activate>,
+                                     absolute: Res<
+                                        harmonicon_gameplay::gameplay::AbsoluteBar,
+                                    >,
+                                     mut ending: ResMut<JamEnding>| {
+                                        if ending.stop_at_bar.is_none()
+                                            && ending.ended_at_secs.is_none()
+                                        {
+                                            ending.stop_at_bar =
+                                                Some(next_chorus_boundary(absolute.0));
+                                        }
+                                    },
+                                ));
+                                row.spawn((
+                                    Text::new(String::from(loc.msg("jam-keep-playing"))),
+                                    TextFont {
+                                        font_size: FontSize::Px(15.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                                    JamEndingLabel,
+                                ));
+                            });
+                        } else {
+                            left.spawn(Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(8.0),
+                                ..default()
+                            })
+                            .with_children(|row| {
+                                row.spawn_empty().apply_scene(button::small(
+                                    &loc.msg("jam-loop-button"),
+                                    |_: On<Activate>, mut jam_loop: ResMut<JamLoop>| {
+                                        jam_loop.0 = !jam_loop.0;
+                                    },
+                                ));
+                                row.spawn((
+                                    Text::new(String::from(loc.msg("jam-loop-off"))),
+                                    TextFont {
+                                        font_size: FontSize::Px(15.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                                    JamLoopLabel,
+                                ));
+                            });
+                        }
+                        left.spawn((
+                            Text::new(String::from(loc.msg_args(
+                                "jam-form-position",
+                                &[("chorus", "1".into()), ("bar", "1".into())],
+                            ))),
+                            TextFont {
+                                font_size: FontSize::Px(15.0),
+                                ..default()
+                            },
+                            TextColor(Color::srgb(0.95, 0.80, 0.35)),
+                            JamFormPosition,
+                        ));
                         left.spawn(Node {
                             flex_direction: FlexDirection::Row,
                             align_items: AlignItems::Center,
@@ -378,6 +435,25 @@ pub struct JamLoop(pub bool);
 #[derive(Component)]
 pub struct JamLoopLabel;
 
+/// Generated-jam transport state. A scheduled ending names the first bar of
+/// the next chorus; once reached, `ended_at_secs` pins the free-running jam
+/// clock after the tonic punctuation has fired.
+#[derive(Resource, Default, Debug, PartialEq)]
+pub struct JamEnding {
+    stop_at_bar: Option<usize>,
+    ended_at_secs: Option<f64>,
+}
+
+#[derive(Component)]
+pub struct JamEndingLabel;
+
+#[derive(Component)]
+pub struct JamFormPosition;
+
+fn next_chorus_boundary(absolute_bar: usize) -> usize {
+    (absolute_bar / 12 + 1) * 12
+}
+
 /// Keeps the "Loop: ..." readout in step with the toggle.
 pub fn update_jam_loop_label(
     jam_loop: Res<JamLoop>,
@@ -396,21 +472,59 @@ pub fn update_jam_loop_label(
     }
 }
 
+pub fn update_jam_status_labels(
+    absolute: Res<harmonicon_gameplay::gameplay::AbsoluteBar>,
+    ending: Res<JamEnding>,
+    loc: Res<Localization>,
+    mut positions: Query<&mut Text, (With<JamFormPosition>, Without<JamEndingLabel>)>,
+    mut ending_labels: Query<&mut Text, (With<JamEndingLabel>, Without<JamFormPosition>)>,
+) {
+    if absolute.is_changed() || ending.is_changed() {
+        for mut text in &mut positions {
+            *text = Text::new(String::from(loc.msg_args(
+                "jam-form-position",
+                &[
+                    ("chorus", (absolute.0 / 12 + 1).to_string()),
+                    ("bar", (absolute.0 % 12 + 1).to_string()),
+                ],
+            )));
+        }
+    }
+    if ending.is_changed() {
+        let key = if ending.ended_at_secs.is_some() {
+            "jam-ended"
+        } else if ending.stop_at_bar.is_some() {
+            "jam-ending-after-chorus"
+        } else {
+            "jam-keep-playing"
+        };
+        for mut text in &mut ending_labels {
+            *text = Text::new(String::from(loc.msg(key)));
+        }
+    }
+}
+
 /// Whether the jam's music should be (re)spawned right now: the jam has
 /// started, Loop is on, and no `MusicPlayer` entity is currently alive (i.e.
 /// the previous playthrough already finished and despawned itself — see
 /// `restart_finished_jam_music`). Split out as a pure predicate so the
 /// decision is unit-testable without spinning up an `App`.
-fn should_restart_jam_music(loop_on: bool, music_started: bool, music_player_alive: bool) -> bool {
-    music_started && loop_on && !music_player_alive
+fn should_restart_jam_music(
+    loop_on: bool,
+    generated: bool,
+    ending_active: bool,
+    music_started: bool,
+    music_player_alive: bool,
+) -> bool {
+    music_started && (loop_on || generated) && !ending_active && !music_player_alive
 }
 
 /// Restarts the jam's background music once the current playthrough has
 /// *finished on its own* — the `MusicPlayer` entity despawns itself via
-/// `PlaybackSettings::DESPAWN` — and Loop is on at that moment. This system
-/// never touches a live sink, only ever spawning a *new* entity after the
-/// old one is gone — seeking or restarting a still-playing sink is
-/// unreliable in `bevy_audio` (see `TODO.md`).
+/// `PlaybackSettings::DESPAWN` — and either a picked song's Loop is on or a
+/// generated jam has not been asked to end. This system never touches a live
+/// sink, only ever spawning a *new* entity after the old one is gone — seeking
+/// or restarting a still-playing sink is unreliable in `bevy_audio`.
 ///
 /// Also resets `GameplayClock` back to 0 — Jam Session's clock free-runs on
 /// frame deltas rather than anchoring to the sink (see `should_anchor_to_
@@ -423,11 +537,19 @@ pub fn restart_finished_jam_music(
     selected: Res<SelectedSong>,
     manifests: Res<Assets<SongManifest>>,
     audio: Res<AudioSettings>,
+    generated: Option<Res<GeneratedJamSession>>,
+    ending: Res<JamEnding>,
     existing: Query<(), With<MusicPlayer>>,
     mut clock: ResMut<GameplayClock>,
     mut commands: Commands,
 ) {
-    if !should_restart_jam_music(jam_loop.0, music_started.0, !existing.is_empty()) {
+    if !should_restart_jam_music(
+        jam_loop.0,
+        generated.is_some(),
+        ending.stop_at_bar.is_some() || ending.ended_at_secs.is_some(),
+        music_started.0,
+        !existing.is_empty(),
+    ) {
         return;
     }
     let Some(manifest) = manifests.get(&selected.0) else {
@@ -439,7 +561,12 @@ pub fn restart_finished_jam_music(
     if manifest.music.is_none() && manifest.midi_tracks.is_none() {
         return;
     }
-    clock.set_free(0.0);
+    // A finite picked song really loops back to its own start. A generated
+    // backing is eight choruses cut into one buffer; respawning that buffer
+    // continues the open jam at chorus nine, so its form clock must not jump.
+    if generated.is_none() {
+        clock.set_free(0.0);
+    }
     if let Some(music) = manifest.music.clone() {
         commands.spawn((
             AudioPlayer::<AudioSource>(music),
@@ -461,6 +588,53 @@ pub fn restart_finished_jam_music(
             ));
         }
     }
+}
+
+/// Stops a generated backing at the requested chorus boundary and resolves
+/// its turnaround with one tonic bass punctuation. Afterwards the free-run
+/// clock is held at that boundary so the form display does not wander on in
+/// silence; Restart/Quit remain available through the normal pause control.
+pub fn finish_generated_jam_at_chorus(
+    absolute: Res<harmonicon_gameplay::gameplay::AbsoluteBar>,
+    selected: Res<SelectedSong>,
+    manifests: Res<Assets<SongManifest>>,
+    audio: Res<AudioSettings>,
+    mut sources: ResMut<Assets<AudioSource>>,
+    sinks: Query<&AudioSink, With<MusicPlayer>>,
+    mut ending: ResMut<JamEnding>,
+    mut clock: ResMut<GameplayClock>,
+    mut commands: Commands,
+) {
+    if let Some(ended) = ending.ended_at_secs {
+        clock.set_free(ended);
+        return;
+    }
+    let Some(stop_at) = ending.stop_at_bar else {
+        return;
+    };
+    if absolute.0 < stop_at {
+        return;
+    }
+    for sink in &sinks {
+        sink.stop();
+    }
+    let Some(manifest) = manifests.get(&selected.0) else {
+        return;
+    };
+    let pcm = generate_ending_pcm(&manifest.chart.song.key, manifest.chart.song.tempo_bpm);
+    if !pcm.is_empty() {
+        let source = sources.add(AudioSource {
+            bytes: harmonicon_core::wav::encode_wav(&pcm, super::backing::SAMPLE_RATE).into(),
+        });
+        commands.spawn((
+            AudioPlayer::<AudioSource>(source),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(audio.music_volume)),
+            GameplayRoot,
+        ));
+    }
+    let ended = clock.get();
+    ending.ended_at_secs = Some(ended);
+    clock.set_free(ended);
 }
 
 // ── Live harmonica hole map ─────────────────────────────────────────────────────

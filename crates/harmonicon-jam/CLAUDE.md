@@ -89,6 +89,16 @@ load-bearing about *this* crate.
   already lit by a live pitch, so actually echoing a note still shows its
   normal chord-tone/in-scale tint) until the next call replaces them.
 
+- **Generated jams continue independently of `JamLoop`.** `JamLoop` remains
+  the persistent opt-in behavior for a picked finite song. The presence of
+  `GeneratedJamSession` makes `session::restart_finished_jam_music` respawn an
+  exhausted eight-chorus backing buffer without rewinding `GameplayClock`, so
+  the next buffer is chorus 9 rather than a new session. `JamEnding` can queue
+  a stop at the next 12-bar boundary; `finish_generated_jam_at_chorus` stops
+  the backing there, plays a short tonic punctuation, and pins the free-running
+  clock. `session::setup` resets the ending and call-response state on every
+  entry/restart.
+
 - **A song can ship a raw MIDI file as its backing track**
   (`song/music.mid`, a third fallback in `song::loader` after
   `music.ogg`/`music.wav` — mutually exclusive with those; whichever is

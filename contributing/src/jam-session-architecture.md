@@ -96,6 +96,14 @@ this case and skip the loading screen, and lets "Quit Song" route back
 to the generation page instead of a song list a generated jam never
 went through.
 
+Generated backing is rendered in eight-chorus buffers, but the session is
+continuous: when one buffer exhausts, Jam Session respawns it without rewinding
+the free-running gameplay clock, so the form display proceeds into chorus 9.
+This is separate from `JamLoop`, which remains an opt-in preference for a
+finite picked song. `JamEnding` schedules **End after this chorus** at the next
+12-bar boundary; the backing sinks stop there, a short tonic punctuation plays,
+and the clock holds at the boundary until Restart or Quit.
+
 ## MIDI multi-track backing: independent, synchronized sinks
 
 This is the newest piece of `jam`, and the one with the most interesting

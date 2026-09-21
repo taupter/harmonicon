@@ -227,6 +227,18 @@ fn bass_tone(freq_hz: f32, duration_secs: f32) -> Vec<f32> {
         .collect()
 }
 
+/// A short tonic punctuation for a generated jam that the player asked to
+/// end at the chorus boundary. The rhythm-section pass will eventually own
+/// a fuller ending; this deliberately uses the existing bass voice so phase
+/// one can finish on home instead of cutting an unresolved turnaround dead.
+pub(crate) fn generate_ending_pcm(key: &str, bpm: f32) -> Vec<f32> {
+    let Some(midi) = note_to_midi(&format!("{key}3")) else {
+        return Vec::new();
+    };
+    let beat_secs = 60.0 / bpm.max(1.0);
+    bass_tone(midi_to_freq_hz(midi as f32), beat_secs * 1.5)
+}
+
 /// The 8 note frequencies (Hz) of one bar of `pattern` (see the `*_PATTERN`
 /// constants and [`genre_pattern`]), rooted on `root`, in the bass register
 /// (octave 3 — one octave higher than a real bass guitar, deliberately: a
@@ -488,6 +500,15 @@ mod tests {
             pcm.iter().any(|&s| s.abs() > 0.01),
             "generated backing should not be silent"
         );
+    }
+
+    #[test]
+    fn ending_is_audible_and_tempo_shaped() {
+        let slow = generate_ending_pcm("C", 60.0);
+        let fast = generate_ending_pcm("C", 120.0);
+        assert!(slow.iter().any(|sample| sample.abs() > 0.01));
+        assert!(fast.iter().any(|sample| sample.abs() > 0.01));
+        assert_eq!(slow.len(), fast.len() * 2);
     }
 
     #[test]

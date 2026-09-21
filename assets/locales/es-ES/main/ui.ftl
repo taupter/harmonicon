@@ -947,6 +947,11 @@ bending-tempo-increase = Aumentar tempo
 jam-loop-button = ↻ Bucle
 jam-loop-off = Bucle: apagado
 jam-loop-on = Bucle: encendido
+jam-end-after-chorus-button = Terminar después de este chorus
+jam-keep-playing = Seguir tocando
+jam-ending-after-chorus = Terminando después de este chorus…
+jam-ended = Terminado — reinicia o sal
+jam-form-position = Chorus {$chorus} · Compás {$bar}
 jam-hole-map-hint = Tu armónica  ·  dorado = tono del acorde ahora mismo  ·  verde = nota de la escala de blues  ·  soplo arriba / aspiración abajo
 jam-call-response-button = ⇄ Pregunta y Respuesta
 jam-call-response-off = Pregunta y Respuesta: apagado

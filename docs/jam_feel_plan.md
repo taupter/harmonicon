@@ -73,6 +73,11 @@ restarts are more relevant signals than note accuracy.
 
 ### 1. Make the generated session continuous and finishable
 
+**Implemented.** Generated sessions continue independently of the finite-song
+Loop preference, show chorus/bar position, and can queue a tonic ending at the
+next chorus boundary. The later rhythm-section phase can replace that simple
+tonic punctuation with a full-band ending.
+
 Fix the basic performance contract before adding instruments.
 
 - Give generated jams their own playback policy: continue by default, while a

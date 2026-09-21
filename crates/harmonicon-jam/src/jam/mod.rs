@@ -40,6 +40,7 @@ pub struct JamPlugin;
 impl Plugin for JamPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<jam_session::JamLoop>()
+            .init_resource::<jam_session::JamEnding>()
             .init_resource::<jam_midi_tracks::JamMidiMute>()
             .init_resource::<improv::ImprovGate>()
             .init_resource::<improv::ImprovStats>()
@@ -61,9 +62,13 @@ impl Plugin for JamPlugin {
             .add_systems(
                 Update,
                 (
+                    jam_session::finish_generated_jam_at_chorus
+                        .run_if(resource_exists::<GeneratedJamSession>),
                     jam_session::restart_finished_jam_music,
                     jam_session::update_jam_loop_label,
+                    jam_session::update_jam_status_labels,
                 )
+                    .chain()
                     .after(GameplayLogic)
                     .run_if(
                         in_state(AppState::Playing)

@@ -949,6 +949,11 @@ bending-tempo-increase = Increase tempo
 jam-loop-button = ↻ Loop
 jam-loop-off = Loop: off
 jam-loop-on = Loop: on
+jam-end-after-chorus-button = End after this chorus
+jam-keep-playing = Keep playing
+jam-ending-after-chorus = Ending after this chorus…
+jam-ended = Finished — Restart or Quit
+jam-form-position = Chorus {$chorus} · Bar {$bar}
 jam-hole-map-hint = Your harmonica  ·  gold = chord tone right now  ·  green = blues-scale note  ·  top blow / bottom draw
 jam-call-response-button = ⇄ Call & Response
 jam-call-response-off = Call & Response: off
