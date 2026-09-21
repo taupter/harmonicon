@@ -48,7 +48,7 @@ const NOTE_GAP_FRAC: f32 = 0.08;
 /// variant: `Progression` only changes which chord *roots* play over the
 /// 12-bar form, but the thing that actually makes a genre sound like that
 /// genre is almost entirely rhythm/groove, not chord choice — see
-/// [`genre_pattern`].
+/// [`groove_arrangement`].
 ///
 /// A player can freely combine any `Genre` with any `Progression` (e.g.
 /// `Rock` rhythm over the `JazzBlues` changes) — the two are independent
@@ -171,26 +171,179 @@ const REGGAE_PATTERN: [Option<i32>; 8] =
 const COUNTRY_PATTERN: [Option<i32>; 8] =
     [Some(0), None, Some(7), None, Some(0), None, Some(7), None];
 
-/// This genre's per-bar note pattern (see the `*_PATTERN` constants above)
-/// and whether its eighth-note pairs swing 2:1 or play straight/even.
-/// `pub(crate)` so `jam::rhythm_guide` can drive its live harmonica-attack
-/// pulse row from the exact same rhythmic skeleton the bass audio uses —
-/// one shared "what does this genre's groove look like" source, two
-/// different renderings (audio synthesis here, a visual guide there).
-pub(crate) fn genre_pattern(genre: Genre) -> (&'static [Option<i32>; 8], bool) {
-    match genre {
-        Genre::Blues => (&BLUES_PATTERN, true),
-        Genre::Jazz => (&JAZZ_PATTERN, true),
-        Genre::Rock => (&ROCK_PATTERN, false),
-        Genre::Reggae => (&REGGAE_PATTERN, false),
-        Genre::Country => (&COUNTRY_PATTERN, false),
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct DrumEvent {
+    pub kick: bool,
+    pub snare: bool,
+    pub hat: bool,
+    pub accent: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CompingEvent {
+    pub hit: bool,
+    pub accent: f32,
+}
+
+/// One bar of shared musical intent for every generated backing role. Audio
+/// renderers and the live pulse guide consume this same value, so genre feel
+/// cannot diverge between stems or between sound and screen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct GrooveArrangement {
+    pub swung: bool,
+    pub bass: &'static [Option<i32>; 8],
+    pub drums: [DrumEvent; 8],
+    pub comping: [CompingEvent; 8],
+}
+
+const fn drum(kick: bool, snare: bool, hat: bool, accent: f32) -> DrumEvent {
+    DrumEvent {
+        kick,
+        snare,
+        hat,
+        accent,
+    }
+}
+
+const fn comp(hit: bool, accent: f32) -> CompingEvent {
+    CompingEvent { hit, accent }
+}
+
+pub(crate) fn groove_arrangement(genre: Genre) -> GrooveArrangement {
+    let (swung, bass, drums, comping) = match genre {
+        Genre::Blues => (
+            true,
+            &BLUES_PATTERN,
+            [
+                drum(true, false, true, 1.0),
+                drum(false, false, true, 0.55),
+                drum(false, true, true, 0.9),
+                drum(false, false, true, 0.55),
+                drum(true, false, true, 0.85),
+                drum(false, false, true, 0.55),
+                drum(false, true, true, 0.95),
+                drum(false, false, true, 0.55),
+            ],
+            [
+                comp(false, 0.0),
+                comp(true, 0.75),
+                comp(false, 0.0),
+                comp(true, 0.65),
+                comp(false, 0.0),
+                comp(true, 0.75),
+                comp(false, 0.0),
+                comp(true, 0.65),
+            ],
+        ),
+        Genre::Jazz => (
+            true,
+            &JAZZ_PATTERN,
+            [
+                drum(true, false, true, 0.65),
+                drum(false, false, true, 0.55),
+                drum(false, true, true, 0.45),
+                drum(false, false, true, 0.7),
+                drum(false, false, true, 0.55),
+                drum(true, false, true, 0.45),
+                drum(false, true, true, 0.5),
+                drum(false, false, true, 0.75),
+            ],
+            [
+                comp(false, 0.0),
+                comp(true, 0.55),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(true, 0.5),
+                comp(false, 0.0),
+                comp(false, 0.0),
+            ],
+        ),
+        Genre::Rock => (
+            false,
+            &ROCK_PATTERN,
+            [
+                drum(true, false, true, 1.0),
+                drum(false, false, true, 0.6),
+                drum(false, true, true, 1.0),
+                drum(false, false, true, 0.6),
+                drum(true, false, true, 0.9),
+                drum(false, false, true, 0.6),
+                drum(false, true, true, 1.0),
+                drum(false, false, true, 0.6),
+            ],
+            [
+                comp(true, 0.9),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(true, 0.8),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(false, 0.0),
+            ],
+        ),
+        Genre::Reggae => (
+            false,
+            &REGGAE_PATTERN,
+            [
+                drum(false, false, false, 0.0),
+                drum(false, false, true, 0.5),
+                drum(false, true, false, 0.7),
+                drum(false, false, true, 0.5),
+                drum(true, false, false, 0.9),
+                drum(false, false, true, 0.5),
+                drum(false, true, false, 0.7),
+                drum(false, false, true, 0.5),
+            ],
+            [
+                comp(false, 0.0),
+                comp(true, 0.8),
+                comp(false, 0.0),
+                comp(true, 0.75),
+                comp(false, 0.0),
+                comp(true, 0.8),
+                comp(false, 0.0),
+                comp(true, 0.75),
+            ],
+        ),
+        Genre::Country => (
+            false,
+            &COUNTRY_PATTERN,
+            [
+                drum(true, false, true, 0.9),
+                drum(false, false, true, 0.45),
+                drum(false, true, true, 0.75),
+                drum(false, false, true, 0.45),
+                drum(true, false, true, 0.85),
+                drum(false, false, true, 0.45),
+                drum(false, true, true, 0.75),
+                drum(false, false, true, 0.45),
+            ],
+            [
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(true, 0.7),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(false, 0.0),
+                comp(true, 0.65),
+                comp(false, 0.0),
+            ],
+        ),
+    };
+    GrooveArrangement {
+        swung,
+        bass,
+        drums,
+        comping,
     }
 }
 
 /// The long eighth of a swung pair takes this fraction of the beat (the
 /// short one takes the rest) — the same 2:1 "triplet swing" ratio
 /// `metronome_overlay`'s `MetronomeFeel::Shuffle` clicks to, so a genre
-/// that swings (see [`genre_pattern`]) swings in step with the shuffle-feel
+/// that swings (see [`groove_arrangement`]) swings in step with the shuffle-feel
 /// metronome. A straight genre splits the beat evenly instead. `pub(crate)`
 /// so `jam::rhythm_guide::active_slot` can use the identical split for its
 /// live pulse timing instead of a second, possibly-drifting copy.
@@ -244,7 +397,7 @@ pub(crate) fn generate_ending_pcm(key: &str, bpm: f32) -> Vec<f32> {
 }
 
 /// The 8 note frequencies (Hz) of one bar of `pattern` (see the `*_PATTERN`
-/// constants and [`genre_pattern`]), rooted on `root`, in the bass register
+/// constants and [`groove_arrangement`]), rooted on `root`, in the bass register
 /// (octave 3 — one octave higher than a real bass guitar, deliberately: a
 /// single sine-ish voice with no amp/cabinet coloring, and octave 2's
 /// ~65–110 Hz fundamentals are below what small/laptop speakers reproduce,
@@ -261,12 +414,13 @@ fn bar_beat_freqs(root: &str, pattern: &[Option<i32>; 8]) -> [Option<f32>; 8] {
 
 /// Renders [`CHORUSES`] repeats of a `progression`'s 12-bar bass line in
 /// `key` at `bpm` (4/4 throughout), shaped by `genre`'s rhythm pattern and
-/// straight/swing feel (see [`genre_pattern`]). Pure and deterministic —
+/// straight/swing feel (see [`groove_arrangement`]). Pure and deterministic —
 /// the whole backing loop is fully described by
 /// `key`/`bpm`/`progression`/`genre`.
 pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let (pattern, swung) = genre_pattern(genre);
+    let arrangement = groove_arrangement(genre);
+    let (pattern, swung) = (arrangement.bass, arrangement.swung);
     // Each bar's 8 notes are 4 pairs, one pair per beat. A swung genre's
     // long note takes `SWING_LONG_FRAC` of the beat, the short note the
     // rest; a straight genre splits the beat evenly instead — either way
@@ -300,44 +454,32 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
     buf
 }
 
-fn drum_slot(genre: Genre, slot: usize, duration_secs: f32) -> Vec<f32> {
+fn drum_slot(event: DrumEvent, slot: usize, duration_secs: f32) -> Vec<f32> {
     let n = (duration_secs * SAMPLE_RATE as f32).max(1.0) as usize;
-    let beat_slot = slot % 8;
-    let (kick, snare, hat) = match genre {
-        Genre::Blues => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
-        Genre::Jazz => (matches!(beat_slot, 0 | 5), matches!(beat_slot, 2 | 6), true),
-        Genre::Rock => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
-        Genre::Reggae => (
-            beat_slot == 4,
-            matches!(beat_slot, 2 | 6),
-            beat_slot % 2 == 1,
-        ),
-        Genre::Country => (matches!(beat_slot, 0 | 4), matches!(beat_slot, 2 | 6), true),
-    };
     (0..n)
         .map(|i| {
             let t = i as f32 / SAMPLE_RATE as f32;
             let mut sample = 0.0;
-            if kick {
+            if event.kick {
                 let env = (-t * 18.0).exp();
                 let phase = TAU * (72.0 * t - 18.0 * t * t);
                 sample += phase.sin() * env * 0.24;
             }
-            if snare {
+            if event.snare {
                 let hash = (i as u32)
                     .wrapping_mul(1_664_525)
                     .wrapping_add(1_013_904_223);
                 let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
                 sample += noise * (-t * 24.0).exp() * 0.12;
             }
-            if hat {
+            if event.hat {
                 let hash = (i as u32)
                     .wrapping_mul(22_695_477)
                     .wrapping_add((slot as u32).wrapping_mul(1_103_515_245));
                 let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
                 sample += noise * (-t * 65.0).exp() * 0.055;
             }
-            sample
+            sample * event.accent
         })
         .collect()
 }
@@ -369,19 +511,10 @@ fn comping_slot(
         .collect()
 }
 
-fn comping_hits(genre: Genre, slot: usize) -> bool {
-    match genre {
-        Genre::Blues => matches!(slot, 1 | 3 | 5 | 7),
-        Genre::Jazz => matches!(slot, 1 | 5),
-        Genre::Rock => matches!(slot, 0 | 4),
-        Genre::Reggae => slot % 2 == 1,
-        Genre::Country => matches!(slot, 2 | 6),
-    }
-}
-
 fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let (_, swung) = genre_pattern(genre);
+    let arrangement = groove_arrangement(genre);
+    let swung = arrangement.swung;
     let long = if swung {
         secs_per_beat * SWING_LONG_FRAC
     } else {
@@ -392,7 +525,7 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
     for _ in 0..CHORUSES * 12 {
         for slot in 0..8 {
             out.extend(drum_slot(
-                genre,
+                arrangement.drums[slot],
                 slot,
                 if slot % 2 == 0 { long } else { short },
             ));
@@ -403,7 +536,8 @@ fn generate_drums_pcm(bpm: f32, genre: Genre) -> Vec<f32> {
 
 fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
-    let (_, swung) = genre_pattern(genre);
+    let arrangement = groove_arrangement(genre);
+    let swung = arrangement.swung;
     let long = if swung {
         secs_per_beat * SWING_LONG_FRAC
     } else {
@@ -416,8 +550,13 @@ fn generate_comping_pcm(key: &str, bpm: f32, progression: Progression, genre: Ge
         for (root, quality) in &bars {
             for slot in 0..8 {
                 let secs = if slot % 2 == 0 { long } else { short };
-                if comping_hits(genre, slot) {
-                    out.extend(comping_slot(root, *quality, secs));
+                let event = arrangement.comping[slot];
+                if event.hit {
+                    out.extend(
+                        comping_slot(root, *quality, secs)
+                            .into_iter()
+                            .map(|sample| sample * event.accent),
+                    );
                 } else {
                     out.extend(std::iter::repeat_n(
                         0.0,
@@ -618,8 +757,8 @@ mod tests {
         // every key, must clear ~100 Hz. C is the lowest pitch class, so if
         // it clears the bar every other key does too.
         for genre in Genre::all() {
-            let (pattern, _) = genre_pattern(*genre);
-            for &f in bar_beat_freqs("C", pattern).iter().flatten() {
+            let arrangement = groove_arrangement(*genre);
+            for &f in bar_beat_freqs("C", arrangement.bass).iter().flatten() {
                 assert!(
                     f > 100.0,
                     "{genre:?}: {f} Hz is below typical small-speaker cutoff"
@@ -644,11 +783,11 @@ mod tests {
 
     #[test]
     fn blues_and_jazz_swing_the_rest_play_straight() {
-        assert!(genre_pattern(Genre::Blues).1);
-        assert!(genre_pattern(Genre::Jazz).1);
-        assert!(!genre_pattern(Genre::Rock).1);
-        assert!(!genre_pattern(Genre::Reggae).1);
-        assert!(!genre_pattern(Genre::Country).1);
+        assert!(groove_arrangement(Genre::Blues).swung);
+        assert!(groove_arrangement(Genre::Jazz).swung);
+        assert!(!groove_arrangement(Genre::Rock).swung);
+        assert!(!groove_arrangement(Genre::Reggae).swung);
+        assert!(!groove_arrangement(Genre::Country).swung);
     }
 
     #[test]
@@ -656,9 +795,45 @@ mod tests {
         // Every swung genre should feel like Shuffle live, every straight
         // genre like Straight — the two shouldn't be able to disagree.
         for &genre in Genre::all() {
-            let (_, swung) = genre_pattern(genre);
+            let swung = groove_arrangement(genre).swung;
             let expected = if swung { Feel::Shuffle } else { Feel::Straight };
             assert_eq!(genre.metronome_feel(), expected, "{genre:?}");
+        }
+    }
+
+    #[test]
+    fn every_arrangement_has_bounded_role_events() {
+        for &genre in Genre::all() {
+            let arrangement = groove_arrangement(genre);
+            assert!(
+                arrangement.bass.iter().any(Option::is_some),
+                "{genre:?} bass"
+            );
+            assert!(
+                arrangement
+                    .drums
+                    .iter()
+                    .any(|event| event.kick || event.snare || event.hat),
+                "{genre:?} drums"
+            );
+            assert!(
+                arrangement.comping.iter().any(|event| event.hit),
+                "{genre:?} comping"
+            );
+            assert!(
+                arrangement
+                    .drums
+                    .iter()
+                    .all(|event| (0.0..=1.0).contains(&event.accent)),
+                "{genre:?} drum accent"
+            );
+            assert!(
+                arrangement
+                    .comping
+                    .iter()
+                    .all(|event| (0.0..=1.0).contains(&event.accent)),
+                "{genre:?} comping accent"
+            );
         }
     }
 

@@ -100,9 +100,9 @@ the audio and form display agree across repeated choruses.
 
 **In progress.** Generated backing now consists of sample-aligned Bass, Drums,
 and Comping stems using the generalized backing-stem playback/mute path. The
-first deterministic genre patterns are in place; the arrangement model,
-fills, role-specific timbres, balance listening pass, and genre-credibility
-review remain.
+first deterministic genre patterns and a shared `GrooveArrangement` event
+model are in place; fills, role-specific timbres, balance listening pass, and
+genre-credibility review remain.
 
 Model accompaniment as synchronized stems rather than one mixed bass buffer.
 Reuse the independent-sink and mute machinery already proven by MIDI backing,

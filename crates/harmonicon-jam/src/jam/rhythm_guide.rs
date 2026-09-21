@@ -4,7 +4,7 @@
 //! in Jam Session — deliberately not a bass or backing-instrument display:
 //! a row of pulsing pips showing *when* the picked `Genre`'s groove wants
 //! a breath/attack, so a player can phrase their own playing against it.
-//! Reuses `jam::backing::genre_pattern`'s existing 8-slot-per-bar rhythm
+//! Reuses `jam::backing::GrooveArrangement`'s 8-slot-per-bar bass rhythm
 //! (`Some` = a hit, `None` = a rest) and swing/straight flag as the timing
 //! source — the same skeleton the generated bass audio is rendered from,
 //! just rendered here as a visual pulse instead of PCM. Only ever spawned
@@ -17,10 +17,10 @@ use harmonicon_gameplay::gameplay::GameplayClock;
 use harmonicon_gameplay::gameplay::metronome_overlay::MetronomeTempo;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 
-use super::backing::{Genre, JamGenre, genre_pattern};
+use super::backing::{Genre, JamGenre, groove_arrangement};
 
 /// Tags one of the 8 pulse-row cells with its slot index (matching
-/// `jam::backing::genre_pattern`'s pattern array) so [`update_rhythm_guide`]
+/// `jam::backing::GrooveArrangement::bass`) so [`update_rhythm_guide`]
 /// can look up whether it's a hit or a rest, and pulse it accordingly.
 #[derive(Component)]
 pub struct RhythmGuideSlot(pub usize);
@@ -70,7 +70,8 @@ const HIT_PEAK: Color = Color::srgb(0.95, 0.80, 0.35);
 /// generated jam (`jam::session::setup` checks `GeneratedJamSession`
 /// first) — a real song has no genre concept to show a guide for.
 pub fn spawn_rhythm_guide(parent: &mut ChildSpawnerCommands, loc: &Localization, genre: Genre) {
-    let (pattern, _) = genre_pattern(genre);
+    let arrangement = groove_arrangement(genre);
+    let pattern = arrangement.bass;
     parent
         .spawn(Node {
             flex_direction: FlexDirection::Column,
@@ -134,11 +135,11 @@ pub(crate) fn update_rhythm_guide(
     let secs_per_beat = tempo.beat_secs();
     let bar_secs = tempo.bar_secs();
     let bar_pos = clock.get().rem_euclid(bar_secs);
-    let (pattern, swung) = genre_pattern(genre.0);
-    let (current, phase) = active_slot(bar_pos, secs_per_beat, swung);
+    let arrangement = groove_arrangement(genre.0);
+    let (current, phase) = active_slot(bar_pos, secs_per_beat, arrangement.swung);
 
     for (slot, mut bg) in &mut slots {
-        if pattern[slot.0].is_none() {
+        if arrangement.bass[slot.0].is_none() {
             continue;
         }
         let brightness = if slot.0 == current {
