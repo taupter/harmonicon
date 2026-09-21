@@ -371,6 +371,31 @@ impl From<LocalizedStr> for String {
 // ── Ergonomic lookup trait ────────────────────────────────────────────────────
 
 /// Ergonomic string lookup on [`Localization`].
+/// The locale key for one variant of a UI-facing enum, from the English
+/// label the enum already uses as its identity — `("progression", "Quick
+/// Change")` → `progression-quick-change`. A page shows `loc.msg(&key)` in
+/// a combobox and maps the selection back by index (`ComboboxSelect::
+/// index`), so the enum's `label()`/`from_label()` stay the stable id
+/// (charts and manifests store it) while the player sees their language.
+/// `tests::enum_label_keys_are_kebab_case` pins the shape; each page's own
+/// test pins that every variant's key exists in the locale file.
+pub fn enum_label_key(prefix: &str, label: &str) -> String {
+    let mut key = String::with_capacity(prefix.len() + 1 + label.len());
+    key.push_str(prefix);
+    key.push('-');
+    let mut last_dash = false;
+    for c in label.chars() {
+        if c.is_ascii_alphanumeric() {
+            key.push(c.to_ascii_lowercase());
+            last_dash = false;
+        } else if !last_dash {
+            key.push('-');
+            last_dash = true;
+        }
+    }
+    key.trim_end_matches('-').to_string()
+}
+
 pub trait LocalizationExt {
     /// The localized string for `key`, or the key itself when it is missing — so
     /// a forgotten or not-yet-loaded translation is visible rather than blank.
@@ -437,6 +462,21 @@ fn strip_bidi_isolates(s: String) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn enum_label_keys_are_kebab_case() {
+        use super::enum_label_key;
+        assert_eq!(
+            enum_label_key("progression", "Quick Change"),
+            "progression-quick-change"
+        );
+        assert_eq!(
+            enum_label_key("scale", "1st Position"),
+            "scale-1st-position"
+        );
+        assert_eq!(enum_label_key("position", "12th"), "position-12th");
+        assert_eq!(enum_label_key("genre", "Blues"), "genre-blues");
+    }
+
     use std::collections::BTreeSet;
     use std::path::Path;
 

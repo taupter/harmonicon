@@ -14,7 +14,7 @@ use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Position, Progression};
 use harmonicon_core::midi::NOTE_NAMES;
 use harmonicon_jam::jam::backing::{Genre, JamGenre, build_generated_manifest};
-use harmonicon_platform::localization::{Localization, LocalizationExt};
+use harmonicon_platform::localization::{Localization, LocalizationExt, enum_label_key};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::combobox;
@@ -57,26 +57,56 @@ fn key_labels() -> Vec<String> {
     NOTE_NAMES.iter().map(|s| s.to_string()).collect()
 }
 
-fn progression_labels() -> Vec<String> {
+// Each enum's English `label()` is its stable id; what the combobox shows
+// is the locale's wording for it, and a selection maps back by *index*
+// into the same `all()` order (`ComboboxSelect::index`), never by text.
+
+/// Locale key of one progression's label.
+pub(crate) fn progression_key(p: Progression) -> String {
+    enum_label_key("progression", p.label())
+}
+
+/// Locale key of one position's label.
+pub(crate) fn position_key(p: Position) -> String {
+    enum_label_key("position", p.label())
+}
+
+/// Locale key of one scale's label.
+pub(crate) fn scale_key(s: Scale) -> String {
+    enum_label_key("scale", s.label())
+}
+
+/// Locale key of one genre's label.
+pub(crate) fn genre_key(g: Genre) -> String {
+    enum_label_key("genre", g.label())
+}
+
+fn progression_labels(loc: &Localization) -> Vec<String> {
     Progression::all()
         .iter()
-        .map(|p| p.label().to_string())
+        .map(|p| loc.msg(&progression_key(*p)).into())
         .collect()
 }
 
-fn position_labels() -> Vec<String> {
+fn position_labels(loc: &Localization) -> Vec<String> {
     Position::all()
         .iter()
-        .map(|p| p.label().to_string())
+        .map(|p| loc.msg(&position_key(*p)).into())
         .collect()
 }
 
-fn scale_labels() -> Vec<String> {
-    Scale::all().iter().map(|s| s.label().to_string()).collect()
+fn scale_labels(loc: &Localization) -> Vec<String> {
+    Scale::all()
+        .iter()
+        .map(|s| loc.msg(&scale_key(*s)).into())
+        .collect()
 }
 
-fn genre_labels() -> Vec<String> {
-    Genre::all().iter().map(|g| g.label().to_string()).collect()
+fn genre_labels(loc: &Localization) -> Vec<String> {
+    Genre::all()
+        .iter()
+        .map(|g| loc.msg(&genre_key(*g)).into())
+        .collect()
 }
 
 pub(crate) fn setup_jam_generate_menu(
@@ -116,11 +146,11 @@ pub(crate) fn setup_jam_generate_menu(
         root,
         page_root,
         &loc.msg("jam-generate-progression"),
-        &progression_labels(),
-        config.progression.label(),
+        &progression_labels(&loc),
+        &loc.msg(&progression_key(config.progression)),
         |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
-            if let Some(p) = Progression::from_label(&ev.value) {
-                cfg.progression = p;
+            if let Some(p) = Progression::all().get(ev.index) {
+                cfg.progression = *p;
             }
         },
     );
@@ -130,11 +160,11 @@ pub(crate) fn setup_jam_generate_menu(
         root,
         page_root,
         &loc.msg("jam-generate-position"),
-        &position_labels(),
-        config.position.label(),
+        &position_labels(&loc),
+        &loc.msg(&position_key(config.position)),
         |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
-            if let Some(p) = Position::from_label(&ev.value) {
-                cfg.position = p;
+            if let Some(p) = Position::all().get(ev.index) {
+                cfg.position = *p;
             }
         },
     );
@@ -144,11 +174,11 @@ pub(crate) fn setup_jam_generate_menu(
         root,
         page_root,
         &loc.msg("jam-generate-scale"),
-        &scale_labels(),
-        config.scale.label(),
+        &scale_labels(&loc),
+        &loc.msg(&scale_key(config.scale)),
         |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
-            if let Some(s) = Scale::from_label(&ev.value) {
-                cfg.scale = s;
+            if let Some(s) = Scale::all().get(ev.index) {
+                cfg.scale = *s;
             }
         },
     );
@@ -158,11 +188,11 @@ pub(crate) fn setup_jam_generate_menu(
         root,
         page_root,
         &loc.msg("jam-generate-genre"),
-        &genre_labels(),
-        config.genre.label(),
+        &genre_labels(&loc),
+        &loc.msg(&genre_key(config.genre)),
         |ev: On<combobox::ComboboxSelect>, mut cfg: ResMut<JamGenerateConfig>| {
-            if let Some(g) = Genre::from_label(&ev.value) {
-                cfg.genre = g;
+            if let Some(g) = Genre::all().get(ev.index) {
+                cfg.genre = *g;
             }
         },
     );
@@ -257,4 +287,49 @@ pub(crate) fn setup_jam_generate_menu(
         &loc.msg("back"),
         |_: On<Activate>, mut page: ResMut<NextState<MenuPage>>| page.set(MenuPage::JamSessionMenu),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every key the comboboxes will ask for, so a variant added to one of
+    /// the enums without a locale line fails here rather than showing its
+    /// raw key on the Generate Jam page. `locales_define_the_same_keys`
+    /// (harmonicon-platform) then guarantees the other locales have it too.
+    #[test]
+    fn every_enum_variant_has_a_locale_key() {
+        let ftl = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../assets/locales/en-US/main/ui.ftl"),
+        )
+        .unwrap();
+        let has = |key: &str| ftl.lines().any(|l| l.starts_with(&format!("{key} =")));
+        let mut missing = Vec::new();
+        for p in Progression::all() {
+            let k = progression_key(*p);
+            if !has(&k) {
+                missing.push(k);
+            }
+        }
+        for p in Position::all() {
+            let k = position_key(*p);
+            if !has(&k) {
+                missing.push(k);
+            }
+        }
+        for s in Scale::all() {
+            let k = scale_key(*s);
+            if !has(&k) {
+                missing.push(k);
+            }
+        }
+        for g in Genre::all() {
+            let k = genre_key(*g);
+            if !has(&k) {
+                missing.push(k);
+            }
+        }
+        assert!(missing.is_empty(), "missing locale keys: {missing:?}");
+    }
 }

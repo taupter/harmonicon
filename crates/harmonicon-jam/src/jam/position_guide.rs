@@ -167,7 +167,10 @@ fn spawn_position_caption(
     parent.spawn((
         Text::new(String::from(loc.msg_args(
             "jam-position-label",
-            &[("position", position.label().to_string())],
+            &[(
+                "position",
+                harmonicon_gameplay::gameplay::position_label(position.label(), loc),
+            )],
         ))),
         TextFont {
             font_size: FontSize::Px(13.0),

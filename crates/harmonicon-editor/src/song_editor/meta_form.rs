@@ -24,7 +24,7 @@ use super::ui::{
 };
 use super::{HEADER_H, MIDI_PURPOSE, MUSIC_PURPOSE, ROW_H, SILENCE_ROW_H, grid_height};
 use harmonicon_core::chart::Scale;
-use harmonicon_platform::localization::{Localization, LocalizationExt};
+use harmonicon_platform::localization::{Localization, LocalizationExt, enum_label_key};
 use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::button::make_interactive;
 use harmonicon_ui::dialogs::checkbox::spawn_checkbox;
@@ -640,14 +640,17 @@ pub(super) fn spawn_scale_combobox(
     let Ok(backdrop) = editor_root.single() else {
         return;
     };
-    let options: Vec<String> = Scale::all().iter().map(|s| s.label().to_string()).collect();
+    // Shown in the player's language; the selection maps back by index
+    // into the same `Scale::all()` order, so `label()` stays the chart's
+    // stable id (see `localization::enum_label_key`).
+    let options: Vec<String> = Scale::all().iter().map(|s| scale_label(*s, &loc)).collect();
     let combo = spawn_combobox(
         &mut commands,
         slot_entity,
         backdrop,
         &loc.msg("editor-field-scale"),
         &options,
-        state.scale.label(),
+        &scale_label(state.scale, &loc),
         on_scale_selected,
     );
     commands
@@ -655,9 +658,14 @@ pub(super) fn spawn_scale_combobox(
         .insert(Tooltip(String::from(loc.msg("editor-field-scale-tooltip"))));
 }
 
+/// A scale's label in the player's language.
+fn scale_label(scale: Scale, loc: &Localization) -> String {
+    loc.msg(&enum_label_key("scale", scale.label())).into()
+}
+
 fn on_scale_selected(ev: On<ComboboxSelect>, mut state: ResMut<EditorState>) {
-    if let Some(scale) = Scale::from_label(&ev.value) {
-        state.scale = scale;
+    if let Some(scale) = Scale::all().get(ev.index) {
+        state.scale = *scale;
     }
 }
 
@@ -669,6 +677,7 @@ fn on_scale_selected(ev: On<ComboboxSelect>, mut state: ResMut<EditorState>) {
 /// label from it, same as a user pick would.
 pub(super) fn sync_scale_combobox_value(
     state: Res<EditorState>,
+    loc: Res<Localization>,
     slot: Query<&Children, With<ScaleComboboxSlot>>,
     mut values: Query<&mut ComboboxValue>,
 ) {
@@ -677,9 +686,9 @@ pub(super) fn sync_scale_combobox_value(
     };
     for &child in children {
         if let Ok(mut value) = values.get_mut(child) {
-            let want = state.scale.label();
+            let want = scale_label(state.scale, &loc);
             if value.0 != want {
-                value.0 = want.to_string();
+                value.0 = want;
             }
         }
     }

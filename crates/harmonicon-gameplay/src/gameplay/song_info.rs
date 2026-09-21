@@ -17,8 +17,8 @@
 use bevy::prelude::*;
 
 use harmonicon_core::chart::HarpChart;
-use harmonicon_core::harmonica::{Harmonica, HarpSummary, detected_harp_key};
-use harmonicon_platform::localization::{Localization, LocalizationExt};
+use harmonicon_core::harmonica::{Harmonica, HarpSummary, Position, detected_harp_key};
+use harmonicon_platform::localization::{Localization, LocalizationExt, enum_label_key};
 
 /// Every song-describing string the HUD needs, resolved and localized once.
 #[derive(Resource, Default, Clone)]
@@ -74,6 +74,18 @@ impl SongInfo {
     }
 }
 
+/// A chart's position string (`"2nd"`) in the player's language when it is
+/// one of the named [`Position`]s, else as authored — a chart may carry
+/// wording the enum doesn't know, which is still worth showing.
+pub fn position_label(raw: &str, loc: &Localization) -> String {
+    match Position::from_label(raw) {
+        Some(position) => loc
+            .msg(&enum_label_key("position", position.label()))
+            .into(),
+        None => raw.to_string(),
+    }
+}
+
 /// `"Diatonic · 10 holes · 2nd position · Richter"`, worded in the player's
 /// language: the kind and the hole/position phrases come from the locale,
 /// the tuning name is a proper noun and stays as-is, and a segment the
@@ -87,11 +99,9 @@ fn harp_line(summary: &HarpSummary<'_>, loc: &Localization) -> String {
         })),
         String::from(loc.msg_args("harp-summary-holes", &[("n", summary.holes.to_string())])),
     ];
-    parts.extend(
-        summary.position.map(|p| {
-            String::from(loc.msg_args("harp-summary-position", &[("pos", p.to_string())]))
-        }),
-    );
+    parts.extend(summary.position.map(|p| {
+        String::from(loc.msg_args("harp-summary-position", &[("pos", position_label(p, loc))]))
+    }));
     parts.extend(summary.profile.map(str::to_string));
     parts.join(HarpSummary::SEPARATOR)
 }
@@ -111,11 +121,9 @@ pub fn harp_banner_text(harp: &Harmonica, song_key: &str, loc: &Localization) ->
     let mut parts = vec![String::from(
         loc.msg_args("harp-banner-use", &[("key", harp_key)]),
     )];
-    parts.extend(
-        harp.position().map(|p| {
-            String::from(loc.msg_args("harp-summary-position", &[("pos", p.to_string())]))
-        }),
-    );
+    parts.extend(harp.position().map(|p| {
+        String::from(loc.msg_args("harp-summary-position", &[("pos", position_label(p, loc))]))
+    }));
     parts.push(String::from(
         loc.msg_args("harp-banner-key", &[("key", song_key.to_string())]),
     ));

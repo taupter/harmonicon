@@ -73,7 +73,13 @@ const LIST_SCROLLBAR_TRACK: Color = Color::srgba(0.0, 0.0, 0.0, 0.35);
 pub struct ComboboxSelect {
     #[event_target]
     pub combobox: Entity,
+    /// The chosen option's text, as displayed.
     pub value: String,
+    /// The chosen option's position in the `options` slice the combobox was
+    /// spawned with. A page whose options are *localized* labels of an enum
+    /// maps back through this (`Progression::all()[ev.index]`) rather than
+    /// by parsing the text, so the label can be any language.
+    pub index: usize,
 }
 
 /// The value currently shown by a combobox. The widget updates this itself
@@ -112,6 +118,7 @@ struct ComboboxRoot(Entity);
 pub(crate) struct ComboboxItemButton {
     root: Entity,
     value: String,
+    index: usize,
 }
 
 /// The toggle button's own label text, naming which combobox it belongs to
@@ -323,13 +330,14 @@ pub fn spawn_combobox<M: 'static>(
         });
     });
     commands.entity(items_area).with_children(|l| {
-        for value in options {
+        for (index, value) in options.iter().enumerate() {
             let is_selected = value == current;
             l.spawn_empty()
                 .apply_scene(item_scene(value.clone(), is_selected))
                 .insert(ComboboxItemButton {
                     root,
                     value: value.clone(),
+                    index,
                 });
         }
     });
@@ -512,7 +520,7 @@ fn item_click(
     let Ok(item) = items.get(ev.entity) else {
         return;
     };
-    let (root, value) = (item.root, item.value.clone());
+    let (root, value, index) = (item.root, item.value.clone(), item.index);
     if let Ok(mut v) = values.get_mut(root) {
         v.0 = value.clone();
     }
@@ -527,6 +535,7 @@ fn item_click(
     commands.trigger(ComboboxSelect {
         combobox: root,
         value,
+        index,
     });
 }
 
