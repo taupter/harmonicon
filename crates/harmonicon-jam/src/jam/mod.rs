@@ -28,6 +28,7 @@ pub mod midi_tracks;
 pub mod position_guide;
 pub mod rhythm_guide;
 pub mod session;
+pub mod session_ui;
 
 use call_response as jam_call_response;
 use midi_tracks as jam_stems;
@@ -41,6 +42,8 @@ impl Plugin for JamPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<jam_session::JamLoop>()
             .init_resource::<jam_session::JamEnding>()
+            .init_resource::<session_ui::JamGuidesVisible>()
+            .init_resource::<session_ui::JamChordSequence>()
             .init_resource::<jam_stems::JamStemMute>()
             .init_resource::<improv::ImprovGate>()
             .init_resource::<improv::ImprovStats>()
@@ -67,6 +70,8 @@ impl Plugin for JamPlugin {
                     jam_session::restart_finished_jam_music,
                     jam_session::update_jam_loop_label,
                     jam_session::update_jam_status_labels,
+                    session_ui::update_jam_guides,
+                    session_ui::update_jam_chord_position,
                 )
                     .chain()
                     .after(GameplayLogic)

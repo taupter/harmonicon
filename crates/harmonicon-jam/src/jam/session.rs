@@ -42,6 +42,7 @@ use super::improv::classify_note_fit;
 use super::midi_tracks::{JamStemMute, spawn_backing_stem_row};
 use super::position_guide::spawn_position_compass;
 use super::rhythm_guide::spawn_rhythm_guide;
+use super::session_ui::*;
 use harmonicon_app::app::GeneratedJamSession;
 
 /// Free-play screen, two columns: left has everything but the harmonica
@@ -54,6 +55,7 @@ use harmonicon_app::app::GeneratedJamSession;
 pub struct JamResetState<'w> {
     ending: ResMut<'w, JamEnding>,
     call_response: ResMut<'w, super::call_response::CallResponseState>,
+    guides_visible: Res<'w, JamGuidesVisible>,
 }
 
 pub fn setup(
@@ -82,6 +84,7 @@ pub fn setup(
     music_started.0 = false;
     *reset.ending = JamEnding::default();
     *reset.call_response = super::call_response::CallResponseState::default();
+    let guides_visible = reset.guides_visible.0;
     // Fresh, all-unmuted for this jam — sized to the song's own track
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
@@ -177,19 +180,22 @@ pub fn setup(
             .with_children(|columns| {
                 // ── Left half: 12-bar chart + metronome, vertical ────────────────
                 columns
-                    .spawn(Node {
-                        width: Val::Percent(50.0),
-                        height: Val::Percent(100.0),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        row_gap: Val::Px(24.0),
-                        padding: UiRect {
-                            top: Val::Px(16.0 + BAR_HEIGHT),
-                            ..UiRect::all(Val::Px(16.0))
+                    .spawn((
+                        Node {
+                            width: Val::Percent(if guides_visible { 50.0 } else { 100.0 }),
+                            height: Val::Percent(100.0),
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            row_gap: Val::Px(24.0),
+                            padding: UiRect {
+                                top: Val::Px(16.0 + BAR_HEIGHT),
+                                ..UiRect::all(Val::Px(16.0))
+                            },
+                            ..default()
                         },
-                        ..default()
-                    })
+                        JamPrimaryPanel,
+                    ))
                     .with_children(|left| {
                         left.spawn((
                             Text::new(title),
@@ -277,6 +283,42 @@ pub fn setup(
                             TextColor(Color::srgb(0.95, 0.80, 0.35)),
                             JamFormPosition,
                         ));
+                        left.spawn((
+                            Text::new(format!("{}  →  {}", chords[0], chords[1])),
+                            TextFont {
+                                font_size: FontSize::Px(32.0),
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                            JamChordPosition,
+                        ));
+                        left.spawn(Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(8.0),
+                            ..default()
+                        })
+                        .with_children(|row| {
+                            row.spawn_empty().apply_scene(button::small(
+                                &loc.msg("jam-guides-button"),
+                                |_: On<Activate>, mut guides: ResMut<JamGuidesVisible>| {
+                                    guides.0 = !guides.0;
+                                },
+                            ));
+                            row.spawn((
+                                Text::new(String::from(if guides_visible {
+                                    loc.msg("jam-guides-on")
+                                } else {
+                                    loc.msg("jam-guides-off")
+                                })),
+                                TextFont {
+                                    font_size: FontSize::Px(15.0),
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                                JamGuidesLabel,
+                            ));
+                        });
                         left.spawn(Node {
                             flex_direction: FlexDirection::Row,
                             align_items: AlignItems::Center,
@@ -305,11 +347,19 @@ pub fn setup(
                                 super::call_response::CallResponseLabel,
                             ));
                         });
-                        left.spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(4.0),
-                            ..default()
-                        })
+                        left.spawn((
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                row_gap: Val::Px(4.0),
+                                ..default()
+                            },
+                            JamGuidePanel,
+                            if guides_visible {
+                                Visibility::Visible
+                            } else {
+                                Visibility::Hidden
+                            },
+                        ))
                         .with_children(|grid| {
                             let _ = spawn_12_bar_grid(
                                 grid,
@@ -320,12 +370,20 @@ pub fn setup(
                                 theme.twelve_bar_colors(),
                             );
                         });
-                        left.spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            row_gap: Val::Px(6.0),
-                            ..default()
-                        })
+                        left.spawn((
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                align_items: AlignItems::Center,
+                                row_gap: Val::Px(6.0),
+                                ..default()
+                            },
+                            JamGuidePanel,
+                            if guides_visible {
+                                Visibility::Visible
+                            } else {
+                                Visibility::Hidden
+                            },
+                        ))
                         .with_children(|metro| {
                             spawn_metronome(metro, &loc, beats_per_bar, bpm);
                         });
@@ -333,20 +391,46 @@ pub fn setup(
                         // `Genre` concept attached to it (see
                         // `jam::rhythm_guide`'s own doc comment).
                         if generated.is_some() {
-                            spawn_rhythm_guide(left, &loc, jam_genre.0);
+                            left.spawn((
+                                Node::default(),
+                                JamGuidePanel,
+                                if guides_visible {
+                                    Visibility::Visible
+                                } else {
+                                    Visibility::Hidden
+                                },
+                            ))
+                            .with_children(|guide| spawn_rhythm_guide(guide, &loc, jam_genre.0));
                         }
-                        harmonicon_ui::spectrogram::spawn_style_toggle(
-                            left,
-                            *spectrogram_style,
-                            &loc,
-                        );
-                        left.spawn(Node {
-                            width: Val::Percent(100.0),
-                            flex_grow: 1.0,
-                            ..default()
-                        })
-                        .with_children(|spec| {
-                            spawn_spectrogram(spec, *spectrogram_style, &osc_material.0);
+                        left.spawn((
+                            Node {
+                                width: Val::Percent(100.0),
+                                flex_grow: 1.0,
+                                flex_direction: FlexDirection::Column,
+                                ..default()
+                            },
+                            JamGuidePanel,
+                            if guides_visible {
+                                Visibility::Visible
+                            } else {
+                                Visibility::Hidden
+                            },
+                        ))
+                        .with_children(|diagnostics| {
+                            harmonicon_ui::spectrogram::spawn_style_toggle(
+                                diagnostics,
+                                *spectrogram_style,
+                                &loc,
+                            );
+                            diagnostics
+                                .spawn(Node {
+                                    width: Val::Percent(100.0),
+                                    flex_grow: 1.0,
+                                    ..default()
+                                })
+                                .with_children(|spec| {
+                                    spawn_spectrogram(spec, *spectrogram_style, &osc_material.0);
+                                });
                         });
                     });
 
@@ -355,14 +439,22 @@ pub fn setup(
                 // instrument, so they share this column rather than splitting
                 // across both halves.
                 columns
-                    .spawn(Node {
-                        width: Val::Percent(50.0),
-                        height: Val::Percent(100.0),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        padding: UiRect::top(Val::Px(BAR_HEIGHT)),
-                        ..default()
-                    })
+                    .spawn((
+                        Node {
+                            width: Val::Percent(50.0),
+                            height: Val::Percent(100.0),
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
+                            padding: UiRect::top(Val::Px(BAR_HEIGHT)),
+                            ..default()
+                        },
+                        JamGuidePanel,
+                        if guides_visible {
+                            Visibility::Visible
+                        } else {
+                            Visibility::Hidden
+                        },
+                    ))
                     .with_children(|right| {
                         spawn_harmonica_overlay(right, harp, &loc);
                         spawn_hole_map(right, &holes_info, &loc);
@@ -384,6 +476,7 @@ pub fn setup(
         });
 
     commands.insert_resource(guide);
+    commands.insert_resource(JamChordSequence(chords));
 
     // Song-progress bar, pinned across the top like the scored modes — Jam
     // Session has no `SongNotes` (nothing is scored), so note markers are
