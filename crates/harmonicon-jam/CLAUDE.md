@@ -159,6 +159,12 @@ load-bearing about *this* crate.
   original slot length and quarter-note downbeats have no delay, so all three
   stems stay sample-aligned.
 
+- **Listening previews use the production renderer.** `cargo run -p
+  harmonicon-jam --example listening_matrix` writes the fixed-seed
+  Blues/Jazz/Reggae × 70/100/140 BPM matrix to `target/jam-listening/` through
+  `backing::generate_listening_preview`. It mixes without normalization so
+  the files preserve gameplay's actual balance and headroom.
+
 - **A song can ship a raw MIDI file as its backing track**
   (`song/music.mid`, a third fallback in `song::loader` after
   `music.ogg`/`music.wav` — mutually exclusive with those; whichever is

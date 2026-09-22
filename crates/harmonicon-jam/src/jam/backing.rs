@@ -29,7 +29,9 @@ use harmonicon_core::wav::encode_wav;
 use harmonicon_song::song::{BackingStemAudio, NoteCube3dConfig, NoteThemeConfig, SongManifest};
 
 mod humanize;
+mod preview;
 use humanize::{GrooveRole, performance_variation, varied_slot};
+pub use preview::generate_listening_preview;
 
 pub const SAMPLE_RATE: u32 = 44_100;
 
