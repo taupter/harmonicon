@@ -184,6 +184,7 @@ impl Plugin for GameplayPlugin {
                 bending_trainer::update_hint_label,
                 bending_trainer::update_bend_trace.after(collect_pitches),
                 bending_trainer::update_tuner_readout.after(bending_trainer::update_bend_trace),
+                bending_trainer::update_bend_rail.after(bending_trainer::update_bend_trace),
                 bending_trainer::update_natural_check,
                 bending_trainer::update_natural_check_label
                     .after(bending_trainer::update_natural_check),

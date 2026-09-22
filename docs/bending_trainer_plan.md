@@ -129,6 +129,11 @@ mistaken for a successful bend.
 
 ### 2. Show the bend as motion, not a verdict
 
+**In progress.** The target card now includes a natural-to-target pitch rail,
+an interval-scaled tolerance band, a live marker, and a three-second fading
+trace. The rail preserves overshoot beyond either endpoint. Intermediate bend
+slots, separate hold/stability measures, and natural/target A/B playback remain.
+
 Build a `BendTrace` from timestamped cents relative to the selected hole's
 natural reed and target.
 

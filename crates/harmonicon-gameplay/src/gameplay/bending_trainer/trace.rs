@@ -6,7 +6,8 @@ use std::collections::VecDeque;
 
 use super::*;
 
-const HISTORY_SECS: f32 = 0.30;
+const TRACE_HISTORY_SECS: f32 = 3.0;
+const STABILITY_HISTORY_SECS: f32 = 0.30;
 const MIN_STABILITY_SPAN_SECS: f32 = 0.12;
 const MIN_STABILITY_SAMPLES: usize = 5;
 const UNSTABLE_RESIDUAL_CENTS: f32 = 10.0;
@@ -28,6 +29,117 @@ pub struct BendTrace {
     last_technique: Option<Technique>,
     last_key: String,
     pub unstable: bool,
+}
+
+const TRACE_DOTS: usize = 32;
+const RAIL_START_PERCENT: f32 = 8.0;
+const RAIL_END_PERCENT: f32 = 92.0;
+
+#[derive(Component)]
+pub struct BendTraceDot(pub usize);
+#[derive(Component)]
+pub struct BendLiveMarker;
+#[derive(Component)]
+pub struct BendTargetBand;
+#[derive(Component)]
+pub struct BendNaturalLabel;
+#[derive(Component)]
+pub struct BendTargetLabel;
+
+pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localization) {
+    card.spawn(Node {
+        width: Val::Percent(100.0),
+        justify_content: JustifyContent::SpaceBetween,
+        ..default()
+    })
+    .with_children(|labels| {
+        labels.spawn((
+            Text::new(loc.msg("bending-rail-natural")),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::srgb(0.70, 0.74, 0.80)),
+            BendNaturalLabel,
+        ));
+        labels.spawn((
+            Text::new(loc.msg("bending-rail-target")),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::srgb(0.70, 0.84, 0.74)),
+            BendTargetLabel,
+        ));
+    });
+    card.spawn((
+        Node {
+            position_type: PositionType::Relative,
+            width: Val::Percent(100.0),
+            height: Val::Px(48.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.06, 0.07, 0.10, 0.90)),
+    ))
+    .with_children(|rail| {
+        rail.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(RAIL_START_PERCENT),
+                top: Val::Px(23.0),
+                width: Val::Percent(RAIL_END_PERCENT - RAIL_START_PERCENT),
+                height: Val::Px(2.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.35, 0.38, 0.44)),
+        ));
+        rail.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(11.0),
+                height: Val::Px(26.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.25, 0.75, 0.38, 0.20)),
+            BendTargetBand,
+        ));
+        for index in 0..TRACE_DOTS {
+            rail.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(21.0),
+                    width: Val::Px(6.0),
+                    height: Val::Px(6.0),
+                    border_radius: BorderRadius::all(Val::Percent(50.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.45, 0.72, 0.95, 0.0)),
+                Visibility::Hidden,
+                BendTraceDot(index),
+            ));
+        }
+        rail.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(18.0),
+                width: Val::Px(12.0),
+                height: Val::Px(12.0),
+                border_radius: BorderRadius::all(Val::Percent(50.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.92, 0.94, 1.0)),
+            Visibility::Hidden,
+            BendLiveMarker,
+        ));
+    });
+}
+
+pub(super) fn rail_percent(target_cents: f32, natural_target_cents: f32) -> f32 {
+    if natural_target_cents.abs() < 1.0 {
+        return (RAIL_START_PERCENT + RAIL_END_PERCENT) * 0.5;
+    }
+    let progress = (natural_target_cents - target_cents) / natural_target_cents;
+    (RAIL_START_PERCENT + progress * (RAIL_END_PERCENT - RAIL_START_PERCENT)).clamp(2.0, 98.0)
 }
 
 pub(super) fn residual_rms(samples: &VecDeque<TraceSample>) -> Option<f32> {
@@ -98,16 +210,105 @@ pub fn update_bend_trace(
             while trace
                 .samples
                 .front()
-                .is_some_and(|sample| elapsed - sample.time > HISTORY_SECS)
+                .is_some_and(|sample| elapsed - sample.time > TRACE_HISTORY_SECS)
             {
                 trace.samples.pop_front();
             }
-            trace.unstable = residual_rms(&trace.samples)
+            let stability_samples = trace
+                .samples
+                .iter()
+                .filter(|sample| elapsed - sample.time <= STABILITY_HISTORY_SECS)
+                .copied()
+                .collect();
+            trace.unstable = residual_rms(&stability_samples)
                 .is_some_and(|residual| residual > UNSTABLE_RESIDUAL_CENTS);
         }
         _ => {
             trace.samples.clear();
             trace.unstable = false;
         }
+    }
+}
+
+#[allow(clippy::type_complexity)]
+pub fn update_bend_rail(
+    key: Res<TrainerKey>,
+    target: Res<TrainerTarget>,
+    trace: Res<BendTrace>,
+    loc: Res<Localization>,
+    mut dots: Query<(
+        &BendTraceDot,
+        &mut Node,
+        &mut BackgroundColor,
+        &mut Visibility,
+    )>,
+    mut marker: Query<(&mut Node, &mut Visibility), (With<BendLiveMarker>, Without<BendTraceDot>)>,
+    mut band: Query<&mut Node, (With<BendTargetBand>, Without<BendLiveMarker>)>,
+    mut natural_labels: Query<&mut Text, (With<BendNaturalLabel>, Without<BendTargetLabel>)>,
+    mut target_labels: Query<&mut Text, (With<BendTargetLabel>, Without<BendNaturalLabel>)>,
+) {
+    let harp = richter_harp(&key.0);
+    let Some(target_note) = target_note(&harp, *target) else {
+        return;
+    };
+    let Some(natural_note) = natural_note_for_target(&harp, *target) else {
+        return;
+    };
+    let (Some(target_freq), Some(natural_freq)) =
+        (note_freq_hz(&target_note), note_freq_hz(&natural_note))
+    else {
+        return;
+    };
+    let natural_cents = 1200.0 * (natural_freq / target_freq).log2();
+
+    for mut text in &mut natural_labels {
+        *text = Text::new(String::from(loc.msg_args(
+            "bending-rail-natural-note",
+            &[("note", natural_note.clone())],
+        )));
+    }
+    for mut text in &mut target_labels {
+        *text = Text::new(String::from(
+            loc.msg_args("bending-rail-target-note", &[("note", target_note.clone())]),
+        ));
+    }
+    let band_width = if natural_cents.abs() < 1.0 {
+        10.0
+    } else {
+        (2.0 * IN_TUNE_CENTS / natural_cents.abs() * (RAIL_END_PERCENT - RAIL_START_PERCENT))
+            .clamp(3.0, 20.0)
+    };
+    for mut node in &mut band {
+        node.left = Val::Percent(rail_percent(0.0, natural_cents) - band_width * 0.5);
+        node.width = Val::Percent(band_width);
+    }
+
+    let sample_step = trace.samples.len().div_ceil(TRACE_DOTS).max(1);
+    let visible: Vec<_> = trace
+        .samples
+        .iter()
+        .rev()
+        .step_by(sample_step)
+        .take(TRACE_DOTS)
+        .collect();
+    for (dot, mut node, mut color, mut visibility) in &mut dots {
+        let Some(sample) = visible.get(dot.0) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        node.left = Val::Percent(rail_percent(sample.target_cents, natural_cents));
+        let age = trace.elapsed - sample.time;
+        let alpha = (1.0 - age / TRACE_HISTORY_SECS).clamp(0.08, 0.72);
+        color.0 = Color::srgba(0.45, 0.72, 0.95, alpha);
+        *visibility = Visibility::Visible;
+    }
+    let Ok((mut node, mut visibility)) = marker.single_mut() else {
+        return;
+    };
+    if let Some(sample) = trace.samples.back() {
+        node.left = Val::Percent(rail_percent(sample.target_cents, natural_cents));
+        *visibility = Visibility::Visible;
+    } else {
+        *visibility = Visibility::Hidden;
     }
 }

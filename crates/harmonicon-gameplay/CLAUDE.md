@@ -104,7 +104,9 @@ load-bearing about *this* crate.
   drill computes target cents. Keep octave errors and unrelated harmonics as
   explicit wrong-pitch feedback instead of turning them into large cents
   values or successful attempts. The optional natural check confirms the
-  selected target's source reed and never counts as a completed bend.
+  selected target's source reed and never counts as a completed bend. The
+  natural-to-target rail consumes the same `BendTrace`; keep its overshoot
+  visible and derive its tolerance band from the judging tolerance.
 
 - **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
   as `harmonicon_core::scoring`, shared by

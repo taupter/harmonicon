@@ -31,7 +31,10 @@ aiming for before you try to bend to it. **Check natural** asks for the
 selected hole's unbent reed first, confirming that the microphone is following
 the right hole. The **cents-off tuner** then reports distance and direction
 only for pitches that belong to that hole; silence and an unrelated pitch get
-their own messages instead of a misleading cents value.
+their own messages instead of a misleading cents value. The pitch rail below
+it shows the path from the natural reed to the target band. Its bright marker
+is the current pitch, while fading dots retain the last three seconds of motion
+so you can see a smooth approach, a crossing, or an overshoot.
 
 ## Drill mode
 

@@ -529,6 +529,7 @@ pub fn setup(
                     TextColor(Color::srgb(0.55, 0.85, 0.60)),
                     TunerReadout,
                 ));
+                spawn_bend_rail(card, &loc);
                 card.spawn_empty().apply_scene(button::small(
                     &loc.msg("bending-check-natural-button"),
                     |_: On<Activate>, mut check: ResMut<NaturalCheck>| {

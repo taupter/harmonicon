@@ -344,6 +344,14 @@ fn stability_fit_rejects_jitter_around_a_pitch() {
     assert!(residual_rms(&samples).unwrap() > 10.0);
 }
 
+#[test]
+fn bend_rail_maps_natural_target_and_overshoot() {
+    let natural_cents = 100.0;
+    assert!((rail_percent(natural_cents, natural_cents) - 8.0).abs() < 0.01);
+    assert!((rail_percent(0.0, natural_cents) - 92.0).abs() < 0.01);
+    assert!(rail_percent(-25.0, natural_cents) > 92.0);
+}
+
 // ── technique_hint ────────────────────────────────────────────────────────
 
 #[test]
