@@ -32,8 +32,7 @@ use harmonicon_gameplay::gameplay::song_progress_overlay::{
 use harmonicon_ui::dialogs::twelve_bar_grid::{GridConfig, spawn_12_bar_grid};
 use harmonicon_ui::spectrogram::{OscMaterial, SpectrogramStyle, spawn_spectrogram};
 
-use super::backing::JamGenre;
-use super::backing::generate_ending_pcm;
+use super::backing::{JamGenre, generate_ending_stems};
 use super::hole_map::{build_hole_guide, spawn_detected_note, spawn_hole_map};
 use super::midi_tracks::{JamStemMute, spawn_backing_stem_row};
 use super::position_guide::spawn_position_compass;
@@ -751,7 +750,7 @@ pub fn restart_finished_jam_music(
 }
 
 /// Stops a generated backing at the requested chorus boundary and resolves
-/// its turnaround with one tonic bass punctuation. Afterwards the free-run
+/// its turnaround with a tonic rhythm-section hit. Afterwards the free-run
 /// clock is held at that boundary so the form display does not wander on in
 /// silence; Restart/Quit remain available through the normal pause control.
 pub fn finish_generated_jam_at_chorus(
@@ -759,6 +758,8 @@ pub fn finish_generated_jam_at_chorus(
     selected: Res<SelectedSong>,
     manifests: Res<Assets<SongManifest>>,
     audio: Res<AudioSettings>,
+    progression: Res<JamProgression>,
+    genre: Res<JamGenre>,
     mut sources: ResMut<Assets<AudioSource>>,
     sinks: Query<&AudioSink, With<MusicPlayer>>,
     mut ending: ResMut<JamEnding>,
@@ -781,14 +782,23 @@ pub fn finish_generated_jam_at_chorus(
     let Some(manifest) = manifests.get(&selected.0) else {
         return;
     };
-    let pcm = generate_ending_pcm(&manifest.chart.song.key, manifest.chart.song.tempo_bpm);
-    if !pcm.is_empty() {
+    let key = &manifest.chart.song.key;
+    let quality = progression_bars(key, progression.0)[0].1;
+    for (index, pcm) in generate_ending_stems(key, quality, manifest.chart.song.tempo_bpm, genre.0)
+        .into_iter()
+        .enumerate()
+    {
+        if pcm.is_empty() {
+            continue;
+        }
         let source = sources.add(AudioSource {
             bytes: harmonicon_core::wav::encode_wav(&pcm, super::backing::SAMPLE_RATE).into(),
         });
         commands.spawn((
             AudioPlayer::<AudioSource>(source),
             PlaybackSettings::DESPAWN.with_volume(Volume::Linear(audio.music_volume)),
+            MusicPlayer,
+            BackingStemPlayer(index),
             GameplayRoot,
         ));
     }

@@ -76,8 +76,8 @@ restarts are more relevant signals than note accuracy.
 
 **Implemented.** Generated sessions continue independently of the finite-song
 Loop preference, show chorus/bar position, and can queue a tonic ending at the
-next chorus boundary. The later rhythm-section phase can replace that simple
-tonic punctuation with a full-band ending.
+next chorus boundary. The queued ending is a synchronized tonic hit from bass,
+drums, and comping, with the live stem mutes still respected.
 
 Fix the basic performance contract before adding instruments.
 

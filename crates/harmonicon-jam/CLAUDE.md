@@ -146,9 +146,10 @@ load-bearing about *this* crate.
   exhausted four-chorus backing buffer without rewinding `GameplayClock`, so
   the next buffer is chorus 9 rather than a new session. `JamEnding` can queue
   a stop at the next 12-bar boundary; `finish_generated_jam_at_chorus` stops
-  the backing there, plays a short tonic punctuation, and pins the free-running
-  clock. `session::setup` resets the ending and call-response state on every
-  entry/restart.
+  the backing there, plays a two-beat tonic hit as three separately tagged
+  stems (so the mixer mutes still apply), and pins the free-running clock.
+  `session::setup` resets the ending and call-response state on every entry/
+  restart.
 
 - **Generated-band humanization cannot move the form.** `backing::
   performance_variation` deterministically varies each role's offbeat onset

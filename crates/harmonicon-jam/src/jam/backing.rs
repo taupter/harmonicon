@@ -515,16 +515,34 @@ fn bass_tone(freq_hz: f32, duration_secs: f32) -> Vec<f32> {
         .collect()
 }
 
-/// A short tonic punctuation for a generated jam that the player asked to
-/// end at the chorus boundary. The rhythm-section pass will eventually own
-/// a fuller ending; this deliberately uses the existing bass voice so phase
-/// one can finish on home instead of cutting an unresolved turnaround dead.
-pub(crate) fn generate_ending_pcm(key: &str, bpm: f32) -> Vec<f32> {
+/// A two-beat tonic hit for all three generated-band roles. Keeping the
+/// ending as separate stems preserves the live mixer state: a role muted
+/// during the jam stays muted for the final chord as well.
+pub(crate) fn generate_ending_stems(
+    key: &str,
+    quality: harmonicon_core::harmonica::ChordQuality,
+    bpm: f32,
+    genre: Genre,
+) -> [Vec<f32>; 3] {
+    let duration = 2.0 * 60.0 / bpm.max(1.0);
+    let samples = (duration * SAMPLE_RATE as f32).max(1.0) as usize;
     let Some(midi) = note_to_midi(&format!("{key}3")) else {
-        return Vec::new();
+        return std::array::from_fn(|_| Vec::new());
     };
-    let beat_secs = 60.0 / bpm.max(1.0);
-    bass_tone(midi_to_freq_hz(midi as f32), beat_secs * 1.5)
+    let mut bass = bass_tone(midi_to_freq_hz(midi as f32), duration * 0.9);
+    bass.resize(samples, 0.0);
+
+    let mut drums = drum_slot(
+        drum(true, genre != Genre::Jazz, true, 0.9),
+        0,
+        duration,
+        genre,
+    );
+    drums.resize(samples, 0.0);
+
+    let mut comping = comping_slot(key, quality, duration, genre);
+    comping.resize(samples, 0.0);
+    [bass, drums, comping]
 }
 
 /// The 8 note frequencies (Hz) of one bar of `pattern` (see the `*_PATTERN`
@@ -1187,12 +1205,21 @@ mod tests {
     }
 
     #[test]
-    fn ending_is_audible_and_tempo_shaped() {
-        let slow = generate_ending_pcm("C", 60.0);
-        let fast = generate_ending_pcm("C", 120.0);
-        assert!(slow.iter().any(|sample| sample.abs() > 0.01));
-        assert!(fast.iter().any(|sample| sample.abs() > 0.01));
-        assert_eq!(slow.len(), fast.len() * 2);
+    fn ending_uses_three_aligned_audible_stems_and_follows_tempo() {
+        let quality = harmonicon_core::harmonica::ChordQuality::Dominant7;
+        for &genre in Genre::all() {
+            let slow = generate_ending_stems("C", quality, 60.0, genre);
+            let fast = generate_ending_stems("C", quality, 120.0, genre);
+            assert!(slow.iter().all(|stem| stem.len() == slow[0].len()));
+            assert!(fast.iter().all(|stem| stem.len() == fast[0].len()));
+            assert!(slow.iter().flatten().any(|sample| sample.abs() > 0.01));
+            assert!(slow.iter().all(|stem| stem.iter().any(|s| s.abs() > 0.005)));
+            let peak = (0..slow[0].len())
+                .map(|sample| slow.iter().map(|stem| stem[sample]).sum::<f32>().abs())
+                .fold(0.0_f32, f32::max);
+            assert!(peak <= 0.95, "{genre:?} ending mix peaks at {peak}");
+            assert_eq!(slow[0].len(), fast[0].len() * 2);
+        }
     }
 
     #[test]
