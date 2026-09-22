@@ -12,8 +12,8 @@ screen uses. Below it, the screen splits into two columns:
     pitch-detection method to use — the same setting Options uses), both
     dropdowns.
   - **Practice Target** — the current target readout, a **Listen** button
-    (plays a synthesized reference tone for it), and a live
-    **cents-off tuner readout**.
+    (plays a synthesized reference tone for it), an optional **Check natural**
+    action, and a live **cents-off tuner readout**.
   - **Drill** — the adaptive Drill toggle; hovering it explains what it does.
   - **Tempo** — the metronome and its BPM steppers.
 - **Right — the harmonica**: the full bend diagram (every hole's blow,
@@ -27,9 +27,11 @@ screen uses. Below it, the screen splits into two columns:
 Click any cell in the bend diagram to make it the current target — its
 note name appears in the target readout, and **Listen** plays a clean
 synthesized reference tone for it so you know exactly what pitch you're
-aiming for before you try to bend to it. The **cents-off tuner** then tells
-you, live, how far off (and in which direction) the closest pitch you're
-actually playing is.
+aiming for before you try to bend to it. **Check natural** asks for the
+selected hole's unbent reed first, confirming that the microphone is following
+the right hole. The **cents-off tuner** then reports distance and direction
+only for pitches that belong to that hole; silence and an unrelated pitch get
+their own messages instead of a misleading cents value.
 
 ## Drill mode
 

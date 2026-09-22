@@ -29,7 +29,7 @@ use harmonicon_app::profile::{DrillRecord, PlayerProfile};
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::{PITCH_RANGE_MARGIN_SEMITONES, PitchRange};
 use harmonicon_core::harmonica::{Harmonica, HoleNotes, hole_notes, richter_harp};
-use harmonicon_core::midi::NOTE_NAMES;
+use harmonicon_core::midi::{NOTE_NAMES, note_to_midi};
 use harmonicon_core::wav::encode_wav;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_ui::dialogs::algo_picker::{algo_labels, attach_algo_tooltip, on_algo_selected};
@@ -105,14 +105,15 @@ const ALL_TECHNIQUES: [Technique; 6] = [
 ];
 
 impl Technique {
-    fn label(self) -> &'static str {
+    fn label_key(self, hole: u8) -> &'static str {
         match self {
-            Technique::Blow => "Blow",
-            Technique::Draw => "Draw",
-            Technique::Bend1 => "\u{00BD}-step bend",
-            Technique::Bend2 => "1-step bend",
-            Technique::Bend3 => "1\u{00BD}-step bend",
-            Technique::Over => "Overblow/draw",
+            Technique::Blow => "bending-technique-blow",
+            Technique::Draw => "bending-technique-draw",
+            Technique::Bend1 => "bending-technique-bend-half",
+            Technique::Bend2 => "bending-technique-bend-whole",
+            Technique::Bend3 => "bending-technique-bend-three-half",
+            Technique::Over if hole <= 6 => "bending-technique-overblow",
+            Technique::Over => "bending-technique-overdraw",
         }
     }
 
@@ -254,6 +255,16 @@ pub struct HintLabel;
 #[derive(Component)]
 pub struct TunerReadout;
 
+#[derive(Resource, Default)]
+pub struct NaturalCheck {
+    requested: bool,
+    hold_secs: f32,
+    confirmed: bool,
+}
+
+#[derive(Component)]
+pub struct NaturalCheckLabel;
+
 /// The drill's "on/off" readout, plus a running streak/weak-spot summary.
 #[derive(Component)]
 pub struct DrillLabel;
@@ -273,32 +284,29 @@ pub struct DrillExplanation;
 /// hole. Bends and overs go a different physical direction depending on
 /// which side of the harp the hole is on, so both are needed to be accurate:
 /// holes 1\u{2013}6 bend (and overblow) by drawing, holes 7\u{2013}10 by blowing.
-fn technique_hint(technique: Technique, hole: u8) -> String {
+fn technique_hint_key(technique: Technique, hole: u8) -> &'static str {
     match technique {
-        Technique::Blow => "Blow steadily into the hole \u{2014} no special embouchure needed.".to_string(),
-        Technique::Draw => "Draw (inhale) steadily through the hole \u{2014} no special embouchure needed.".to_string(),
-        Technique::Bend1 | Technique::Bend2 | Technique::Bend3 => {
-            let depth = match technique {
-                Technique::Bend1 => "a little",
-                Technique::Bend2 => "further",
-                _ => "as far as it will go",
-            };
-            if hole <= 6 {
-                format!(
-                    "Draw, then lower the back of your tongue and drop your jaw slightly \u{2014} shape your mouth from \"ee\" toward \"oh\" \u{2014} to pull the pitch down {depth} while still drawing."
-                )
-            } else {
-                format!(
-                    "Blow, then raise the back of your tongue slightly \u{2014} shape your mouth toward \"ee\" \u{2014} to push the pitch down {depth} while still blowing."
-                )
-            }
-        }
+        Technique::Blow => "bending-technique-hint-blow",
+        Technique::Draw => "bending-technique-hint-draw",
+        Technique::Bend1 if hole <= 6 => "bending-technique-hint-draw-bend-half",
+        Technique::Bend2 if hole <= 6 => "bending-technique-hint-draw-bend-whole",
+        Technique::Bend3 if hole <= 6 => "bending-technique-hint-draw-bend-three-half",
+        Technique::Bend1 => "bending-technique-hint-blow-bend-half",
+        Technique::Bend2 => "bending-technique-hint-blow-bend-whole",
+        Technique::Bend3 => "bending-technique-hint-blow-bend-three-half",
         Technique::Over => match hole {
-            1 | 4 | 5 | 6 => "Blow with a tight, controlled embouchure (tongue-blocked, airway narrowed) so the draw reed sounds instead of the blow reed \u{2014} an overblow. Start soft; it takes practice.".to_string(),
-            7..=10 => "Draw with a tight, controlled embouchure so the blow reed sounds instead of the draw reed \u{2014} an overdraw. Start soft; it takes practice.".to_string(),
-            _ => format!("Hole {hole} doesn't support overblow/overdraw \u{2014} try hole 1, 4, 5, 6, or 7\u{2013}10."),
+            1 | 4 | 5 | 6 => "bending-technique-hint-overblow",
+            7..=10 => "bending-technique-hint-overdraw",
+            _ => "bending-technique-hint-over-unsupported",
         },
     }
+}
+
+fn technique_hint(loc: &Localization, technique: Technique, hole: u8) -> String {
+    String::from(loc.msg_args(
+        technique_hint_key(technique, hole),
+        &[("hole", hole.to_string())],
+    ))
 }
 
 /// The pitch detector's search range for `key`'s transposed Richter harp,
@@ -481,7 +489,7 @@ pub fn setup(
                             flex_grow: 1.0,
                             ..default()
                         },
-                        Text::new(target_label_text(target.hole, target.technique)),
+                        Text::new(target_label_text(&loc, target.hole, target.technique)),
                         TextFont {
                             font_size: FontSize::Px(16.0),
                             ..default()
@@ -520,6 +528,24 @@ pub fn setup(
                     },
                     TextColor(Color::srgb(0.55, 0.85, 0.60)),
                     TunerReadout,
+                ));
+                card.spawn_empty().apply_scene(button::small(
+                    &loc.msg("bending-check-natural-button"),
+                    |_: On<Activate>, mut check: ResMut<NaturalCheck>| {
+                        *check = NaturalCheck {
+                            requested: true,
+                            ..default()
+                        };
+                    },
+                ));
+                card.spawn((
+                    Text::new(String::from(loc.msg("bending-check-natural-idle"))),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.60, 0.60, 0.70)),
+                    NaturalCheckLabel,
                 ));
             });
 
@@ -669,7 +695,7 @@ pub fn setup(
                 ))
                 .with_children(|p| {
                     p.spawn((
-                        Text::new(technique_hint(target.technique, target.hole)),
+                        Text::new(technique_hint(&loc, target.technique, target.hole)),
                         TextFont {
                             font_size: FontSize::Px(15.0),
                             ..default()
@@ -733,33 +759,42 @@ pub fn handle_escape(
 
 /// "Target: Hole 2 · ½-step bend" — or a note that the current harp can't
 /// actually produce there, so the reader knows why Listen did nothing.
-fn target_label_text(hole: u8, technique: Technique) -> String {
-    format!("Target: Hole {hole}  \u{00B7}  {}", technique.label())
+fn target_label_text(loc: &Localization, hole: u8, technique: Technique) -> String {
+    let technique = loc.msg(technique.label_key(hole));
+    String::from(loc.msg_args(
+        "bending-target-label",
+        &[
+            ("hole", hole.to_string()),
+            ("technique", technique.to_string()),
+        ],
+    ))
 }
 
 /// Keep the "Target: ..." readout in step with the chosen hole/technique.
 pub fn update_target_label(
     target: Res<TrainerTarget>,
+    loc: Res<Localization>,
     mut labels: Query<&mut Text, With<TargetLabel>>,
 ) {
     if !target.is_changed() {
         return;
     }
     for mut text in &mut labels {
-        *text = Text::new(target_label_text(target.hole, target.technique));
+        *text = Text::new(target_label_text(&loc, target.hole, target.technique));
     }
 }
 
 /// Keep the how-to-play hint in step with the chosen hole/technique.
 pub fn update_hint_label(
     target: Res<TrainerTarget>,
+    loc: Res<Localization>,
     mut labels: Query<&mut Text, With<HintLabel>>,
 ) {
     if !target.is_changed() {
         return;
     }
     for mut text in &mut labels {
-        *text = Text::new(technique_hint(target.technique, target.hole));
+        *text = Text::new(technique_hint(&loc, target.technique, target.hole));
     }
 }
 
@@ -783,69 +818,10 @@ fn hide_drill_explanation(_: On<PointerOut>, mut labels: Query<&mut Text, With<D
     }
 }
 
-/// Within this many cents of the target, the readout calls it "in tune"
-/// rather than reporting a flat/sharp direction — no bend is perfectly
-/// stable, and a human ear can't reliably split hairs finer than this anyway.
-const IN_TUNE_CENTS: f32 = 6.0;
-
-/// Live cents-off tuner: compares the closest currently-sounding pitch (from
-/// the mic) against the selected target note, and reports how far off — and
-/// in which direction — the player currently is.
-pub fn update_tuner_readout(
-    key: Res<TrainerKey>,
-    target: Res<TrainerTarget>,
-    active: Res<ActivePitches>,
-    loc: Res<Localization>,
-    mut labels: Query<(&mut Text, &mut TextColor), With<TunerReadout>>,
-) {
-    let Ok((mut text, mut color)) = labels.single_mut() else {
-        return;
-    };
-    let harp = richter_harp(&key.0);
-    let Some(target_note) = target_note(&harp, *target) else {
-        *text = Text::new(String::from(loc.msg("bending-no-note-for-technique")));
-        color.0 = Color::srgb(0.60, 0.60, 0.65);
-        return;
-    };
-    let Some(target_freq) = note_freq_hz(&target_note) else {
-        return;
-    };
-
-    let Some(heard) = active.0.iter().min_by(|a, b| {
-        (a.frequency.log2() - target_freq.log2())
-            .abs()
-            .total_cmp(&(b.frequency.log2() - target_freq.log2()).abs())
-    }) else {
-        *text = Text::new(String::from(
-            loc.msg_args("bending-play-it-target", &[("note", target_note)]),
-        ));
-        color.0 = Color::srgb(0.60, 0.60, 0.65);
-        return;
-    };
-
-    let cents = 1200.0 * (heard.frequency / target_freq).log2();
-    if cents.abs() <= IN_TUNE_CENTS {
-        *text = Text::new(String::from(
-            loc.msg_args("bending-in-tune", &[("note", target_note)]),
-        ));
-        color.0 = Color::srgb(0.45, 0.85, 0.50);
-    } else if cents > 0.0 {
-        *text = Text::new(String::from(loc.msg_args(
-            "bending-cents-sharp",
-            &[("cents", format!("{cents:+.0}")), ("note", target_note)],
-        )));
-        color.0 = Color::srgb(0.90, 0.70, 0.30);
-    } else {
-        *text = Text::new(String::from(loc.msg_args(
-            "bending-cents-flat",
-            &[("cents", format!("{cents:+.0}")), ("note", target_note)],
-        )));
-        color.0 = Color::srgb(0.90, 0.70, 0.30);
-    }
-}
-
 mod drill;
+mod feedback;
 #[cfg(test)]
 mod tests;
 
 pub use drill::*;
+pub use feedback::*;

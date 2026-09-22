@@ -249,20 +249,16 @@ pub fn drill_update(
         return;
     }
     let harp = richter_harp(&key.0);
-    let Some(target_note) = target_note(&harp, *target) else {
+    if target_note(&harp, *target).is_none() {
         return;
-    };
-    let Some(target_freq) = note_freq_hz(&target_note) else {
-        return;
-    };
-
+    }
     let dt = time.delta_secs();
     drill.elapsed_secs += dt;
 
-    let in_tune = active
-        .0
-        .iter()
-        .any(|p| (1200.0 * (p.frequency / target_freq).log2()).abs() <= IN_TUNE_CENTS);
+    let in_tune = matches!(
+        tuner_observation(&harp, *target, &active),
+        Some(TunerObservation::TargetFamily(cents)) if cents.abs() <= IN_TUNE_CENTS
+    );
     drill.hold_secs = if in_tune { drill.hold_secs + dt } else { 0.0 };
 
     let hit = drill.hold_secs >= DRILL_HOLD_TO_ADVANCE;

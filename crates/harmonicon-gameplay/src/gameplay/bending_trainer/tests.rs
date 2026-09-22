@@ -216,65 +216,170 @@ fn target_note_reads_the_right_technique_off_the_harp() {
 }
 
 #[test]
+fn natural_anchor_uses_the_reed_direction_that_creates_the_technique() {
+    let harp = richter_harp("C");
+    assert_eq!(
+        natural_note_for_target(
+            &harp,
+            TrainerTarget {
+                hole: 2,
+                technique: Technique::Bend1,
+            },
+        )
+        .as_deref(),
+        Some("G4")
+    );
+    assert_eq!(
+        natural_note_for_target(
+            &harp,
+            TrainerTarget {
+                hole: 8,
+                technique: Technique::Bend1,
+            },
+        )
+        .as_deref(),
+        Some("E6")
+    );
+    assert_eq!(
+        natural_note_for_target(
+            &harp,
+            TrainerTarget {
+                hole: 4,
+                technique: Technique::Over,
+            },
+        )
+        .as_deref(),
+        Some("C5")
+    );
+    assert_eq!(
+        natural_note_for_target(
+            &harp,
+            TrainerTarget {
+                hole: 8,
+                technique: Technique::Over,
+            },
+        )
+        .as_deref(),
+        Some("D6")
+    );
+}
+
+#[test]
 fn note_freq_hz_matches_concert_pitch() {
     assert!((note_freq_hz("A4").unwrap() - 440.0).abs() < 0.01);
     // One semitone below A4.
     assert!((note_freq_hz("G#4").unwrap() - 415.30).abs() < 0.1);
 }
 
+fn detected(note: &str) -> harmonicon_audio::pitch_detect::PitchInfo {
+    let midi = note_to_midi(note).unwrap() as u8;
+    let octave = midi as i32 / 12 - 1;
+    let name = note
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .to_string();
+    harmonicon_audio::pitch_detect::PitchInfo {
+        midi,
+        note: name,
+        octave,
+        frequency: harmonicon_core::midi::midi_to_freq_hz(midi as f32),
+    }
+}
+
+#[test]
+fn tuner_observation_distinguishes_silence_wrong_pitch_and_target_family() {
+    let harp = richter_harp("C");
+    let target = TrainerTarget {
+        hole: 2,
+        technique: Technique::Bend1,
+    };
+    assert_eq!(
+        tuner_observation(&harp, target, &ActivePitches::default()),
+        Some(TunerObservation::Silent)
+    );
+    assert_eq!(
+        tuner_observation(&harp, target, &ActivePitches(vec![detected("C6")])),
+        Some(TunerObservation::WrongPitch("C6".to_string()))
+    );
+    assert!(matches!(
+        tuner_observation(&harp, target, &ActivePitches(vec![detected("F#4")])),
+        Some(TunerObservation::TargetFamily(cents)) if cents.abs() < 0.1
+    ));
+}
+
+#[test]
+fn tuner_observation_accepts_the_natural_anchor_on_the_selected_hole() {
+    let harp = richter_harp("C");
+    let target = TrainerTarget {
+        hole: 2,
+        technique: Technique::Bend1,
+    };
+    assert!(matches!(
+        tuner_observation(&harp, target, &ActivePitches(vec![detected("G4")])),
+        Some(TunerObservation::TargetFamily(cents)) if cents > 90.0
+    ));
+}
+
 // ── technique_hint ────────────────────────────────────────────────────────
 
 #[test]
 fn blow_and_draw_hints_dont_depend_on_hole() {
-    assert!(technique_hint(Technique::Blow, 1).contains("Blow"));
-    assert!(technique_hint(Technique::Blow, 9).contains("Blow"));
-    assert!(technique_hint(Technique::Draw, 1).contains("Draw"));
-    assert!(technique_hint(Technique::Draw, 9).contains("Draw"));
+    assert_eq!(
+        technique_hint_key(Technique::Blow, 1),
+        technique_hint_key(Technique::Blow, 9)
+    );
+    assert_eq!(
+        technique_hint_key(Technique::Draw, 1),
+        technique_hint_key(Technique::Draw, 9)
+    );
 }
 
 #[test]
 fn bend_hint_direction_matches_the_hole_side() {
     // Holes 1-6 bend by drawing; holes 7-10 bend by blowing.
-    let low_hole = technique_hint(Technique::Bend1, 3);
-    assert!(
-        low_hole.starts_with("Draw"),
-        "hole 3 bends by drawing: {low_hole:?}"
+    assert_eq!(
+        technique_hint_key(Technique::Bend1, 3),
+        "bending-technique-hint-draw-bend-half"
     );
-    let high_hole = technique_hint(Technique::Bend1, 8);
-    assert!(
-        high_hole.starts_with("Blow"),
-        "hole 8 bends by blowing: {high_hole:?}"
+    assert_eq!(
+        technique_hint_key(Technique::Bend1, 8),
+        "bending-technique-hint-blow-bend-half"
     );
 }
 
 #[test]
 fn bend_hint_wording_deepens_with_technique() {
-    let half = technique_hint(Technique::Bend1, 3);
-    let whole = technique_hint(Technique::Bend2, 3);
-    let step_and_half = technique_hint(Technique::Bend3, 3);
-    assert!(half.contains("a little"));
-    assert!(whole.contains("further"));
-    assert!(step_and_half.contains("as far as it will go"));
+    assert_ne!(
+        technique_hint_key(Technique::Bend1, 3),
+        technique_hint_key(Technique::Bend2, 3)
+    );
+    assert_ne!(
+        technique_hint_key(Technique::Bend2, 3),
+        technique_hint_key(Technique::Bend3, 3)
+    );
 }
 
 #[test]
 fn over_hint_names_overblow_or_overdraw_by_hole() {
     // Overblow holes.
     for hole in [1, 4, 5, 6] {
-        let hint = technique_hint(Technique::Over, hole);
-        assert!(hint.contains("overblow"), "hole {hole}: {hint:?}");
-        assert!(hint.starts_with("Blow"));
+        assert_eq!(
+            technique_hint_key(Technique::Over, hole),
+            "bending-technique-hint-overblow"
+        );
     }
     // Overdraw holes.
     for hole in 7..=10 {
-        let hint = technique_hint(Technique::Over, hole);
-        assert!(hint.contains("overdraw"), "hole {hole}: {hint:?}");
-        assert!(hint.starts_with("Draw"));
+        assert_eq!(
+            technique_hint_key(Technique::Over, hole),
+            "bending-technique-hint-overdraw"
+        );
     }
     // Holes 2 and 3 support neither.
     for hole in [2, 3] {
-        let hint = technique_hint(Technique::Over, hole);
-        assert!(hint.contains("doesn't support"), "hole {hole}: {hint:?}");
+        assert_eq!(
+            technique_hint_key(Technique::Over, hole),
+            "bending-technique-hint-over-unsupported"
+        );
     }
 }
 

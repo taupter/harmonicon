@@ -100,6 +100,7 @@ impl Plugin for GameplayPlugin {
         .init_resource::<bending_trainer::TrainerKey>()
         .init_resource::<bending_trainer::TrainerTarget>()
         .init_resource::<bending_trainer::DrillState>()
+        .init_resource::<bending_trainer::NaturalCheck>()
         .init_resource::<call_response::CallCues>()
         .init_resource::<pause_menu::WaitForNoteMode>()
         .init_resource::<pause_menu::PracticeSpeed>()
@@ -181,6 +182,9 @@ impl Plugin for GameplayPlugin {
                 bending_trainer::update_target_label,
                 bending_trainer::update_hint_label,
                 bending_trainer::update_tuner_readout,
+                bending_trainer::update_natural_check,
+                bending_trainer::update_natural_check_label
+                    .after(bending_trainer::update_natural_check),
                 bending_trainer::drill_update,
                 bending_trainer::update_drill_label,
                 bending_trainer::update_drill_button_visual,
