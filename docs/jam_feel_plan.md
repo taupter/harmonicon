@@ -98,14 +98,15 @@ the audio and form display agree across repeated choruses.
 
 ### 2. Turn the generator into a small rhythm section
 
-**Implemented; listening acceptance remains.** Generated backing now consists of sample-aligned Bass, Drums,
-and Comping stems using the generalized backing-stem playback/mute path. The
+**Implemented; listening acceptance deferred.** Generated backing now consists
+of sample-aligned Bass, Drums, and Comping stems using the generalized
+backing-stem playback/mute path. The
 first deterministic genre patterns and a shared `GrooveArrangement` event
 model are in place. Restrained fills now mark bars 4, 8, and 11, while bar 12
 clears comping space for a chromatic bass-and-drum turnaround. Drum and comping
 voices now change with genre, including a longer jazz ride/organ texture, a
-short reggae skank, a firmer rock backbeat, and a lighter country pulse. A
-The reproducible listening matrix is recorded in `docs/gameplay_validation.md`;
+short reggae skank, a firmer rock backbeat, and a lighter country pulse. The
+reproducible listening matrix is recorded in `docs/gameplay_validation.md`;
 balance and genre credibility still require that manual review.
 
 Model accompaniment as synchronized stems rather than one mixed bass buffer.
@@ -215,13 +216,14 @@ looking at a theory diagram.
 
 ### 5. Make call-and-response sound like phrasing
 
-**Implemented.** `jam::call_response::phrase` composes each call from a
+**Implemented; listening acceptance deferred.** `jam::call_response::phrase`
+composes each call from a
 rhythm cell per bar, a two-to-four-note motif and a repeat/up/down answer,
 constrained to the player's harp and resolved onto a chord tone with two
 beats of air before "Your turn"; a `Phrasing` cycle button picks Sparse,
 Conversational or Busy; the backing ducks to 60 % while the call sounds.
-Still to review by ear: whether the harmonica-synth call sits well against
-each genre's rhythm section and whether the duck depth is right on
+The deferred review must establish whether the harmonica-synth call sits well
+against each genre's rhythm section and whether the duck depth is right on
 speakers.
 
 Keep it optional, unscored, and forgiving. Replace four random quarter-note
@@ -248,14 +250,15 @@ UI implying failure.
 
 ### 6. Let the band listen without grading
 
-**Implemented.** `jam::band` logs coarse per-beat activity (attack count,
+**Implemented; listening acceptance deferred.** `jam::band` logs coarse
+per-beat activity (attack count,
 presence), thins the comping for the phrase after a dense one, holds the
 pocket through silence, and answers a released phrase at beat 3 of a
 four-bar phrase's last bar with a drum fill or chord push, at most once per
 eight bars; an `Adaptive band` toggle switches it off. Decisions are pure
-functions of the beat log and the tests replay a recorded stream. Still to
-review by ear: the thinning depth and whether the answers sit inside each
-genre's groove.
+functions of the beat log and the tests replay a recorded stream. The deferred
+review must establish whether the thinning depth reads as space and whether
+the answers sit inside each genre's groove.
 
 Once the rhythm section and phrase boundaries are stable, add restrained
 reactivity driven by coarse musical activity rather than pitch correctness.
@@ -290,6 +293,29 @@ activity stream, and never change harmony, tempo, or volume abruptly.
   mix, timbre, or whether a fill leaves room. Each audio phase needs a short
   listening matrix across at least Blues/Jazz/Reggae, 70/100/140 BPM, and first/
   second position on laptop speakers and headphones.
+
+## Deferred listening acceptance
+
+Deferred on 2026-09-22 because audio review was not practical at the time. No
+implementation work is blocked by it, and it must not be replaced with
+waveform-only approval.
+
+Resume with:
+
+```sh
+cargo run -p harmonicon-jam --example listening_matrix
+```
+
+This regenerates the fixed-seed Blues/Jazz/Reggae × 70/100/140 BPM files in
+`target/jam-listening/`. Then complete the Jam Session rows in
+`docs/gameplay_validation.md`, including live checks for the four-chorus arc,
+Low/High energy, 1st/2nd-position register space, call ducking and timbre,
+adaptive thinning/answers, stem mutes, and the scheduled full-band ending.
+The review outcome should either mark those rows complete or name concrete mix
+changes; broad impressions are not actionable enough to tune against.
+
+All six implementation phases are complete. This deferred listening pass is
+the only remaining acceptance work in this plan.
 
 ## Deliberately out of scope
 

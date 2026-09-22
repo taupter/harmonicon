@@ -40,9 +40,9 @@ Before starting, pick:
   away).
 
 Click **Start Jam** and you're straight into an ordinary
-[Jam Session](jam-session.md) — same two-column layout, same live hole-map
-feedback, same 12-bar grid — just with a generated backing instead of a
-real song's. It keeps playing across backing-buffer boundaries automatically;
+[Jam Session](jam-session.md) — the same calm form display and optional Guides,
+just with a generated backing instead of a real song's. It keeps playing
+across backing-buffer boundaries automatically;
 the chorus/bar readout remains continuous. Choose **End after this chorus**
 to stop at the next 12-bar boundary with a two-beat tonic hit from the whole
 rhythm section. Muted stems stay muted for that ending. **Restart** returns to
