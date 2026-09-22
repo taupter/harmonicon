@@ -144,11 +144,16 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
         delete_expected_selected(state);
         return;
     }
-    // Expected notes carry no depth and belong to no phrase — nothing for
-    // these to act on in this layer.
+    // Expected notes carry no depth, belong to no phrase, and are placed
+    // by hand as ground truth — nothing for these to act on in this layer.
     if matches!(
         kind,
-        ModButton::Depth | ModButton::Call | ModButton::Split | ModButton::Phrase
+        ModButton::Depth
+            | ModButton::Call
+            | ModButton::Split
+            | ModButton::Phrase
+            | ModButton::TransposeUp
+            | ModButton::TransposeDown
     ) {
         return;
     }
@@ -255,7 +260,9 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
         | ModButton::Depth
         | ModButton::Call
         | ModButton::Split
-        | ModButton::Phrase => unreachable!(),
+        | ModButton::Phrase
+        | ModButton::TransposeUp
+        | ModButton::TransposeDown => unreachable!(),
     }
 }
 

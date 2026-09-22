@@ -56,6 +56,16 @@ pub(super) fn map_pitch_playable(
     pitch_map::map_pitch_playable(target, harp).map(from_core)
 }
 
+/// Every playable resolution of `target`, in core's easiest-first order.
+/// Transposition uses the alternatives when two simultaneous pitches would
+/// otherwise compete for the same hole.
+pub(super) fn playable_assignments(target: u8, harp: &Harmonica) -> Vec<(u8, Dir, Pitch)> {
+    pitch_map::playable_assignments(target, harp)
+        .into_iter()
+        .map(from_core)
+        .collect()
+}
+
 /// [`map_pitch_playable`] with core's nearest-natural-note fallback.
 pub(super) fn map_pitch(target: u8, harp: &Harmonica, _kind: HarmonicaKind) -> (u8, Dir, Pitch) {
     from_core(pitch_map::map_pitch(target, harp))

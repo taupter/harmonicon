@@ -214,7 +214,7 @@ pub(super) struct ImportDiagnostics {
     pub(super) duplicate_hole_groups: usize,
 }
 
-fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> ImportDiagnostics {
+pub(super) fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> ImportDiagnostics {
     use std::collections::{BTreeMap, HashSet};
 
     let mut by_tick: BTreeMap<usize, Vec<&GridNote>> = BTreeMap::new();

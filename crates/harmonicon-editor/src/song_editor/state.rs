@@ -167,6 +167,10 @@ pub(super) struct EditorState {
     /// the chart default of `0.5`.
     pub(super) expression_intensities: std::collections::BTreeMap<u32, String>,
     pub(super) preserved_scoring: Option<serde_json::Value>,
+    /// The last transposition's outcome, waiting for
+    /// `transpose::report_transpose` to put it in the status bar. Not
+    /// content: not undo-tracked, not saved.
+    pub(super) transpose_notice: Option<super::transpose::TransposeOutcome>,
     pub(super) loop_settings: LoopSettings,
     pub(super) time_signature: String,
     pub(super) key: String,
@@ -326,6 +330,7 @@ impl Default for EditorState {
             user_locked: false,
             harmonica_kind: HarmonicaKind::default(),
             loaded_harmonica: None,
+            transpose_notice: None,
             snap_mode: SnapMode::default(),
             twelve_bar_tint: false,
             phrase_editor: None,

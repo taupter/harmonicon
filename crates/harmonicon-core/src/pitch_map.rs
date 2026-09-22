@@ -142,21 +142,31 @@ fn over_action(hole: u8) -> Option<(Action, Technique)> {
 /// Overblows are an advanced technique — resolving one where a plain bend
 /// would do would quietly turn a beginner melody into an overblow study.
 pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment> {
+    playable_assignments(target, harp).into_iter().next()
+}
+
+/// Every way `harp` can sound `target`, easiest first — the order
+/// [`map_pitch_playable`] picks its answer from. A pitch often has more
+/// than one home (G4 is draw 2 *and* blow 3 on a C harp; a bent note may
+/// also be an overblow), and a caller placing several notes at once needs
+/// the alternatives when the first choice is already taken.
+pub fn playable_assignments(target: u8, harp: &Harmonica) -> Vec<HoleAssignment> {
     let hole_count = harp.hole_count();
-    let assign = |hole, action, technique| {
-        Some(HoleAssignment {
+    let mut out = Vec::new();
+    let mut assign = |hole, action, technique| {
+        out.push(HoleAssignment {
             hole,
             action,
             technique,
-        })
+        });
     };
 
     for hole in 1..=hole_count {
         if harp.wind_direction_midi(hole, &Action::Blow) == Some(target) {
-            return assign(hole, Action::Blow, Technique::Natural);
+            assign(hole, Action::Blow, Technique::Natural);
         }
         if harp.wind_direction_midi(hole, &Action::Draw) == Some(target) {
-            return assign(hole, Action::Draw, Technique::Natural);
+            assign(hole, Action::Draw, Technique::Natural);
         }
     }
 
@@ -173,7 +183,7 @@ pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment
                     {
                         let depth = (reed - target) as f32;
                         if technique_fits(Technique::Bend(depth), harp, hole) {
-                            return assign(hole, action, Technique::Bend(depth));
+                            assign(hole, action, Technique::Bend(depth));
                         }
                     }
                 }
@@ -188,7 +198,7 @@ pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment
                         .and_then(note_to_midi)
                         == Some(target as i32)
                 {
-                    return assign(hole, action, technique);
+                    assign(hole, action, technique);
                 }
             }
         }
@@ -197,7 +207,7 @@ pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment
                 for hole in 1..=hole_count {
                     for action in [Action::Blow, Action::Draw] {
                         if harp.wind_direction_midi(hole, &action) == Some(natural) {
-                            return assign(hole, action, Technique::Slide);
+                            assign(hole, action, Technique::Slide);
                         }
                     }
                 }
@@ -205,7 +215,7 @@ pub fn map_pitch_playable(target: u8, harp: &Harmonica) -> Option<HoleAssignment
         }
     }
 
-    None
+    out
 }
 
 /// [`map_pitch_playable`] with a nearest-natural-note fallback, so this

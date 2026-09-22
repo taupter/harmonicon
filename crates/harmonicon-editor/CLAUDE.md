@@ -352,6 +352,15 @@ load-bearing about *this* crate.
   pasted notes become the new selection — ready to drag into place
   immediately, the same way a fresh `select_or_add` selects what it
   just placed.
+- **Transpose recomputes playable tab on the current harp**
+  (`song_editor::transpose`). The ♯/♭ buttons and Ctrl+Up/Down shift the
+  selection, or the whole chart when nothing is selected; Shift changes the
+  interval to an octave. Resolve every destination through core's
+  `pitch_map::playable_assignments`, trying easier fingerings first and then
+  alternate holes when simultaneous notes compete. An unplayable or occupied
+  destination leaves that note unchanged and the status bar reports it.
+  Timing, ids, expression, and phrase metadata stay attached to the note, and
+  the ordinary snapshot tracker makes the whole operation undoable.
 - **The toolbar is two columns, and the right one is the per-note
   surface** (`mod_panel::spawn_mod_panel`; `ui::NoteColumn`). Left:
   the document and the tools — navigation, modes, lock, undo/redo,

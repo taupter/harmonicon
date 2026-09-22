@@ -36,7 +36,7 @@ pub(super) fn mod_button_active(kind: ModButton, dir: Dir, pitch: Pitch, expr: E
         // Call/Split read the selected note's *phrase*, which needs the
         // whole state — `update_mod_panel` handles them beside this.
         ModButton::Depth | ModButton::Call | ModButton::Split | ModButton::Phrase => false,
-        ModButton::Delete => false,
+        ModButton::TransposeUp | ModButton::TransposeDown | ModButton::Delete => false,
     }
 }
 

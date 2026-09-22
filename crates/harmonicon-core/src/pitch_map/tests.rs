@@ -28,6 +28,26 @@ fn a_directly_playable_blow_note_maps_to_its_own_reed() {
     );
 }
 
+#[test]
+fn every_playable_home_is_returned_easiest_first() {
+    let harp = richter_harp("C");
+    let assignments = playable_assignments(midi("G4"), &harp);
+    assert_eq!(
+        assignments.first(),
+        map_pitch_playable(midi("G4"), &harp).as_ref()
+    );
+    assert!(assignments.contains(&HoleAssignment {
+        hole: 2,
+        action: Action::Draw,
+        technique: Technique::Natural,
+    }));
+    assert!(assignments.contains(&HoleAssignment {
+        hole: 3,
+        action: Action::Blow,
+        technique: Technique::Natural,
+    }));
+}
+
 // ── Bends ───────────────────────────────────────────────────────────────────
 
 #[test]

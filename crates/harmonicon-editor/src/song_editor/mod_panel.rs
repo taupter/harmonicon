@@ -707,6 +707,24 @@ fn spawn_note_column_buttons(
         style,
         colors,
     );
+    mod_button(
+        g,
+        ModButton::TransposeUp,
+        loc.msg("mod-transpose-up"),
+        loc.msg("mod-transpose-up-tooltip"),
+        "\u{266F}",
+        style,
+        colors,
+    );
+    mod_button(
+        g,
+        ModButton::TransposeDown,
+        loc.msg("mod-transpose-down"),
+        loc.msg("mod-transpose-down-tooltip"),
+        "\u{266D}",
+        style,
+        colors,
+    );
     g.spawn(Node {
         flex_grow: 1.0,
         ..default()

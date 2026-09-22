@@ -66,6 +66,7 @@ mod state;
 mod timeline;
 mod timeline_overlay;
 mod transport;
+mod transpose;
 mod ui;
 mod undo;
 mod view_scroll;
@@ -221,6 +222,7 @@ impl Plugin for SongEditor2Plugin {
                         audition::audition_on_select
                             .run_if(resource_exists_and_changed::<state::EditorState>),
                         save_feedback::tick_save_feedback,
+                        transpose::report_transpose,
                     ),
                     // Suspended while the guided tour is showing this
                     // screen — Esc/Delete/Ctrl+C/Ctrl+V shouldn't act on it

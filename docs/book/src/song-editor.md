@@ -51,6 +51,10 @@ hovering always tells you what it does.
   (mod-panel technique edits still only ever act on the last-clicked
   note — editing several notes' technique at once has no single obvious
   meaning).
+  Use **Transpose up** (♯) or **Transpose down** (♭) to move the selection by
+  one semitone; with no selection, they transpose the whole chart. Harmonicon
+  recomputes the hole, breath, and technique on the current harp and leaves a
+  note unchanged when the destination is unplayable or occupied.
 - **Record mode** — play your harmonica and have it write notes onto the
   grid for you, with its own Play/Pause/Stop/Finish transport (see
   [Recording notes live](#recording-notes-live) below).
@@ -362,6 +366,8 @@ These work whenever you're not typing into a text field:
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+C` / `Ctrl+V` | Copy the current selection / paste it at the mouse position |
 | `Delete` / `Backspace` | Delete the current selection |
+| `Ctrl+↑` / `Ctrl+↓` | Transpose the selection, or the whole chart, by one semitone |
+| `Ctrl+Shift+↑` / `Ctrl+Shift+↓` | Transpose by one octave |
 | `←` / `→` (Arrow Left/Right) | Pan the grid horizontally |
 | `Esc` | Clear the current selection or a pending timeline split, then back out of the editor |
 

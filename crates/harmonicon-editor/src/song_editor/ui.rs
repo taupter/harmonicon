@@ -204,6 +204,12 @@ pub(super) enum ModButton {
     /// onset — the way to annotate a phrase that has no marker to click
     /// yet.
     Phrase,
+    /// Transposes the selection — the whole chart when nothing is selected
+    /// — a semitone up/down on the current harp (`transpose`). Not a
+    /// per-note technique: it moves notes to whichever hole/breath/
+    /// technique sounds the new pitch, and has no sticky meaning.
+    TransposeUp,
+    TransposeDown,
     Delete,
 }
 

@@ -35,6 +35,10 @@ pub(super) fn ctrl_held(keyboard: &ButtonInput<KeyCode>) -> bool {
     keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight)
 }
 
+pub(super) fn shift_held(keyboard: &ButtonInput<KeyCode>) -> bool {
+    keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight)
+}
+
 pub(super) fn select_or_add(state: &mut EditorState, hole: u8, tick: usize) {
     if let Some(existing) = state
         .notes
@@ -168,6 +172,14 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
             }
             return;
         }
+        ModButton::TransposeUp => {
+            super::transpose::transpose_selection(state, 1);
+            return;
+        }
+        ModButton::TransposeDown => {
+            super::transpose::transpose_selection(state, -1);
+            return;
+        }
         _ => {}
     }
     if matches!(kind, ModButton::Blow | ModButton::Draw) {
@@ -290,7 +302,9 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
         | ModButton::Depth
         | ModButton::Call
         | ModButton::Split
-        | ModButton::Phrase => unreachable!(),
+        | ModButton::Phrase
+        | ModButton::TransposeUp
+        | ModButton::TransposeDown => unreachable!(),
     }
     // Read the note's resulting pitch/expr/dir out before writing to
     // `state` again below — `note` is still borrowing it at this point.
@@ -427,6 +441,16 @@ pub(super) fn grid_keys(
     }
     if keyboard.just_pressed(KeyCode::Delete) || keyboard.just_pressed(KeyCode::Backspace) {
         delete_selected(&mut state);
+    }
+    // Ctrl+↑/↓ transposes the selection (or everything) a semitone;
+    // with Shift, an octave.
+    if ctrl_held(&keyboard) {
+        let step = if shift_held(&keyboard) { 12 } else { 1 };
+        if keyboard.just_pressed(KeyCode::ArrowUp) {
+            super::transpose::transpose_selection(&mut state, step);
+        } else if keyboard.just_pressed(KeyCode::ArrowDown) {
+            super::transpose::transpose_selection(&mut state, -step);
+        }
     }
     if keyboard.just_pressed(KeyCode::Escape) && !file_dialog.open {
         if state.phrase_editor.is_some() {
