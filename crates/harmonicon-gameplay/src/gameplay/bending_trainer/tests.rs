@@ -367,6 +367,58 @@ fn deep_bend_rail_names_shallower_slots() {
     assert_eq!(intermediate_bend_notes(&harp, deep), ["A#4", "A4"]);
 }
 
+#[test]
+fn find_and_hold_completes_after_a_centered_hold() {
+    let mut practice = GesturePractice::for_shape(PracticeShape::FindHold);
+    practice.advance(GestureFrame::Target, 0.2, None);
+    assert_eq!(practice.phase, GesturePhase::Holding);
+    practice.advance(GestureFrame::Target, 0.2, None);
+    assert_eq!(practice.phase, GesturePhase::Complete);
+}
+
+#[test]
+fn bend_and_release_requires_natural_target_natural() {
+    let mut practice = GesturePractice::for_shape(PracticeShape::BendRelease);
+    practice.advance(GestureFrame::Natural, 0.2, None);
+    assert_eq!(practice.phase, GesturePhase::Travel);
+    practice.advance(GestureFrame::Target, 0.4, None);
+    assert_eq!(practice.phase, GesturePhase::Returning);
+    practice.advance(GestureFrame::Natural, 0.2, None);
+    assert_eq!(practice.phase, GesturePhase::Complete);
+}
+
+#[test]
+fn repeated_bends_count_once_per_metronome_beat() {
+    let mut practice = GesturePractice::for_shape(PracticeShape::Repeated);
+    for beat in 0..4 {
+        practice.advance(GestureFrame::Target, 0.1, Some(beat));
+        practice.advance(GestureFrame::Target, 0.1, Some(beat));
+    }
+    assert_eq!(practice.phase, GesturePhase::Complete);
+}
+
+#[test]
+fn bend_ladder_requires_slots_before_returning() {
+    let mut practice = GesturePractice::for_shape(PracticeShape::Ladder);
+    practice.advance(GestureFrame::Natural, 0.1, None);
+    practice.advance(GestureFrame::Slot(0), 0.1, None);
+    practice.advance(GestureFrame::Target, 0.1, None);
+    assert_eq!(practice.phase, GesturePhase::Returning);
+    practice.advance(GestureFrame::Natural, 0.1, None);
+    assert_eq!(practice.phase, GesturePhase::Complete);
+}
+
+#[test]
+fn overbend_response_ignores_wrong_pitch_and_finishes_on_release() {
+    let mut practice = GesturePractice::for_shape(PracticeShape::OverbendResponse);
+    practice.advance(GestureFrame::Natural, 0.2, None);
+    practice.advance(GestureFrame::WrongPitch, 0.1, None);
+    assert_eq!(practice.phase, GesturePhase::Travel);
+    practice.advance(GestureFrame::Target, 0.4, None);
+    practice.advance(GestureFrame::Silence, 0.1, None);
+    assert_eq!(practice.phase, GesturePhase::Complete);
+}
+
 // ── technique_hint ────────────────────────────────────────────────────────
 
 #[test]

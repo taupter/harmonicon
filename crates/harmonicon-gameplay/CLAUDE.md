@@ -98,8 +98,9 @@ load-bearing about *this* crate.
 - **Bending Trainer pitch feedback is target-family locked.** Screen
   composition and lifecycle stay in `bending_trainer/mod.rs`; live feedback
   and readiness checks live in `bending_trainer/feedback.rs`; short pitch
-  history and stability math live in `bending_trainer/trace.rs`; adaptive target
-  selection and scoring live in `bending_trainer/drill.rs`. A detected pitch
+  history and stability math live in `bending_trainer/trace.rs`; pure practice
+  state machines live in `bending_trainer/gesture.rs`; adaptive target selection
+  and scoring live in `bending_trainer/drill.rs`. A detected pitch
   must match a playable note in the selected hole before either the tuner or
   drill computes target cents. Keep octave errors and unrelated harmonics as
   explicit wrong-pitch feedback instead of turning them into large cents

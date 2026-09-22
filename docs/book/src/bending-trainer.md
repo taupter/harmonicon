@@ -41,6 +41,12 @@ depths, shallower bend notes are marked along the route to a deeper target.
 
 ## Drill mode
 
+The **Practice** control chooses what one successful gesture means. Free
+exploration adds no sequence. The other choices ask you to find and hold the
+target, bend and return to the natural reed, repeat on metronome beats, climb
+the bend slots and return, or attack and release an overbend. The status beside
+the control shows the current phase without assigning a grade.
+
 Turn on **Drill** and Harmonicon picks targets for you, weighted toward
 ones you haven't tried yet or have a lower accuracy on — a spaced-practice
 loop instead of you deciding what to work on. Your hit rate per

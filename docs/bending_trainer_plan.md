@@ -158,6 +158,12 @@ pitch settled.
 
 ### 3. Add focused practice shapes
 
+**Implemented.** Free exploration remains the default. The Practice control
+cycles through find-and-hold, bend-and-release, repeated bends, bend ladder,
+and overbend response. Each is a pure pitch-frame state machine; repeated
+bends count one centered attack per metronome beat, and wrong-hole input stays
+distinct from silence in deterministic replays.
+
 Keep free exploration as the default and make structured practice explicit:
 
 - **Find and hold:** enter the target from silence and hold it.

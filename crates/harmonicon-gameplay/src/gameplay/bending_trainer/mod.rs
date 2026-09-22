@@ -572,6 +572,27 @@ pub fn setup(
                 ..default()
             })
             .with_children(|row| {
+                row.spawn_empty().apply_scene(button::small(
+                    &loc.msg("bending-shape-button"),
+                    cycle_practice_shape,
+                ));
+                row.spawn((
+                    Text::new(String::from(loc.msg("bending-shape-free"))),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                    PracticeShapeLabel,
+                ));
+            });
+            left.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(10.0),
+                ..default()
+            })
+            .with_children(|row| {
                 row.spawn_empty()
                     .apply_scene(button::small(
                         &loc.msg("bending-drill-button"),
@@ -827,10 +848,12 @@ fn hide_drill_explanation(_: On<PointerOut>, mut labels: Query<&mut Text, With<D
 
 mod drill;
 mod feedback;
+mod gesture;
 #[cfg(test)]
 mod tests;
 mod trace;
 
 pub use drill::*;
 pub use feedback::*;
+pub use gesture::*;
 pub use trace::*;
