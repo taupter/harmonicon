@@ -97,7 +97,8 @@ load-bearing about *this* crate.
 - **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
 - **Bending Trainer pitch feedback is target-family locked.** Screen
   composition and lifecycle stay in `bending_trainer/mod.rs`; live feedback
-  and readiness checks live in `bending_trainer/feedback.rs`; adaptive target
+  and readiness checks live in `bending_trainer/feedback.rs`; short pitch
+  history and stability math live in `bending_trainer/trace.rs`; adaptive target
   selection and scoring live in `bending_trainer/drill.rs`. A detected pitch
   must match a playable note in the selected hole before either the tuner or
   drill computes target cents. Keep octave errors and unrelated harmonics as

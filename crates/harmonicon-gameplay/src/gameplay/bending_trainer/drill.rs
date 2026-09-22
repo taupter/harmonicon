@@ -242,6 +242,7 @@ pub fn drill_update(
     key: Res<TrainerKey>,
     mut target: ResMut<TrainerTarget>,
     active: Res<ActivePitches>,
+    trace: Res<BendTrace>,
     mut drill: ResMut<DrillState>,
     time: Res<Time>,
 ) {
@@ -255,10 +256,11 @@ pub fn drill_update(
     let dt = time.delta_secs();
     drill.elapsed_secs += dt;
 
-    let in_tune = matches!(
-        tuner_observation(&harp, *target, &active),
-        Some(TunerObservation::TargetFamily(cents)) if cents.abs() <= IN_TUNE_CENTS
-    );
+    let in_tune = !trace.unstable
+        && matches!(
+            tuner_observation(&harp, *target, &active),
+            Some(TunerObservation::TargetFamily(cents)) if cents.abs() <= IN_TUNE_CENTS
+        );
     drill.hold_secs = if in_tune { drill.hold_secs + dt } else { 0.0 };
 
     let hit = drill.hold_secs >= DRILL_HOLD_TO_ADVANCE;

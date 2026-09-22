@@ -100,11 +100,11 @@ The default screen should remain immediate enough for a first-time player.
 
 ### 1. Make the target and microphone state trustworthy
 
-**In progress.** Technique copy is localized, overbend guidance no longer
+**Implemented.** Technique copy is localized, overbend guidance no longer
 requires one embouchure, live and drill feedback are locked to the selected
 hole's pitch family, and the optional natural-note check confirms a centered
-reed attack. Temporal detector-confidence tracking and the explicit unstable
-state remain for the next slice.
+reed attack. A short pitch history distinguishes smooth travel from detector
+jitter; unstable input is shown explicitly and cannot advance the drill.
 
 Fix ambiguity before adding more drills.
 

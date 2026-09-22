@@ -129,6 +129,7 @@ pub fn update_tuner_readout(
     key: Res<TrainerKey>,
     target: Res<TrainerTarget>,
     active: Res<ActivePitches>,
+    trace: Res<BendTrace>,
     loc: Res<Localization>,
     mut labels: Query<(&mut Text, &mut TextColor), With<TunerReadout>>,
 ) {
@@ -158,6 +159,11 @@ pub fn update_tuner_readout(
                 &[("note", heard), ("hole", target.hole.to_string())],
             )));
             color.0 = Color::srgb(0.90, 0.60, 0.30);
+            return;
+        }
+        TunerObservation::TargetFamily(_) if trace.unstable => {
+            *text = Text::new(String::from(loc.msg("bending-signal-unstable")));
+            color.0 = Color::srgb(0.75, 0.65, 0.45);
             return;
         }
         TunerObservation::TargetFamily(cents) => cents,

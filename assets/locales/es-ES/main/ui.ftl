@@ -943,6 +943,7 @@ bending-listen-button = 🔊 Escuchar
 bending-drill-button = 🎲 Ejercicio
 bending-play-it-target = Tócala — objetivo {$note}
 bending-wrong-pitch = Oigo {$note} — toca el agujero {$hole} seleccionado
+bending-signal-unstable = Señal inestable — mantén la nota firme
 bending-check-natural-button = Comprobar nota natural
 bending-check-natural-idle = Opcional: comprueba la nota natural {$note} antes del bend
 bending-check-natural-listening = Mantén estable la nota natural {$note}…

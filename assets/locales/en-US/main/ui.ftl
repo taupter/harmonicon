@@ -945,6 +945,7 @@ bending-listen-button = 🔊 Listen
 bending-drill-button = 🎲 Drill
 bending-play-it-target = Play it — target {$note}
 bending-wrong-pitch = Hearing {$note} — play the selected hole {$hole}
+bending-signal-unstable = Signal unstable — hold the note steadily
 bending-check-natural-button = Check natural note
 bending-check-natural-idle = Optional: check the natural {$note} before bending
 bending-check-natural-listening = Hold the natural {$note} steadily…

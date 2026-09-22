@@ -822,6 +822,8 @@ mod drill;
 mod feedback;
 #[cfg(test)]
 mod tests;
+mod trace;
 
 pub use drill::*;
 pub use feedback::*;
+pub use trace::*;

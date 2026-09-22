@@ -101,6 +101,7 @@ impl Plugin for GameplayPlugin {
         .init_resource::<bending_trainer::TrainerTarget>()
         .init_resource::<bending_trainer::DrillState>()
         .init_resource::<bending_trainer::NaturalCheck>()
+        .init_resource::<bending_trainer::BendTrace>()
         .init_resource::<call_response::CallCues>()
         .init_resource::<pause_menu::WaitForNoteMode>()
         .init_resource::<pause_menu::PracticeSpeed>()
@@ -181,11 +182,12 @@ impl Plugin for GameplayPlugin {
                 bending_trainer::update_pitch_range,
                 bending_trainer::update_target_label,
                 bending_trainer::update_hint_label,
-                bending_trainer::update_tuner_readout,
+                bending_trainer::update_bend_trace.after(collect_pitches),
+                bending_trainer::update_tuner_readout.after(bending_trainer::update_bend_trace),
                 bending_trainer::update_natural_check,
                 bending_trainer::update_natural_check_label
                     .after(bending_trainer::update_natural_check),
-                bending_trainer::drill_update,
+                bending_trainer::drill_update.after(bending_trainer::update_bend_trace),
                 bending_trainer::update_drill_label,
                 bending_trainer::update_drill_button_visual,
                 // Suspended while the guided tour is showing this screen —

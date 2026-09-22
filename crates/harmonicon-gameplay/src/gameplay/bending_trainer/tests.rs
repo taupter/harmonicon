@@ -319,6 +319,31 @@ fn tuner_observation_accepts_the_natural_anchor_on_the_selected_hole() {
     ));
 }
 
+#[test]
+fn stability_fit_accepts_smooth_pitch_motion() {
+    let samples = (0..=6)
+        .map(|index| TraceSample {
+            time: index as f32 * 0.025,
+            target_cents: 100.0 - index as f32 * 12.0,
+        })
+        .collect();
+    assert!(residual_rms(&samples).unwrap() < 0.01);
+}
+
+#[test]
+fn stability_fit_rejects_jitter_around_a_pitch() {
+    let cents = [0.0, 18.0, -17.0, 16.0, -19.0, 14.0, -15.0];
+    let samples = cents
+        .iter()
+        .enumerate()
+        .map(|(index, cents)| TraceSample {
+            time: index as f32 * 0.025,
+            target_cents: *cents,
+        })
+        .collect();
+    assert!(residual_rms(&samples).unwrap() > 10.0);
+}
+
 // ── technique_hint ────────────────────────────────────────────────────────
 
 #[test]
