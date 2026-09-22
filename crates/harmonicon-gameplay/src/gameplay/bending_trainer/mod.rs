@@ -498,7 +498,21 @@ pub fn setup(
                         TargetLabel,
                     ));
                     row.spawn_empty().apply_scene(button::small(
-                        &loc.msg("bending-listen-button"),
+                        &loc.msg("bending-listen-natural-button"),
+                        |_: On<Activate>,
+                         key: Res<TrainerKey>,
+                         target: Res<TrainerTarget>,
+                         mut sources: ResMut<Assets<AudioSource>>,
+                         mut commands: Commands| {
+                            let harp = richter_harp(&key.0);
+                            let Some(note) = natural_note_for_target(&harp, *target) else {
+                                return;
+                            };
+                            play_reference_note(&note, &mut sources, &mut commands);
+                        },
+                    ));
+                    row.spawn_empty().apply_scene(button::small(
+                        &loc.msg("bending-listen-target-button"),
                         |_: On<Activate>,
                          key: Res<TrainerKey>,
                          target: Res<TrainerTarget>,
@@ -508,15 +522,7 @@ pub fn setup(
                             let Some(note) = target_note(&harp, *target) else {
                                 return;
                             };
-                            let Some(freq) = note_freq_hz(&note) else {
-                                return;
-                            };
-                            let wav = synth_reference_tone(freq);
-                            let handle = sources.add(AudioSource { bytes: wav.into() });
-                            commands.spawn((
-                                AudioPlayer::<AudioSource>(handle),
-                                PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.6)),
-                            ));
+                            play_reference_note(&note, &mut sources, &mut commands);
                         },
                     ));
                 });

@@ -29,6 +29,9 @@ pub struct BendTrace {
     last_technique: Option<Technique>,
     last_key: String,
     pub unstable: bool,
+    pub target_cents: Option<f32>,
+    pub stability_cents: Option<f32>,
+    pub centered_hold_secs: f32,
 }
 
 const TRACE_DOTS: usize = 32;
@@ -45,6 +48,14 @@ pub struct BendTargetBand;
 pub struct BendNaturalLabel;
 #[derive(Component)]
 pub struct BendTargetLabel;
+#[derive(Component)]
+pub struct BendSlotMarker(pub usize);
+#[derive(Component, Clone, Copy)]
+pub enum BendMetric {
+    Distance,
+    Stability,
+    Hold,
+}
 
 pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localization) {
     card.spawn(Node {
@@ -103,6 +114,23 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
             BackgroundColor(Color::srgba(0.25, 0.75, 0.38, 0.20)),
             BendTargetBand,
         ));
+        for index in 0..2 {
+            rail.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(2.0),
+                    ..default()
+                },
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.72, 0.76, 0.82)),
+                Visibility::Hidden,
+                BendSlotMarker(index),
+            ));
+        }
         for index in 0..TRACE_DOTS {
             rail.spawn((
                 Node {
@@ -132,6 +160,28 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
             BendLiveMarker,
         ));
     });
+    card.spawn(Node {
+        width: Val::Percent(100.0),
+        justify_content: JustifyContent::SpaceBetween,
+        ..default()
+    })
+    .with_children(|metrics| {
+        for metric in [
+            BendMetric::Distance,
+            BendMetric::Stability,
+            BendMetric::Hold,
+        ] {
+            metrics.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.68, 0.72, 0.78)),
+                metric,
+            ));
+        }
+    });
 }
 
 pub(super) fn rail_percent(target_cents: f32, natural_target_cents: f32) -> f32 {
@@ -140,6 +190,19 @@ pub(super) fn rail_percent(target_cents: f32, natural_target_cents: f32) -> f32 
     }
     let progress = (natural_target_cents - target_cents) / natural_target_cents;
     (RAIL_START_PERCENT + progress * (RAIL_END_PERCENT - RAIL_START_PERCENT)).clamp(2.0, 98.0)
+}
+
+pub(super) fn intermediate_bend_notes(harp: &Harmonica, target: TrainerTarget) -> Vec<String> {
+    let count = match target.technique {
+        Technique::Bend2 => 1,
+        Technique::Bend3 => 2,
+        _ => 0,
+    };
+    hole_notes(harp, target.hole)
+        .bends
+        .into_iter()
+        .take(count)
+        .collect()
 }
 
 pub(super) fn residual_rms(samples: &VecDeque<TraceSample>) -> Option<f32> {
@@ -193,6 +256,9 @@ pub fn update_bend_trace(
     if target_changed {
         trace.samples.clear();
         trace.unstable = false;
+        trace.target_cents = None;
+        trace.stability_cents = None;
+        trace.centered_hold_secs = 0.0;
         trace.last_hole = Some(target.hole);
         trace.last_technique = Some(target.technique);
         trace.last_key.clone_from(&key.0);
@@ -220,12 +286,23 @@ pub fn update_bend_trace(
                 .filter(|sample| elapsed - sample.time <= STABILITY_HISTORY_SECS)
                 .copied()
                 .collect();
-            trace.unstable = residual_rms(&stability_samples)
+            trace.stability_cents = residual_rms(&stability_samples);
+            trace.unstable = trace
+                .stability_cents
                 .is_some_and(|residual| residual > UNSTABLE_RESIDUAL_CENTS);
+            trace.target_cents = Some(target_cents);
+            trace.centered_hold_secs = if target_cents.abs() <= IN_TUNE_CENTS && !trace.unstable {
+                trace.centered_hold_secs + time.delta_secs()
+            } else {
+                0.0
+            };
         }
         _ => {
             trace.samples.clear();
             trace.unstable = false;
+            trace.target_cents = None;
+            trace.stability_cents = None;
+            trace.centered_hold_secs = 0.0;
         }
     }
 }
@@ -246,6 +323,8 @@ pub fn update_bend_rail(
     mut band: Query<&mut Node, (With<BendTargetBand>, Without<BendLiveMarker>)>,
     mut natural_labels: Query<&mut Text, (With<BendNaturalLabel>, Without<BendTargetLabel>)>,
     mut target_labels: Query<&mut Text, (With<BendTargetLabel>, Without<BendNaturalLabel>)>,
+    mut metrics: Query<(&BendMetric, &mut Text)>,
+    mut slots: Query<(&BendSlotMarker, &mut Node, &mut Text, &mut Visibility)>,
 ) {
     let harp = richter_harp(&key.0);
     let Some(target_note) = target_note(&harp, *target) else {
@@ -271,6 +350,42 @@ pub fn update_bend_rail(
         *text = Text::new(String::from(
             loc.msg_args("bending-rail-target-note", &[("note", target_note.clone())]),
         ));
+    }
+    for (metric, mut text) in &mut metrics {
+        let (key, value) = match metric {
+            BendMetric::Distance => (
+                "bending-metric-distance",
+                trace
+                    .target_cents
+                    .map_or_else(|| "—".to_string(), |cents| format!("{cents:+.0}c")),
+            ),
+            BendMetric::Stability => (
+                "bending-metric-stability",
+                trace
+                    .stability_cents
+                    .map_or_else(|| "—".to_string(), |cents| format!("{cents:.0}c")),
+            ),
+            BendMetric::Hold => (
+                "bending-metric-hold",
+                format!("{:.1}s", trace.centered_hold_secs),
+            ),
+        };
+        *text = Text::new(String::from(loc.msg_args(key, &[("value", value)])));
+    }
+    let intermediate = intermediate_bend_notes(&harp, *target);
+    for (slot, mut node, mut text, mut visibility) in &mut slots {
+        let Some(note) = intermediate.get(slot.0) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        let Some(freq) = note_freq_hz(note) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        let cents = 1200.0 * (freq / target_freq).log2();
+        node.left = Val::Percent(rail_percent(cents, natural_cents));
+        *text = Text::new(format!("│ {note}"));
+        *visibility = Visibility::Visible;
     }
     let band_width = if natural_cents.abs() < 1.0 {
         10.0

@@ -25,16 +25,19 @@ screen uses. Below it, the screen splits into two columns:
 ## Picking a target
 
 Click any cell in the bend diagram to make it the current target — its
-note name appears in the target readout, and **Listen** plays a clean
-synthesized reference tone for it so you know exactly what pitch you're
-aiming for before you try to bend to it. **Check natural** asks for the
+note name appears in the target readout. **Natural** and **Target** play clean
+synthesized reference tones so you can hear the interval before trying to
+bend it. **Check natural** asks for the
 selected hole's unbent reed first, confirming that the microphone is following
 the right hole. The **cents-off tuner** then reports distance and direction
 only for pitches that belong to that hole; silence and an unrelated pitch get
 their own messages instead of a misleading cents value. The pitch rail below
 it shows the path from the natural reed to the target band. Its bright marker
 is the current pitch, while fading dots retain the last three seconds of motion
-so you can see a smooth approach, a crossing, or an overshoot.
+so you can see a smooth approach, a crossing, or an overshoot. Separate
+readouts report distance from the target, short-window pitch stability, and
+how long the pitch has remained centered. When a hole supports several bend
+depths, shallower bend notes are marked along the route to a deeper target.
 
 ## Drill mode
 

@@ -352,6 +352,21 @@ fn bend_rail_maps_natural_target_and_overshoot() {
     assert!(rail_percent(-25.0, natural_cents) > 92.0);
 }
 
+#[test]
+fn deep_bend_rail_names_shallower_slots() {
+    let harp = richter_harp("C");
+    let whole = TrainerTarget {
+        hole: 3,
+        technique: Technique::Bend2,
+    };
+    let deep = TrainerTarget {
+        hole: 3,
+        technique: Technique::Bend3,
+    };
+    assert_eq!(intermediate_bend_notes(&harp, whole), ["A#4"]);
+    assert_eq!(intermediate_bend_notes(&harp, deep), ["A#4", "A4"]);
+}
+
 // ── technique_hint ────────────────────────────────────────────────────────
 
 #[test]

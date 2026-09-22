@@ -233,6 +233,22 @@ pub(super) fn synth_reference_tone(freq: f32) -> Vec<u8> {
     encode_wav(&buf, SAMPLE_RATE)
 }
 
+pub(super) fn play_reference_note(
+    note: &str,
+    sources: &mut Assets<AudioSource>,
+    commands: &mut Commands,
+) {
+    let Some(freq) = note_freq_hz(note) else {
+        return;
+    };
+    let wav = synth_reference_tone(freq);
+    let handle = sources.add(AudioSource { bytes: wav.into() });
+    commands.spawn((
+        AudioPlayer::<AudioSource>(handle),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.6)),
+    ));
+}
+
 /// Drives the adaptive drill while it's on: holds the current target until
 /// the player sustains it in tune, credits a hit, and picks the next target,
 /// weighted toward whatever's been missed most. A target the player can't
