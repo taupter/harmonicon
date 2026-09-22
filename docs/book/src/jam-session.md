@@ -3,7 +3,7 @@
 **Play → Jam Session → Pick a Song** is free play: pick an artist and song
 the same way as [Playing a Song](playing-a-song.md), but instead of scored
 falling notes, you get an open 12-bar backing to improvise over, for as
-long as you like — there's no finite end and nothing is scored.
+long as the chosen backing and Loop setting allow. Nothing is scored.
 
 By default the screen is a calm stage with one visual centre: the song
 title and which harp to grab, the **Loop** toggle (restarts the backing
