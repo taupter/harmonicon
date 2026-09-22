@@ -174,12 +174,14 @@ can hear the approach to bar 1, and every energy level preserves the groove.
 
 ### 4. Make listening the default interface
 
-**In progress.** The default stage now centers a large current-to-next chord
-readout and chorus/bar position. A persistent Guides toggle hides the full
-grid, metronome, rhythm pulse, spectrogram, bend diagram, hole map, and
-position compass together, expanding the primary stage into the freed space.
-The compact detected-note indicator, compact form strip, and Eyes off mode
-remain.
+**Implemented.** The default stage centers a large current-to-next chord
+readout, chorus/bar position, a compact twelve-cell form strip and a
+one-line detected hole/breath indicator tinted by fit. A persistent Guides
+toggle collapses the full grid, metronome, rhythm pulse, spectrogram, bend
+diagram, hole map, and position compass together, expanding the primary
+stage into the freed space. "Eyes off" is that toggle: with guides hidden,
+what remains is form, transport and the one restrained indicator, so a
+separate mode would only differ by hiding a single line.
 
 Split the current display into a calm default stage and optional guides.
 

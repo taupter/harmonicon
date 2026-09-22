@@ -148,3 +148,28 @@ fn guide_uses_minor_seventh_chord_tones_for_a_minor_blues() {
     // Bar 8 is still V (G7, dominant) even in a minor blues.
     assert!(guide.chord_tones_by_bar[8].contains("B"));
 }
+
+// ── lowest_sounding ──────────────────────────────────────────────────────
+
+fn pitch(midi: u8) -> PitchInfo {
+    PitchInfo {
+        midi,
+        note: harmonicon_core::midi::midi_to_note(i32::from(midi)),
+        octave: 0,
+        frequency: 0.0,
+    }
+}
+
+#[test]
+fn the_indicator_names_the_lowest_playable_pitch() {
+    let playable = playable_notes(&c_harp());
+    // E4 (blow 2) and G4 (draw 2 / blow 3) sounding together: the root, E4,
+    // wins; G4's two homes don't matter.
+    let active = [pitch(67), pitch(64)];
+    let (p, note) = lowest_sounding(&active, &playable).unwrap();
+    assert_eq!(p.midi, 64);
+    assert_eq!((note.hole, note.blow), (2, true));
+    // A pitch the harp can't sound is ignored entirely.
+    assert!(lowest_sounding(&[pitch(61)], &playable).is_none());
+    assert!(lowest_sounding(&[], &playable).is_none());
+}

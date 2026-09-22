@@ -116,6 +116,7 @@ impl Plugin for JamPlugin {
                 Update,
                 (
                     hole_map::update_hole_map,
+                    hole_map::update_detected_note,
                     improv::accumulate_improv_stats,
                     jam_call_response::drive_call_response,
                     jam_call_response::update_call_response_banner,

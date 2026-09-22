@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
+use harmonicon_audio::pitch_detect::PitchInfo;
 use harmonicon_core::chart::{Action, Scale};
 use harmonicon_core::harmonica::{
     ChordQuality, Harmonica, Progression, chord_intervals, progression_bars, semitone,
@@ -281,6 +282,89 @@ pub fn update_hole_map(
             None if ghost_holes.contains(&cell.hole) => PLAY_GHOST_LICK,
             None => HOLE_DEFAULT,
         };
+    }
+}
+
+// ── Compact detected-note indicator ─────────────────────────────────────────
+
+/// The default stage's one line of live feedback: which hole and breath the
+/// mic hears, tinted by the same fit the hole map uses. Restrained on
+/// purpose — no history, no counts, and a rest reads as a plain dash.
+#[derive(Component)]
+pub struct JamDetectedNote;
+
+/// Colour for a rest — nothing sounding.
+const DETECTED_NONE: Color = Color::srgb(0.45, 0.45, 0.55);
+
+/// Which sounding pitch the indicator names: the lowest one the harp can
+/// actually sound (a chord's root; a single note itself), so a
+/// tongue-blocked chord doesn't flicker between its holes frame to frame.
+/// `None` when nothing playable is sounding.
+pub(crate) fn lowest_sounding<'a>(
+    active: &'a [PitchInfo],
+    playable: &[PlayableNote],
+) -> Option<(&'a PitchInfo, PlayableNote)> {
+    active
+        .iter()
+        .filter_map(|p| playable.iter().find(|n| n.midi == p.midi).map(|n| (p, *n)))
+        .min_by_key(|(_, n)| (n.midi, n.hole))
+}
+
+/// Spawns the indicator, resting.
+pub(crate) fn spawn_detected_note(parent: &mut ChildSpawnerCommands, loc: &Localization) {
+    parent.spawn((
+        Text::new(String::from(loc.msg("jam-detected-none"))),
+        TextFont {
+            font_size: FontSize::Px(20.0),
+            ..default()
+        },
+        TextColor(DETECTED_NONE),
+        JamDetectedNote,
+    ));
+}
+
+/// Names the hole/breath the mic hears and tints it by fit — chord tone,
+/// in scale, outside — writing only when the reading changes.
+pub fn update_detected_note(
+    active: Res<ActivePitches>,
+    guide: Option<Res<JamHoleGuide>>,
+    current: Res<CurrentBar>,
+    loc: Res<Localization>,
+    mut labels: Query<(&mut Text, &mut TextColor), With<JamDetectedNote>>,
+) {
+    let Some(guide) = guide else {
+        return;
+    };
+    let (reading, color) = match lowest_sounding(&active.0, &guide.playable) {
+        Some((pitch, note)) => {
+            let key = if note.blow {
+                "jam-detected-blow"
+            } else {
+                "jam-detected-draw"
+            };
+            let fit = classify_note_fit(
+                &pitch.note,
+                &guide.chord_tones_by_bar[current.0],
+                &guide.scale_classes,
+            );
+            (
+                loc.msg_args(key, &[("hole", note.hole.to_string())]),
+                match fit {
+                    super::improv::NoteFit::ChordTone => PLAY_CHORD_TONE,
+                    super::improv::NoteFit::InScale => PLAY_IN_SCALE,
+                    super::improv::NoteFit::OutOfScale => PLAY_OUT_SCALE,
+                },
+            )
+        }
+        None => (loc.msg("jam-detected-none"), DETECTED_NONE),
+    };
+    for (mut text, mut tint) in &mut labels {
+        if text.0 != *reading {
+            text.0 = reading.to_string();
+        }
+        if tint.0 != color {
+            tint.0 = color;
+        }
     }
 }
 

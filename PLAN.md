@@ -12,9 +12,8 @@ this file — prune it back to a one-line summary under "Shipped" below.
   `docs/jam_feel_plan.md` are in (continuity and endings, the generated
   rhythm section, the four-chorus arc and Band energy, the listening-first
   stage, phrase-shaped call-and-response, and the band listening without
-  grading). What remains is the leftovers each phase's own note lists
-  (phase 4's compact detected-note indicator and Eyes off mode, role
-  timbres) and the listening reviews the audio phases still owe — balance,
+  grading). What remains is role-specific timbres for the rhythm section
+  and the listening reviews the audio phases still owe — balance,
   genre credibility, the call's timbre against the band, the comping
   thinning depth and whether the band's answers sit in each groove.
 

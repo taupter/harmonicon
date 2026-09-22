@@ -34,7 +34,7 @@ use harmonicon_ui::spectrogram::{OscMaterial, SpectrogramStyle, spawn_spectrogra
 
 use super::backing::JamGenre;
 use super::backing::generate_ending_pcm;
-use super::hole_map::{build_hole_guide, spawn_hole_map};
+use super::hole_map::{build_hole_guide, spawn_detected_note, spawn_hole_map};
 use super::midi_tracks::{JamStemMute, spawn_backing_stem_row};
 use super::position_guide::spawn_position_compass;
 use super::rhythm_guide::spawn_rhythm_guide;
@@ -296,6 +296,9 @@ pub fn setup(
                             TextColor(Color::WHITE),
                             JamChordPosition,
                         ));
+                        spawn_form_strip(left, key, progression, theme.twelve_bar_colors());
+                        super::call_response::spawn_call_response_banner(left);
+                        spawn_detected_note(left, &loc);
                         left.spawn(Node {
                             flex_direction: FlexDirection::Row,
                             align_items: AlignItems::Center,
@@ -575,8 +578,6 @@ pub fn setup(
     // Jam already shows the harp hint on the persistent left panel, so the
     // countdown doesn't repeat it.
     spawn_countdown(&mut commands, &loc, None, None);
-
-    super::call_response::spawn_call_response_banner(&mut commands);
 }
 
 // ── Music loop toggle ────────────────────────────────────────────────────────
@@ -614,9 +615,12 @@ fn next_chorus_boundary(absolute_bar: usize) -> usize {
 pub fn update_jam_loop_label(
     jam_loop: Res<JamLoop>,
     loc: Res<Localization>,
+    added: Query<(), Added<JamLoopLabel>>,
     mut labels: Query<&mut Text, With<JamLoopLabel>>,
 ) {
-    if !jam_loop.is_changed() {
+    // `JamLoop` persists across jams, so a freshly spawned label has to read
+    // the current state rather than a default.
+    if !jam_loop.is_changed() && added.is_empty() {
         return;
     }
     for mut text in &mut labels {

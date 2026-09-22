@@ -182,29 +182,33 @@ fn approach(current: f32, target: f32, dt_secs: f32) -> f32 {
 #[derive(Component, Default, Clone)]
 pub struct CallResponseBanner;
 
-/// Spawns the (initially hidden) turn-taking banner. Tagged `GameplayRoot`
-/// so it's torn down with the rest of Jam Session; only shown while
-/// [`CallResponseEnabled`] is on (see [`update_call_response_banner`]).
-pub fn spawn_call_response_banner(commands: &mut Commands) {
-    commands
-        .spawn_scene(bsn! {
-            Node {
-                position_type: {PositionType::Absolute},
-                top: {Val::Percent(40.0)},
-                width: {Val::Percent(100.0)},
-                flex_direction: {FlexDirection::Column},
-                align_items: {AlignItems::Center},
-            }
-            GlobalZIndex(90)
-            GameplayRoot
-            Children [
-                Text({""})
-                TextFont { font_size: {FontSize::Px(28.0)} }
-                TextColor({Color::srgb(1.0, 0.85, 0.35)})
-                CallResponseBanner
-            ]
+/// Spawns the turn-taking banner as a row of the stage, between the chord
+/// readout and the live indicator, so it sits with the form rather than
+/// floating over whatever the layout centres there. The row keeps its
+/// height while hidden so the stage doesn't shift when a call begins.
+/// Text and visibility follow [`CallResponseEnabled`]/
+/// [`CallResponseState`] from the first frame (see
+/// [`update_call_response_banner`]).
+pub fn spawn_call_response_banner(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn(Node {
+            height: Val::Px(36.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
         })
-        .insert(Visibility::Hidden);
+        .with_children(|row| {
+            row.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(28.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(1.0, 0.85, 0.35)),
+                Visibility::Hidden,
+                CallResponseBanner,
+            ));
+        });
 }
 
 /// Keeps the banner's text/visibility in step with [`CallResponseEnabled`]/
@@ -214,9 +218,10 @@ pub fn update_call_response_banner(
     enabled: Res<CallResponseEnabled>,
     state: Res<CallResponseState>,
     loc: Res<Localization>,
+    added: Query<(), Added<CallResponseBanner>>,
     mut banners: Query<(&mut Text, &mut Visibility), With<CallResponseBanner>>,
 ) {
-    if !enabled.is_changed() && !state.is_changed() {
+    if !enabled.is_changed() && !state.is_changed() && added.is_empty() {
         return;
     }
     for (mut text, mut vis) in &mut banners {
@@ -236,9 +241,12 @@ pub fn update_call_response_banner(
 pub fn update_call_response_label(
     enabled: Res<CallResponseEnabled>,
     loc: Res<Localization>,
+    added: Query<(), Added<CallResponseLabel>>,
     mut labels: Query<&mut Text, With<CallResponseLabel>>,
 ) {
-    if !enabled.is_changed() {
+    // The toggle persists across jams (like `JamLoop`), so a freshly spawned
+    // label has to read the current state, not a default.
+    if !enabled.is_changed() && added.is_empty() {
         return;
     }
     for mut text in &mut labels {

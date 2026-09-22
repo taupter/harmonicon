@@ -5,18 +5,24 @@ the same way as [Playing a Song](playing-a-song.md), but instead of scored
 falling notes, you get an open 12-bar backing to improvise over, for as
 long as you like — there's no finite end and nothing is scored.
 
-The screen is split into two columns:
+By default the screen is a calm stage with one visual centre: the song
+title and which harp to grab, the **Loop** toggle (restarts the backing
+track when it ends, instead of stopping), the chorus/bar position, a big
+**current → next chord** readout, a compact twelve-cell **form strip**
+that lights the bar you're in, and one line naming the **hole and breath
+the mic hears** — gold for a chord tone of the bar currently sounding,
+green for anywhere else in the blues scale, amber for outside it. Follow
+the colour, not memorized theory. That's everything you need to keep
+your eyes off the screen for a whole chorus.
 
-- **Left — everything but the harmonica**: the song title, a **Loop**
-  toggle (restarts the backing track when it ends, instead of stopping),
-  the chorus/bar position, the **12-bar chord grid** (the current bar lights up as the backing
-  plays), the **metronome**, and a live **spectrogram** of what your mic is
-  hearing.
-- **Right — the harmonica**: a reference bend diagram for every hole, plus
-  a **live-tinted hole map** — as you play, each hole/direction recolors:
-  **gold** for a chord tone of the bar currently sounding, **green** for
-  anywhere else in the blues scale, and left dim for out-of-scale notes.
-  Follow the color, not memorized theory.
+Click **Guides** to open the rest, remembered between jams:
+
+- **Left**: the full **12-bar chord grid** (the current bar lights up as
+  the backing plays), the **metronome**, and a live **spectrogram** of
+  what your mic is hearing.
+- **Right — the harmonica**: a reference bend diagram for every hole,
+  plus a **live-tinted hole map** that recolors each hole/direction as
+  you play, in the same colours as the indicator.
 
 ![Jam Session screen](images/jam-session.png)
 
