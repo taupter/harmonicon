@@ -28,6 +28,9 @@ use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::wav::encode_wav;
 use harmonicon_song::song::{BackingStemAudio, NoteCube3dConfig, NoteThemeConfig, SongManifest};
 
+mod humanize;
+use humanize::{GrooveRole, performance_variation, varied_slot};
+
 pub const SAMPLE_RATE: u32 = 44_100;
 
 /// How many 12-bar choruses to render into one generated backing buffer.
@@ -564,21 +567,19 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
     for chorus in 0..CHORUSES as usize {
         for (bar, root) in roots.iter().enumerate() {
             let arrangement = groove_arrangement_for_position(genre, chorus, bar);
-            for (i, freq) in bar_beat_freqs(root, &arrangement.bass)
+            for (slot, freq) in bar_beat_freqs(root, &arrangement.bass)
                 .into_iter()
                 .enumerate()
             {
-                let note_secs = if i % 2 == 0 { long_secs } else { short_secs };
-                let gap_samples = ((note_secs * NOTE_GAP_FRAC) * SAMPLE_RATE as f32) as usize;
-                match freq {
-                    Some(hz) => buf.extend(bass_tone(hz, note_secs * (1.0 - NOTE_GAP_FRAC))),
-                    None => {
-                        let silent_samples = (note_secs * SAMPLE_RATE as f32) as usize;
-                        buf.extend(std::iter::repeat_n(0.0, silent_samples));
-                        continue;
-                    }
-                }
-                buf.extend(std::iter::repeat_n(0.0, gap_samples));
+                let note_secs = if slot % 2 == 0 { long_secs } else { short_secs };
+                let sound = freq
+                    .map(|hz| bass_tone(hz, note_secs * (1.0 - NOTE_GAP_FRAC)))
+                    .unwrap_or_default();
+                buf.extend(varied_slot(
+                    sound,
+                    note_secs,
+                    performance_variation(genre, GrooveRole::Bass, chorus, bar, slot),
+                ));
             }
         }
     }
@@ -684,11 +685,11 @@ fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy) -> Vec<f32> {
         for bar in 0..12 {
             let arrangement = groove_arrangement_for_energy(genre, energy, chorus, bar);
             for slot in 0..8 {
-                out.extend(drum_slot(
-                    arrangement.drums[slot],
-                    slot,
-                    if slot % 2 == 0 { long } else { short },
-                    genre,
+                let secs = if slot % 2 == 0 { long } else { short };
+                out.extend(varied_slot(
+                    drum_slot(arrangement.drums[slot], slot, secs, genre),
+                    secs,
+                    performance_variation(genre, GrooveRole::Drums, chorus, bar, slot),
                 ));
             }
         }
@@ -720,11 +721,14 @@ fn generate_comping_pcm(
                 let secs = if slot % 2 == 0 { long } else { short };
                 let event = arrangement.comping[slot];
                 if event.hit {
-                    out.extend(
+                    out.extend(varied_slot(
                         comping_slot(root, *quality, secs, genre)
                             .into_iter()
-                            .map(|sample| sample * event.accent),
-                    );
+                            .map(|sample| sample * event.accent)
+                            .collect(),
+                        secs,
+                        performance_variation(genre, GrooveRole::Comping, chorus, bar, slot),
+                    ));
                 } else {
                     out.extend(std::iter::repeat_n(
                         0.0,

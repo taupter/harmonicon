@@ -148,11 +148,13 @@ one role leaves the other roles synchronized; the harmonica has audible space.
 
 ### 3. Give each four-chorus arc a shape
 
-**In progress.** The generated buffer now follows a deterministic four-chorus
+**Implemented.** The generated buffer now follows a deterministic four-chorus
 dynamics arc: sparse comping and softer drums, a comping lift, the fullest
 band texture, then a relaxed chorus before repeating. The Low, Medium, and
 High Band energy control changes accompaniment density and dynamics without
-changing the form. Safe timing variation remains.
+changing the form. Each role also gets deterministic microtiming and velocity
+variation within its rhythmic slots; quarter-note downbeats and every slot's
+length stay fixed, so the performance loosens without accumulating drift.
 
 Arrange at the chorus level instead of cloning one 12-bar block.
 

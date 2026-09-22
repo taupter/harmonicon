@@ -150,6 +150,12 @@ load-bearing about *this* crate.
   clock. `session::setup` resets the ending and call-response state on every
   entry/restart.
 
+- **Generated-band humanization cannot move the form.** `backing::
+  performance_variation` deterministically varies each role's offbeat onset
+  and level from genre/chorus/bar/slot. `varied_slot` always returns the
+  original slot length and quarter-note downbeats have no delay, so all three
+  stems stay sample-aligned and repeated generation is reproducible.
+
 - **A song can ship a raw MIDI file as its backing track**
   (`song/music.mid`, a third fallback in `song::loader` after
   `music.ogg`/`music.wav` — mutually exclusive with those; whichever is
