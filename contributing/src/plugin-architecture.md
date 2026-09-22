@@ -148,7 +148,7 @@ two mechanisms to constrain the parts that need it:
 - **`.after(some_system)`** orders one system directly after a specific
   other one, used where the relationship is narrower than "after this
   whole named phase" — for instance, `jam::midi_tracks::
-  apply_midi_track_mute` (see [Jam Session](jam-session-architecture.md))
+  apply_backing_gain` (see [Jam Session](jam-session-architecture.md))
   is ordered `.after(gameplay::lifecycle::apply_music_volume)` so a
   mid-song global-volume change can never accidentally un-mute a track
   the player muted a moment earlier: both systems touch the same sinks'

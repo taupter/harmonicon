@@ -1,26 +1,22 @@
 // SPDX-License-Identifier: MIT
 
-//! Jam Session: free-play screen (12-bar chart + metronome + spectrogram,
-//! no falling notes) plus the live harmonica hole-map feedback and the
-//! background-music loop toggle.
-
-use std::collections::{HashMap, HashSet};
+//! Jam Session: the free-play screen (12-bar chart + metronome +
+//! spectrogram, no falling notes), its transport (the finite-song loop
+//! toggle, a generated jam's continuity and scheduled ending) and the
+//! per-jam reset. The live hole map it spawns is `hole_map`'s.
 
 use bevy::audio::{AudioPlayer, AudioSink, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
-use harmonicon_core::chart::{Action, Scale};
-use harmonicon_core::harmonica::{
-    ChordQuality, Harmonica, Position, Progression, chord_intervals, detected_harp_key,
-    progression_bars, semitone,
-};
+use harmonicon_core::chart::Action;
+use harmonicon_core::harmonica::{Position, detected_harp_key, progression_bars};
 
 use harmonicon_app::app::{EffectiveHarmonica, JamProgression, JamScale, SelectedSong};
 use harmonicon_audio::AudioSettings;
 use harmonicon_gameplay::gameplay::{
-    ActivePitches, BackingStemPlayer, COUNTDOWN, CurrentBar, GameplayClock, GameplayRoot,
-    MusicPlayer, MusicStarted, resolve_item_time,
+    BackingStemPlayer, COUNTDOWN, GameplayClock, GameplayRoot, MusicPlayer, MusicStarted,
+    resolve_item_time,
 };
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
@@ -38,7 +34,7 @@ use harmonicon_ui::spectrogram::{OscMaterial, SpectrogramStyle, spawn_spectrogra
 
 use super::backing::JamGenre;
 use super::backing::generate_ending_pcm;
-use super::improv::classify_note_fit;
+use super::hole_map::{build_hole_guide, spawn_hole_map};
 use super::midi_tracks::{JamStemMute, spawn_backing_stem_row};
 use super::position_guide::spawn_position_compass;
 use super::rhythm_guide::spawn_rhythm_guide;
@@ -56,6 +52,7 @@ pub struct JamResetState<'w> {
     ending: ResMut<'w, JamEnding>,
     call_response: ResMut<'w, super::call_response::CallResponseState>,
     guides_visible: Res<'w, JamGuidesVisible>,
+    call_density: Res<'w, super::call_response::JamCallDensity>,
 }
 
 pub fn setup(
@@ -83,8 +80,9 @@ pub fn setup(
     clock.set_free(-COUNTDOWN);
     music_started.0 = false;
     *reset.ending = JamEnding::default();
-    *reset.call_response = super::call_response::CallResponseState::default();
+    *reset.call_response = super::call_response::CallResponseState::fresh();
     let guides_visible = reset.guides_visible.0;
+    let call_density = &reset.call_density;
     // Fresh, all-unmuted for this jam — sized to the song's own track
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
@@ -345,6 +343,34 @@ pub fn setup(
                                 },
                                 TextColor(Color::srgb(0.70, 0.70, 0.80)),
                                 super::call_response::CallResponseLabel,
+                            ));
+                        });
+                        // The one musical control over the calls: how busy
+                        // they are. A cycle button, not a level picker.
+                        left.spawn(Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(8.0),
+                            ..default()
+                        })
+                        .with_children(|row| {
+                            row.spawn_empty().apply_scene(button::small(
+                                &loc.msg("jam-call-density-button"),
+                                |_: On<Activate>,
+                                 mut density: ResMut<super::call_response::JamCallDensity>| {
+                                    density.0 = density.0.next();
+                                },
+                            ));
+                            row.spawn((
+                                Text::new(String::from(
+                                    loc.msg(super::call_response::density_key(call_density.0)),
+                                )),
+                                TextFont {
+                                    font_size: FontSize::Px(15.0),
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                                super::call_response::CallDensityLabel,
                             ));
                         });
                         left.spawn((
@@ -728,261 +754,6 @@ pub fn finish_generated_jam_at_chorus(
     let ended = clock.get();
     ending.ended_at_secs = Some(ended);
     clock.set_free(ended);
-}
-
-// ── Live harmonica hole map ─────────────────────────────────────────────────────
-
-/// Lookup driving the live hole feedback, rebuilt for each jam: which holes
-/// can sound a given `note+octave`; which note classes are in the jam's
-/// active [`Scale`] generally (blues by default, but configurable — see
-/// `JamScale`); and, per bar of the 12-bar cycle, which note classes are
-/// tones of *that bar's* chord (I, IV, or V) — chord-tone awareness is a
-/// distinct, more advanced skill than just staying in scale.
-///
-/// Fields are `pub(crate)`: `jam::improv::accumulate_improv_stats` reads
-/// them directly, the same lookup `update_hole_map`'s tint uses, so the
-/// two can't disagree.
-#[derive(Resource)]
-pub struct JamHoleGuide {
-    /// MIDI note number → the holes that can sound it (may be more than one
-    /// — e.g. draw-2 and blow-3 are both G4 on a C harp).
-    pub(crate) note_to_holes: HashMap<u8, Vec<u8>>,
-    pub(crate) scale_classes: HashSet<String>,
-    pub(crate) chord_tones_by_bar: [HashSet<String>; 12],
-}
-
-/// One hole cell in the map; its background is tinted each frame by play state.
-#[derive(Component)]
-pub struct JamHoleCell {
-    hole: u8,
-}
-
-/// Static rendering data for one hole: its blow/draw notes and whether each sits
-/// in the blues scale (for the green "safe note" hint).
-pub(crate) struct HoleInfo {
-    hole: u8,
-    blow: String,
-    draw: String,
-    blow_in_scale: bool,
-    draw_in_scale: bool,
-}
-
-const HOLE_DEFAULT: Color = Color::srgba(0.12, 0.12, 0.16, 0.9);
-/// A chord tone of the bar currently sounding — the strongest, most targeted
-/// choice right now (not just "in the scale somewhere").
-const PLAY_CHORD_TONE: Color = Color::srgb(0.95, 0.85, 0.25);
-const PLAY_IN_SCALE: Color = Color::srgb(0.20, 0.80, 0.35);
-const PLAY_OUT_SCALE: Color = Color::srgb(0.90, 0.55, 0.15);
-const LABEL_IN_SCALE: Color = Color::srgb(0.45, 0.85, 0.50);
-const LABEL_OUT_SCALE: Color = Color::srgb(0.50, 0.50, 0.55);
-/// A hole used by the current call-and-response lick, shown while nothing's
-/// actually sounding it right now — a visual memory aid for the echo, not a
-/// graded outcome (see `call_response`'s module doc comment).
-const PLAY_GHOST_LICK: Color = Color::srgba(0.45, 0.40, 0.85, 0.85);
-
-/// The note class (drop the trailing octave digit) of e.g. `"D#5"` → `"D#"`.
-/// `pub(super)` so `jam::call_response`'s lick generator can classify a
-/// MIDI pitch's note class the same way the hole map's own tint does.
-pub(super) fn note_class(note: &str) -> &str {
-    note.trim_end_matches(|c: char| c.is_ascii_digit())
-}
-
-/// The four note classes of `quality`'s chord rooted on `chord_root` (root,
-/// 3rd, 5th, 7th — see `song::harmonica::chord_intervals`).
-fn chord_tone_classes(chord_root: &str, quality: ChordQuality) -> HashSet<String> {
-    chord_intervals(quality)
-        .iter()
-        .map(|&n| semitone(chord_root, n))
-        .collect()
-}
-
-/// Build the per-hole render data and the live-feedback lookup from the harp
-/// layout, the song key, its `progression` (see `song::harmonica::
-/// Progression` — `Standard` for a real-song jam, player-selected for a
-/// generated one), its `scale` (see `song::chart::Scale` — the caller
-/// resolves the chart-vs-`JamScale` precedence; this function just applies
-/// whichever one it's given), and its tempo (needed to track which bar —
-/// and thus which chord — is currently sounding).
-pub(crate) fn build_hole_guide(
-    harp: &Harmonica,
-    key: &str,
-    progression: Progression,
-    scale: Scale,
-) -> (Vec<HoleInfo>, JamHoleGuide) {
-    let dash = "\u{2014}";
-    let scale_classes = scale.classes(key);
-    let chord_tones_by_bar: [HashSet<String>; 12] = {
-        let bars = progression_bars(key, progression);
-        std::array::from_fn(|i| {
-            let (root, quality) = &bars[i];
-            chord_tone_classes(root, *quality)
-        })
-    };
-    let mut note_to_holes: HashMap<u8, Vec<u8>> = HashMap::new();
-    let mut holes = Vec::new();
-
-    for hole in 1..=harp.hole_count() {
-        let blow = harp.wind_direction_label(hole, &Action::Blow);
-        let draw = harp.wind_direction_label(hole, &Action::Draw);
-        if blow == dash && draw == dash {
-            continue;
-        }
-        if let Some(m) = harp.wind_direction_midi(hole, &Action::Blow) {
-            note_to_holes.entry(m).or_default().push(hole);
-        }
-        if let Some(m) = harp.wind_direction_midi(hole, &Action::Draw) {
-            note_to_holes.entry(m).or_default().push(hole);
-        }
-        holes.push(HoleInfo {
-            hole,
-            blow_in_scale: scale_classes.contains(note_class(&blow)),
-            draw_in_scale: scale_classes.contains(note_class(&draw)),
-            blow,
-            draw,
-        });
-    }
-
-    (
-        holes,
-        JamHoleGuide {
-            note_to_holes,
-            scale_classes,
-            chord_tones_by_bar,
-        },
-    )
-}
-
-/// Spawn the bottom-strip hole map: a row of cells (blow note, hole number, draw
-/// note), with in-scale notes tinted green as a static guide.
-fn spawn_hole_map(parent: &mut ChildSpawnerCommands, holes: &[HoleInfo], loc: &Localization) {
-    parent
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            row_gap: Val::Px(6.0),
-            padding: UiRect::all(Val::Px(12.0)),
-            ..default()
-        })
-        .with_children(|col| {
-            col.spawn((
-                Text::new(String::from(loc.msg("jam-hole-map-hint"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-            ));
-            col.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(4.0),
-                ..default()
-            })
-            .with_children(|row| {
-                for h in holes {
-                    row.spawn((
-                        Node {
-                            width: Val::Px(50.0),
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            row_gap: Val::Px(2.0),
-                            padding: UiRect::all(Val::Px(4.0)),
-                            ..default()
-                        },
-                        BackgroundColor(HOLE_DEFAULT),
-                        JamHoleCell { hole: h.hole },
-                    ))
-                    .with_children(|cell| {
-                        cell.spawn((
-                            Text::new(note_class(&h.blow).to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(if h.blow_in_scale {
-                                LABEL_IN_SCALE
-                            } else {
-                                LABEL_OUT_SCALE
-                            }),
-                        ));
-                        cell.spawn((
-                            Text::new(h.hole.to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(16.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
-                        cell.spawn((
-                            Text::new(note_class(&h.draw).to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(if h.draw_in_scale {
-                                LABEL_IN_SCALE
-                            } else {
-                                LABEL_OUT_SCALE
-                            }),
-                        ));
-                    });
-                }
-            });
-        });
-}
-
-/// Tint each hole cell from the live mic pitches, three tiers: gold if the
-/// sounding note is a tone of the chord currently sounding (the most targeted
-/// choice — chord-tone awareness, not just scale membership), green if it's
-/// elsewhere in the blues scale, amber if outside the scale; a hole that's
-/// part of the current call-and-response lick (`call_response::
-/// CallResponseState`) but not currently sounding gets the ghost tint
-/// instead of the plain default, so the player has a visual reference for
-/// what to echo. Reuses the same `ActivePitches` the scored modes detect.
-pub fn update_hole_map(
-    active: Res<ActivePitches>,
-    guide: Option<Res<JamHoleGuide>>,
-    current: Res<CurrentBar>,
-    call_response: Option<Res<super::call_response::CallResponseState>>,
-    mut cells: Query<(&JamHoleCell, &mut BackgroundColor)>,
-) {
-    let Some(guide) = guide else {
-        return;
-    };
-    let chord_tones = &guide.chord_tones_by_bar[current.0];
-
-    // Map each currently-lit hole to the best fit among all notes sounding it.
-    let mut lit: HashMap<u8, super::improv::NoteFit> = HashMap::new();
-    for p in &active.0 {
-        if let Some(holes) = guide.note_to_holes.get(&p.midi) {
-            let fit = classify_note_fit(&p.note, chord_tones, &guide.scale_classes);
-            for &h in holes {
-                lit.entry(h)
-                    .and_modify(|v| {
-                        if fit > *v {
-                            *v = fit
-                        }
-                    })
-                    .or_insert(fit);
-            }
-        }
-    }
-
-    let ghost_holes: &[u8] = call_response
-        .as_deref()
-        .map(|s| s.lick_holes.as_slice())
-        .unwrap_or(&[]);
-
-    for (cell, mut bg) in &mut cells {
-        bg.0 = match lit.get(&cell.hole) {
-            Some(super::improv::NoteFit::ChordTone) => PLAY_CHORD_TONE,
-            Some(super::improv::NoteFit::InScale) => PLAY_IN_SCALE,
-            Some(super::improv::NoteFit::OutOfScale) => PLAY_OUT_SCALE,
-            None if ghost_holes.contains(&cell.hole) => PLAY_GHOST_LICK,
-            None => HOLE_DEFAULT,
-        };
-    }
 }
 
 #[cfg(test)]

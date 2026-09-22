@@ -22,6 +22,7 @@ use harmonicon_gameplay::gameplay::plugin::GameplayLogic;
 
 pub mod backing;
 pub mod call_response;
+pub mod hole_map;
 pub mod improv;
 pub mod lesson;
 pub mod midi_tracks;
@@ -50,6 +51,8 @@ impl Plugin for JamPlugin {
             .add_message::<jam_position_guide::PositionCalled>()
             .init_resource::<jam_call_response::CallResponseEnabled>()
             .init_resource::<jam_call_response::CallResponseState>()
+            .init_resource::<jam_call_response::JamCallDensity>()
+            .init_resource::<jam_call_response::CallDuck>()
             // Jam's own per-session reset, alongside gameplay's `reset_score`.
             .add_systems(
                 OnEnter(AppState::Playing),
@@ -108,11 +111,13 @@ impl Plugin for JamPlugin {
             .add_systems(
                 Update,
                 (
-                    jam_session::update_hole_map,
+                    hole_map::update_hole_map,
                     improv::accumulate_improv_stats,
                     jam_call_response::drive_call_response,
                     jam_call_response::update_call_response_banner,
                     jam_call_response::update_call_response_label,
+                    jam_call_response::update_call_density_label,
+                    jam_call_response::update_call_duck,
                     jam_stems::update_stem_mute_buttons,
                 )
                     .after(GameplayLogic)
@@ -122,13 +127,14 @@ impl Plugin for JamPlugin {
                             .and_then(|m: Res<GameplayMode>| *m == GameplayMode::JamSession),
                     ),
             )
-            // Muted-track sink volume — after `apply_music_volume` (a mid-song
-            // global-volume change touches every `MusicPlayer` sink, per-track
-            // ones included) so a muted track always ends up silent regardless
-            // of which order the two would otherwise run in.
+            // Backing sink gain (stem mute + call-and-response duck) — after
+            // `apply_music_volume` (a mid-song global-volume change touches
+            // every `MusicPlayer` sink, per-track ones included) so a muted
+            // track always ends up silent and a ducked band stays ducked
+            // regardless of which order the two would otherwise run in.
             .add_systems(
                 Update,
-                jam_stems::apply_backing_stem_mute
+                jam_stems::apply_backing_gain
                     .after(harmonicon_gameplay::gameplay::plugin::MusicVolumeSet)
                     .run_if(
                         in_state(AppState::Playing)

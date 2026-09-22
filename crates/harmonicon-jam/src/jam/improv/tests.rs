@@ -3,7 +3,7 @@
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Harmonica, Progression};
 
-use super::super::session::build_hole_guide;
+use super::super::hole_map::build_hole_guide;
 use super::*;
 
 /// Standard Richter C diatonic, matching `harmonica.rs`'s test layout.

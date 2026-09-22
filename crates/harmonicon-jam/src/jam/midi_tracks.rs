@@ -15,10 +15,12 @@ use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
 
 use harmonicon_audio::AudioSettings;
-use harmonicon_gameplay::gameplay::BackingStemPlayer;
+use harmonicon_gameplay::gameplay::{BackingStemPlayer, MusicPlayer};
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::BackingStemAudio;
 use harmonicon_ui::dialogs::tooltip::Tooltip;
+
+use super::call_response::CallDuck;
 
 /// Per-stem mute state for the current Jam Session backing — index
 /// matches `SongManifest::backing_stems`. Sized (and reset to all-unmuted) by
@@ -144,20 +146,33 @@ pub fn update_stem_mute_buttons(
     }
 }
 
-/// Applies `JamStemMute` to each track's own sink volume — muted → silent,
-/// unmuted → the configured music volume. Ordered `.after(gameplay::
-/// lifecycle::apply_music_volume)` so a mid-song global-volume change
-/// (which touches every `MusicPlayer` sink, these included, since
-/// `BackingStemPlayer` entities carry that tag too) can never un-mute a
-/// muted track — this system always has the last word.
-pub fn apply_backing_stem_mute(
+/// The gain one backing sink should sit at: the configured music volume,
+/// dipped by the call-and-response duck, and silenced when its stem is
+/// muted. A single-track song has no stem index and can only be ducked.
+fn backing_gain(music_volume: f32, duck: f32, muted: bool) -> f32 {
+    if muted { 0.0 } else { music_volume * duck }
+}
+
+/// Applies `JamStemMute` and `call_response::CallDuck` to every backing
+/// sink — a muted stem is silent, everything else sits at the music volume
+/// times the duck. Ordered `.after(gameplay::lifecycle::apply_music_volume)`
+/// so a mid-song global-volume change (which touches every `MusicPlayer`
+/// sink, stems included, since `BackingStemPlayer` entities carry that tag
+/// too) can never un-mute a muted track or un-duck a call — this system
+/// always has the last word.
+pub fn apply_backing_gain(
     mute: Res<JamStemMute>,
+    duck: Res<CallDuck>,
     audio: Res<AudioSettings>,
-    mut sinks: Query<(&BackingStemPlayer, &mut AudioSink)>,
+    mut sinks: Query<(Option<&BackingStemPlayer>, &mut AudioSink), With<MusicPlayer>>,
 ) {
-    for (player, mut sink) in &mut sinks {
-        let muted = mute.0.get(player.0).copied().unwrap_or(false);
-        sink.set_volume(Volume::Linear(if muted { 0.0 } else { audio.music_volume }));
+    for (stem, mut sink) in &mut sinks {
+        let muted = stem.is_some_and(|s| mute.0.get(s.0).copied().unwrap_or(false));
+        sink.set_volume(Volume::Linear(backing_gain(
+            audio.music_volume,
+            duck.0,
+            muted,
+        )));
     }
 }
 
@@ -168,5 +183,12 @@ mod tests {
     #[test]
     fn jam_stem_mute_defaults_to_empty() {
         assert!(JamStemMute::default().0.is_empty());
+    }
+
+    #[test]
+    fn backing_gain_mutes_first_and_ducks_otherwise() {
+        assert_eq!(backing_gain(0.8, 1.0, false), 0.8);
+        assert_eq!(backing_gain(0.8, 0.5, false), 0.4);
+        assert_eq!(backing_gain(0.8, 0.5, true), 0.0);
     }
 }

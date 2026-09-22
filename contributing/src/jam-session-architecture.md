@@ -40,8 +40,8 @@ plugin -down-> core : also depends on it directly
 `gameplay::plugin` (the *composition root* — the one place that
 assembles the entire `AppState::Playing` schedule for all three
 `GameplayMode`s) imports from `jam` to register Jam-Session-specific
-systems (`jam::session::update_hole_map`, `jam::midi_tracks::
-apply_midi_track_mute`, and so on) into that shared schedule, alongside
+systems (`jam::hole_map::update_hole_map`, `jam::midi_tracks::
+apply_backing_gain`, and so on) into that shared schedule, alongside
 `gameplay`'s own 2D/3D-specific systems. `jam`'s actual feature code, in
 turn, depends on `gameplay`'s core primitives — `GameplayClock`,
 `MusicPlayer`, `BackingStemPlayer` — as shared low-level vocabulary, the
@@ -149,7 +149,7 @@ end box
 
 box "Every frame, Jam Session only" #LightGreen
 participant "jam::midi_tracks::JamStemMute\n(Vec<bool>, one per stem)" as mute
-participant "apply_midi_track_mute" as apply
+participant "apply_backing_gain" as apply
 end box
 
 midfile -> loader : bytes
@@ -196,7 +196,7 @@ described).
 
 ### Why mute always wins over a global volume change
 
-`apply_midi_track_mute` is ordered `.after(gameplay::lifecycle::
+`apply_backing_gain` is ordered `.after(gameplay::lifecycle::
 apply_music_volume)` (see [The Plugin Architecture](
 plugin-architecture.md) for what this ordering primitive means). Both
 systems can write the same sink's volume in the same frame — dragging
@@ -263,9 +263,22 @@ anything themselves:
   needing to know Lessons exists at all — see
   [The Lessons Engine](lessons-engine.md).
 - **`jam::call_response`** — freeform, *unscored* call-and-response: the
-  game plays a short generated lick (rolled from harp-producible chord
-  tones of the current bar) and gives the player a couple of bars to
-  echo it by ear, with purely visual turn-taking feedback (a banner, the
-  lick's holes ghost-highlighted on the hole map) — deliberately no
+  game plays a short generated phrase over the two bars it covers and
+  gives the player a couple of bars to answer it by ear, with purely
+  visual turn-taking feedback (a banner, the call's holes
+  ghost-highlighted on the hole map) — deliberately no
   `PitchGate`/`ImprovStats` involvement, since there's no authored
-  target to judge against, just a suggestion.
+  target to judge against, just a suggestion. The phrase itself is
+  `call_response::phrase::generate_call`, a pure function of the two
+  bars' chords, the jam scale, the harp the player is holding
+  (`phrase::playable_notes` — plain blows and draws only), the backing's
+  straight/shuffle feel, a density (`CallDensity`: sparse,
+  conversational, busy — the one control the player gets) and a seed:
+  a rhythm cell per bar (rests, pickups, held and repeated notes), a
+  two-to-four-note motif in a fifth's range, and an answering bar that
+  repeats or sequences it, every consecutive pair a playable hole/breath
+  move, every non-chord note resolving to a chord tone next, the last
+  note a chord tone, and the ending bar over by beat 3 so there is air
+  before "Your turn". While the call sounds, `CallDuck` eases the
+  backing down to 60 % and back, applied by
+  `midi_tracks::apply_backing_gain` in the same pass as stem mute.

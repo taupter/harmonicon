@@ -37,7 +37,7 @@ load-bearing about *this* crate.
   routes it into `JamSession` instead of `Play2D`; `jam::improv::
   ImprovStats` (fresh-attack-gated, like `PitchGate`) accumulates
   scale/chord-tone adherence live via `classify_note_fit` — the same
-  classification `jam::session::update_hole_map`'s tint uses, factored
+  classification `jam::hole_map::update_hole_map`'s tint uses, factored
   out so the two can't disagree — and a dedicated "Finish Lesson"
   pause-menu button (visible only for a jam session with a
   `LessonContext` in flight) judges it and returns to the menu on
@@ -71,23 +71,51 @@ load-bearing about *this* crate.
   call_response`'s unscored, chart-free sibling: an opt-in toggle next to
   `jam::session::JamLoop` (`CallResponseEnabled`, off by default) that,
   while an open Jam Session runs, has the game play a short generated
-  lick and gives the player a couple of bars to echo it by ear —
+  phrase and gives the player a couple of bars to answer it by ear —
   deliberately not judged at all (no `PitchGate`/`ImprovStats` involved),
   since there's no authored phrase to score against. Paced by
-  `AbsoluteBar` alone (`CALL_BARS`/`RESPONSE_BARS`, both dividing evenly
-  into 12 so the cycle always lines up with a fresh chorus — the same
-  reasoning `jam::improv`'s phrase-discipline pattern rests on) rather
-  than a separate timer; a lick is a handful of MIDI pitches rolled from
-  the pool of harp-producible notes that are tones of the bar's current
-  chord (`JamHoleGuide::chord_tones_by_bar`/`note_to_holes`), rendered
-  through the same `harmonicon_core::synth` additive harmonica voice and
-  fired the same fire-and-forget way `gameplay::call_response` does.
-  Feedback is purely visual/turn-taking, not a score: a banner reading
-  "Listen…"/"Your turn" (`CallResponseState::phase`), and the lick's
-  holes ghost-highlighted on the live hole map
-  (`jam::session::update_hole_map`, layered in only for a hole not
-  already lit by a live pitch, so actually echoing a note still shows its
-  normal chord-tone/in-scale tint) until the next call replaces them.
+  `AbsoluteBar` alone (`phrase::CALL_BARS`/`RESPONSE_BARS`, both dividing
+  evenly into 12 so the cycle always lines up with a fresh chorus — the
+  same reasoning `jam::improv`'s phrase-discipline pattern rests on)
+  rather than a separate timer. **The call is a pure function**
+  (`call_response::phrase::generate_call`) of the two bars' chords
+  (`JamHoleGuide::chord_tones_by_bar`), the jam scale, the harp the
+  player is holding (`JamHoleGuide::playable`, built by
+  `phrase::playable_notes` — plain blows/draws only, so no call ever asks
+  for a bend or the slide), the chart's straight/shuffle `Feel`, the
+  density (`JamCallDensity`, the "Phrasing" cycle button: sparse /
+  conversational / busy — the only control, never a level) and a seed
+  (`CallResponseState::seed`, fresh per jam, mixed with the bar so each
+  call differs but a restart replays them). It composes rather than
+  rolls: a rhythm cell per bar (rests, pickups, held notes get vibrato,
+  repeats), a two-to-four-note motif within a fifth of its anchor, an
+  answering bar that repeats or sequences the motif up/down, and three
+  invariants the tests pin down over hundreds of seeds — consecutive
+  notes are one playable hole/breath move apart (`transition_ok`), a
+  non-chord note is always followed by a chord tone (`usable`/`snap`),
+  and the phrase ends on a chord tone by beat 3 of its last bar so there
+  is air before "Your turn". Rendered through the same
+  `harmonicon_core::synth` additive harmonica voice `gameplay::
+  call_response` uses — a different instrument from the generated band,
+  so it reads as a harmonica speaking over it — and fired the same
+  fire-and-forget way. While it sounds, `CallDuck` eases the backing to
+  60 % and back (`update_call_duck`, keyed off `speaking_until` against
+  `GameplayClock`), applied by `midi_tracks::apply_backing_gain` in the
+  same last-word pass as stem mute. Feedback is purely visual/turn-
+  taking, not a score: a banner reading "Listen…"/"Your turn"
+  (`CallResponseState::phase`), and the call's holes ghost-highlighted on
+  the live hole map (`jam::hole_map::update_hole_map`, layered in only
+  for a hole not already lit by a live pitch, so actually echoing a note
+  still shows its normal chord-tone/in-scale tint) until the next call
+  replaces them. The player's answer is never compared with the call.
+
+- **`jam::hole_map` is the one place a note is classified.** `JamHoleGuide`
+  (per-jam: pitch → holes, the harp's playable vocabulary, scale classes,
+  chord tones per bar) and `note_class` live there, not in `session`, so
+  `improv`'s tally, `position_guide`'s patching, `call_response`'s phrase
+  generator and the hole map's own tint all read one lookup and cannot
+  disagree. `session` only builds it (`build_hole_guide`) and spawns the
+  strip (`spawn_hole_map`).
 
 - **Generated jams continue independently of `JamLoop`.** `JamLoop` remains
   the persistent opt-in behavior for a picked finite song. The presence of
@@ -144,10 +172,12 @@ load-bearing about *this* crate.
   shared observer, N tagged cells, resolve identity via the clicked
   entity" pattern as `gameplay::harmonica_overlay::DiagramCellTarget`)
   rather than a distinct closure per track. `jam::midi_tracks::
-  apply_midi_track_mute` is ordered `.after(gameplay::lifecycle::
+  apply_backing_gain` is ordered `.after(gameplay::lifecycle::
   apply_music_volume)` so a mid-song global-volume change — which
   touches every `MusicPlayer` sink, per-track ones included — can never
-  un-mute a muted track; this system always has the last word. Looping
+  un-mute a muted track or un-duck a sounding call; this system always
+  has the last word, and is the one writer of backing sink volume in a
+  jam (mute × `CallDuck` × music volume). Looping
   (`jam::session::restart_finished_jam_music`) re-spawns every track's
   sink together the same way, and doesn't need to touch `JamStemMute`
   at all — it's a resource independent of any particular sink, so a

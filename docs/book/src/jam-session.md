@@ -32,6 +32,29 @@ replace the finite-song Loop control with **End after this chorus**.
 Press **Esc**, or click the **⏸** button in the bottom-right corner, to
 pause and reach the pause menu's Restart/Quit Session controls.
 
+## Call & Response
+
+Turn on **⇄ Call & Response** and the game takes turns with you: every
+four bars it plays a short harmonica phrase over the chords that are
+sounding — two bars of "Listen…" — then steps back for two bars of
+"Your turn". Answer however you like: echo it, vary it, or play
+something else entirely. Nothing is compared or scored; the hole map
+just shows the call's holes in a soft violet until the next one, as a
+reminder of where it went, and lights whatever you play in the usual
+colours.
+
+The phrases are made for the harmonica you're holding, using only plain
+blow and draw notes, so a call never asks for a bend you can't reach.
+Each one has a little shape to it — a short motif, some space, an
+answer that repeats or moves it up or down — and always lands on a
+chord tone with a breath of air before your turn. The backing dips
+slightly while the call speaks so it's easy to hear.
+
+**Phrasing** cycles how busy the calls are: **sparse** (a few long
+notes, lots of room), **conversational** (the default) or **busy**
+(eighth-note runs). It's a mood, not a difficulty level — pick whichever
+you'd rather trade phrases with.
+
 ## MIDI backing with per-track muting
 
 If the song you picked was authored from a MIDI file that kept its

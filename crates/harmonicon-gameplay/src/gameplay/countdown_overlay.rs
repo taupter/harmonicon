@@ -113,7 +113,7 @@ pub fn update_countdown(
             // BackingStemAudio`), in which case every stem gets its own
             // sink, all spawned together this same frame so they start in
             // sync — muting one later is just zeroing that sink's volume
-            // (`jam::midi_tracks::apply_backing_stem_mute`), no re-mixing.
+            // (`jam::midi_tracks::apply_backing_gain`), no re-mixing.
             if let Some(manifest) = manifests.get(&selected.0) {
                 // Jam Session's own `restart_finished_jam_music` re-spawns
                 // these entities once they despawn themselves, if Loop is on

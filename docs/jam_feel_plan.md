@@ -206,6 +206,15 @@ looking at a theory diagram.
 
 ### 5. Make call-and-response sound like phrasing
 
+**Implemented.** `jam::call_response::phrase` composes each call from a
+rhythm cell per bar, a two-to-four-note motif and a repeat/up/down answer,
+constrained to the player's harp and resolved onto a chord tone with two
+beats of air before "Your turn"; a `Phrasing` cycle button picks Sparse,
+Conversational or Busy; the backing ducks to 60 % while the call sounds.
+Still to review by ear: whether the harmonica-synth call sits well against
+each genre's rhythm section and whether the duck depth is right on
+speakers.
+
 Keep it optional, unscored, and forgiving. Replace four random quarter-note
 chord tones with a phrase generator built from small musical decisions:
 

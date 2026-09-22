@@ -441,7 +441,7 @@ pub struct MusicPlayer;
 /// spawns it) can't depend on `jam` without a layering inversion, same as
 /// `MusicPlayer` above. Always spawned alongside `MusicPlayer`, so pause
 /// and the global music-volume slider apply to every track's sink for free;
-/// `jam::midi_tracks::apply_backing_stem_mute` only narrows further on top.
+/// `jam::midi_tracks::apply_backing_gain` only narrows further on top.
 #[derive(Component)]
 pub struct BackingStemPlayer(pub usize);
 

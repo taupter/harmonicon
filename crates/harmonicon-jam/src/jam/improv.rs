@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use harmonicon_gameplay::gameplay::{AbsoluteBar, ActivePitches, CurrentBar};
 
-use super::session::JamHoleGuide;
+use super::hole_map::JamHoleGuide;
 
 /// How "targeted" a sounding note is, worst to best.
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
@@ -26,7 +26,7 @@ pub(crate) enum NoteFit {
 /// `PitchInfo::note`) by how well it fits the harmonic context right now:
 /// a tone of the bar's current chord is the most targeted choice, elsewhere
 /// in the blues scale is still "safe," anything else is out. Shared by the
-/// live hole-map tint (`session::update_hole_map`) and the improv-lesson
+/// live hole-map tint (`hole_map::update_hole_map`) and the improv-lesson
 /// accumulator ([`accumulate_improv_stats`]) so the two can never silently
 /// disagree.
 pub(crate) fn classify_note_fit(
@@ -149,7 +149,7 @@ pub fn reset_improv_stats(mut gate: ResMut<ImprovGate>, mut stats: ResMut<Improv
 
 /// Tallies each fresh note attack into [`ImprovStats`], classified by
 /// [`classify_note_fit`] against the bar it landed on — the live twin of
-/// `session::update_hole_map`'s per-frame tint, but counting discrete
+/// `hole_map::update_hole_map`'s per-frame tint, but counting discrete
 /// attacks once each instead of repainting every frame a pitch stays held.
 pub fn accumulate_improv_stats(
     active: Res<ActivePitches>,

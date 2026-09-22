@@ -70,7 +70,7 @@ pub struct JamProgression(pub Progression);
 /// real-song "Jam Session" button resets it to `FirstPosition`, mirroring
 /// `JamProgression`'s own reset — though a real song's own declared
 /// `Harmonica::scale()` (if it sets one) still wins over this resource,
-/// see `jam::session::build_hole_guide`'s caller.
+/// see `jam::hole_map::build_hole_guide`'s caller.
 #[derive(Resource, Default)]
 pub struct JamScale(pub Scale);
 

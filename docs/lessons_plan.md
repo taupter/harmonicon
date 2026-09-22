@@ -157,7 +157,7 @@ improvising over anything but the blues scale." Two parts:
    off `multiple-notes` instead of `deep-bends`).
 2. **True non-blues jam improvisation, needing new engine work** — Jam
    Session's live hole-map/scale-adherence feedback
-   (`jam::session::JamHoleGuide`) was hardcoded to
+   (`jam::hole_map::JamHoleGuide`) was hardcoded to
    `blues_scale_classes` regardless of what a lesson or "Generate Jam"
    picked. Fixed by a new `JamScale` resource (`harmonicon-app`'s `app.rs`, mirrors the
    existing `JamProgression`) plus a `LessonManifest::scale` field

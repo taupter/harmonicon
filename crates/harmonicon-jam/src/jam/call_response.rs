@@ -2,47 +2,66 @@
 
 //! Freeform call-and-response within an open Jam Session: an off-by-default
 //! toggle ([`CallResponseEnabled`], mirroring `session::JamLoop`) that has
-//! the game play a short synthesized lick drawn from the chord tones of
-//! whichever bar is sounding, then gives the player a couple bars to echo
-//! it by ear. Deliberately *not scored* (see `lessons::PassCriteria` for
-//! the scored jam-based criteria) — the only feedback is a turn-taking
-//! banner ("Listen…" / "Your turn") and a ghost highlight of the call's
-//! holes on the live hole map (`session::update_hole_map`), a visual
-//! memory aid rather than a graded outcome.
+//! the game play a short synthesized phrase over whichever bars are
+//! sounding, then gives the player a couple of bars to answer it by ear.
+//! Deliberately *not scored* (see `lessons::PassCriteria` for the scored
+//! jam-based criteria) — the only feedback is a turn-taking banner
+//! ("Listen…" / "Your turn") and a ghost highlight of the call's holes on
+//! the live hole map (`hole_map::update_hole_map`), a visual memory aid
+//! rather than a graded outcome. The player's answer is listened to and lit
+//! like any other jam note, never compared with the call.
 //!
-//! Paced entirely off `AbsoluteBar`, the same open-ended repeating-bar-
-//! pattern building block `improv::in_rest_window` uses, so the cycle
-//! always lines up with the 12-bar chart and metronome. Reuses the
-//! harmonica-timbre additive synth (`audio_system::synth`) `gameplay::
-//! call_response` and the Song Editor share, firing its audio the same
-//! fire-and-forget way (a plain `AudioPlayer::DESPAWN` spawn — never
-//! touches `GameplayClock` or the music sink).
-
-use std::collections::{HashMap, HashSet};
+//! The call itself comes from [`phrase::generate_call`]: rhythm cells with
+//! rests and pickups, a small motif, an answering contour, and a chord-tone
+//! landing that leaves air before "Your turn" — its density is the one
+//! musical control ([`JamCallDensity`]: sparse, conversational, busy), never
+//! a level. Paced entirely off `AbsoluteBar`, the same open-ended
+//! repeating-bar-pattern building block `improv::in_rest_window` uses, so
+//! the cycle always lines up with the 12-bar chart and metronome. Rendered
+//! through the harmonica-timbre additive synth (`harmonicon_core::synth`)
+//! `gameplay::call_response` and the Song Editor share — a different
+//! instrument from the generated rhythm section, so the call reads as a
+//! harmonica speaking over the band — and fired the same fire-and-forget
+//! way (a plain `AudioPlayer::DESPAWN` spawn — never touches
+//! `GameplayClock` or the music sink). While it speaks, the backing ducks a
+//! little ([`CallDuck`]) so the phrase is easy to hear on its own.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
 
 use harmonicon_app::app::SelectedSong;
 use harmonicon_audio::AudioSettings;
-use harmonicon_core::midi::{midi_to_freq_hz, midi_to_note};
+use harmonicon_core::chart::Feel;
+use harmonicon_core::midi::midi_to_freq_hz;
 use harmonicon_core::synth::{Expr, PhraseNote, SAMPLE_RATE, TICKS_PER_BEAT, render_pcm};
 use harmonicon_core::wav::encode_wav;
-use harmonicon_gameplay::gameplay::{AbsoluteBar, BarChanged, CurrentBar, GameplayRoot};
+use harmonicon_gameplay::gameplay::{
+    AbsoluteBar, BarChanged, CurrentBar, GameplayClock, GameplayRoot,
+};
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::SongManifest;
 
-use super::session::{JamHoleGuide, note_class};
+use super::hole_map::JamHoleGuide;
 
-/// Bars the game's call plays for, then bars the player has to echo it —
-/// repeating indefinitely. Both divide evenly into the 12-bar cycle (4 | 12)
-/// so the pattern always lines up with a fresh chorus, the same reasoning
-/// `jam::improv`'s phrase-discipline pattern rests on.
-const CALL_BARS: usize = 2;
+pub mod phrase;
+
+use phrase::{CALL_BARS, CallContext, CallDensity, CallNote, call_end_tick, generate_call};
+
+/// Bars the player has to answer the call — the call itself is
+/// [`CALL_BARS`] long. Together they divide evenly into the 12-bar cycle
+/// (4 | 12) so the pattern always lines up with a fresh chorus, the same
+/// reasoning `jam::improv`'s phrase-discipline pattern rests on.
 const RESPONSE_BARS: usize = 2;
 
-/// How many notes make up one generated call lick.
-const LICK_LEN: usize = 4;
+/// Vibrato rate given to a held call note, so a long tone breathes the way
+/// a player's would instead of sitting dead straight.
+const HELD_VIBRATO_HZ: f32 = 5.5;
+
+/// How far the backing drops while the call speaks (a linear gain), and how
+/// long the move each way takes. A dip, not a mute: the band keeps the time
+/// under the phrase.
+const DUCK_GAIN: f32 = 0.6;
+const DUCK_SECS: f32 = 0.15;
 
 /// Whether the freeform call-and-response cycle is turned on for this jam —
 /// off by default, a player opt-in toggle next to `session::JamLoop`.
@@ -54,6 +73,28 @@ pub struct CallResponseEnabled(pub bool);
 #[derive(Component)]
 pub struct CallResponseLabel;
 
+/// How dense the generated calls are — the one musical control the player
+/// has over them. Persists across jams within a run, like the guides
+/// toggle; never saved as a score or level.
+#[derive(Resource, Default)]
+pub struct JamCallDensity(pub CallDensity);
+
+/// The "Phrasing: ..." readout beside the density button.
+#[derive(Component)]
+pub struct CallDensityLabel;
+
+/// The backing's current duck gain (1.0 = untouched), eased toward
+/// [`DUCK_GAIN`] while a call is speaking and back afterwards. Read by
+/// `midi_tracks::apply_backing_gain` alongside the mute state.
+#[derive(Resource)]
+pub struct CallDuck(pub f32);
+
+impl Default for CallDuck {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
 /// Whether the cycle is currently playing its call or waiting for the
 /// player's echo — see [`phase_for_bar`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -63,13 +104,29 @@ pub enum CallResponsePhase {
     Responding,
 }
 
-/// Live state of the current cycle: which phase it's in, and which holes
-/// the current call lick used (for the hole map's ghost highlight — see
-/// `session::update_hole_map`). Empty/`Calling` before the first lick plays.
+/// Live state of the current cycle: which phase it's in, which holes the
+/// current call used (for the hole map's ghost highlight — see
+/// `hole_map::update_hole_map`), when the call stops sounding (clock
+/// seconds, for the duck), and the seed every call of this jam derives
+/// from. Empty/`Calling` before the first call plays.
 #[derive(Resource, Default)]
 pub struct CallResponseState {
     pub phase: CallResponsePhase,
     pub(crate) lick_holes: Vec<u8>,
+    pub(crate) speaking_until: Option<f64>,
+    pub(crate) seed: u64,
+}
+
+impl CallResponseState {
+    /// A reset state with a fresh seed, for `session::setup` — every jam
+    /// gets its own phrases, while within one jam each bar's call is a pure
+    /// function of that seed.
+    pub fn fresh() -> Self {
+        Self {
+            seed: rand::random(),
+            ..Self::default()
+        }
+    }
 }
 
 /// Which phase bar `absolute_bar` falls in, cycling every
@@ -84,53 +141,41 @@ fn phase_for_bar(absolute_bar: usize) -> CallResponsePhase {
     }
 }
 
-/// One MIDI pitch from `pool` (assumed non-empty), chosen by `roll` —
-/// wrapped so any `usize` roll is always in range. Pure so [`generate_lick`]'s
-/// only non-deterministic step is producing the roll itself.
-fn pick_from_pool(pool: &[u8], roll: usize) -> u8 {
-    pool[roll % pool.len()]
+/// The seed for the call starting at `absolute_bar`: the jam's seed mixed
+/// with the bar, so the same jam never repeats a call bar-for-bar yet
+/// restarting it replays the same ones.
+fn call_seed(session_seed: u64, absolute_bar: usize) -> u64 {
+    session_seed ^ (absolute_bar as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
 }
 
-/// Every harp-producible MIDI pitch that's a tone of `chord_tones`, sorted
-/// low to high — the pool one generated call lick draws from.
-fn chord_tone_pitches(
-    note_to_holes: &HashMap<u8, Vec<u8>>,
-    chord_tones: &HashSet<String>,
-) -> Vec<u8> {
-    let mut pitches: Vec<u8> = note_to_holes
-        .keys()
-        .copied()
-        .filter(|&m| chord_tones.contains(note_class(&midi_to_note(m as i32))))
-        .collect();
-    pitches.sort_unstable();
-    pitches
-}
-
-/// Rolls [`LICK_LEN`] random pitches from `pool` — empty if `pool` is empty
-/// (a chord with no representable tone on this harp; vanishingly unlikely,
-/// but not assumed away).
-fn generate_lick(pool: &[u8]) -> Vec<u8> {
-    if pool.is_empty() {
-        return Vec::new();
-    }
-    (0..LICK_LEN)
-        .map(|_| pick_from_pool(pool, rand::random_range(0..pool.len())))
-        .collect()
-}
-
-/// Builds the [`PhraseNote`]s for `lick`: one note per beat, in order,
-/// starting at tick 0 — the same tick-grid vocabulary
-/// `gameplay::call_response::build_phrase_notes` uses.
-fn lick_phrase_notes(lick: &[u8]) -> Vec<PhraseNote> {
-    lick.iter()
-        .enumerate()
-        .map(|(i, &midi)| PhraseNote {
-            tick: i * TICKS_PER_BEAT,
-            len: TICKS_PER_BEAT,
-            freq: Some(midi_to_freq_hz(midi as f32)),
-            expr: Expr::None,
+/// Builds the [`PhraseNote`]s for `call`, on the same tick grid
+/// `gameplay::call_response::build_phrase_notes` uses; a held note gets
+/// vibrato.
+fn call_phrase_notes(call: &[CallNote]) -> Vec<PhraseNote> {
+    call.iter()
+        .map(|n| PhraseNote {
+            tick: n.tick,
+            len: n.len,
+            freq: Some(midi_to_freq_hz(f32::from(n.note.midi))),
+            expr: if n.held {
+                Expr::Vibrato(HELD_VIBRATO_HZ)
+            } else {
+                Expr::None
+            },
         })
         .collect()
+}
+
+/// Moves `current` toward `target` by at most one frame's share of the
+/// duck ramp, so the backing dips and recovers over [`DUCK_SECS`] rather
+/// than stepping.
+fn approach(current: f32, target: f32, dt_secs: f32) -> f32 {
+    let step = (1.0 - DUCK_GAIN) * dt_secs / DUCK_SECS;
+    if current < target {
+        (current + step).min(target)
+    } else {
+        (current - step).max(target)
+    }
 }
 
 /// The turn-taking banner's text node.
@@ -205,16 +250,61 @@ pub fn update_call_response_label(
     }
 }
 
+/// The localization key of the "Phrasing: ..." readout for `density`.
+pub fn density_key(density: CallDensity) -> &'static str {
+    match density {
+        CallDensity::Sparse => "jam-call-density-sparse",
+        CallDensity::Conversational => "jam-call-density-conversational",
+        CallDensity::Busy => "jam-call-density-busy",
+    }
+}
+
+/// Keeps the "Phrasing: ..." readout in step with [`JamCallDensity`].
+pub fn update_call_density_label(
+    density: Res<JamCallDensity>,
+    loc: Res<Localization>,
+    mut labels: Query<&mut Text, With<CallDensityLabel>>,
+) {
+    if !density.is_changed() {
+        return;
+    }
+    for mut text in &mut labels {
+        *text = Text::new(String::from(loc.msg(density_key(density.0))));
+    }
+}
+
+/// Eases [`CallDuck`] toward the dip while a call is sounding and back to
+/// unity once it has finished (or the feature is off).
+pub fn update_call_duck(
+    enabled: Res<CallResponseEnabled>,
+    state: Res<CallResponseState>,
+    clock: Res<GameplayClock>,
+    time: Res<Time>,
+    mut duck: ResMut<CallDuck>,
+) {
+    let speaking = enabled.0
+        && state
+            .speaking_until
+            .is_some_and(|until| clock.get() < until);
+    let target = if speaking { DUCK_GAIN } else { 1.0 };
+    let next = approach(duck.0, target, time.delta_secs());
+    if next != duck.0 {
+        duck.0 = next;
+    }
+}
+
 /// Drives the whole cycle: on every bar change (while enabled), updates
 /// [`CallResponseState::phase`] and, exactly at the top of a new call
-/// (`absolute_bar % cycle == 0`), rolls a fresh lick from the bar's chord
-/// tones and fires its synthesized audio — fire-and-forget, like a
+/// (`absolute_bar % cycle == 0`), generates a phrase over the chords of the
+/// call's bars and fires its synthesized audio — fire-and-forget, like a
 /// hit-feedback sound (see this module's doc comment on why that's safe).
 pub fn drive_call_response(
     enabled: Res<CallResponseEnabled>,
+    density: Res<JamCallDensity>,
     mut bar_changed: MessageReader<BarChanged>,
     absolute: Res<AbsoluteBar>,
     current: Res<CurrentBar>,
+    clock: Res<GameplayClock>,
     guide: Option<Res<JamHoleGuide>>,
     selected: Res<SelectedSong>,
     manifests: Res<Assets<SongManifest>>,
@@ -237,25 +327,31 @@ pub fn drive_call_response(
         return;
     }
 
-    let chord_tones = &guide.chord_tones_by_bar[current.0];
-    let pool = chord_tone_pitches(&guide.note_to_holes, chord_tones);
-    let lick = generate_lick(&pool);
-    state.lick_holes = lick
-        .iter()
-        .filter_map(|m| guide.note_to_holes.get(m))
-        .flatten()
-        .copied()
-        .collect();
-    if lick.is_empty() {
+    let bars = guide.chord_tones_by_bar.len();
+    let call = generate_call(&CallContext {
+        playable: &guide.playable,
+        opening_chord: &guide.chord_tones_by_bar[current.0],
+        ending_chord: &guide.chord_tones_by_bar[(current.0 + 1) % bars],
+        scale: &guide.scale_classes,
+        swung: manifest.chart.song.feel == Some(Feel::Shuffle),
+        density: density.0,
+        seed: call_seed(state.seed, absolute.0),
+    });
+    state.lick_holes = call.iter().map(|n| n.note.hole).collect();
+    state.lick_holes.sort_unstable();
+    state.lick_holes.dedup();
+    if call.is_empty() {
         return;
     }
 
     let bpm = manifest.chart.song.tempo_bpm;
     let secs_per_tick = 60.0 / bpm.max(1.0) / TICKS_PER_BEAT as f32;
-    let pcm = render_pcm(&lick_phrase_notes(&lick), secs_per_tick);
+    let pcm = render_pcm(&call_phrase_notes(&call), secs_per_tick);
     if pcm.is_empty() {
         return;
     }
+    state.speaking_until =
+        Some(clock.get() + f64::from(call_end_tick(&call) as f32 * secs_per_tick));
     let wav = encode_wav(&pcm, SAMPLE_RATE);
     let source = sources.add(AudioSource { bytes: wav.into() });
     commands.spawn((

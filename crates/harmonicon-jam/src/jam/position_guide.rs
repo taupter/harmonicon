@@ -31,7 +31,7 @@ use harmonicon_platform::theme::{CircleOfFifthsColors, LoadedTheme};
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::circle_of_fifths::spawn_circle_of_fifths;
 
-use super::session::JamHoleGuide;
+use super::hole_map::JamHoleGuide;
 
 // ── Pure timing/mapping ─────────────────────────────────────────────────────
 
