@@ -102,8 +102,10 @@ the audio and form display agree across repeated choruses.
 and Comping stems using the generalized backing-stem playback/mute path. The
 first deterministic genre patterns and a shared `GrooveArrangement` event
 model are in place. Restrained fills now mark bars 4, 8, and 11, while bar 12
-clears comping space for a chromatic bass-and-drum turnaround. Role-specific
-timbres, a balance listening pass, and genre-credibility review remain.
+clears comping space for a chromatic bass-and-drum turnaround. Drum and comping
+voices now change with genre, including a longer jazz ride/organ texture, a
+short reggae skank, a firmer rock backbeat, and a lighter country pulse. A
+balance listening pass and genre-credibility review remain.
 
 Model accompaniment as synchronized stems rather than one mixed bass buffer.
 Reuse the independent-sink and mute machinery already proven by MIDI backing,

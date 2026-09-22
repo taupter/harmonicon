@@ -585,7 +585,7 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
     buf
 }
 
-fn drum_slot(event: DrumEvent, slot: usize, duration_secs: f32) -> Vec<f32> {
+fn drum_slot(event: DrumEvent, slot: usize, duration_secs: f32, genre: Genre) -> Vec<f32> {
     let n = (duration_secs * SAMPLE_RATE as f32).max(1.0) as usize;
     (0..n)
         .map(|i| {
@@ -593,7 +593,12 @@ fn drum_slot(event: DrumEvent, slot: usize, duration_secs: f32) -> Vec<f32> {
             let mut sample = 0.0;
             if event.kick {
                 let env = (-t * 18.0).exp();
-                let phase = TAU * (72.0 * t - 18.0 * t * t);
+                let start_hz = match genre {
+                    Genre::Reggae => 64.0,
+                    Genre::Country => 82.0,
+                    _ => 72.0,
+                };
+                let phase = TAU * (start_hz * t - 18.0 * t * t);
                 sample += phase.sin() * env * 0.24;
             }
             if event.snare {
@@ -601,14 +606,26 @@ fn drum_slot(event: DrumEvent, slot: usize, duration_secs: f32) -> Vec<f32> {
                     .wrapping_mul(1_664_525)
                     .wrapping_add(1_013_904_223);
                 let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
-                sample += noise * (-t * 24.0).exp() * 0.12;
+                sample += match genre {
+                    Genre::Jazz => noise * (-t * 16.0).exp() * 0.07,
+                    Genre::Rock => noise * (-t * 24.0).exp() * 0.14,
+                    Genre::Reggae => (TAU * 920.0 * t).sin() * (-t * 38.0).exp() * 0.10,
+                    _ => noise * (-t * 24.0).exp() * 0.12,
+                };
             }
             if event.hat {
                 let hash = (i as u32)
                     .wrapping_mul(22_695_477)
                     .wrapping_add((slot as u32).wrapping_mul(1_103_515_245));
                 let noise = (hash as f32 / u32::MAX as f32) * 2.0 - 1.0;
-                sample += noise * (-t * 65.0).exp() * 0.055;
+                sample += match genre {
+                    Genre::Jazz => {
+                        let metal = (TAU * 1_850.0 * t).sin() + 0.45 * (TAU * 2_730.0 * t).sin();
+                        (metal * 0.026 + noise * 0.018) * (-t * 13.0).exp()
+                    }
+                    Genre::Country => noise * (-t * 42.0).exp() * 0.042,
+                    _ => noise * (-t * 65.0).exp() * 0.055,
+                };
             }
             sample * event.accent
         })
@@ -619,6 +636,7 @@ fn comping_slot(
     root: &str,
     quality: harmonicon_core::harmonica::ChordQuality,
     secs: f32,
+    genre: Genre,
 ) -> Vec<f32> {
     let frequencies: Vec<f32> = chord_intervals(quality)
         .iter()
@@ -630,14 +648,24 @@ fn comping_slot(
     (0..n)
         .map(|i| {
             let t = i as f32 / SAMPLE_RATE as f32;
-            let attack = (t / 0.015).min(1.0);
-            let decay = (-t * 4.0).exp();
+            let attack_secs = if genre == Genre::Jazz { 0.035 } else { 0.015 };
+            let attack = (t / attack_secs).min(1.0);
+            let (decay_rate, harmonic, gain) = match genre {
+                Genre::Blues => (4.0, 0.12, 0.13),
+                Genre::Jazz => (0.8, 0.22, 0.085),
+                Genre::Rock => (3.0, 0.28, 0.13),
+                Genre::Reggae => (11.0, 0.18, 0.12),
+                Genre::Country => (6.0, 0.10, 0.115),
+            };
+            let decay = (-t * decay_rate).exp();
             let chord = frequencies
                 .iter()
-                .map(|frequency| (TAU * frequency * t).sin())
+                .map(|frequency| {
+                    (TAU * frequency * t).sin() + harmonic * (TAU * frequency * 2.0 * t).sin()
+                })
                 .sum::<f32>()
                 / frequencies.len().max(1) as f32;
-            chord * attack * decay * 0.13
+            chord * attack * decay * gain
         })
         .collect()
 }
@@ -660,6 +688,7 @@ fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy) -> Vec<f32> {
                     arrangement.drums[slot],
                     slot,
                     if slot % 2 == 0 { long } else { short },
+                    genre,
                 ));
             }
         }
@@ -692,7 +721,7 @@ fn generate_comping_pcm(
                 let event = arrangement.comping[slot];
                 if event.hit {
                     out.extend(
-                        comping_slot(root, *quality, secs)
+                        comping_slot(root, *quality, secs, genre)
                             .into_iter()
                             .map(|sample| sample * event.accent),
                     );
@@ -750,9 +779,10 @@ pub(crate) fn render_band_answer(
                 drum(slot == 0, !rest, !rest, if rest { 0.0 } else { accent }),
                 slot,
                 secs,
+                genre,
             )),
             BandAnswer::Chord if !rest && slot != 1 => out.extend(
-                comping_slot(root, quality, secs)
+                comping_slot(root, quality, secs, genre)
                     .into_iter()
                     .map(|sample| sample * accent),
             ),
@@ -1033,6 +1063,22 @@ mod tests {
                 "{genre:?} comping accent"
             );
         }
+    }
+
+    #[test]
+    fn genre_changes_instrument_voice_not_only_event_pattern() {
+        let quality = progression_bars("C", Progression::Standard)[0].1;
+        let blues_comp = comping_slot("C", quality, 0.5, Genre::Blues);
+        let jazz_comp = comping_slot("C", quality, 0.5, Genre::Jazz);
+        let reggae_comp = comping_slot("C", quality, 0.5, Genre::Reggae);
+        assert_ne!(blues_comp, jazz_comp);
+        assert_ne!(blues_comp, reggae_comp);
+
+        let event = drum(false, false, true, 1.0);
+        assert_ne!(
+            drum_slot(event, 1, 0.5, Genre::Blues),
+            drum_slot(event, 1, 0.5, Genre::Jazz)
+        );
     }
 
     #[test]
