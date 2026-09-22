@@ -153,9 +153,11 @@ load-bearing about *this* crate.
 
 - **Generated-band humanization cannot move the form.** `backing::
   performance_variation` deterministically varies each role's offbeat onset
-  and level from genre/chorus/bar/slot. `varied_slot` always returns the
+  and level from `GeneratedJamSession::seed` plus genre/chorus/bar/slot. The
+  seed is created with the manifest, so Restart reproduces the performance
+  and starting a new jam creates a new one. `varied_slot` always returns the
   original slot length and quarter-note downbeats have no delay, so all three
-  stems stay sample-aligned and repeated generation is reproducible.
+  stems stay sample-aligned.
 
 - **A song can ship a raw MIDI file as its backing track**
   (`song/music.mid`, a third fallback in `song::loader` after

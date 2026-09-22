@@ -26,13 +26,16 @@ pub(super) struct PerformanceVariation {
 /// the grid and vary by at most 6% in level. The role is part of the seed so
 /// the three players do not move as one machine-like block.
 pub(super) fn performance_variation(
+    seed: u64,
     genre: Genre,
     role: GrooveRole,
     chorus: usize,
     bar: usize,
     slot: usize,
 ) -> PerformanceVariation {
-    let mut hash = (genre as u32 + 1).wrapping_mul(0x9e37_79b9);
+    let mut hash = (seed as u32 ^ (seed >> 32) as u32)
+        .wrapping_add(genre as u32 + 1)
+        .wrapping_mul(0x9e37_79b9);
     for value in [role as u32, chorus as u32, bar as u32, slot as u32] {
         hash ^= value
             .wrapping_add(0x9e37_79b9)
@@ -70,20 +73,24 @@ mod tests {
 
     #[test]
     fn variation_is_deterministic_bounded_and_role_specific() {
-        let bass = performance_variation(Genre::Blues, GrooveRole::Bass, 2, 6, 3);
+        let bass = performance_variation(17, Genre::Blues, GrooveRole::Bass, 2, 6, 3);
         assert_eq!(
             bass,
-            performance_variation(Genre::Blues, GrooveRole::Bass, 2, 6, 3)
+            performance_variation(17, Genre::Blues, GrooveRole::Bass, 2, 6, 3)
         );
         assert!((0.0..=MAX_HUMANIZE_SECS).contains(&bass.delay_secs));
         assert!((0.94..=1.06).contains(&bass.gain));
         assert_ne!(
             bass,
-            performance_variation(Genre::Blues, GrooveRole::Drums, 2, 6, 3)
+            performance_variation(17, Genre::Blues, GrooveRole::Drums, 2, 6, 3)
         );
         assert_eq!(
-            performance_variation(Genre::Blues, GrooveRole::Comping, 2, 6, 2).delay_secs,
+            performance_variation(17, Genre::Blues, GrooveRole::Comping, 2, 6, 2).delay_secs,
             0.0
+        );
+        assert_ne!(
+            bass,
+            performance_variation(18, Genre::Blues, GrooveRole::Bass, 2, 6, 3)
         );
     }
 

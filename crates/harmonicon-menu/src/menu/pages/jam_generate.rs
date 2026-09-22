@@ -275,6 +275,7 @@ pub(crate) fn setup_jam_generate_menu(
          mut genre_res: ResMut<JamGenre>,
          mut commands: Commands,
          mut state: ResMut<NextState<AppState>>| {
+            let seed = rand::random();
             let background = theme.default_background.clone().unwrap_or_default();
             let manifest = build_generated_manifest(
                 &config.key,
@@ -283,6 +284,7 @@ pub(crate) fn setup_jam_generate_menu(
                 config.position,
                 config.genre,
                 config.energy,
+                seed,
                 background,
                 Handle::default(),
                 &mut sources,
@@ -293,7 +295,7 @@ pub(crate) fn setup_jam_generate_menu(
             // and has no `LoadState`; `GeneratedJamSession` says it is a jam
             // and picks the page to return to.
             commands.insert_resource(GeneratedSong);
-            commands.insert_resource(GeneratedJamSession);
+            commands.insert_resource(GeneratedJamSession { seed });
             *mode = GameplayMode::JamSession;
             progression.0 = config.progression;
             scale.0 = config.scale;

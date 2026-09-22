@@ -112,7 +112,11 @@ pub struct GeneratedSong;
 /// is inserted alongside it. Removed on returning to the menu, same
 /// end-of-life point `LessonContext` uses.
 #[derive(Resource)]
-pub struct GeneratedJamSession;
+pub struct GeneratedJamSession {
+    /// Reproduces the generated band's small performance variations when the
+    /// same jam is restarted or its next four-chorus buffer is queued.
+    pub seed: u64,
+}
 
 /// Set while the guided tutorial tour (`menu::pages::tutorial`) is driving
 /// the app automatically. Every screen the tour passes through

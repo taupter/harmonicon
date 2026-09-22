@@ -565,8 +565,19 @@ fn bar_beat_freqs(root: &str, pattern: &[Option<i32>; 8]) -> [Option<f32>; 8] {
 /// `key` at `bpm` (4/4 throughout), shaped by `genre`'s rhythm pattern and
 /// straight/swing feel (see [`groove_arrangement`]). Pure and deterministic —
 /// the whole backing loop is fully described by
-/// `key`/`bpm`/`progression`/`genre`.
+/// `key`/`bpm`/`progression`/`genre`. The public helper uses seed zero;
+/// generated sessions call the seeded renderer below.
 pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: Genre) -> Vec<f32> {
+    generate_bass_pcm_seeded(key, bpm, progression, genre, 0)
+}
+
+fn generate_bass_pcm_seeded(
+    key: &str,
+    bpm: f32,
+    progression: Progression,
+    genre: Genre,
+    seed: u64,
+) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
     let swung = groove_arrangement(genre).swung;
     // Each bar's 8 notes are 4 pairs, one pair per beat. A swung genre's
@@ -596,7 +607,7 @@ pub fn generate_bass_pcm(key: &str, bpm: f32, progression: Progression, genre: G
                 buf.extend(varied_slot(
                     sound,
                     note_secs,
-                    performance_variation(genre, GrooveRole::Bass, chorus, bar, slot),
+                    performance_variation(seed, genre, GrooveRole::Bass, chorus, bar, slot),
                 ));
             }
         }
@@ -689,7 +700,7 @@ fn comping_slot(
         .collect()
 }
 
-fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy) -> Vec<f32> {
+fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy, seed: u64) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
     let swung = groove_arrangement(genre).swung;
     let long = if swung {
@@ -707,7 +718,7 @@ fn generate_drums_pcm(bpm: f32, genre: Genre, energy: BandEnergy) -> Vec<f32> {
                 out.extend(varied_slot(
                     drum_slot(arrangement.drums[slot], slot, secs, genre),
                     secs,
-                    performance_variation(genre, GrooveRole::Drums, chorus, bar, slot),
+                    performance_variation(seed, genre, GrooveRole::Drums, chorus, bar, slot),
                 ));
             }
         }
@@ -721,6 +732,7 @@ fn generate_comping_pcm(
     progression: Progression,
     genre: Genre,
     energy: BandEnergy,
+    seed: u64,
 ) -> Vec<f32> {
     let secs_per_beat = 60.0 / bpm.max(1.0);
     let swung = groove_arrangement(genre).swung;
@@ -745,7 +757,7 @@ fn generate_comping_pcm(
                             .map(|sample| sample * event.accent)
                             .collect(),
                         secs,
-                        performance_variation(genre, GrooveRole::Comping, chorus, bar, slot),
+                        performance_variation(seed, genre, GrooveRole::Comping, chorus, bar, slot),
                     ));
                 } else {
                     out.extend(std::iter::repeat_n(
@@ -826,11 +838,12 @@ fn generate_backing_stems(
     progression: Progression,
     genre: Genre,
     energy: BandEnergy,
+    seed: u64,
 ) -> [(String, Vec<f32>); 3] {
-    let bass = generate_bass_pcm(key, bpm, progression, genre);
+    let bass = generate_bass_pcm_seeded(key, bpm, progression, genre, seed);
     let target = bass.len();
-    let mut drums = generate_drums_pcm(bpm, genre, energy);
-    let mut comping = generate_comping_pcm(key, bpm, progression, genre, energy);
+    let mut drums = generate_drums_pcm(bpm, genre, energy, seed);
+    let mut comping = generate_comping_pcm(key, bpm, progression, genre, energy, seed);
     drums.resize(target, 0.0);
     comping.resize(target, 0.0);
     drums.truncate(target);
@@ -934,11 +947,12 @@ pub fn build_generated_manifest(
     position: Position,
     genre: Genre,
     energy: BandEnergy,
+    seed: u64,
     background: Handle<Image>,
     elements: Handle<Image>,
     sources: &mut Assets<AudioSource>,
 ) -> SongManifest {
-    let stems = generate_backing_stems(key, bpm, progression, genre, energy);
+    let stems = generate_backing_stems(key, bpm, progression, genre, energy, seed);
     let music_duration_secs = stems[0].1.len() as f64 / SAMPLE_RATE as f64;
     let mut mix = vec![0.0; stems[0].1.len()];
     for (_, pcm) in &stems {
@@ -1301,8 +1315,14 @@ mod tests {
     #[test]
     fn rhythm_section_stems_are_audible_and_sample_aligned() {
         for &genre in Genre::all() {
-            let stems =
-                generate_backing_stems("C", 90.0, Progression::Standard, genre, BandEnergy::Medium);
+            let stems = generate_backing_stems(
+                "C",
+                90.0,
+                Progression::Standard,
+                genre,
+                BandEnergy::Medium,
+                42,
+            );
             let expected_len = stems[0].1.len();
             for (name, pcm) in stems {
                 assert_eq!(pcm.len(), expected_len, "{genre:?} {name} drifted");
@@ -1318,7 +1338,8 @@ mod tests {
     fn rhythm_section_mix_keeps_headroom() {
         for &genre in Genre::all() {
             for &energy in BandEnergy::all() {
-                let stems = generate_backing_stems("C", 90.0, Progression::Standard, genre, energy);
+                let stems =
+                    generate_backing_stems("C", 90.0, Progression::Standard, genre, energy, 42);
                 let peak = (0..stems[0].1.len())
                     .map(|sample| stems.iter().map(|(_, pcm)| pcm[sample]).sum::<f32>().abs())
                     .fold(0.0_f32, f32::max);
@@ -1471,6 +1492,7 @@ mod tests {
             Position::First,
             Genre::Blues,
             BandEnergy::Medium,
+            42,
             Handle::default(),
             Handle::default(),
             &mut sources,
