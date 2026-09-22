@@ -239,6 +239,15 @@ UI implying failure.
 
 ### 6. Let the band listen without grading
 
+**Implemented.** `jam::band` logs coarse per-beat activity (attack count,
+presence), thins the comping for the phrase after a dense one, holds the
+pocket through silence, and answers a released phrase at beat 3 of a
+four-bar phrase's last bar with a drum fill or chord push, at most once per
+eight bars; an `Adaptive band` toggle switches it off. Decisions are pure
+functions of the beat log and the tests replay a recorded stream. Still to
+review by ear: the thinning depth and whether the answers sit inside each
+genre's groove.
+
 Once the rhythm section and phrase boundaries are stable, add restrained
 reactivity driven by coarse musical activity rather than pitch correctness.
 

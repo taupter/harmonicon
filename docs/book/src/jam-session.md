@@ -55,6 +55,24 @@ notes, lots of room), **conversational** (the default) or **busy**
 (eighth-note runs). It's a mood, not a difficulty level — pick whichever
 you'd rather trade phrases with.
 
+## The band listens
+
+In a generated jam the rhythm section pays a little attention to you. It
+never judges a note — it only notices *how much* you're playing and when
+you stop:
+
+- After a busy four bars, the comping thins out for the next four so
+  there's more room under you; play sparsely and it fills back in.
+- Play a phrase and rest in the last bar of a four-bar stretch, and the
+  band may answer — a short drum fill or a chord push into the next
+  downbeat. It does this now and then, not every time.
+- Stop playing altogether and it simply holds the groove; it won't rush
+  to fill the gap.
+
+Everything changes at bar lines and eases in, so a noisy mic can't make
+the band twitch. **Adaptive band** turns it off if you'd rather the
+backing play exactly as generated.
+
 ## MIDI backing with per-track muting
 
 If the song you picked was authored from a MIDI file that kept its

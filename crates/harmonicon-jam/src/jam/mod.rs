@@ -21,6 +21,7 @@ use harmonicon_gameplay::gameplay::Paused;
 use harmonicon_gameplay::gameplay::plugin::GameplayLogic;
 
 pub mod backing;
+pub mod band;
 pub mod call_response;
 pub mod hole_map;
 pub mod improv;
@@ -53,6 +54,9 @@ impl Plugin for JamPlugin {
             .init_resource::<jam_call_response::CallResponseState>()
             .init_resource::<jam_call_response::JamCallDensity>()
             .init_resource::<jam_call_response::CallDuck>()
+            .init_resource::<band::AdaptiveBand>()
+            .init_resource::<band::BandListener>()
+            .init_resource::<band::BandTracker>()
             // Jam's own per-session reset, alongside gameplay's `reset_score`.
             .add_systems(
                 OnEnter(AppState::Playing),
@@ -144,10 +148,16 @@ impl Plugin for JamPlugin {
             // Jam Session: the harmonica rhythm-guide pulse row — only ever
             // spawned for a generated jam (see `jam::rhythm_guide`'s own doc
             // comment), so gated on `GeneratedJamSession`'s presence too, not
-            // just the mode.
+            // just the mode. The adaptive band is generated-only for the same
+            // reason (a picked song's backing is a recording); it reads the
+            // improv tally's fresh-attack count, so it runs after it.
             .add_systems(
                 Update,
-                jam_rhythm_guide::update_rhythm_guide
+                (
+                    jam_rhythm_guide::update_rhythm_guide,
+                    band::listen_and_react.after(improv::accumulate_improv_stats),
+                    band::update_adaptive_band_label,
+                )
                     .after(GameplayLogic)
                     .run_if(
                         in_state(AppState::Playing)

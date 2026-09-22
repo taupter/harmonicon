@@ -109,6 +109,29 @@ load-bearing about *this* crate.
   still shows its normal chord-tone/in-scale tint) until the next call
   replaces them. The player's answer is never compared with the call.
 
+- **The generated band listens without grading** (`jam::band`, generated
+  jams only — a picked song's backing is a recording). `BandListener` is
+  a pure decision-maker fed one completed beat at a time (`BeatActivity`:
+  fresh-attack count, taken as the frame-to-frame delta of the always-on
+  `ImprovStats::total`, plus whether anything sounded); it never sees a
+  pitch. Two decisions, both at musical boundaries: at the top of each
+  four-bar phrase the comping's target gain thins to 50 % if the phrase
+  just finished was dense (≥ 6 attacks/bar) and returns to full otherwise
+  — silence included, so a long rest keeps the pocket rather than
+  filling it; and at beat 3 of a phrase's last bar, if the phrase had ≥ 4
+  attacks and beats 1–2 of that bar were quiet *and not sounding*, a
+  two-beat `backing::BandAnswer` (drum fill / chord push, alternating,
+  rendered by `backing::render_band_answer` with the stems' own synth,
+  last eighth always a rest) fires fire-and-forget — rate-capped to one
+  per 8 bars. `BandTracker` accumulates the current beat (beat index from
+  `GameplayClock` × bpm, `band::beat_index`) and eases the comping gain
+  toward the target over one bar; `midi_tracks::apply_backing_gain`
+  multiplies it into stem `backing::COMPING_STEM` only when
+  `GeneratedJamSession` exists. `AdaptiveBand` (on by default; the
+  "Adaptive band" toggle) turns both reactions off while the log keeps
+  running. Deterministic under a recorded beat stream — the tests replay
+  one. No text, counts or history ever reach the screen.
+
 - **`jam::hole_map` is the one place a note is classified.** `JamHoleGuide`
   (per-jam: pitch → holes, the harp's playable vocabulary, scale classes,
   chord tones per bar) and `note_class` live there, not in `session`, so

@@ -708,6 +708,63 @@ fn generate_comping_pcm(
     out
 }
 
+/// Which of [`generate_backing_stems`]' three stems is the chordal comping —
+/// the one `jam::band` thins when the player has just been busy.
+pub(crate) const COMPING_STEM: usize = 2;
+
+/// A short reply the band may play in a phrase-end window when the player
+/// has just finished a phrase (`jam::band`): a drum fill or a chord push.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BandAnswer {
+    Drums,
+    Chord,
+}
+
+/// Renders one [`BandAnswer`], two beats long on `genre`'s eighth grid so
+/// it lands on beats 3–4 of a bar. The last eighth is always a rest and the
+/// accents rise toward it, so the answer points at the next downbeat rather
+/// than covering it. Same synthesis as the stems (`drum_slot`/
+/// `comping_slot`), so it sounds like the same band.
+pub(crate) fn render_band_answer(
+    answer: BandAnswer,
+    genre: Genre,
+    root: &str,
+    quality: harmonicon_core::harmonica::ChordQuality,
+    bpm: f32,
+) -> Vec<f32> {
+    let secs_per_beat = 60.0 / bpm.max(1.0);
+    let swung = groove_arrangement(genre).swung;
+    let long = if swung {
+        secs_per_beat * SWING_LONG_FRAC
+    } else {
+        secs_per_beat * 0.5
+    };
+    let short = secs_per_beat - long;
+    let mut out = Vec::new();
+    for slot in 0..4 {
+        let secs = if slot % 2 == 0 { long } else { short };
+        let accent = 0.5 + slot as f32 * 0.12;
+        let rest = slot == 3;
+        match answer {
+            BandAnswer::Drums => out.extend(drum_slot(
+                drum(slot == 0, !rest, !rest, if rest { 0.0 } else { accent }),
+                slot,
+                secs,
+            )),
+            BandAnswer::Chord if !rest && slot != 1 => out.extend(
+                comping_slot(root, quality, secs)
+                    .into_iter()
+                    .map(|sample| sample * accent),
+            ),
+            BandAnswer::Chord => out.extend(std::iter::repeat_n(
+                0.0,
+                (secs * SAMPLE_RATE as f32).max(1.0) as usize,
+            )),
+        }
+    }
+    out
+}
+
 /// Bass, drums and chordal comping rendered as sample-aligned stems. The bass
 /// renderer remains the duration authority; the other pure renderers are
 /// trimmed/padded to its length so independently spawned sinks cannot drift.
@@ -1290,6 +1347,41 @@ mod tests {
         }
     }
 
+    // ── render_band_answer ───────────────────────────────────────────────────
+
+    #[test]
+    fn band_answers_last_two_beats_and_leave_the_last_eighth_open() {
+        use harmonicon_core::harmonica::ChordQuality;
+        for genre in Genre::all() {
+            for answer in [BandAnswer::Drums, BandAnswer::Chord] {
+                let pcm = render_band_answer(answer, *genre, "C", ChordQuality::Dominant7, 120.0);
+                let two_beats = (2.0 * 60.0 / 120.0 * SAMPLE_RATE as f32) as usize;
+                assert!(
+                    (pcm.len() as i64 - two_beats as i64).abs() <= 4,
+                    "{genre:?} {answer:?}: {} samples for {two_beats}",
+                    pcm.len()
+                );
+                let peak = pcm.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+                assert!(
+                    peak > 0.02 && peak <= 1.0,
+                    "{genre:?} {answer:?} peak {peak}"
+                );
+                // The final eighth (the short one when swung) is silence, so
+                // the answer never covers the downbeat it points at.
+                let short = if groove_arrangement(*genre).swung {
+                    1.0 - SWING_LONG_FRAC
+                } else {
+                    0.5
+                };
+                let tail = (short * 60.0 / 120.0 * SAMPLE_RATE as f32) as usize - 8;
+                assert!(
+                    pcm[pcm.len() - tail..].iter().all(|s| *s == 0.0),
+                    "{genre:?} {answer:?} sounds into the downbeat"
+                );
+            }
+        }
+    }
+
     // ── build_generated_manifest ─────────────────────────────────────────────
 
     #[test]
@@ -1318,6 +1410,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["Bass", "Drums", "Comping"]
         );
+        assert_eq!(stems[COMPING_STEM].name, "Comping");
         assert!(stems.iter().all(|stem| sources.get(&stem.source).is_some()));
         assert!(manifest.music_duration_secs > 0.0);
         assert_eq!(manifest.waveform.len(), WAVEFORM_BUCKETS);

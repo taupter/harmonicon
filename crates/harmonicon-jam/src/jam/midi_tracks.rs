@@ -14,12 +14,15 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
 
+use harmonicon_app::app::GeneratedJamSession;
 use harmonicon_audio::AudioSettings;
 use harmonicon_gameplay::gameplay::{BackingStemPlayer, MusicPlayer};
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_song::song::BackingStemAudio;
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 
+use super::backing::COMPING_STEM;
+use super::band::BandTracker;
 use super::call_response::CallDuck;
 
 /// Per-stem mute state for the current Jam Session backing — index
@@ -147,30 +150,41 @@ pub fn update_stem_mute_buttons(
 }
 
 /// The gain one backing sink should sit at: the configured music volume,
-/// dipped by the call-and-response duck, and silenced when its stem is
-/// muted. A single-track song has no stem index and can only be ducked.
-fn backing_gain(music_volume: f32, duck: f32, muted: bool) -> f32 {
-    if muted { 0.0 } else { music_volume * duck }
+/// dipped by the call-and-response duck and by the band's own shaping of
+/// that stem (`band` is 1.0 for every stem it leaves alone), and silenced
+/// when its stem is muted. A single-track song has no stem index and can
+/// only be ducked.
+fn backing_gain(music_volume: f32, duck: f32, band: f32, muted: bool) -> f32 {
+    if muted {
+        0.0
+    } else {
+        music_volume * duck * band
+    }
 }
 
-/// Applies `JamStemMute` and `call_response::CallDuck` to every backing
-/// sink — a muted stem is silent, everything else sits at the music volume
-/// times the duck. Ordered `.after(gameplay::lifecycle::apply_music_volume)`
-/// so a mid-song global-volume change (which touches every `MusicPlayer`
-/// sink, stems included, since `BackingStemPlayer` entities carry that tag
-/// too) can never un-mute a muted track or un-duck a call — this system
-/// always has the last word.
+/// Applies `JamStemMute`, `call_response::CallDuck` and the adaptive band's
+/// comping gain (`band::BandTracker`, generated jams only — a MIDI-backed
+/// song's third track is whatever the file says it is) to every backing
+/// sink. Ordered `.after(gameplay::lifecycle::apply_music_volume)` so a
+/// mid-song global-volume change (which touches every `MusicPlayer` sink,
+/// stems included, since `BackingStemPlayer` entities carry that tag too)
+/// can never un-mute a muted track, un-duck a call or un-thin the comping
+/// — this system always has the last word.
 pub fn apply_backing_gain(
     mute: Res<JamStemMute>,
     duck: Res<CallDuck>,
+    band: Res<BandTracker>,
+    generated: Option<Res<GeneratedJamSession>>,
     audio: Res<AudioSettings>,
     mut sinks: Query<(Option<&BackingStemPlayer>, &mut AudioSink), With<MusicPlayer>>,
 ) {
     for (stem, mut sink) in &mut sinks {
         let muted = stem.is_some_and(|s| mute.0.get(s.0).copied().unwrap_or(false));
+        let shaped = generated.is_some() && stem.is_some_and(|s| s.0 == COMPING_STEM);
         sink.set_volume(Volume::Linear(backing_gain(
             audio.music_volume,
             duck.0,
+            if shaped { band.comping_gain } else { 1.0 },
             muted,
         )));
     }
@@ -186,9 +200,10 @@ mod tests {
     }
 
     #[test]
-    fn backing_gain_mutes_first_and_ducks_otherwise() {
-        assert_eq!(backing_gain(0.8, 1.0, false), 0.8);
-        assert_eq!(backing_gain(0.8, 0.5, false), 0.4);
-        assert_eq!(backing_gain(0.8, 0.5, true), 0.0);
+    fn backing_gain_mutes_first_and_scales_otherwise() {
+        assert_eq!(backing_gain(0.8, 1.0, 1.0, false), 0.8);
+        assert_eq!(backing_gain(0.8, 0.5, 1.0, false), 0.4);
+        assert_eq!(backing_gain(0.8, 1.0, 0.5, false), 0.4);
+        assert_eq!(backing_gain(0.8, 0.5, 0.5, true), 0.0);
     }
 }

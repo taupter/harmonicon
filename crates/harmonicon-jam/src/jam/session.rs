@@ -53,6 +53,9 @@ pub struct JamResetState<'w> {
     call_response: ResMut<'w, super::call_response::CallResponseState>,
     guides_visible: Res<'w, JamGuidesVisible>,
     call_density: Res<'w, super::call_response::JamCallDensity>,
+    adaptive_band: Res<'w, super::band::AdaptiveBand>,
+    band_listener: ResMut<'w, super::band::BandListener>,
+    band_tracker: ResMut<'w, super::band::BandTracker>,
 }
 
 pub fn setup(
@@ -81,8 +84,11 @@ pub fn setup(
     music_started.0 = false;
     *reset.ending = JamEnding::default();
     *reset.call_response = super::call_response::CallResponseState::fresh();
+    *reset.band_listener = super::band::BandListener::default();
+    *reset.band_tracker = super::band::BandTracker::fresh();
     let guides_visible = reset.guides_visible.0;
     let call_density = &reset.call_density;
+    let adaptive_band = reset.adaptive_band.0;
     // Fresh, all-unmuted for this jam — sized to the song's own track
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
@@ -373,6 +379,37 @@ pub fn setup(
                                 super::call_response::CallDensityLabel,
                             ));
                         });
+                        // Only a generated jam has a band that can listen.
+                        if generated.is_some() {
+                            left.spawn(Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(8.0),
+                                ..default()
+                            })
+                            .with_children(|row| {
+                                row.spawn_empty().apply_scene(button::small(
+                                    &loc.msg("jam-adaptive-band-button"),
+                                    |_: On<Activate>,
+                                     mut adaptive: ResMut<super::band::AdaptiveBand>| {
+                                        adaptive.0 = !adaptive.0;
+                                    },
+                                ));
+                                row.spawn((
+                                    Text::new(String::from(if adaptive_band {
+                                        loc.msg("jam-adaptive-band-on")
+                                    } else {
+                                        loc.msg("jam-adaptive-band-off")
+                                    })),
+                                    TextFont {
+                                        font_size: FontSize::Px(15.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                                    super::band::AdaptiveBandLabel,
+                                ));
+                            });
+                        }
                         left.spawn((
                             Node {
                                 flex_direction: FlexDirection::Column,

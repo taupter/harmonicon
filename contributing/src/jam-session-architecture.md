@@ -282,3 +282,13 @@ anything themselves:
   before "Your turn". While the call sounds, `CallDuck` eases the
   backing down to 60 % and back, applied by
   `midi_tracks::apply_backing_gain` in the same pass as stem mute.
+- **`jam::band`** — the generated band listening without grading:
+  `BandListener` takes one `BeatActivity` per beat (fresh attacks and
+  presence, never pitch) and decides, only at phrase boundaries, whether
+  the comping thins for the coming four bars (after a dense phrase; a
+  silence keeps the pocket) and, at beat 3 of a phrase's last bar,
+  whether to answer a phrase the player has just released with a
+  two-beat drum fill or chord push (`backing::render_band_answer`),
+  rate-capped to one per eight bars. `BandTracker` eases the comping
+  gain over a bar and `apply_backing_gain` applies it to the comping
+  stem; `AdaptiveBand` switches the reactions off. Generated jams only.

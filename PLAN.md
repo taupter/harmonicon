@@ -8,14 +8,15 @@ this file — prune it back to a one-line summary under "Shipped" below.
 ## In flight
 
 - **Jam Session feel pass** — improve `harmonicon-jam` as an unscored musical
-  space rather than another teaching surface. Phases 1–5 of
+  space rather than another teaching surface. All six phases of
   `docs/jam_feel_plan.md` are in (continuity and endings, the generated
   rhythm section, the four-chorus arc and Band energy, the listening-first
-  stage, and phrase-shaped call-and-response); what remains is phase 6,
-  restrained band reactivity, the leftovers each phase's own note lists
+  stage, phrase-shaped call-and-response, and the band listening without
+  grading). What remains is the leftovers each phase's own note lists
   (phase 4's compact detected-note indicator and Eyes off mode, role
-  timbres), and the listening reviews the audio phases still owe (balance,
-  genre credibility, the call's timbre against the band).
+  timbres) and the listening reviews the audio phases still owe — balance,
+  genre credibility, the call's timbre against the band, the comping
+  thinning depth and whether the band's answers sit in each groove.
 
 ## Shipped
 
