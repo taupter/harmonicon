@@ -210,6 +210,9 @@ pub(super) fn update_sliders(
     mut fills: Query<(&mut Node, &SliderFill)>,
     mut labels: Query<(&mut Text, &SliderValueLabel)>,
 ) {
+    if !settings.is_changed() {
+        return;
+    }
     for (mut node, fill) in &mut fills {
         node.width = Val::Percent(audio_level(&settings, fill.0) * 100.0);
     }
