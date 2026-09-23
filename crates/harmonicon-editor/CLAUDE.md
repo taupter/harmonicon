@@ -836,8 +836,9 @@ load-bearing about *this* crate.
   `resolution: TICKS_PER_BEAT` charts do.
   **Scope boundary, deliberate:** this covers the editor's grid/waveform
   *display* and the chart's on-disk tempo map only. Play/Practice/Record
-  audio synthesis (`song_editor::playback`'s `render_pcm`, shared with
-  `gameplay::call_response`) still renders against one flat nominal BPM —
+  audio synthesis (`harmonicon_core::synth::render_pcm`, which
+  `song_editor::playback` shares with `gameplay::call_response`) still
+  renders against one flat nominal BPM —
   the same already-accepted simplification `call_response` documents
   above for mid-phrase tempo automation. Extending the synth to follow a
   variable tempo map is future work, not a gap in this feature.

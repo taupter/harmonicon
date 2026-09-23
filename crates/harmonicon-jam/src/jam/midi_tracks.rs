@@ -5,7 +5,7 @@
 //! synchronized `AudioSink` (spawned by `gameplay::countdown_overlay::
 //! update_countdown`), so muting one is just zeroing that sink's volume —
 //! no live re-mixing needed, since every stem is already a complete,
-//! independent render (`song::midi::render_track_pcm`).
+//! independent render (`harmonicon_core::midi_file::render_track_pcm`).
 
 use bevy::audio::{AudioSink, Volume};
 use bevy::input_focus::tab_navigation::TabIndex;

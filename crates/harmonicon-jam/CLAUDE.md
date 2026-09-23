@@ -172,11 +172,12 @@ load-bearing about *this* crate.
   as one `Handle<AudioSource>` — `SongManifest::music` stays `None` and
   `SongManifest::backing_stems: Option<Vec<BackingStemAudio>>` is populated
   instead, one already-rendered `AudioSource` per non-empty track
-  (`song::midi::render_track_pcm`, the same additive harmonica-voice
-  synth `song_editor::playback`/`gameplay::call_response` share; a
-  `notes_to_phrase` helper factors the MIDI-timing-to-synth-tick
-  conversion out of `song_editor::midi_import::render_backing_pcm` so
-  both share it). Each track is rendered and registered as a labeled
+  (`harmonicon_core::midi_file::render_track_pcm`, through the same
+  additive harmonica voice in `harmonicon_core::synth` that
+  `song_editor::playback` and `gameplay::call_response` use;
+  `midi_file::notes_to_phrase` does the MIDI-timing-to-synth-tick
+  conversion for both it and `song_editor::midi_import::
+  render_backing_pcm`). Each track is rendered and registered as a labeled
   sub-asset at song-load time (`song::loader::load_midi_tracks`), off
   the main thread like the rest of `SongChartLoader` — nothing about
   gameplay ever touches MIDI parsing itself. `waveform`/

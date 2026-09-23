@@ -138,7 +138,7 @@ skinparam sequenceMessageAlign center
 box "Load time (song::loader, off the main thread)" #LightBlue
 participant "song/music.mid" as midfile
 participant "load_midi_tracks" as loader
-participant "song::midi::render_track_pcm\n(per non-empty track)" as render
+participant "midi_file::render_track_pcm\n(per non-empty track)" as render
 participant "SongManifest::backing_stems\nVec<BackingStemAudio>" as manifest
 end box
 
