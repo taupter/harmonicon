@@ -27,6 +27,7 @@ use bevy::{
     prelude::*,
     ui_widgets::Activate,
 };
+use std::fmt::Write;
 
 use harmonicon_audio::AudioSettings;
 use harmonicon_audio::pitch_detect::PitchEvent;
@@ -262,6 +263,9 @@ fn collect_hits(mut pitches: MessageReader<PitchEvent>, mut cal: ResMut<CalState
 // ── Visual update systems ─────────────────────────────────────────────────────
 
 fn update_beat_dots(cal: Res<CalState>, mut dots: Query<(&BeatDot, &mut BackgroundColor)>) {
+    if cal.phase != CalPhase::Recording && !cal.is_changed() {
+        return;
+    }
     let (active, phase_f) = if cal.phase == CalPhase::Recording {
         let pos = cal.clock / BEAT_DUR;
         (pos.floor() as usize % 4, pos.fract() as f32)
@@ -378,23 +382,27 @@ fn fade_hit_markers(
 }
 
 /// Updates the hit-offsets summary text ("±Xms  ±Yms  …").
-fn update_offset_summary(cal: Res<CalState>, mut texts: Query<&mut Text, With<HitOffsetsSummary>>) {
-    if !cal.is_changed() {
+fn update_offset_summary(
+    cal: Res<CalState>,
+    mut texts: Query<&mut Text, With<HitOffsetsSummary>>,
+    mut shown_count: Local<usize>,
+) {
+    if cal.offsets.len() == *shown_count {
         return;
     }
-    let line: String = cal
-        .offsets
-        .iter()
-        .map(|&o| {
-            let ms = (o * 1000.0).round() as i32;
-            if ms >= 0 {
-                format!("+{ms}ms")
-            } else {
-                format!("{ms}ms")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("  ");
+    *shown_count = cal.offsets.len();
+    let mut line = String::new();
+    for &offset in &cal.offsets {
+        if !line.is_empty() {
+            line.push_str("  ");
+        }
+        let ms = (offset * 1000.0).round() as i32;
+        if ms >= 0 {
+            write!(line, "+{ms}ms").unwrap();
+        } else {
+            write!(line, "{ms}ms").unwrap();
+        }
+    }
     for mut t in &mut texts {
         t.0 = line.clone();
     }
