@@ -311,7 +311,7 @@ fn spawn_left_column(
     // materials, no tint). Layers are assigned after the 3D-note layers so the
     // preview cameras never capture each other's models.
     let harmonica_base_layer = 1;
-    let previews_harmonica: Vec<(Handle<Image>, String)> = harmonicas
+    let previews_harmonica: Vec<(Handle<Image>, &str)> = harmonicas
         .0
         .iter()
         .enumerate()
@@ -323,7 +323,7 @@ fn spawn_left_column(
                 m,
                 harmonica_base_layer + i,
             );
-            (handle, m.clone())
+            (handle, m.as_str())
         })
         .collect();
 

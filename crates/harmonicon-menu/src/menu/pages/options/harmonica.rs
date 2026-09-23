@@ -12,7 +12,7 @@ pub(super) fn spawn_harmonica_row(
     commands: &mut Commands,
     parent: Entity,
     loc: &Localization,
-    previews: &[(Handle<Image>, String)],
+    previews: &[(Handle<Image>, &str)],
     selected: &str,
 ) {
     let row = commands
@@ -39,10 +39,10 @@ pub(super) fn spawn_harmonica_row(
             Tooltip(String::from(loc.msg("options-harmonica-tooltip"))),
         ));
         for (image, name) in previews {
-            let is_selected = name == selected;
+            let is_selected = *name == selected;
             r.spawn_empty().apply_scene(harmonica_button_scene(
                 image.clone(),
-                name.clone(),
+                (*name).to_owned(),
                 is_selected,
             ));
         }
@@ -184,9 +184,11 @@ pub(super) fn propagate_preview_layers(
     roots: Query<(Entity, &PreviewSceneLayer)>,
     children: Query<&Children>,
     already_layered: Query<(), With<RenderLayers>>,
+    mut stack: Local<Vec<Entity>>,
 ) {
     for (root, layer) in &roots {
-        let mut stack = vec![root];
+        stack.clear();
+        stack.push(root);
         while let Some(entity) = stack.pop() {
             if let Ok(kids) = children.get(entity) {
                 for child in kids {
