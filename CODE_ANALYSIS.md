@@ -48,10 +48,11 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/grid.rs` — borrow the selection IDs at group-drag start and the drag state on each pointer move, eliminating the per-move clone of the selected-note group. Target vectors are still needed by the group-validity API, and Bevy-owned grid entities still require materialization. The nine grid-filtered editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/interaction.rs` — borrow drag state during resize and avoid unconditional grip component writes on idle frames, reducing cloning and Bevy change-detection churn. The sticky intensity string still needs ownership in note metadata. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/clipboard.rs` — reserve paste-target capacity once from the clipboard length and fix the stale function link in module docs. Returned owned notes remain required for assigning fresh IDs. All six paste tests passed.
+- `crates/harmonicon-editor/src/song_editor/metadata_sync.rs` — reuse the editor's selection vector when opening a phrase or pasting, avoiding temporary or replacement ID vectors. Other metadata clones are required to retain copied clipboard values or re-key annotations. All 377 editor tests passed.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
-- Next review: continue `harmonicon-editor` at `src/song_editor/metadata_sync.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/undo.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.

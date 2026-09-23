@@ -90,16 +90,12 @@ impl EditorState {
     /// note that starts there — so the popover, a drag and Delete all act
     /// on the same thing. A tick nothing starts on is ignored.
     pub(super) fn open_phrase_editor(&mut self, tick: usize) {
-        let ids: Vec<u32> = self
-            .notes
-            .iter()
-            .filter(|n| n.tick == tick)
-            .map(|n| n.id)
-            .collect();
-        if ids.is_empty() {
+        if !self.notes.iter().any(|n| n.tick == tick) {
             return;
         }
-        self.selected = ids;
+        self.selected.clear();
+        self.selected
+            .extend(self.notes.iter().filter(|n| n.tick == tick).map(|n| n.id));
         self.phrase_editor = Some(tick);
     }
 
@@ -211,7 +207,8 @@ impl EditorState {
             return false;
         }
         self.next_id = next_id;
-        self.selected = placed.iter().map(|(_, p)| p.id).collect();
+        self.selected.clear();
+        self.selected.extend(placed.iter().map(|(_, p)| p.id));
         for (source, placed) in &placed {
             if let Some(v) = clip.intensities.get(&source.id) {
                 self.expression_intensities.insert(placed.id, v.clone());
