@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 //! Generated Jam Session setup: pick a key and tempo, then start an
-//! endless synthesized 12-bar backing (`harmonicon_jam::jam::backing`) without first
+//! looping synthesized 12-bar backing (`harmonicon_jam::jam::backing`) without first
 //! picking an existing song — a second way into `GameplayMode::JamSession`
 //! alongside the "Jam Session" button's real-song flow.
 
