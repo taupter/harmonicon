@@ -96,7 +96,9 @@ pub(crate) fn remember_viewport(
     let Some(position) = scroller.iter().next() else {
         return;
     };
-    saved.0 = position.0;
+    if saved.0 != position.0 {
+        saved.0 = position.0;
+    }
 }
 
 pub(crate) fn restore_viewport_anchor(
@@ -168,11 +170,15 @@ pub(crate) fn animate_unit_expansion(
     }
 
     for (chevron, mut text) in &mut chevrons {
-        **text = if collapsed.0.contains(&chevron.0) {
-            "▶".to_string()
+        let label = if collapsed.0.contains(&chevron.0) {
+            "▶"
         } else {
-            "▼".to_string()
+            "▼"
         };
+        if text.0 != label {
+            text.0.clear();
+            text.0.push_str(label);
+        }
     }
     for (button, mut accessibility) in &mut unit_buttons {
         accessibility.set_expanded(!collapsed.0.contains(&button.0));
@@ -203,6 +209,9 @@ pub(crate) fn animate_unit_slides(
     mut owned: Query<(&LayoutOwner, &mut UiTransform), Without<MovingEdge>>,
     mut edges: Query<(&MovingEdge, &mut Node)>,
 ) {
+    if slides.0.is_empty() {
+        return;
+    }
     let step = time.delta_secs() / TRANSITION_SECONDS;
     for slide in slides.0.values_mut() {
         slide.amount = (slide.amount + step).min(1.0);
