@@ -140,8 +140,13 @@ pub(super) fn update_timeline_overlays(
         return;
     };
     if let Ok((mut node, mut vis)) = split_lines.single_mut() {
-        node.left = Val::Px(split as f32 * TICK_W);
-        *vis = Visibility::Inherited;
+        let left = Val::Px(split as f32 * TICK_W);
+        if node.left != left {
+            node.left = left;
+        }
+        if *vis != Visibility::Inherited {
+            *vis = Visibility::Inherited;
+        }
     }
 
     let Some(hover) = surfaces
@@ -162,7 +167,9 @@ pub(super) fn update_timeline_overlays(
 
 fn hide<F: bevy::ecs::query::QueryFilter>(q: &mut Query<(&mut Node, &mut Visibility), F>) {
     if let Ok((_, mut vis)) = q.single_mut() {
-        *vis = Visibility::Hidden;
+        if *vis != Visibility::Hidden {
+            *vis = Visibility::Hidden;
+        }
     }
 }
 
@@ -175,8 +182,14 @@ fn set_highlight(
     end: usize,
 ) {
     if let Ok((mut node, mut vis)) = q.single_mut() {
-        node.left = Val::Px(start as f32 * TICK_W);
-        node.width = Val::Px((end - start) as f32 * TICK_W);
-        *vis = Visibility::Inherited;
+        let left = Val::Px(start as f32 * TICK_W);
+        let width = Val::Px((end - start) as f32 * TICK_W);
+        if node.left != left || node.width != width {
+            node.left = left;
+            node.width = width;
+        }
+        if *vis != Visibility::Inherited {
+            *vis = Visibility::Inherited;
+        }
     }
 }
