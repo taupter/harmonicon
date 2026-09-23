@@ -1,0 +1,23 @@
+# Code analysis progress
+
+Started 2026-09-23. Review order: root composition crate, then feature crates, shared Bevy crates, and Bevy-free crates, following `contributing/src/overview.md` and `contributing/src/module-dependency-rules.md`. Preserve public APIs unless a larger architectural benefit is demonstrated. Existing user changes in `Cargo.toml`, `Cargo.lock`, `crates/harmonicon-audio/src/pipeline.rs`, `CHANGELOG.md`, and packaging files are outside this review and must be preserved.
+
+## Completed files
+
+- `src/main.rs` — thin entry point; no change needed.
+- `src/lib.rs` — plugin assembly and startup ordering checked against the contributor architecture guide; removed a stale Bevy 0.19 RC comment. No hot loop here.
+- `src/dev_capture.rs` — dev-only screen capture; `Image` cloning is required by the consuming conversion API. No change needed.
+- `src/bin/gen_synthetic_dataset.rs` — thin I/O wrapper; no change needed.
+- `src/bin/note_bench.rs` — sorting recording directories requires materialization; no significant copy or hot-loop issue in this wrapper.
+- `src/bin/hole_editor.rs` — skip mesh, material, and status text updates while editor state is unchanged; this avoids repeated per-frame string formatting and asset mutation. No public API.
+- `src/bin/note_editor.rs` — avoid marking editor state changed every frame when the resize key is unchanged; format status text only on actual state changes. Existing preview updates already use change detection. No public API.
+- `crates/harmonicon-dsp/src/lib.rs` — removed the per-frame harmonic suppression bitmap and the NMF activation loop's 50 temporary denominator vectors per analysis block. Public API unchanged. `cargo test -p harmonicon-dsp` passed (31 tests).
+- `contributing/src/overview.md` — corrected the Bevy version, desktop entry-point description, and inaccurate blanket claim about re-export facades.
+- `crates/harmonicon-lessons/src/lib.rs` — plugin registration and schedule order match the documented lesson/menu boundary; no change needed.
+- `crates/harmonicon-menu/src/lib.rs` — replaced malformed and inaccurate crate documentation; retained the existing public re-export API.
+
+## Findings and follow-up
+
+- `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
+- DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
+- Next review: feature crates from the top of the dependency graph, beginning with `harmonicon-lessons` and `harmonicon-menu`.
