@@ -14,10 +14,11 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-dsp/src/lib.rs` — removed the per-frame harmonic suppression bitmap and the NMF activation loop's 50 temporary denominator vectors per analysis block. Public API unchanged. `cargo test -p harmonicon-dsp` passed (31 tests).
 - `contributing/src/overview.md` — corrected the Bevy version, desktop entry-point description, and inaccurate blanket claim about re-export facades.
 - `crates/harmonicon-lessons/src/lib.rs` — plugin registration and schedule order match the documented lesson/menu boundary; no change needed.
+- `crates/harmonicon-lessons/src/lesson_tree/layout.rs` — removed per-node temporary vectors from barycentre calculation and reused layer storage during ordering sweeps. Layout behavior unchanged; all 76 lessons tests passed.
 - `crates/harmonicon-menu/src/lib.rs` — replaced malformed and inaccurate crate documentation; retained the existing public re-export API.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
-- Next review: feature crates from the top of the dependency graph, beginning with `harmonicon-lessons` and `harmonicon-menu`.
+- Next review: continue `harmonicon-lessons` with `lesson_tree/edges.rs` and `lesson_tree/transition.rs`, then the remaining lesson reader and menu files.

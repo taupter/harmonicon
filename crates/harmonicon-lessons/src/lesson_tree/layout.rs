@@ -481,14 +481,14 @@ fn order_layers(layers: &mut [Vec<usize>], predecessors: &[Vec<usize>], successo
     }
 
     let barycentre = |node: usize, neighbours: &[usize], row_of: &HashMap<usize, f32>| {
-        let known: Vec<f32> = neighbours
+        let (sum, count) = neighbours
             .iter()
-            .filter_map(|n| row_of.get(n).copied())
-            .collect();
-        if known.is_empty() {
+            .filter_map(|n| row_of.get(n))
+            .fold((0.0, 0usize), |(sum, count), row| (sum + *row, count + 1));
+        if count == 0 {
             return row_of.get(&node).copied().unwrap_or(0.0);
         }
-        known.iter().sum::<f32>() / known.len() as f32
+        sum / count as f32
     };
 
     let resort =
@@ -498,7 +498,8 @@ fn order_layers(layers: &mut [Vec<usize>], predecessors: &[Vec<usize>], successo
                 .map(|&n| (barycentre(n, &neighbours[n], row_of), n))
                 .collect();
             keyed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            *layer = keyed.into_iter().map(|(_, n)| n).collect();
+            layer.clear();
+            layer.extend(keyed.into_iter().map(|(_, n)| n));
             for (row, &n) in layer.iter().enumerate() {
                 row_of.insert(n, row as f32);
             }
