@@ -304,11 +304,10 @@ pub(crate) fn advance_tutorial_tour(
     let next_step = tour.step + 1;
     match TOUR_STEPS.get(next_step) {
         Some((target, .., seconds)) => {
-            let target = target.clone();
             tour.step = next_step;
             tour.timer = Timer::from_seconds(*seconds, TimerMode::Once);
             enter_tour_target(
-                &target,
+                target,
                 &mut commands,
                 &mut next_app_state,
                 &mut mode,
@@ -319,25 +318,27 @@ pub(crate) fn advance_tutorial_tour(
     }
 }
 
-/// Keeps the overlay in step with the tour: spawns it fresh (title/body
-/// text for the current step) whenever the tour resource changes — inserted
-/// (tour just started) or its `step` just advanced — and despawns it the
-/// instant the tour resource is gone (skipped, or ran out of steps).
+/// Rebuilds the overlay only when the tour step changes, and removes it when
+/// the tour ends. The resource also changes on every timer tick, so its
+/// Bevy change flag cannot identify a new step.
 pub(crate) fn sync_tutorial_overlay(
     tour: Option<Res<TutorialTour>>,
     existing: Query<Entity, With<TutorialOverlayRoot>>,
     mut commands: Commands,
     loc: Res<Localization>,
+    mut last_step: Local<Option<usize>>,
 ) {
     let Some(tour) = tour else {
         for e in &existing {
             commands.entity(e).despawn();
         }
+        *last_step = None;
         return;
     };
-    if !tour.is_changed() {
+    if *last_step == Some(tour.step) && !existing.is_empty() {
         return;
     }
+    *last_step = Some(tour.step);
     for e in &existing {
         commands.entity(e).despawn();
     }
@@ -497,5 +498,35 @@ mod tests {
         };
         assert_eq!(tour_menu_landing(&tour), MenuPage::LessonTree);
         assert!(!tour_finished(&tour));
+    }
+
+    #[test]
+    fn timer_ticks_do_not_respawn_the_overlay() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::asset::AssetPlugin::default(),
+            bevy::scene::ScenePlugin,
+        ))
+        .init_resource::<Localization>()
+        .add_systems(Update, sync_tutorial_overlay)
+        .insert_resource(TutorialTour {
+            step: 0,
+            timer: Timer::from_seconds(1.0, TimerMode::Once),
+            return_to: MenuPage::Main,
+        });
+        app.update();
+        let mut query = app
+            .world_mut()
+            .query_filtered::<Entity, With<TutorialOverlayRoot>>();
+        let first = query.single(app.world()).unwrap();
+
+        app.world_mut()
+            .resource_mut::<TutorialTour>()
+            .timer
+            .tick(std::time::Duration::from_millis(100));
+        app.update();
+        let after_tick = query.single(app.world()).unwrap();
+        assert_eq!(first, after_tick);
     }
 }
