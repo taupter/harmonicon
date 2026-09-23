@@ -30,7 +30,7 @@ const SCROLL_START: f32 = 1000.0;
 
 // ── Components ────────────────────────────────────────────────────────────────
 
-/// Marks every entity that belongs to the credits screen.
+/// Marks each credits root so cleanup removes its subtree.
 #[derive(Component, Default, Clone)]
 struct CreditsRoot;
 
@@ -445,9 +445,11 @@ fn propagate_scene_layers(
     roots: Query<(Entity, &CreditsSceneLayer)>,
     children: Query<&Children>,
     already_layered: Query<(), With<RenderLayers>>,
+    mut stack: Local<Vec<Entity>>,
 ) {
     for (root, layer) in &roots {
-        let mut stack = vec![root];
+        stack.clear();
+        stack.push(root);
         while let Some(entity) = stack.pop() {
             if let Ok(kids) = children.get(entity) {
                 for child in kids {
