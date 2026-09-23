@@ -30,9 +30,11 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-menu/src/menu/pages/help_about.rs` — local documentation discovery and page setup reviewed; no change needed.
 - `crates/harmonicon-menu/src/menu/pages/welcome.rs` — removed a stale Bevy 0.19 comment and moved the profile-save explanation onto the function it describes.
 - `crates/harmonicon-menu/src/menu/pages/options/sliders.rs` — the latency slider already used `AudioSettings` change detection; made the volume slider sync use the same guard so idle frames do not rewrite fills or format percentage labels. All 36 menu tests passed.
+- `crates/harmonicon-menu/src/menu/pages/options/microphone.rs` — replaced the hard-coded Retry button label with the existing localized retry key. Status and combobox sync already use change detection. All 36 menu tests passed.
+- `crates/harmonicon-menu/src/menu/pages/options/zoom.rs` — corrected documentation that referred to a removed keyboard shortcut and implied continuous updates; the code already filters changed slider values.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
-- Next review: remaining `harmonicon-menu/src/menu/pages/` files: Jam Generate, Theme Picker, Tutorial, Credits, Calibration, the rest of Options, and Harp Check.
+- Next review: remaining `harmonicon-menu/src/menu/pages/` files: Jam Generate, Theme Picker, Tutorial, Credits, Calibration, `options/mod.rs` and `harmonica.rs`, and Harp Check.

@@ -69,10 +69,10 @@ pub(super) fn spawn_mic_banner(
             TextColor(Color::srgb(0.95, 0.85, 0.85)),
             MicBannerText,
         ));
-        b.spawn_empty()
-            .apply_scene(mic_retry_button_scene(String::from(
-                loc.msg("options-mic-retry-tooltip"),
-            )));
+        b.spawn_empty().apply_scene(mic_retry_button_scene(
+            String::from(loc.msg("results-retry")),
+            String::from(loc.msg("options-mic-retry-tooltip")),
+        ));
     });
 
     commands.entity(parent).add_child(banner);
@@ -108,7 +108,7 @@ pub(super) fn mic_banner_key(status: &MicStatus) -> Option<&'static str> {
     }
 }
 
-pub(super) fn mic_retry_button_scene(tooltip: String) -> impl Scene {
+pub(super) fn mic_retry_button_scene(label: String, tooltip: String) -> impl Scene {
     bsn! {
         WidgetButton
         TabIndex(0)
@@ -119,7 +119,7 @@ pub(super) fn mic_retry_button_scene(tooltip: String) -> impl Scene {
             commands.queue(audio_input::start_capture);
         })
         Children [
-            Text({"Retry".to_string()})
+            Text({label})
             TextFont { font_size: {FontSize::Px(15.0)} }
             TextColor({Color::WHITE})
             Pickable { should_block_lower: {false}, is_hoverable: {false} }

@@ -89,10 +89,7 @@ pub(super) fn zoom_slider_scene(value: f32, frac: f32) -> impl Scene {
     }
 }
 
-/// Mirrors the zoom slider's own live `SliderValue` (updated every drag
-/// frame by `slider_self_update`, regardless of `is_final`) onto its fill
-/// and "Zoom: N%" label — safe to run continuously, unlike touching
-/// `UiScale` itself (see [`set_zoom`]).
+/// Mirrors changed slider values onto the fill and percentage label.
 pub(super) fn update_zoom_slider_visuals(
     loc: Res<Localization>,
     sliders: Query<&SliderValue, (With<ZoomSlider>, Changed<SliderValue>)>,
@@ -110,10 +107,8 @@ pub(super) fn update_zoom_slider_visuals(
     }
 }
 
-/// Keeps the slider's own `SliderValue` in step with `UiScale` when it
-/// changes from outside the slider (the Arrow Up/Down shortcut) — otherwise
-/// the slider would silently drift out of sync with the actual scale until
-/// next dragged. `SliderValue` is an immutable component (replace via
+/// Keeps the slider's own `SliderValue` in step with `UiScale` if it changes
+/// outside the slider. `SliderValue` is an immutable component (replace via
 /// `insert`, not `&mut`), same as every other `bevy_ui_widgets` value type.
 pub(super) fn sync_zoom_slider_from_ui_scale(
     ui_scale: Res<UiScale>,
