@@ -3,7 +3,7 @@
 //! Ctrl+C/Ctrl+V for the note grid: `NoteClipboard` holds the last copied
 //! notes verbatim (hole, pitch, direction, expression — everything except
 //! their id, which a fresh paste always reassigns) together with the
-//! metadata that belongs to them; [`paste_targets`] derives where each one
+//! metadata that belongs to them; [`paste_targets_with_sources`] derives where each one
 //! lands. `EditorState::copy_selection`/`paste` (`metadata_sync`) are what
 //! Ctrl+C/Ctrl+V and the mod panel's buttons actually call.
 
@@ -61,7 +61,7 @@ pub(super) fn paste_targets_with_sources(
         return (Vec::new(), next_id);
     };
     let mut id = next_id;
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(clipboard.len());
     for n in clipboard {
         if n.hole > hole_count {
             continue;
