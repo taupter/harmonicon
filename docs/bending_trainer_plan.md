@@ -365,12 +365,27 @@ Unit tests should cover:
 - reference-pitch and per-hole-offset math;
 - localization-key parity and non-color progress labels.
 
-Manual validation still matters. Use at least a low C, C, and high G Richter
-harp; test quiet and loud rooms, headphones and speakers, all available pitch
-algorithms, landscape and portrait tablets, slow bends, fast scoops, stable
-holds, vibrato, intentional overshoot, wrong holes, and long silence. A
-professional player should specifically review whether smoothing hides useful
-motion and whether the strict tolerance behaves consistently across registers.
+Manual validation still matters. Test quiet and loud rooms, headphones and
+speakers, all available pitch algorithms, landscape and portrait tablets, slow
+bends, fast scoops, stable holds, vibrato, intentional overshoot, wrong holes,
+and long silence. A professional player should specifically review whether
+smoothing hides useful motion and whether the strict tolerance behaves
+consistently across registers.
+
+The harps on hand are a **C** and a **G**. The trainer puts a G harp an octave
+*below* C (`harmonica::key_offset`: hole 1 blow is G3), matching a standard G.
+Together they cover roughly 196 Hz to 2.1 kHz: the G supplies the low end,
+including its hole 2–3 draw bends, and the C supplies the top. Two registers
+remain unverified until someone with the harps checks them:
+
+- **Below G3 (low harps, down to ~131 Hz on a low C).** This is where the
+  detectors have the least frequency resolution to work with, so tolerance and
+  stability are most likely to misbehave here. The G harp's lowest holes are
+  the nearest available evidence; treat a clean result there as encouraging,
+  not conclusive.
+- **Above C7 (high harps, up to ~3.1 kHz on a high G).** This covers the top
+  blow bends and overdraws of the high keys. The C harp's holes 8–10 are the
+  nearest available evidence.
 
 ## Deliberately out of scope
 
