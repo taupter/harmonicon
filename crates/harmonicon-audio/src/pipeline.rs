@@ -12,7 +12,7 @@ use crate::AudioSettings;
 use super::audio_input;
 #[cfg(feature = "dev")]
 use super::pitch_detect::PitchAlgorithm;
-use super::pitch_detect::{self, AudioFrame, PitchEvent, PitchRange};
+use super::pitch_detect::{self, AudioFrame, PitchEvent, PitchInfo, PitchRange};
 
 /// Dev-only ("--features dev") raw-audio tap for `song_editor`'s "Debug
 /// Recording" checkbox (`song_editor::debug_record`): accumulates the
@@ -131,11 +131,7 @@ pub fn process_audio(
             && raw.recording
         {
             let elapsed = raw.samples.len() as f32 / raw.sample_rate.max(1) as f32;
-            let current: Vec<String> = analysis
-                .pitches
-                .iter()
-                .map(|p| format!("{}{} ({:.1}Hz)", p.note, p.octave, p.frequency))
-                .collect();
+            let current: Vec<String> = analysis.pitches.iter().map(pitch_label).collect();
             if raw.detected_notes.last().map(|(_, n)| n) != Some(&current) {
                 raw.detected_notes.push((elapsed, current));
             }
@@ -171,28 +167,62 @@ fn clear_detection(frame: &mut AudioFrame, writer: &mut MessageWriter<PitchEvent
     writer.write(PitchEvent(Vec::new()));
 }
 
+/// A detected pitch as it's shown in logs and recorded takes: note, octave
+/// and frequency to 0.1 Hz. One function, so `log_pitches` and the dev
+/// capture's `RawCaptureBuffer::detected_notes` cannot drift apart.
+fn pitch_label(pitch: &PitchInfo) -> String {
+    format!("{}{} ({:.1}Hz)", pitch.note, pitch.octave, pitch.frequency)
+}
+
+/// What `log_pitches` compares to decide whether anything changed: the
+/// pitch, and its frequency in tenths of a hertz, the resolution
+/// [`pitch_label`] prints.
+///
+/// Comparing `PitchInfo` itself would compare the raw `f32` frequency,
+/// which drifts slightly on nearly every detector frame even on a steady
+/// held note, so every frame would count as a change. Comparing the
+/// formatted labels gets the rounding right, but only by allocating a
+/// string per pitch per event to find out nothing changed. This key costs
+/// no allocation.
+fn pitch_key(pitch: &PitchInfo) -> (u8, i32) {
+    // Widen before scaling so f32 multiplication cannot push a value across
+    // the displayed decimal boundary. Formatting also rounds ties to even.
+    (
+        pitch.midi,
+        (f64::from(pitch.frequency) * 10.0).round_ties_even() as i32,
+    )
+}
+
 /// Logs the detected pitches whenever they change during Playing, at
 /// `debug` level rather than stdout — a diagnostic aid, not something every
 /// player's console should be spammed with (enable with `RUST_LOG=debug` or
 /// similar to see it).
-pub fn log_pitches(mut reader: MessageReader<PitchEvent>, mut last: Local<Vec<String>>) {
+///
+/// Change detection runs on [`pitch_key`], and text is only built for an
+/// event that will actually be logged. With debug logging off, nothing is
+/// compared at all.
+pub fn log_pitches(
+    mut reader: MessageReader<PitchEvent>,
+    mut last: Local<Vec<(u8, i32)>>,
+    mut current: Local<Vec<(u8, i32)>>,
+) {
+    if !bevy::log::tracing::enabled!(bevy::log::Level::DEBUG) {
+        reader.clear();
+        return;
+    }
     for event in reader.read() {
-        let current: Vec<String> = event
-            .0
-            .iter()
-            .map(|p| format!("{}{} ({:.1}Hz)", p.note, p.octave, p.frequency))
-            .collect();
-
-        if current == *last {
+        current.clear();
+        current.extend(event.0.iter().map(pitch_key));
+        if *current == *last {
             continue;
         }
-
-        if current.is_empty() {
+        if event.0.is_empty() {
             debug!("pitches: (silence)");
         } else {
-            debug!("pitches: {}", current.join("  |  "));
+            let labels: Vec<String> = event.0.iter().map(pitch_label).collect();
+            debug!("pitches: {}", labels.join("  |  "));
         }
-        *last = current;
+        std::mem::swap(&mut *last, &mut *current);
     }
 }
 
@@ -200,6 +230,39 @@ pub fn log_pitches(mut reader: MessageReader<PitchEvent>, mut last: Local<Vec<St
 mod tests {
     use super::*;
     use crossbeam_channel::bounded;
+
+    fn a4(frequency: f32) -> PitchInfo {
+        PitchInfo {
+            midi: 69,
+            note: "A".to_string(),
+            octave: 4,
+            frequency,
+        }
+    }
+
+    #[test]
+    fn drift_below_the_printed_resolution_is_not_a_change() {
+        // A held note wobbles in the raw f32 on nearly every frame; that
+        // must not read as a new pitch, or every frame would log.
+        assert_ne!(a4(440.01), a4(440.03), "raw PitchInfo does see the drift");
+        assert_eq!(pitch_key(&a4(440.01)), pitch_key(&a4(440.03)));
+        assert_eq!(pitch_label(&a4(440.01)), pitch_label(&a4(440.03)));
+    }
+
+    #[test]
+    fn a_change_the_log_would_show_is_a_change_to_the_key() {
+        assert_ne!(pitch_key(&a4(440.0)), pitch_key(&a4(440.2)));
+        assert_ne!(pitch_label(&a4(440.0)), pitch_label(&a4(440.2)));
+        let mut b4 = a4(440.0);
+        b4.midi = 71;
+        assert_ne!(pitch_key(&a4(440.0)), pitch_key(&b4));
+    }
+
+    #[test]
+    fn key_matches_display_at_a_rounding_boundary() {
+        assert_eq!(pitch_label(&a4(440.05)), pitch_label(&a4(440.0)));
+        assert_eq!(pitch_key(&a4(440.05)), pitch_key(&a4(440.0)));
+    }
 
     fn chunk(sample: f32) -> audio_input::AudioChunk {
         audio_input::AudioChunk {
