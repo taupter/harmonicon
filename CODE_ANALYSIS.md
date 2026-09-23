@@ -26,9 +26,12 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-menu/src/menu/scene.rs` — shared page and button helpers reviewed; removed documentation that described an older themed-button implementation and clarified the root marker's actual role.
 - `crates/harmonicon-menu/src/menu/pages/artist_list.rs` — artist sorting already uses borrowed names; observer clones an owned artist name only when selecting. No change needed.
 - `crates/harmonicon-menu/src/menu/pages/song_list.rs` — sort borrowed song entries instead of cloning the complete song list before spawning buttons. The observer still owns its asset path. All 36 menu tests passed.
+- `crates/harmonicon-menu/src/menu/pages/mod.rs`, `main_menu.rs`, `play.rs`, `mode_select.rs`, and `jam_session.rs` — declarative page setup and routing only; no material allocation or copy issue found.
+- `crates/harmonicon-menu/src/menu/pages/help_about.rs` — local documentation discovery and page setup reviewed; no change needed.
+- `crates/harmonicon-menu/src/menu/pages/welcome.rs` — removed a stale Bevy 0.19 comment and moved the profile-save explanation onto the function it describes.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
-- Next review: remaining `harmonicon-menu/src/menu/pages/` files, then Options and Harp Check.
+- Next review: remaining `harmonicon-menu/src/menu/pages/` files: Jam Generate, Theme Picker, Tutorial, Credits, Calibration, Options, and Harp Check.

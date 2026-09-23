@@ -58,7 +58,6 @@ pub(crate) fn setup_welcome_menu(
             Node {
                 max_width: Val::Px(600.0),
                 padding: UiRect::axes(Val::Px(20.0), Val::Px(16.0)),
-                // A `Node` field in Bevy 0.19, not a component of its own.
                 border_radius: BorderRadius::all(Val::Px(8.0)),
                 ..default()
             },
@@ -120,14 +119,6 @@ pub(crate) fn setup_welcome_menu(
     );
 }
 
-/// Writes `profile.json` as soon as the player leaves the welcome page, so
-/// the greeting is once-only even if the session later crashes.
-///
-/// `FirstRun` alone would not survive that: it's consumed in memory, but the
-/// *next* launch re-derives it from whether the file exists, and the only
-/// other thing that writes one is the `AppExit` flush — which a crash skips.
-/// Saving here costs one write of an almost-empty profile and makes the
-/// question "have they been greeted?" durable at the moment it's answered.
 /// A step's button label, with a check in front once the step has been
 /// taken this session.
 fn step_label(label: &str, done: bool) -> String {
@@ -138,6 +129,7 @@ fn step_label(label: &str, done: bool) -> String {
     }
 }
 
+/// Save on exit so the first-run greeting stays completed after a crash.
 pub(crate) fn persist_profile_on_welcome_exit(profile: Res<PlayerProfile>) {
     save_profile(&profile);
 }
