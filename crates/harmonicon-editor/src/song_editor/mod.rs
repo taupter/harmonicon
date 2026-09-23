@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Song authoring tool #2: a DAW-style note grid (`AppState::SongEditor2`).
+//! Song authoring in a note grid (`AppState::SongEditor2`).
 //!
 //! Layout, left to right:
 //!   * a fixed column of the ten harmonica holes (number + hole box), and
@@ -56,9 +56,8 @@ mod save_feedback;
 mod scoring_settings;
 mod scroll;
 mod selected_metadata;
-// `pub(crate)`, not private like its neighbours: `gameplay::call_response`
-// shares this module's synth (`PhraseNote`/`render_pcm`/`encode_wav`) for
-// the call-and-response lesson feature's audio cue.
+// Shared synth primitives now live in `harmonicon_core::synth`; playback
+// remains visible within this crate for editor modules.
 pub(crate) mod playback;
 mod practice;
 mod record;
@@ -100,10 +99,7 @@ const NOTE_PAD: f32 = 4.0;
 // 16th note (13px) couldn't have hosted two grab targets and a strip to
 // drag the note by.
 const GRIP_D: f32 = 12.0;
-// Defined in `audio_system::synth` (shared tick-grid vocabulary: the same
-// resolution `gameplay::call_response` uses to convert chart-time call
-// phrases into the ticks `render_pcm` expects); re-exported here under its
-// established name for this module's own grid/UI math.
+// Shared tick-grid vocabulary for this module's grid and UI math.
 pub(crate) use harmonicon_core::snap;
 pub(crate) use harmonicon_core::synth::TICKS_PER_BEAT;
 const TICK_W: f32 = BEAT_W / TICKS_PER_BEAT as f32;
