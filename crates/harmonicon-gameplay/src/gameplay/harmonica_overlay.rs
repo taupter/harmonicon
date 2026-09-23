@@ -51,7 +51,7 @@ fn note_class(s: &str) -> &str {
 /// which family they belong to on their own. `pub(super)` (rather than
 /// private) so [`DiagramCellTarget`] can carry it out to a sibling module —
 /// the Bending Trainer's hole/technique picker.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(super) enum Row {
     Overblow,
     DrawBend(usize),
@@ -81,6 +81,13 @@ const ROWS: [(&str, Row, Color); 10] = [
     ("1\u{00BD} \u{2193}", Row::DrawBend(2), DRAW_COLOR),
     ("overdraw \u{2193}", Row::Overdraw, DRAW_COLOR),
 ];
+
+/// The diatonic diagram's rows, top to bottom — the order the Bending
+/// Trainer's arrow-key navigation walks, taken from [`ROWS`] itself so the
+/// keyboard can never disagree with what's drawn.
+pub(super) fn diatonic_row_order() -> [Row; 10] {
+    ROWS.map(|(_, row, _)| row)
+}
 
 /// A [`ROWS`]/[`CHROMATIC_ROWS`] label in the player's language. The table
 /// keeps the English word as the row's identity (`"overblow ↑"`); only the

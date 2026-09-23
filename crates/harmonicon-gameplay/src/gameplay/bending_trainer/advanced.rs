@@ -22,7 +22,7 @@
 //! embouchure or reed condition — a microphone carries no evidence for those
 //! claims (`docs/bending_trainer_plan.md`, "Deliberately out of scope").
 
-use bevy::input_focus::tab_navigation::TabIndex;
+use harmonicon_ui::dialogs::drawer::Drawer;
 
 use super::*;
 
@@ -53,15 +53,6 @@ pub enum AdvancedReadout {
 /// The drawer's collapsible body.
 #[derive(Component)]
 pub struct AdvancedDrawer;
-
-/// Every focusable control inside the drawer. Tagged so
-/// [`apply_advanced_visibility`] can push their `TabIndex` negative while
-/// the drawer is shut: `TabNavigation::gather_focusable` walks the tree by
-/// `TabIndex`/`Children` alone with no `Display` check, so a hidden drawer's
-/// buttons would otherwise still be Tab stops (the same trap
-/// `dialogs::combobox::set_combobox_open` documents).
-#[derive(Component)]
-pub struct AdvancedControl;
 
 /// Steps for each knob, chosen so the values a player actually asks for are
 /// one or two clicks apart rather than a dozen.
@@ -212,76 +203,39 @@ pub fn clear_natural_center(
         .remove(&BendingTrainerSettings::center_key(&key.0, target.hole));
 }
 
-/// Builds the "Advanced" toggle and the drawer below it.
+/// Builds the Advanced drawer: a floating panel anchored top-right of the
+/// body, above the diagram. Its toggle lives in the strip
+/// (`layout::spawn_strip`); its open state is the persisted
+/// `BendingTrainerSettings::advanced_open`, mirrored onto the [`Drawer`] by
+/// [`sync_advanced_drawer`].
 pub(super) fn spawn_advanced_drawer(
-    left: &mut ChildSpawnerCommands,
+    body: &mut ChildSpawnerCommands,
     loc: &Localization,
     settings: &BendingTrainerSettings,
 ) {
-    left_section(left, &loc.msg("bending-section-advanced"));
-    left.spawn(Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        column_gap: Val::Px(10.0),
-        ..default()
-    })
-    .with_children(|row| {
-        row.spawn_empty().apply_scene(button::small(
-            &loc.msg("bending-adv-toggle"),
-            toggle_advanced_drawer,
-        ));
-        row.spawn_empty()
-            .apply_scene(button::small(
-                &loc.msg("bending-adv-reset"),
-                reset_advanced_settings,
-            ))
-            .insert(AdvancedControl);
-    });
-
-    // Absolutely positioned, just outside the left column's right edge,
-    // rather than in its normal flow. Two reasons, and both are the plan's
-    // own ("drawers that do not move the live trace when opened"):
-    //
-    // - **it must not reflow the column.** Seven stepper rows plus the
-    //   measurement view is ~350px; in flow it pushed Tempo and the hint
-    //   clean off the bottom of a 1080-tall screen every time it opened.
-    // - **the column cannot simply scroll instead.** A `ScrollArea` clips
-    //   to its *content's* height when that content is shorter than the
-    //   space available, which would cut off the Key and Detect dropdowns
-    //   whenever the drawer was shut — the bug `spawn_menu_root_plain`
-    //   exists to avoid on Generate Jam.
-    //
-    // `left: 100%` is the column's own right edge, i.e. the middle of the
-    // screen: empty on this layout, and above the harmonica diagram rather
-    // than over it.
-    left.spawn((
+    body.spawn((
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Percent(100.0),
+            right: Val::Px(16.0),
             top: Val::Px(0.0),
             flex_direction: FlexDirection::Column,
-            width: Val::Px(320.0),
+            width: Val::Px(340.0),
             row_gap: Val::Px(6.0),
             padding: UiRect::all(Val::Px(12.0)),
-            display: if settings.advanced_open {
-                Display::Flex
-            } else {
-                Display::None
-            },
+            display: Display::None,
             ..default()
         },
-        // Opaque, and explicitly above the rest of the screen. An absolutely
-        // positioned node is still painted in tree order, so as a child of
-        // the *left* column this drawer drew underneath the harmonica
-        // diagram — the right column is a later sibling — and the two
-        // interleaved into an unreadable overlap wherever they met. A
-        // floating panel has to win outright.
-        //
-        // `GlobalZIndex(2)`, not `0`: the gameplay root's own background
-        // carries `GlobalZIndex(1)` and would otherwise paint straight over
-        // this (the trap `spawn_gameplay_music_score` documents).
+        // Opaque, and above the rest of the screen: an absolutely positioned
+        // node still paints in tree order, and a floating panel has to win
+        // outright wherever it overlaps. `GlobalZIndex(2)`, not `0`: the
+        // gameplay root's own background carries `GlobalZIndex(1)` and would
+        // otherwise paint straight over this (the trap
+        // `spawn_gameplay_music_score` documents).
         BackgroundColor(Color::srgb(0.09, 0.09, 0.13)),
         GlobalZIndex(2),
+        Drawer {
+            open: settings.advanced_open,
+        },
         AdvancedDrawer,
     ))
     .with_children(|drawer| {
@@ -312,12 +266,24 @@ pub(super) fn spawn_advanced_drawer(
             ));
         }
         drawer
-            .spawn_empty()
-            .apply_scene(button::small(
-                &loc.msg("bending-adv-clear-center"),
-                clear_natural_center,
-            ))
-            .insert(AdvancedControl);
+            .spawn(Node {
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(8.0),
+                row_gap: Val::Px(6.0),
+                margin: UiRect::top(Val::Px(6.0)),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn_empty().apply_scene(button::small(
+                    &loc.msg("bending-adv-clear-center"),
+                    clear_natural_center,
+                ));
+                row.spawn_empty().apply_scene(button::small(
+                    &loc.msg("bending-adv-reset"),
+                    reset_advanced_settings,
+                ));
+            });
     });
 }
 
@@ -337,22 +303,18 @@ fn spawn_knob_row(
             ..default()
         })
         .with_children(|row| {
-            row.spawn_empty()
-                .apply_scene(button::small(
-                    "\u{2212}",
-                    move |_: On<Activate>, mut settings: ResMut<BendingTrainerSettings>| {
-                        knob.nudge(&mut settings, -1.0);
-                    },
-                ))
-                .insert(AdvancedControl);
-            row.spawn_empty()
-                .apply_scene(button::small(
-                    "+",
-                    move |_: On<Activate>, mut settings: ResMut<BendingTrainerSettings>| {
-                        knob.nudge(&mut settings, 1.0);
-                    },
-                ))
-                .insert(AdvancedControl);
+            row.spawn_empty().apply_scene(button::small(
+                "\u{2212}",
+                move |_: On<Activate>, mut settings: ResMut<BendingTrainerSettings>| {
+                    knob.nudge(&mut settings, -1.0);
+                },
+            ));
+            row.spawn_empty().apply_scene(button::small(
+                "+",
+                move |_: On<Activate>, mut settings: ResMut<BendingTrainerSettings>| {
+                    knob.nudge(&mut settings, 1.0);
+                },
+            ));
             row.spawn((
                 Node {
                     flex_grow: 1.0,
@@ -377,26 +339,19 @@ fn spawn_knob_row(
         });
 }
 
-/// Shows/hides the drawer and keeps its controls out of the Tab order while
-/// it is shut. Change-gated on the settings resource, which is also what the
-/// toggle writes.
-pub fn apply_advanced_visibility(
+/// Mirrors the persisted `advanced_open` onto the drawer; the [`Drawer`]
+/// widget handles display and Tab order from there.
+pub fn sync_advanced_drawer(
     settings: Res<BendingTrainerSettings>,
-    mut drawer: Query<&mut Node, With<AdvancedDrawer>>,
-    mut controls: Query<&mut TabIndex, With<AdvancedControl>>,
+    mut drawers: Query<&mut Drawer, With<AdvancedDrawer>>,
 ) {
     if !settings.is_changed() {
         return;
     }
-    for mut node in &mut drawer {
-        node.display = if settings.advanced_open {
-            Display::Flex
-        } else {
-            Display::None
-        };
-    }
-    for mut tab_index in &mut controls {
-        tab_index.0 = if settings.advanced_open { 0 } else { -1 };
+    for mut drawer in &mut drawers {
+        if drawer.open != settings.advanced_open {
+            drawer.open = settings.advanced_open;
+        }
     }
 }
 

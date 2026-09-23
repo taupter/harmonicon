@@ -21,7 +21,7 @@
 //! plus its technique hint.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
-use bevy::picking::events::{PointerClick, PointerOut, PointerOver};
+use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
@@ -213,8 +213,9 @@ fn row_to_technique(row: Row) -> Option<Technique> {
 /// leaves the target alone: taking something out of the pool is not a
 /// request to go practice it.
 // not-a-widget-button: harmonica-diagram cells are plain Nodes in a grid,
-// not buttons — the keyboard path to a cell is the trainer's own key
-// handling, not Tab focus.
+// not buttons. The diagram as a whole is one Tab stop and its keyboard path
+// is arrow keys plus Enter/Space (`diagram::navigate_diagram`), per
+// WAI-ARIA's grid pattern — not fifty individual Tab stops.
 fn on_diagram_cell_clicked(
     ev: On<PointerClick>,
     cells: Query<&DiagramCellTarget>,
@@ -227,14 +228,27 @@ fn on_diagram_cell_clicked(
     let Some(technique) = row_to_technique(cell.row) else {
         return;
     };
-    if drill.scope == DrillScope::Custom && !drill.custom.insert((cell.hole, technique)) {
-        drill.custom.remove(&(cell.hole, technique));
+    choose_cell(
+        &mut drill,
+        &mut target,
+        TrainerTarget {
+            hole: cell.hole,
+            technique,
+        },
+    );
+}
+
+/// What choosing a diagram cell does, shared by a click and by Enter/Space
+/// on the focused diagram (`diagram::navigate_diagram`) so the two can't
+/// drift apart.
+pub(super) fn choose_cell(drill: &mut DrillState, target: &mut TrainerTarget, cell: TrainerTarget) {
+    if drill.scope == DrillScope::Custom && !drill.custom.insert((cell.hole, cell.technique)) {
+        drill.custom.remove(&(cell.hole, cell.technique));
         return;
     }
-    *target = TrainerTarget {
-        hole: cell.hole,
-        technique,
-    };
+    if *target != cell {
+        *target = cell;
+    }
 }
 
 /// Yellow-borders whichever diagram cell matches the current [`TrainerTarget`]
@@ -309,10 +323,6 @@ pub struct DrillLabel;
 #[derive(Component)]
 pub struct DrillToggleButton;
 
-/// The Drill button's hover explanation; empty while not hovering it.
-#[derive(Component)]
-pub struct DrillExplanation;
-
 /// Practical "how do I actually play this" text for a technique on a given
 /// hole. Bends and overs go a different physical direction depending on
 /// which side of the harp the hole is on, so both are needed to be accurate:
@@ -352,21 +362,6 @@ fn pitch_range_for_key(key: &str) -> PitchRange {
         .unwrap_or_default()
 }
 
-/// A small muted "eyebrow" label marking the start of a left-panel control
-/// group (Setup / Practice Target / Drill / Tempo) — purely a visual
-/// grouping cue, not an interactive widget, so a first glance at the panel
-/// shows four short groups instead of one flat stack of six unrelated rows.
-fn left_section(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((
-        Text::new(text.to_string()),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.45, 0.45, 0.55)),
-    ));
-}
-
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 pub fn setup(
@@ -380,6 +375,7 @@ pub fn setup(
     mut drill: ResMut<DrillState>,
     profile: Res<PlayerProfile>,
     settings: Res<BendingTrainerSettings>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     loc: Res<Localization>,
 ) {
     clock.set_free(0.0);
@@ -431,382 +427,37 @@ pub fn setup(
         },
     );
 
-    // Body: the two-column layout below the header, filling the rest of
-    // the screen's height.
-    let body = commands
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            flex_direction: FlexDirection::Row,
-            flex_grow: 1.0,
-            min_height: Val::Px(0.0),
-            ..default()
-        })
-        .id();
-    commands.entity(root_id).add_child(body);
-    // Captured so the Detect-algorithm combobox below can pass it as the
-    // *backdrop*'s parent — `combobox::spawn_combobox` requires a
-    // full-screen-sized backdrop parent for its click-catching backdrop to
-    // size correctly (see its module doc comment), so a click anywhere on
-    // the right column (not just the left) still dismisses an open dropdown.
-    // The combobox's visible trigger, meanwhile, is parented to the left
-    // column itself so it sits in that column's normal vertical flow.
-    commands.entity(body).with_children(|root| {
-        // ── Left half: everything but the harmonica itself, grouped into
-        // four labelled sections (Setup / Practice Target / Drill / Tempo)
-        // instead of one flat stack — see this module's own doc comment.
-        // Top-aligned (not centered): a centered column recenters its
-        // *whole* stack every time any one row's content changes height
-        // (the drill explanation appearing/disappearing, a longer/shorter
-        // tuner reading), which visibly shifts every other control:
-        // top-aligned means a height change only ever pushes content below
-        // it, never the rows above.
-        let mut left_ec = root.spawn(Node {
-            width: Val::Percent(50.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::FlexStart,
-            row_gap: Val::Px(22.0),
-            padding: UiRect::all(Val::Px(16.0)),
-            ..default()
-        });
-        let left_id = left_ec.id();
-        left_ec.with_children(|left| {
-            // ── Setup: key + detect algorithm ───────────────────────────────
-            left_section(left, &loc.msg("bending-section-setup"));
-            combobox::spawn_combobox(
-                left.commands_mut(),
-                left_id,
-                root_id,
-                &loc.msg("bending-key-label"),
-                &key_labels(),
-                &key.0,
-                on_key_selected,
-            );
-            let algo_combo = combobox::spawn_combobox(
-                left.commands_mut(),
-                left_id,
-                root_id,
-                &loc.msg("bending-detect-label"),
-                &algo_labels(&loc),
-                audio.pitch_algorithm.label(),
-                on_algo_selected,
-            );
-            attach_algo_tooltip(left.commands_mut(), algo_combo, audio.pitch_algorithm);
-
-            // ── Practice Target: readout, Listen, and the live tuner,
-            // grouped into one card (same background the technique-hint
-            // card in the right column uses) so the three read as a single
-            // "what am I practicing right now" unit instead of floating as
-            // bare, visually disconnected rows ──────────────────────────────
-            left_section(left, &loc.msg("bending-section-target"));
-            left.spawn((
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    width: Val::Px(320.0),
-                    row_gap: Val::Px(8.0),
-                    padding: UiRect::all(Val::Px(12.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.10, 0.10, 0.14, 0.85)),
-            ))
-            .with_children(|card| {
-                card.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(10.0),
-                    ..default()
-                })
-                .with_children(|row| {
-                    row.spawn((
-                        Node {
-                            flex_grow: 1.0,
-                            ..default()
-                        },
-                        Text::new(target_label_text(&loc, target.hole, target.technique)),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.80, 0.90, 0.95)),
-                        TargetLabel,
-                    ));
-                    row.spawn_empty().apply_scene(button::small(
-                        &loc.msg("bending-listen-natural-button"),
-                        |_: On<Activate>,
-                         key: Res<TrainerKey>,
-                         target: Res<TrainerTarget>,
-                         mut sources: ResMut<Assets<AudioSource>>,
-                         mut commands: Commands| {
-                            let harp = richter_harp(&key.0);
-                            let Some(note) = natural_note_for_target(&harp, *target) else {
-                                return;
-                            };
-                            play_reference_note(&note, &mut sources, &mut commands);
-                        },
-                    ));
-                    row.spawn_empty().apply_scene(button::small(
-                        &loc.msg("bending-listen-target-button"),
-                        |_: On<Activate>,
-                         key: Res<TrainerKey>,
-                         target: Res<TrainerTarget>,
-                         mut sources: ResMut<Assets<AudioSource>>,
-                         mut commands: Commands| {
-                            let harp = richter_harp(&key.0);
-                            let Some(note) = target_note(&harp, *target) else {
-                                return;
-                            };
-                            play_reference_note(&note, &mut sources, &mut commands);
-                        },
-                    ));
-                });
-                card.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.55, 0.85, 0.60)),
-                    TunerReadout,
-                ));
-                spawn_bend_rail(card, &loc);
-                card.spawn_empty().apply_scene(button::small(
-                    &loc.msg("bending-check-natural-button"),
-                    |_: On<Activate>, mut check: ResMut<NaturalCheck>| {
-                        *check = NaturalCheck {
-                            requested: true,
-                            ..default()
-                        };
-                    },
-                ));
-                card.spawn((
-                    Text::new(String::from(
-                        loc.msg_args(
-                            "bending-check-natural-idle",
-                            &[(
-                                "note",
-                                natural_note_for_target(&richter_harp(&key.0), *target)
-                                    .unwrap_or_else(|| "?".to_string()),
-                            )],
-                        ),
-                    )),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.60, 0.60, 0.70)),
-                    NaturalCheckLabel,
-                ));
-            });
-
-            // ── Drill: adaptive ear-training loop. The toggle button is
-            // tagged `DrillToggleButton` so `update_drill_button_visual`
-            // can highlight it while running — the on/off state used to be
-            // carried by the small `DrillLabel` text alone, easy to miss at
-            // a glance. Its hover explanation now sits directly below the
-            // button itself, not across in the right column (where hovering
-            // a left-column control used to change text nowhere near the
-            // pointer) ───────────────────────────────────────────────────────
-            left_section(left, &loc.msg("bending-section-drill"));
-            left.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(10.0),
+    // Read once here for the first frame's layout; `apply_trainer_orientation`
+    // follows it live from then on.
+    let orientation = windows
+        .single()
+        .map(|window| layout::orientation_for(window.width(), window.height()))
+        .unwrap_or(layout::TrainerOrientation::Landscape);
+    layout::spawn_strip(&mut commands, root_id, &loc, &key.0, &audio, &tempo);
+    layout::spawn_body(
+        &mut commands,
+        root_id,
+        &loc,
+        &key.0,
+        *target,
+        &audio,
+        &settings,
+        orientation,
+    );
+    commands.entity(root_id).with_children(|root| {
+        root.spawn((
+            Node {
+                align_self: AlignSelf::Center,
+                padding: UiRect::bottom(Val::Px(10.0)),
                 ..default()
-            })
-            .with_children(|row| {
-                row.spawn_empty().apply_scene(button::small(
-                    &loc.msg("bending-scope-button"),
-                    cycle_drill_scope,
-                ));
-                row.spawn((
-                    Text::new(scope_status(&loc, DrillScope::default(), 0)),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                    DrillScopeLabel,
-                ));
-            });
-            left.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(10.0),
+            },
+            Text::new(String::from(loc.msg("bending-hint"))),
+            TextFont {
+                font_size: FontSize::Px(14.0),
                 ..default()
-            })
-            .with_children(|row| {
-                row.spawn_empty().apply_scene(button::small(
-                    &loc.msg("bending-shape-button"),
-                    cycle_practice_shape,
-                ));
-                row.spawn((
-                    Text::new(String::from(loc.msg("bending-shape-free"))),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                    PracticeShapeLabel,
-                ));
-            });
-            left.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(10.0),
-                ..default()
-            })
-            .with_children(|row| {
-                row.spawn_empty()
-                    .apply_scene(button::small(
-                        &loc.msg("bending-drill-button"),
-                        |_: On<Activate>,
-                         key: Res<TrainerKey>,
-                         mut target: ResMut<TrainerTarget>,
-                         mut drill: ResMut<DrillState>| {
-                            drill.enabled = !drill.enabled;
-                            drill.hold_secs = 0.0;
-                            drill.elapsed_secs = 0.0;
-                            drill.attempted = false;
-                            if drill.enabled {
-                                let harp = richter_harp(&key.0);
-                                if let Some(next) = pick_next_target(
-                                    &harp,
-                                    &drill.stats,
-                                    Some(*target),
-                                    drill.scope,
-                                    &drill.custom,
-                                    *target,
-                                ) {
-                                    *target = next;
-                                }
-                            }
-                        },
-                    ))
-                    .insert(DrillToggleButton)
-                    .observe(show_drill_explanation)
-                    .observe(hide_drill_explanation);
-                row.spawn((
-                    Text::new(String::from(loc.msg("bending-drill-off"))),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                    DrillLabel,
-                ));
-            });
-            left.spawn((
-                Node {
-                    width: Val::Px(320.0),
-                    ..default()
-                },
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.60, 0.60, 0.70)),
-                DrillExplanation,
-            ));
-
-            // ── Advanced: the precision controls and the measurement
-            // view, collapsed by default (see `advanced`'s module doc) ──────
-            spawn_advanced_drawer(left, &loc, &settings);
-
-            // ── Tempo control: −  ♩ = NN (in the metronome)  + ──────────────
-            left_section(left, &loc.msg("bending-section-tempo"));
-            left.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(10.0),
-                ..default()
-            })
-            .with_children(|row| {
-                row.spawn_empty()
-                    .apply_scene(button::small(
-                        "\u{2212}",
-                        |_: On<Activate>, mut tempo: ResMut<MetronomeTempo>| {
-                            tempo.bpm = (tempo.bpm - BPM_STEP).max(MIN_BPM);
-                        },
-                    ))
-                    .insert(Tooltip(String::from(loc.msg("bending-tempo-decrease"))));
-                row.spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Center,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                })
-                .with_children(|metro| {
-                    spawn_metronome(metro, &loc, tempo.beats_per_bar(), tempo.bpm);
-                });
-                row.spawn_empty()
-                    .apply_scene(button::small(
-                        "+",
-                        |_: On<Activate>, mut tempo: ResMut<MetronomeTempo>| {
-                            tempo.bpm = (tempo.bpm + BPM_STEP).min(MAX_BPM);
-                        },
-                    ))
-                    .insert(Tooltip(String::from(loc.msg("bending-tempo-increase"))));
-            });
-
-            left.spawn((
-                Text::new(String::from(loc.msg("bending-hint"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.55, 0.55, 0.65)),
-            ));
-        });
-
-        // ── Right half: the harmonica — bend diagram + its explanatory
-        // text, the same grouping `jam::session::setup` uses for its own
-        // harmonica column.
-        root.spawn(Node {
-            width: Val::Percent(50.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            row_gap: Val::Px(10.0),
-            padding: UiRect::all(Val::Px(16.0)),
-            ..default()
-        })
-        .with_children(|right| {
-            // The bend diagram (rebuilt on key change).
-            right
-                .spawn((Node::default(), OverlayHost))
-                .with_children(|host| {
-                    spawn_harmonica_overlay_selectable(
-                        host,
-                        &richter_harp(&key.0),
-                        on_diagram_cell_clicked,
-                        &loc,
-                    );
-                });
-
-            right
-                .spawn((
-                    Node {
-                        width: Val::Px(280.0),
-                        padding: UiRect::all(Val::Px(8.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.10, 0.10, 0.14, 0.85)),
-                ))
-                .with_children(|p| {
-                    p.spawn((
-                        Text::new(technique_hint(&loc, target.technique, target.hole)),
-                        TextFont {
-                            font_size: FontSize::Px(15.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.75, 0.75, 0.85)),
-                        HintLabel,
-                    ));
-                });
-        });
+            },
+            TextColor(Color::srgb(0.55, 0.55, 0.65)),
+        ));
     });
 }
 
@@ -900,36 +551,20 @@ pub fn update_hint_label(
     }
 }
 
-/// Show what Drill mode does while the button is hovered.
-/// What Drill mode actually does, shown only while hovering the button —
-/// it's not obvious from the label alone that it's adaptive/weighted.
-fn show_drill_explanation(
-    _: On<PointerOver>,
-    loc: Res<Localization>,
-    mut labels: Query<&mut Text, With<DrillExplanation>>,
-) {
-    for mut text in &mut labels {
-        *text = Text::new(String::from(loc.msg("bending-drill-explanation")));
-    }
-}
-
-/// Hide the Drill explanation once the pointer leaves the button.
-fn hide_drill_explanation(_: On<PointerOut>, mut labels: Query<&mut Text, With<DrillExplanation>>) {
-    for mut text in &mut labels {
-        *text = Text::new("");
-    }
-}
-
 mod advanced;
+mod diagram;
 mod drill;
 mod feedback;
 mod gesture;
+mod layout;
 #[cfg(test)]
 mod tests;
 mod trace;
 
 pub use advanced::*;
+pub use diagram::*;
 pub use drill::*;
 pub use feedback::*;
 pub use gesture::*;
+pub use layout::*;
 pub use trace::*;

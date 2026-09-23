@@ -263,15 +263,6 @@ Four decisions worth recording:
   crossing-counting degrades into "no reading" rather than into a confident
   wrong one, and refuses to report at all below a minimum depth.
 
-Known limitation, left for step 6: the drawer floats over the top-left
-corner of the harp diagram while open. It is absolutely positioned
-specifically so it never reflows the live trace (step 6's own requirement),
-and the left column cannot simply scroll instead — a `ScrollArea` clips to
-its content's height when that content is shorter than the space available,
-which would cut off the Key and Detect dropdowns whenever the drawer was
-shut. Step 6's hierarchy rework is where the drawer gets somewhere of its
-own to live.
-
 Put these in an Advanced drawer remembered across visits:
 
 - target tolerance presets (for example 12, 6, and 3 cents) plus a bounded
@@ -293,6 +284,33 @@ Exit criteria: an expert can define a repeatable precision exercise while a
 new player can ignore every advanced control.
 
 ### 6. Rebuild the tablet interaction hierarchy
+
+**Implemented.** A compact strip across the top holds Setup (with a "C harp ·
+FFT" summary), Scope, Practice, the tempo control and Advanced. The target
+card, with a taller rail, is the centre, and Natural, Target, Drill, Skip and
+the readiness check all sit on it. The diagram sits beside the card in
+landscape and below it in portrait. The layout follows the window's
+orientation live, because a tablet gets rotated mid-session and the only
+difference between the two layouts is the body's `flex_direction`. Key and
+detector moved into a floating Setup drawer, and Advanced floats top-right.
+Both use the new shared `harmonicon_ui::dialogs::drawer::Drawer`, which hides
+a closed drawer's controls from Tab and restores each one's own `TabIndex` on
+open. The diagram is now a single Tab stop navigated with the arrow keys
+(WAI-ARIA's grid pattern), with Enter/Space doing what a click does. Each cell
+carries a bar whose length is its accuracy, so progress reads without
+distinguishing red from green, and the card spells out the selected target's
+record ("7 of 10 controlled"). The drill's explanation, which used to appear
+only on hover, now shows inline while the drill is off. Skip always records a
+skip: choosing to move on is not evidence of failing to bend.
+
+Drawers float rather than sit in flow: in flow, one pushed the rest of the
+column off a 1080-tall screen. A scrolling column is no fix either, because a
+`ScrollArea` clips to its content's height and would cut off the Key and
+Detect dropdowns.
+
+Verified at 1920×1080, 1280×800 and 800×1280. The progress bars are attached
+in `PostUpdate` because in `Update` they raced the diagram's own
+despawn-and-rebuild and panicked, which showed up on the first launch.
 
 The current equal-width columns give the diagram half the screen even when the
 pitch trace is the active task.

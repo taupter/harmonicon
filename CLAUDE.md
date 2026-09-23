@@ -361,7 +361,10 @@ skills in `.claude/skills/`, loaded on demand rather than living here:
   flipped negative while closed (see `dialogs::combobox::
   set_combobox_open`) so Tab can't reach something invisible — bevy's own
   tab-gathering walks the ECS tree by `TabIndex`/`Children` alone, with no
-  `Display`/`Visibility` check. `dialogs::keyboard_nav::KeyboardNavPlugin`
+  `Display`/`Visibility` check. A collapsible panel should just be a
+  `dialogs::drawer::Drawer`, which does that reversibly: each descendant
+  gets its *own* `TabIndex` back on open, so a closed dropdown inside stays
+  unreachable. `dialogs::keyboard_nav::KeyboardNavPlugin`
   registers `TabNavigationPlugin` (not in `DefaultPlugins`, unlike
   `InputFocusPlugin`) and paints the focus ring; it does **not** bridge
   `Activate` to `PointerClick` — every click handler on a real

@@ -583,8 +583,28 @@ pub fn drill_update(
         return;
     };
 
+    finish_attempt(
+        &mut drill,
+        &mut target,
+        &harp,
+        outcome,
+        trace.stability_cents,
+    );
+}
+
+/// Records how the current attempt ended and serves the next target. The
+/// one path both an automatic ending ([`drill_update`]) and a player's own
+/// Skip ([`skip_drill_target`]) go through, so the bookkeeping — streak,
+/// evidence, the next pick, the per-attempt reset — can't differ between
+/// them.
+pub(super) fn finish_attempt(
+    drill: &mut DrillState,
+    target: &mut TrainerTarget,
+    harp: &Harmonica,
+    outcome: DrillOutcome,
+    stability: Option<f32>,
+) {
     let sequence = next_sequence(&drill.stats);
-    let stability = trace.stability_cents;
     let stat = drill
         .stats
         .entry((target.hole, target.technique))
@@ -603,9 +623,8 @@ pub fn drill_update(
             drill.streak = 0;
         }
     }
-
     if let Some(next) = pick_next_target(
-        &harp,
+        harp,
         &drill.stats,
         Some(*target),
         drill.scope,
@@ -617,6 +636,58 @@ pub fn drill_update(
     drill.hold_secs = 0.0;
     drill.elapsed_secs = 0.0;
     drill.attempted = false;
+}
+
+/// Starts or stops the drill. Starting serves a target from the current
+/// scope straight away rather than drilling whatever happened to be
+/// selected, which may not be in scope at all.
+pub fn toggle_drill(
+    _: On<Activate>,
+    key: Res<TrainerKey>,
+    mut target: ResMut<TrainerTarget>,
+    mut drill: ResMut<DrillState>,
+) {
+    drill.enabled = !drill.enabled;
+    drill.hold_secs = 0.0;
+    drill.elapsed_secs = 0.0;
+    drill.attempted = false;
+    if drill.enabled
+        && let Some(next) = pick_next_target(
+            &richter_harp(&key.0),
+            &drill.stats,
+            Some(*target),
+            drill.scope,
+            &drill.custom,
+            *target,
+        )
+    {
+        *target = next;
+    }
+}
+
+/// The player's own "not this one" — ends the attempt as a skip and serves
+/// the next target.
+///
+/// Always a skip, even after the player has been audibly trying: choosing
+/// to move on is not evidence of failing to bend, and counting it as a miss
+/// would make Skip a button that punishes the player for using it. The
+/// timeout is what records a genuine unfinished attempt as a miss.
+pub fn skip_drill_target(
+    _: On<Activate>,
+    key: Res<TrainerKey>,
+    mut target: ResMut<TrainerTarget>,
+    mut drill: ResMut<DrillState>,
+) {
+    if !drill.enabled {
+        return;
+    }
+    finish_attempt(
+        &mut drill,
+        &mut target,
+        &richter_harp(&key.0),
+        DrillOutcome::Skipped,
+        None,
+    );
 }
 
 /// Persists the session's drill hit-rates to `profile.json` on the way out

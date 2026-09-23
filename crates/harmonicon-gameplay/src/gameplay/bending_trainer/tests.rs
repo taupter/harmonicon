@@ -1030,7 +1030,11 @@ fn every_advanced_label_key_exists_in_every_locale() {
         .map(|knob| knob.label_key().to_string())
         .chain(
             [
-                "bending-section-advanced",
+                "bending-setup-button",
+                "bending-setup-summary",
+                "bending-skip-button",
+                "bending-progress-none",
+                "bending-progress",
                 "bending-adv-toggle",
                 "bending-adv-reset",
                 "bending-adv-clear-center",
@@ -1059,4 +1063,161 @@ fn every_advanced_label_key_exists_in_every_locale() {
             );
         }
     }
+}
+
+// ── Layout, diagram navigation, Skip ─────────────────────────────────────
+
+#[test]
+fn taller_than_wide_is_portrait_and_stacks_the_diagram_below() {
+    assert_eq!(orientation_for(800.0, 1280.0), TrainerOrientation::Portrait);
+    assert_eq!(
+        orientation_for(1920.0, 1080.0),
+        TrainerOrientation::Landscape
+    );
+    assert_eq!(
+        orientation_for(1280.0, 800.0),
+        TrainerOrientation::Landscape
+    );
+    // Square reads as landscape: the side-by-side layout is the baseline.
+    assert_eq!(
+        orientation_for(1000.0, 1000.0),
+        TrainerOrientation::Landscape
+    );
+    assert_eq!(
+        body_direction(TrainerOrientation::Portrait),
+        FlexDirection::Column
+    );
+    assert_eq!(
+        body_direction(TrainerOrientation::Landscape),
+        FlexDirection::Row
+    );
+}
+
+fn t(hole: u8, technique: Technique) -> TrainerTarget {
+    TrainerTarget { hole, technique }
+}
+
+#[test]
+fn every_cell_maps_to_the_row_it_is_drawn_in_and_back() {
+    let harp = richter_harp("C");
+    for target in valid_targets(&harp) {
+        assert_eq!(
+            row_to_technique(target_row(target)),
+            Some(target.technique),
+            "{target:?} doesn't round-trip through its diagram row"
+        );
+    }
+}
+
+#[test]
+fn arrows_move_along_the_drawn_row() {
+    let harp = richter_harp("C");
+    assert_eq!(
+        step_target(&harp, t(2, Technique::Bend1), 1, 0),
+        t(3, Technique::Bend1)
+    );
+    assert_eq!(
+        step_target(&harp, t(3, Technique::Bend1), -1, 0),
+        t(2, Technique::Bend1)
+    );
+    // Hole 5 has no bend: Right from hole 4's ½-step draw bend skips to 6.
+    assert_eq!(
+        step_target(&harp, t(4, Technique::Bend1), 1, 0),
+        t(6, Technique::Bend1)
+    );
+}
+
+#[test]
+fn right_from_the_last_draw_bend_stays_put_rather_than_crossing_wings() {
+    // Holes 7–10 bend by *blowing*, drawn above the blow row — not to the
+    // right of hole 6's draw bend on screen, so the arrow finds nothing.
+    let harp = richter_harp("C");
+    assert_eq!(
+        step_target(&harp, t(6, Technique::Bend1), 1, 0),
+        t(6, Technique::Bend1)
+    );
+}
+
+#[test]
+fn arrows_move_between_drawn_rows_of_one_hole() {
+    let harp = richter_harp("C");
+    assert_eq!(
+        step_target(&harp, t(2, Technique::Draw), 0, 1),
+        t(2, Technique::Bend1)
+    );
+    assert_eq!(
+        step_target(&harp, t(2, Technique::Draw), 0, -1),
+        t(2, Technique::Blow)
+    );
+    // Hole 1's rows above blow are empty until overblow: Up skips the gap.
+    assert_eq!(
+        step_target(&harp, t(1, Technique::Blow), 0, -1),
+        t(1, Technique::Over)
+    );
+}
+
+#[test]
+fn arrows_stop_at_the_edges() {
+    let harp = richter_harp("C");
+    assert_eq!(
+        step_target(&harp, t(1, Technique::Blow), -1, 0),
+        t(1, Technique::Blow)
+    );
+    assert_eq!(
+        step_target(&harp, t(10, Technique::Blow), 1, 0),
+        t(10, Technique::Blow)
+    );
+    assert_eq!(
+        step_target(&harp, t(1, Technique::Over), 0, -1),
+        t(1, Technique::Over)
+    );
+}
+
+#[test]
+fn choosing_a_cell_selects_it_outside_the_custom_scope() {
+    let mut drill = DrillState::default();
+    let mut target = t(2, Technique::Bend1);
+    choose_cell(&mut drill, &mut target, t(4, Technique::Draw));
+    assert_eq!(target, t(4, Technique::Draw));
+    assert!(drill.custom.is_empty());
+}
+
+#[test]
+fn choosing_a_cell_twice_under_custom_adds_then_removes_it() {
+    let mut drill = DrillState {
+        scope: DrillScope::Custom,
+        ..default()
+    };
+    let mut target = t(2, Technique::Bend1);
+    choose_cell(&mut drill, &mut target, t(3, Technique::Bend2));
+    assert!(drill.custom.contains(&(3, Technique::Bend2)));
+    assert_eq!(target, t(3, Technique::Bend2));
+    choose_cell(&mut drill, &mut target, t(3, Technique::Bend2));
+    assert!(!drill.custom.contains(&(3, Technique::Bend2)));
+}
+
+#[test]
+fn a_skip_moves_on_without_recording_an_attempt() {
+    let harp = richter_harp("C");
+    let mut drill = DrillState {
+        enabled: true,
+        streak: 3,
+        attempted: true,
+        hold_secs: 0.2,
+        elapsed_secs: 5.0,
+        ..default()
+    };
+    let start = t(2, Technique::Bend1);
+    let mut target = start;
+    finish_attempt(&mut drill, &mut target, &harp, DrillOutcome::Skipped, None);
+    let stat = drill.stats[&(2, Technique::Bend1)];
+    assert_eq!(stat.skips, 1);
+    assert_eq!(
+        stat.attempts, 0,
+        "a skip is not evidence of failing to bend"
+    );
+    assert_eq!(drill.streak, 0);
+    assert_ne!(target, start, "the drill moves on to another target");
+    assert!(!drill.attempted);
+    assert_eq!(drill.elapsed_secs, 0.0);
 }

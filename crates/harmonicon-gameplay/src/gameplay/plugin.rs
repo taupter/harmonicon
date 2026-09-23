@@ -210,26 +210,45 @@ impl Plugin for GameplayPlugin {
                 bending_trainer::drill_update
                     .after(bending_trainer::update_bend_trace)
                     .after(bending_trainer::update_gesture_practice),
-                bending_trainer::update_drill_label,
-                bending_trainer::update_drill_scope_label,
-                bending_trainer::update_drill_button_visual,
+                (
+                    bending_trainer::update_drill_label,
+                    bending_trainer::update_drill_scope_label,
+                    bending_trainer::update_drill_button_visual,
+                ),
                 // Nested rather than flattened into the run above: Bevy's
                 // `add_systems` tuple tops out at 20 elements, and a
                 // 21st turns the whole tuple into a confusing
                 // "cannot become an ObserverSystem" error rather than
                 // anything about arity.
                 (
-                    bending_trainer::apply_advanced_visibility,
+                    bending_trainer::sync_advanced_drawer,
                     bending_trainer::update_advanced_labels,
                     // Reports the trace, so it wants this frame's samples.
                     bending_trainer::update_advanced_readouts
                         .after(bending_trainer::update_bend_trace),
+                ),
+                (
+                    bending_trainer::update_setup_summary,
+                    bending_trainer::update_drill_slots,
+                    bending_trainer::update_target_progress,
+                    bending_trainer::apply_trainer_orientation,
+                    bending_trainer::navigate_diagram,
+                    bending_trainer::update_cell_progress_bars,
                 ),
                 // Suspended while the guided tour is showing this screen —
                 // Esc shouldn't leave out from under it (see `menu::tutorial`).
                 bending_trainer::handle_escape.run_if(not(tour_active)),
             )
                 .run_if(in_state(AppState::BendingTrainer)),
+        )
+        // `PostUpdate`, not with the rest of the trainer in `Update`:
+        // `rebuild_overlay` despawns and respawns the diagram's cells through
+        // deferred commands, so in `Update` this could queue an insert on a
+        // cell that is despawned by the time the insert lands — which panics.
+        // After `Update`'s commands have applied, every cell it sees is live.
+        .add_systems(
+            PostUpdate,
+            bending_trainer::attach_progress_bars.run_if(in_state(AppState::BendingTrainer)),
         )
         // Cleanup: shared entity despawn + restore camera on 3D exit
         .add_systems(OnExit(AppState::Playing), lifecycle::cleanup_gameplay)

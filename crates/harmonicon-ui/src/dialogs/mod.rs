@@ -4,6 +4,7 @@ pub mod checkbox;
 pub mod circle_of_fifths;
 pub mod combobox;
 pub mod confirm_dialog;
+pub mod drawer;
 pub mod file_dialog;
 pub mod font_fallback;
 pub mod form_map;

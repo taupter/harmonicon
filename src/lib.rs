@@ -179,6 +179,7 @@ pub fn run() {
         harmonicon_ui::dialogs::checkbox::CheckboxPlugin,
         harmonicon_ui::dialogs::combobox::ComboboxPlugin,
         harmonicon_ui::dialogs::confirm_dialog::ConfirmDialogPlugin,
+        harmonicon_ui::dialogs::drawer::DrawerPlugin,
         harmonicon_ui::dialogs::file_dialog::FileDialogsPlugin,
         harmonicon_ui::dialogs::font_fallback::FontFallbackPlugin,
         harmonicon_ui::dialogs::keyboard_nav::KeyboardNavPlugin,

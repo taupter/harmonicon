@@ -157,6 +157,12 @@ pub(super) fn smoothed_cents(samples: &VecDeque<TraceSample>, smoothing: f32) ->
 const TRACE_DOTS: usize = 32;
 const RAIL_START_PERCENT: f32 = 8.0;
 const RAIL_END_PERCENT: f32 = 92.0;
+/// The rail is the screen's centrepiece, so it is sized to be read from arm's
+/// length on a tablet. Every vertical position inside it derives from this
+/// one height, so resizing it can't leave the marker off the line.
+const RAIL_HEIGHT: f32 = 96.0;
+const DOT_SIZE: f32 = 8.0;
+const MARKER_SIZE: f32 = 18.0;
 
 #[derive(Component)]
 pub struct BendTraceDot(pub usize);
@@ -187,7 +193,7 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         labels.spawn((
             Text::new(loc.msg("bending-rail-natural")),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(Color::srgb(0.70, 0.74, 0.80)),
@@ -196,7 +202,7 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         labels.spawn((
             Text::new(loc.msg("bending-rail-target")),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(14.0),
                 ..default()
             },
             TextColor(Color::srgb(0.70, 0.84, 0.74)),
@@ -207,7 +213,7 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         Node {
             position_type: PositionType::Relative,
             width: Val::Percent(100.0),
-            height: Val::Px(48.0),
+            height: Val::Px(RAIL_HEIGHT),
             ..default()
         },
         BackgroundColor(Color::srgba(0.06, 0.07, 0.10, 0.90)),
@@ -217,7 +223,7 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Percent(RAIL_START_PERCENT),
-                top: Val::Px(23.0),
+                top: Val::Px(RAIL_HEIGHT / 2.0 - 1.0),
                 width: Val::Percent(RAIL_END_PERCENT - RAIL_START_PERCENT),
                 height: Val::Px(2.0),
                 ..default()
@@ -227,8 +233,8 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         rail.spawn((
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(11.0),
-                height: Val::Px(26.0),
+                top: Val::Px(RAIL_HEIGHT * 0.2),
+                height: Val::Px(RAIL_HEIGHT * 0.6),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.25, 0.75, 0.38, 0.20)),
@@ -255,9 +261,9 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
             rail.spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(21.0),
-                    width: Val::Px(6.0),
-                    height: Val::Px(6.0),
+                    top: Val::Px((RAIL_HEIGHT - DOT_SIZE) / 2.0),
+                    width: Val::Px(DOT_SIZE),
+                    height: Val::Px(DOT_SIZE),
                     border_radius: BorderRadius::all(Val::Percent(50.0)),
                     ..default()
                 },
@@ -269,9 +275,9 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         rail.spawn((
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(18.0),
-                width: Val::Px(12.0),
-                height: Val::Px(12.0),
+                top: Val::Px((RAIL_HEIGHT - MARKER_SIZE) / 2.0),
+                width: Val::Px(MARKER_SIZE),
+                height: Val::Px(MARKER_SIZE),
                 border_radius: BorderRadius::all(Val::Percent(50.0)),
                 ..default()
             },
@@ -294,7 +300,7 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
             metrics.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: FontSize::Px(12.0),
+                    font_size: FontSize::Px(14.0),
                     ..default()
                 },
                 TextColor(Color::srgb(0.68, 0.72, 0.78)),

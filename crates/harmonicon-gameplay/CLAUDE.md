@@ -95,12 +95,15 @@ load-bearing about *this* crate.
     design decision, not a bar-length one, and wasn't folded in here.
 
 - **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
-- **Bending Trainer pitch feedback is target-family locked.** Screen
-  composition and lifecycle stay in `bending_trainer/mod.rs`; live feedback
+- **Bending Trainer pitch feedback is target-family locked.** Lifecycle,
+  the target model and the technique hints stay in `bending_trainer/mod.rs`;
+  where things sit on screen is `bending_trainer/layout.rs`; live feedback
   and readiness checks live in `bending_trainer/feedback.rs`; short pitch
   history and stability math live in `bending_trainer/trace.rs`; pure practice
   state machines live in `bending_trainer/gesture.rs`; adaptive target selection
-  and scoring live in `bending_trainer/drill.rs`. A detected pitch
+  and scoring live in `bending_trainer/drill.rs`; the diagram's keyboard path
+  and progress bars live in `bending_trainer/diagram.rs`; the Advanced drawer
+  lives in `bending_trainer/advanced.rs`. A detected pitch
   must match a playable note in the selected hole before either the tuner or
   drill computes target cents. Keep octave errors and unrelated harmonics as
   explicit wrong-pitch feedback instead of turning them into large cents
@@ -152,6 +155,28 @@ load-bearing about *this* crate.
     waiting for `GesturePhase::Complete` is also what stops one noisy frame
     from churning the target. This is why `drill_update` is ordered
     `.after(update_gesture_practice)`.
+
+- **The Bending Trainer's layout follows orientation live, and its
+  drawers float.** Landscape puts the diagram beside the target card and
+  portrait stacks it below. `apply_trainer_orientation` rewrites the body's
+  `flex_direction` every frame from the window's aspect, because a tablet
+  gets rotated mid-session and the direction is the only difference between
+  the two layouts. That makes this screen an exception to the
+  read-once-at-setup `CompactLayout` convention. The Setup and Advanced
+  drawers are absolutely positioned `dialogs::drawer::Drawer`s with
+  `GlobalZIndex(2)`: in flow they reflowed the live trace, and a scrolling
+  column would clip the Key/Detect dropdowns. Two consequences:
+  - **The diagram is one Tab stop** (`TabIndex` on `OverlayHost`), navigated
+    with the arrow keys by `navigate_diagram`. Movement follows the grid as
+    *drawn* (`step_target`), so Right from hole 6's draw bend finds nothing,
+    because holes 7–10 bend on the blow side. A click and Enter/Space both go
+    through `choose_cell`.
+  - **`attach_progress_bars` runs in `PostUpdate`.** `rebuild_overlay`
+    despawns and respawns the cells through deferred commands, and on the
+    first frame (`TrainerKey` reads as changed) an `Update`-scheduled
+    decoration queued inserts on cells that were gone by the time they
+    landed, which panics. Anything else that decorates the diagram's cells
+    must follow the same rule.
 
 - **`collect_pitches` is registered twice in `Update`** — once in
   `GameplayLogic`, once for the Bending Trainer — so `.after(collect_pitches)`
