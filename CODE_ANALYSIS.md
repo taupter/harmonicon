@@ -43,10 +43,11 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/lib.rs` — fixed malformed crate documentation containing literal newline escapes and removed a misleading registration claim; the public re-export API is unchanged.
 - `crates/harmonicon-editor/src/song_editor/mod.rs` — reviewed plugin registration and schedule gates; removed stale comments claiming gameplay uses the editor's private playback module and that tick constants still live in `audio_system`. No behavior or API change.
 - `crates/harmonicon-editor/src/song_editor/state.rs` — build the playback meter map from borrowed signatures, avoiding the intermediate owned `TimeSigPoint` vector and its string clones. Keep the existing earliest-duplicate behavior. The broad `effective_harp()` clone remains because mutation-oriented callers need an owned harp; a borrowed return would require coordinated call-site changes. All 377 editor tests passed.
+- `crates/harmonicon-editor/src/song_editor/note_model.rs` — value types and constructors have no meaningful copy or allocation problem; removed historical split rationale and corrected stale technique and synth documentation.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
-- Next review: continue `harmonicon-editor` at `src/song_editor/note_model.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/grid_cache.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.

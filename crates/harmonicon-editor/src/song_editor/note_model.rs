@@ -5,20 +5,13 @@
 //! ([`DragState`], [`Edge`]), and the timeline range tools
 //! ([`TimelineTool`], [`TimelineDrag`]).
 //!
-//! Split out of `state.rs` when that crossed the size budget
-//! (`docs/physical_design_plan.md` rule 1). These types are the *subject*
-//! of `EditorState`; keeping them apart from the state that holds them
-//! makes both readable on their own.
 
 use bevy::prelude::*;
 
 // ── Note model types ─────────────────────────────────────────────────────────
 
-/// The pitch technique of a note. Mutually exclusive. `Bend` carries its depth
-/// in semitones (0.5, 1.0 or 1.5). `Bend`, `Overblow` and `Overdraw` only
-/// apply to [`HarmonicaKind::Diatonic`]; `Slide` (the chromatic slide button,
-/// a half-step raise) only to [`HarmonicaKind::Chromatic`] — gated by which
-/// mod buttons the UI shows for [`EditorState::harmonica_kind`].
+/// A note's pitch technique. Bends, overblows, and overdraws apply to
+/// diatonic kinds; the slide applies to chromatic kinds.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(super) enum Pitch {
     Normal,
@@ -57,9 +50,8 @@ impl HarmonicaKind {
 
 /// An expression technique layered on top of the pitch. At most one at a
 /// time; either may combine with any [`Pitch`]. Both carry their oscillation
-/// rate in Hz, cycled through by repeatedly clicking the mod button — same
-/// pattern as `Bend`'s depth. Defined in `audio_system::synth` (shared with
-/// `gameplay::call_response`'s demo audio); re-exported under its established name.
+/// rate in Hz, cycled through by repeatedly clicking the mod button.
+/// The shared type lives in `harmonicon_core::synth`.
 pub(super) use harmonicon_core::synth::Expr;
 
 /// Breath direction: blow (exhale) or draw (inhale). Every note is one or the
