@@ -406,6 +406,7 @@ pub(crate) fn setup_lesson_tree(
     commands.entity(scroller).add_child(canvas);
 
     // Edges first, so node art always sits on top of its connectors.
+    let mut edge_materials = Vec::new();
     commands.entity(canvas).with_children(|parent| {
         for edge in &tree.edges {
             // `EdgeKind` names which sort of node sits at each end, which is
@@ -458,6 +459,7 @@ pub(crate) fn setup_lesson_tree(
                 edge.unit_id.as_deref(),
                 owners,
                 &mut materials,
+                &mut edge_materials,
             );
         }
     });

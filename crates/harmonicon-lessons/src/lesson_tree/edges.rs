@@ -234,6 +234,7 @@ pub(crate) fn spawn_edge(
     unit_id: Option<&str>,
     owners: Option<(&str, &str)>,
     materials: &mut Assets<LessonEdgeMaterial>,
+    shared: &mut Vec<(EdgeStyle, f32, Handle<LessonEdgeMaterial>)>,
 ) {
     let Some((start, end)) = edge_span(from, to) else {
         return;
@@ -246,6 +247,20 @@ pub(crate) fn spawn_edge(
         return;
     }
     let (top_left, size) = edge_box(start, end, thickness / 2.0);
+    let diagonal = edge_diagonal(start, end);
+    let material = if let Some((_, _, handle)) = shared
+        .iter()
+        .find(|(candidate, direction, _)| *candidate == style && *direction == diagonal)
+    {
+        handle.clone()
+    } else {
+        let handle = materials.add(LessonEdgeMaterial {
+            color: color.into(),
+            params: Vec4::new(thickness / 2.0, diagonal, 0.0, 0.0),
+        });
+        shared.push((style, diagonal, handle.clone()));
+        handle
+    };
 
     let mut segment = parent.spawn((
         Node {
@@ -259,10 +274,7 @@ pub(crate) fn spawn_edge(
         // The node stays axis-aligned and the shader draws the line inside
         // it — see `edge_material`. A rotated node would be sheared rather
         // than clipped wherever it left the scroll viewport.
-        MaterialNode(materials.add(LessonEdgeMaterial {
-            color: color.into(),
-            params: Vec4::new(thickness / 2.0, edge_diagonal(start, end), 0.0, 0.0),
-        })),
+        MaterialNode(material),
     ));
     if let Some((from_unit, to_unit)) = owners {
         segment.insert(MovingEdge {
