@@ -420,7 +420,10 @@ fn handle_input(
         state.selected = state.selected.toggled();
     }
 
-    state.resize = keys.pressed(KeyCode::KeyR);
+    let resize = keys.pressed(KeyCode::KeyR);
+    if state.resize != resize {
+        state.resize = resize;
+    }
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
 
     let dt = time.delta_secs();
@@ -449,6 +452,9 @@ fn handle_input(
         state.save();
     }
 
+    if !state.is_changed() {
+        return;
+    }
     if let Ok(mut text) = status.single_mut() {
         let c = &state.config;
         let h = &c.head;
