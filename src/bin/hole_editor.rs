@@ -300,6 +300,9 @@ fn update_hole_meshes(
         &MeshMaterial3d<StandardMaterial>,
     )>,
 ) {
+    if !state.is_changed() {
+        return;
+    }
     for (ind, mut tf, mat_handle) in &mut indicators {
         let Some(hole) = state.config.holes.get(ind.0) else {
             continue;
@@ -320,6 +323,9 @@ fn update_hole_meshes(
 }
 
 fn update_info_text(state: Res<EditorState>, mut query: Query<&mut Text, With<InfoText>>) {
+    if !state.is_changed() {
+        return;
+    }
     let Ok(mut text) = query.single_mut() else {
         return;
     };
