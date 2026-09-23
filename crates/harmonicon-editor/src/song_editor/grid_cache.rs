@@ -64,24 +64,47 @@ impl GridCache {
         {
             return false;
         }
-        self.snapshot = Some(Snapshot {
-            notes: state.notes.clone(),
-            tempo_changes: state.tempo_changes.clone(),
-            meter_changes: state.meter_changes.clone(),
-            phrase_annotations: state.phrase_annotations.clone(),
-            tempo: state.tempo.clone(),
-            key: state.key.clone(),
-            time_signature: state.time_signature.clone(),
-            harmonica_kind: state.harmonica_kind,
-            loaded_harmonica: state.loaded_harmonica.clone(),
-            mode: state.mode,
-            user_locked: state.user_locked,
-            scale: state.scale,
-            snap_mode: state.snap_mode,
-            twelve_bar_tint: state.twelve_bar_tint,
-            scroll_beat: state.scroll_beat,
-            cols,
-        });
+        if let Some(snapshot) = &mut self.snapshot {
+            snapshot.notes.clone_from(&state.notes);
+            snapshot.tempo_changes.clone_from(&state.tempo_changes);
+            snapshot.meter_changes.clone_from(&state.meter_changes);
+            snapshot
+                .phrase_annotations
+                .clone_from(&state.phrase_annotations);
+            snapshot.tempo.clone_from(&state.tempo);
+            snapshot.key.clone_from(&state.key);
+            snapshot.time_signature.clone_from(&state.time_signature);
+            snapshot.harmonica_kind = state.harmonica_kind;
+            snapshot
+                .loaded_harmonica
+                .clone_from(&state.loaded_harmonica);
+            snapshot.mode = state.mode;
+            snapshot.user_locked = state.user_locked;
+            snapshot.scale = state.scale;
+            snapshot.snap_mode = state.snap_mode;
+            snapshot.twelve_bar_tint = state.twelve_bar_tint;
+            snapshot.scroll_beat = state.scroll_beat;
+            snapshot.cols = cols;
+        } else {
+            self.snapshot = Some(Snapshot {
+                notes: state.notes.clone(),
+                tempo_changes: state.tempo_changes.clone(),
+                meter_changes: state.meter_changes.clone(),
+                phrase_annotations: state.phrase_annotations.clone(),
+                tempo: state.tempo.clone(),
+                key: state.key.clone(),
+                time_signature: state.time_signature.clone(),
+                harmonica_kind: state.harmonica_kind,
+                loaded_harmonica: state.loaded_harmonica.clone(),
+                mode: state.mode,
+                user_locked: state.user_locked,
+                scale: state.scale,
+                snap_mode: state.snap_mode,
+                twelve_bar_tint: state.twelve_bar_tint,
+                scroll_beat: state.scroll_beat,
+                cols,
+            });
+        }
         true
     }
 }
