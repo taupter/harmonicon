@@ -39,10 +39,11 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-menu/src/menu/pages/calibration.rs` — beat dots stop receiving writes when calibration is inactive and unchanged; the offsets summary rebuilds only when the number of recorded hits changes, directly into one `String` instead of a temporary vector of strings. All 37 menu tests passed.
 - `crates/harmonicon-menu/src/menu/pages/options/mod.rs` — Options setup and plugin systems reviewed; pass borrowed harmonica model names through the temporary preview list, leaving ownership only where the button scene needs it. All 37 menu tests passed.
 - `crates/harmonicon-menu/src/menu/pages/options/harmonica.rs` — reuse the glTF child traversal stack across frames instead of allocating a new vector every update, and accept borrowed names from Options setup. All 37 menu tests passed.
+- `crates/harmonicon-menu/src/menu/pages/harp_check.rs` — pass event modifiers and the loaded chart by reference during remap-cost calculation; borrow current combobox labels; use the selected track index instead of rebuilding localized labels to identify it. All 37 menu tests passed.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
-- Next review: finish `harmonicon-menu` with `harp_check.rs`, then move downward through gameplay, editor, jam, and shared crates.
+- Next review: feature crates below `harmonicon-menu` in the dependency graph, beginning with `harmonicon-editor` and `harmonicon-jam`, then `harmonicon-gameplay`.

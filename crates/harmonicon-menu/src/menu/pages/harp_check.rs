@@ -141,12 +141,11 @@ pub(crate) fn cost_of(chart: &HarpChart, choice: &HarpChoice) -> RemapCost {
     let mut cost = RemapCost::default();
     for item in &chart.track {
         for event in &item.events {
-            let modifiers = event.modifiers.clone().unwrap_or_default();
             cost.add(&remap_event(
                 event.hole,
                 event.action,
                 event.note.as_deref(),
-                &modifiers,
+                event.modifiers.as_deref().unwrap_or(&[]),
                 &chart.harmonica,
                 &target,
                 choice.mapping,
@@ -288,15 +287,14 @@ pub(crate) fn setup_harp_check(
     );
 
     let mapping_options = mapping_labels(&loc);
-    let current_mapping =
-        mapping_options[usize::from(choice.mapping == HarpMapping::Transpose)].clone();
+    let current_mapping = &mapping_options[usize::from(choice.mapping == HarpMapping::Transpose)];
     combobox::spawn_combobox(
         &mut commands,
         root,
         page_root,
         &loc.msg("harp-check-mapping"),
         &mapping_options,
-        &current_mapping,
+        current_mapping,
         |ev: On<combobox::ComboboxSelect>,
          mut choice: ResMut<HarpChoice>,
          loc: Res<Localization>| {
@@ -393,7 +391,7 @@ pub(crate) fn refresh_harp_cost(
     let Some(chart) = selected
         .as_ref()
         .and_then(|s| manifests.get(&s.0))
-        .map(|m| m.chart.clone())
+        .map(|m| &m.chart)
     else {
         return;
     };
@@ -491,8 +489,7 @@ pub(crate) fn spawn_track_picker(
     let current = manifest
         .source_track
         .and_then(|i| options.get(i))
-        .cloned()
-        .unwrap_or_else(|| options[0].clone());
+        .unwrap_or(&options[0]);
 
     combobox::spawn_combobox(
         &mut commands,
@@ -500,7 +497,7 @@ pub(crate) fn spawn_track_picker(
         backdrop_parent,
         &loc.msg("harp-check-track"),
         &options,
-        &current,
+        current,
         on_track_selected,
     );
 }
@@ -514,7 +511,6 @@ pub(crate) fn spawn_track_picker(
 /// choice isn't lost, since `source_tracks` still holds every part.
 fn on_track_selected(
     ev: On<combobox::ComboboxSelect>,
-    loc: Res<Localization>,
     selected: Option<Res<SelectedSong>>,
     mut manifests: ResMut<Assets<SongManifest>>,
     mut choice: ResMut<HarpChoice>,
@@ -522,14 +518,10 @@ fn on_track_selected(
     let Some(mut manifest) = selected.as_ref().and_then(|s| manifests.get_mut(&s.0)) else {
         return;
     };
-    // Matched against labels rebuilt from the same function that produced
-    // them, so this keeps working in any locale.
-    let Some(index) = track_labels(&manifest.source_tracks, &loc)
-        .iter()
-        .position(|label| *label == ev.value)
-    else {
+    let index = ev.index;
+    if index >= manifest.source_tracks.len() {
         return;
-    };
+    }
     manifest.chart = manifest.source_tracks[index].chart.clone();
     manifest.source_track = Some(index);
     // Each part was fitted to its own harmonica, so the harp shown for the
