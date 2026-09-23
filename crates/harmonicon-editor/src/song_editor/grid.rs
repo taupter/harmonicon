@@ -750,8 +750,9 @@ pub(super) fn spawn_note(
                 // before — it exclusively selects just the note being
                 // dragged.
                 let group: Vec<GridNote> = if state.selected.len() > 1 && state.is_selected(id) {
-                    let ids = state.selected.clone();
-                    ids.iter()
+                    state
+                        .selected
+                        .iter()
                         .filter(|&&gid| gid != id)
                         .filter_map(|&gid| state.note_by_id(gid).copied())
                         .collect()
@@ -767,7 +768,7 @@ pub(super) fn spawn_note(
                   mut state: ResMut<EditorState>,
                   loc: Res<Localization>,
                   ui_scale: Res<UiScale>| {
-                let Some(drag) = state.dragging.clone() else {
+                let Some(drag) = state.dragging.as_ref() else {
                     return;
                 };
                 if drag.id != id || drag.kind != DragKind::Move {
