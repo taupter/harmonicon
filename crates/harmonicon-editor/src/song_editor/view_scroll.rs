@@ -5,12 +5,9 @@
 //! the two-finger pan that also offsets the whole editor vertically, and the
 //! left tool sidebar's own drag/wheel scrolling.
 //!
-//! Split out of `interaction` purely for that file's line budget — these
-//! were always one coherent group, and none of them touch `EditorState`'s
-//! note content.
 
 use bevy::input::mouse::MouseWheel;
-use bevy::input::touch::{Touch, Touches};
+use bevy::input::touch::Touches;
 use bevy::input_focus::InputFocus;
 use bevy::picking::events::PointerDrag;
 use bevy::picking::hover::Hovered;
@@ -227,10 +224,11 @@ pub(super) fn pan_touch(
     if file_dialog.open {
         return;
     }
-    let deltas: Vec<Vec2> = touches.iter().map(Touch::delta).collect();
-    let Some(pan) = two_finger_pan_delta(&deltas) else {
+    let mut active = touches.iter();
+    let (Some(first), Some(second), None) = (active.next(), active.next(), active.next()) else {
         return;
     };
+    let pan = two_finger_pan_delta(&[first.delta(), second.delta()]).unwrap();
     // Dragging right should carry the content right with the fingers, which
     // means scrolling *back* towards the start. Divided by `UiScale` for the
     // same reason `drag_grid_scrollbar` does it: touch deltas are window
@@ -243,12 +241,12 @@ pub(super) fn pan_touch(
     // `ComputedNode` sizes are physical; everything else here is logical.
     let inv = root.inverse_scale_factor();
     let viewport_h = root.size().y * inv;
-    let heights: Vec<f32> = children
+    let content_h: f32 = children
         .iter()
         .filter_map(|child| child_nodes.get(child).ok())
         .map(|node| node.size().y * inv)
-        .collect();
-    let max_y = vertical_overflow_px(viewport_h, &heights);
+        .sum();
+    let max_y = vertical_overflow_px(viewport_h, &[content_h]);
     // Dragging *up* (negative y) should reveal what's below, so the offset
     // grows as the fingers move up.
     scroll.y_px = (scroll.y_px - pan.y / ui_scale.0).clamp(0.0, max_y);
@@ -261,13 +259,19 @@ pub(super) fn apply_scroll(
     mut roots: Query<&mut Node, (With<EditorRoot>, Without<GridContent>)>,
 ) {
     if let Ok(mut node) = content.single_mut() {
-        node.left = Val::Px(-scroll.px);
+        let left = Val::Px(-scroll.px);
+        if node.left != left {
+            node.left = left;
+        }
     }
     // Shifts the entire editor up so the fixed chrome below the grid (mod
     // panel, status bar) can be reached on a screen too short to show it —
     // see `Scroll::y_px`. Untouched at 0, which is every desktop case.
     if let Ok(mut node) = roots.single_mut() {
-        node.top = Val::Px(-scroll.y_px);
+        let top = Val::Px(-scroll.y_px);
+        if node.top != top {
+            node.top = top;
+        }
     }
     let base = (scroll.px / BEAT_W) as usize;
     if state.scroll_beat != base {
@@ -360,8 +364,10 @@ pub(super) fn update_grid_scrollbar(
     }
     let track_w = track.size().x * track.inverse_scale_factor();
     let (width, left) = scrollbar_thumb(scroll.px, total_px, view_w, track_w);
-    thumb.width = Val::Px(width);
-    thumb.left = Val::Px(left);
+    if thumb.width != Val::Px(width) || thumb.left != Val::Px(left) {
+        thumb.width = Val::Px(width);
+        thumb.left = Val::Px(left);
+    }
 }
 
 // Same blow/draw hues the gameplay legend and note comets use — named so

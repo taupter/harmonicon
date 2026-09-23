@@ -53,6 +53,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/ranges.rs` — calculate silence gaps in one scan of sorted note intervals, avoiding the intermediate merged-interval vector. Erase/remove retain their existing owned-vector API for callers; removed historical split rationale from module docs. All six silence-filtered tests passed.
 - `crates/harmonicon-editor/src/song_editor/timeline.rs` — interaction handlers already avoid temporary vectors and gate persistent surface writes; corrected module opening to describe all tool modes it handles. Click-time formatting is not a hot path.
 - `crates/harmonicon-editor/src/song_editor/timeline_overlay.rs` — guard split-line and highlight component writes so idle frames do not mark Bevy UI components changed. Overlay geometry and visibility remain derived from the same state. All 377 editor tests passed.
+- `crates/harmonicon-editor/src/song_editor/view_scroll.rs` — remove per-frame temporary vectors for touch deltas and child heights, and guard idle grid, root, and scrollbar node writes. Scrollbar marker entities still need an owned ID list for Bevy parenting. All 377 editor tests passed.
 
 ## Findings and follow-up
 
@@ -60,4 +61,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
-- Next review: continue `harmonicon-editor` at `src/song_editor/view_scroll.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/scroll.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
