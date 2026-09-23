@@ -2,7 +2,7 @@
 
 Harmonicon is a rhythm game for diatonic and chromatic harmonica, written
 in Rust on top of the [Bevy](https://bevyengine.org/) game engine (version
-0.19). The player plays a *real* harmonica into a microphone; the game
+0.20 RC). The player plays a *real* harmonica into a microphone; the game
 listens, detects the pitch being played in real time, and scores it
 against a scrolling chart — the same core loop as any note-highway rhythm
 game (Guitar Hero, Clone Hero, osu!), except the "controller" is an
@@ -23,7 +23,7 @@ covers in depth.
 and nothing else. It exists because Android never calls a `main` — it
 loads a shared object and calls `android_main` (see
 [Android](android.md)) — so both entry points had to become thin
-wrappers around one shared function. `src/main.rs` (the game itself) and
+wrappers around one shared function. `src/main.rs` (the desktop entry point) and
 everything in `src/bin/` (`hole-editor`, `note-editor`, `note-bench`,
 `gen_synthetic_dataset` — small developer tools, described in
 [Testing Strategy](testing-strategy.md) and the [Song Editor](
@@ -161,11 +161,10 @@ root ..> lessons
 @enduml
 ```
 
-**No re-export facades.** A call site names the crate it depends on
-(`harmonicon_core::chart`, `harmonicon_gameplay::gameplay::…`), so every
-dependency is visible where it's taken. Re-exporting a moved module under
-its old path was tried and deliberately removed: it hid which crate code
-came from and let modules reach for things casually.
+Most call sites name the crate they depend on directly
+(`harmonicon_core::chart`, `harmonicon_gameplay::gameplay::…`). Some crates,
+including `harmonicon-menu`, also re-export their main module's items as a
+convenience; those public paths remain supported.
 
 Per-crate architecture notes live in `crates/<name>/CLAUDE.md` — the
 load-bearing facts for one subsystem, alongside its code rather than all

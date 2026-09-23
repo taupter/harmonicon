@@ -134,8 +134,7 @@ pub fn run() {
                 ..default()
             })
             .set(bevy::log::LogPlugin {
-                // bevy_render warns about its own internal shadow-view cameras
-                // in 0.19 RC. A plain `cargo run` keeps the console quiet
+                // Keep a plain `cargo run` quiet
                 // below `warn`; a `trace_tracy` build needs the default
                 // filter level to stay at `info` instead — Bevy's ECS/render
                 // spans (and this crate's own manual ones, see
