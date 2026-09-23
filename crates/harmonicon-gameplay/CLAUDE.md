@@ -109,6 +109,67 @@ load-bearing about *this* crate.
   natural-to-target rail consumes the same `BendTrace`; keep its overshoot
   visible and derive its tolerance band from the judging tolerance.
 
+- **The trainer's reference settings enter the pitch maths at exactly one
+  point.** The A4 reference and the per-harp/hole measured reed centre are
+  both plain *additive cents shifts*, so `feedback::reference_shift_cents`
+  folds them into one number that `tuner_observation` subtracts from the
+  distance it reports. Everything downstream — tuner readout, bend rail,
+  gesture state machines, drill — reads that one value, so they cannot
+  disagree about where the target is. **Intervals within a hole are
+  deliberately excluded**: the rail's natural-to-target span and its
+  intermediate slot positions are ratios of two table entries, unaffected by
+  either shift, and subtracting it there would double-count. Everything
+  adjustable lives in `harmonicon_platform::settings::BendingTrainerSettings`
+  (one resource, not one per knob — see its doc comment), whose defaults
+  reproduce what used to be hardcoded here. Two things that follow:
+  - **`clamped` runs on load, not only on edit.** `settings.json` is a file
+    a player can edit, and a `tolerance_cents` of `0` would otherwise reach
+    the maths as a divide-by-zero.
+  - **`trace_smoothing` is display-only.** `smoothed_cents` filters the
+    drawn path; `residual_rms`, `attempt_stability` and `vibrato` always run
+    on raw samples, or "steadiness" would become a function of a display
+    knob.
+
+- **The drill measures practice, not accuracy.** `DrillStat::weight` reads
+  recent control, recent steadiness and staleness — never the lifetime hit
+  rate, which lets an early run of beginner failures dominate a target
+  forever. Three consequences worth keeping:
+  - **A timeout with nothing heard is a *skip*, not a miss**
+    (`DrillOutcome::Skipped` → `record_skip`). It counts and stamps the
+    target as seen, but moves no estimate of control: putting the harp down
+    is not evidence about bending. Only `record_attempt` touches
+    `attempts`/`hits`, which is what the progress map's `drill_accuracy`
+    reads.
+  - **Staleness is a drill ordinal, not a timestamp.** `practiced_at` is
+    compared against `next_sequence`, which derives "now" from the stamps
+    themselves. `SystemTime::now()` panics on `wasm32-unknown-unknown`, and
+    a wall clock would also have needed a counter kept in step across
+    save/load.
+  - **The drill advances on the practice shape's terminal state, not on a
+    hold** (`drill_outcome`). Only `PracticeShape::Free` finishes on a bare
+    `DRILL_HOLD_TO_ADVANCE`; for every structured shape the hold is a
+    *stage*, so advancing there would swap the target out mid-gesture — and
+    waiting for `GesturePhase::Complete` is also what stops one noisy frame
+    from churning the target. This is why `drill_update` is ordered
+    `.after(update_gesture_practice)`.
+
+- **`collect_pitches` is registered twice in `Update`** — once in
+  `GameplayLogic`, once for the Bending Trainer — so `.after(collect_pitches)`
+  names an ambiguous `SystemTypeSet` and panics when the schedule is built.
+  The trainer's copy is in `TrainerPitchSet` for its readers to order
+  against; same rule as `MusicVolumeSet`, and it applies *within* a crate,
+  not just across them.
+
+- **Two schedule defects here are invisible to the compiler and only fire
+  when the screen is first entered**: the ambiguous-set panic above, and
+  B0001 (a system taking one component mutably in two of its own queries
+  with no `Without` proving them disjoint — `update_bend_rail` has four
+  `&mut Node` and four `&mut Text` queries, so every pair needs one).
+  `gameplay::tests::every_schedule_the_gameplay_plugin_builds_initializes`
+  runs `Schedule::initialize` over the real `GameplayPlugin`, which performs
+  exactly those two checks and needs no resources, window or GPU — add
+  systems to the plugin, not to a mirror list, and it keeps covering them.
+
 - **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
   as `harmonicon_core::scoring`, shared by
   gameplay and the song editor's practice mode), driven by the

@@ -6,11 +6,12 @@ use std::collections::VecDeque;
 
 use super::*;
 
-const TRACE_HISTORY_SECS: f32 = 3.0;
 const STABILITY_HISTORY_SECS: f32 = 0.30;
 const MIN_STABILITY_SPAN_SECS: f32 = 0.12;
 const MIN_STABILITY_SAMPLES: usize = 5;
-const UNSTABLE_RESIDUAL_CENTS: f32 = 10.0;
+/// Line-fit residual above which the detector's estimate is called unstable
+/// — also the drill's yardstick for "held unsteadily" (`DrillStat::weight`).
+pub(super) const UNSTABLE_RESIDUAL_CENTS: f32 = 10.0;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TraceSample {
@@ -32,6 +33,125 @@ pub struct BendTrace {
     pub target_cents: Option<f32>,
     pub stability_cents: Option<f32>,
     pub centered_hold_secs: f32,
+    /// The longest unbroken centred hold since the target was last changed
+    /// — the Advanced drawer's "best hold", which a live
+    /// [`centered_hold_secs`](Self::centered_hold_secs) can't report because
+    /// it resets the instant the player drifts out.
+    pub longest_centered_hold_secs: f32,
+}
+
+impl BendTrace {
+    /// The raw history, for the Advanced drawer's own analysis. Raw is the
+    /// point: `trace_smoothing` is a *display* setting
+    /// ([`smoothed_cents`]), and a stability or vibrato figure computed off
+    /// a smoothed path would measure the knob rather than the playing.
+    pub(super) fn samples(&self) -> &VecDeque<TraceSample> {
+        &self.samples
+    }
+}
+
+/// One attempt's pitch summary, for the Advanced drawer's stability view.
+/// Three separate numbers, deliberately never collapsed into a score — a
+/// player correcting a wide, wandering hold and a player correcting a tight,
+/// consistently-flat one need to be told different things.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct AttemptStability {
+    /// Mean distance from the target, in cents. Signed: a consistent lean
+    /// is a different fault from scatter, and the sign says which way.
+    pub mean_cents: f32,
+    /// Full peak-to-peak spread of the held pitch, in cents.
+    pub spread_cents: f32,
+}
+
+/// Mean and spread over `samples`, or `None` below a floor where neither
+/// figure would mean anything.
+pub(super) fn attempt_stability(samples: &VecDeque<TraceSample>) -> Option<AttemptStability> {
+    if samples.len() < MIN_STABILITY_SAMPLES {
+        return None;
+    }
+    let n = samples.len() as f32;
+    let mean_cents = samples.iter().map(|s| s.target_cents).sum::<f32>() / n;
+    let (lo, hi) = samples.iter().fold((f32::MAX, f32::MIN), |(lo, hi), s| {
+        (lo.min(s.target_cents), hi.max(s.target_cents))
+    });
+    Some(AttemptStability {
+        mean_cents,
+        spread_cents: hi - lo,
+    })
+}
+
+/// A vibrato measurement: how fast the pitch is oscillating and how wide.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Vibrato {
+    pub rate_hz: f32,
+    /// Peak-to-peak width, in cents. Reported as width rather than as a
+    /// half-amplitude because that is what a player can hear themselves
+    /// widening or narrowing.
+    pub depth_cents: f32,
+}
+
+/// Smallest swing that counts as vibrato rather than as the detector's own
+/// noise floor wandering across the mean.
+const MIN_VIBRATO_DEPTH_CENTS: f32 = 8.0;
+
+/// Rate and depth of a periodic wobble in `samples`, or `None` when there
+/// isn't one worth reporting.
+///
+/// Rate comes from mean crossings — each full cycle crosses the mean twice,
+/// so `rate = crossings / 2 / span`. That is deliberately a *cheap*
+/// estimator rather than an FFT: the window here is a fraction of a second
+/// of a handful of samples per frame, far too short to resolve a 4–7 Hz
+/// vibrato spectrally, and crossing-counting degrades into "no reading"
+/// rather than into a confident wrong one.
+///
+/// This measures the pitch signal and nothing else. It says how fast and
+/// how wide, not whether the vibrato is good, nor anything about breath,
+/// embouchure or the reed — a microphone carries no evidence for those.
+pub(super) fn vibrato(samples: &VecDeque<TraceSample>) -> Option<Vibrato> {
+    let stability = attempt_stability(samples)?;
+    if stability.spread_cents < MIN_VIBRATO_DEPTH_CENTS {
+        return None;
+    }
+    let span = samples.back()?.time - samples.front()?.time;
+    if span < MIN_STABILITY_SPAN_SECS {
+        return None;
+    }
+    let crossings = samples
+        .iter()
+        .zip(samples.iter().skip(1))
+        .filter(|(a, b)| {
+            (a.target_cents - stability.mean_cents).is_sign_negative()
+                != (b.target_cents - stability.mean_cents).is_sign_negative()
+        })
+        .count();
+    if crossings < 2 {
+        return None;
+    }
+    Some(Vibrato {
+        rate_hz: crossings as f32 / 2.0 / span,
+        depth_cents: stability.spread_cents,
+    })
+}
+
+/// The drawn path, low-passed by `smoothing` (0 = the raw samples).
+///
+/// **Display only.** A first-order filter run forward over the samples, so
+/// a stronger setting also lags the live marker further behind the player —
+/// which is exactly the trade-off an expert is choosing between, and why
+/// this never touches [`residual_rms`] or [`vibrato`].
+pub(super) fn smoothed_cents(samples: &VecDeque<TraceSample>, smoothing: f32) -> Vec<f32> {
+    let alpha = 1.0 - smoothing.clamp(0.0, 0.95);
+    let mut out = Vec::with_capacity(samples.len());
+    let mut state: Option<f32> = None;
+    for sample in samples {
+        let next = match state {
+            None => sample.target_cents,
+            Some(prev) => prev + alpha * (sample.target_cents - prev),
+        };
+        state = Some(next);
+        out.push(next);
+    }
+    out
 }
 
 const TRACE_DOTS: usize = 32;
@@ -247,6 +367,7 @@ pub fn update_bend_trace(
     key: Res<TrainerKey>,
     target: Res<TrainerTarget>,
     active: Res<ActivePitches>,
+    settings: Res<BendingTrainerSettings>,
     time: Res<Time>,
     mut trace: ResMut<BendTrace>,
 ) {
@@ -259,6 +380,7 @@ pub fn update_bend_trace(
         trace.target_cents = None;
         trace.stability_cents = None;
         trace.centered_hold_secs = 0.0;
+        trace.longest_centered_hold_secs = 0.0;
         trace.last_hole = Some(target.hole);
         trace.last_technique = Some(target.technique);
         trace.last_key.clone_from(&key.0);
@@ -266,7 +388,8 @@ pub fn update_bend_trace(
 
     trace.elapsed += time.delta_secs();
     let harp = richter_harp(&key.0);
-    match tuner_observation(&harp, *target, &active) {
+    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    match tuner_observation(&harp, *target, &active, shift) {
         Some(TunerObservation::TargetFamily(target_cents)) => {
             let elapsed = trace.elapsed;
             trace.samples.push_back(TraceSample {
@@ -276,7 +399,7 @@ pub fn update_bend_trace(
             while trace
                 .samples
                 .front()
-                .is_some_and(|sample| elapsed - sample.time > TRACE_HISTORY_SECS)
+                .is_some_and(|sample| elapsed - sample.time > settings.trace_secs)
             {
                 trace.samples.pop_front();
             }
@@ -291,11 +414,15 @@ pub fn update_bend_trace(
                 .stability_cents
                 .is_some_and(|residual| residual > UNSTABLE_RESIDUAL_CENTS);
             trace.target_cents = Some(target_cents);
-            trace.centered_hold_secs = if target_cents.abs() <= IN_TUNE_CENTS && !trace.unstable {
-                trace.centered_hold_secs + time.delta_secs()
-            } else {
-                0.0
-            };
+            trace.centered_hold_secs =
+                if target_cents.abs() <= settings.tolerance_cents && !trace.unstable {
+                    trace.centered_hold_secs + time.delta_secs()
+                } else {
+                    0.0
+                };
+            trace.longest_centered_hold_secs = trace
+                .longest_centered_hold_secs
+                .max(trace.centered_hold_secs);
         }
         _ => {
             trace.samples.clear();
@@ -312,7 +439,14 @@ pub fn update_bend_rail(
     key: Res<TrainerKey>,
     target: Res<TrainerTarget>,
     trace: Res<BendTrace>,
+    settings: Res<BendingTrainerSettings>,
     loc: Res<Localization>,
+    // Four of these take `&mut Node` and four take `&mut Text`, so every pair
+    // sharing one needs a `Without` proving them disjoint — a marker component
+    // the *other* query requires is not enough, since Bevy's check is purely
+    // structural and a missing exclusion is a startup panic (B0001), not a
+    // compile error. Each query excludes every earlier one it shares a
+    // component with.
     mut dots: Query<(
         &BendTraceDot,
         &mut Node,
@@ -320,11 +454,39 @@ pub fn update_bend_rail(
         &mut Visibility,
     )>,
     mut marker: Query<(&mut Node, &mut Visibility), (With<BendLiveMarker>, Without<BendTraceDot>)>,
-    mut band: Query<&mut Node, (With<BendTargetBand>, Without<BendLiveMarker>)>,
-    mut natural_labels: Query<&mut Text, (With<BendNaturalLabel>, Without<BendTargetLabel>)>,
-    mut target_labels: Query<&mut Text, (With<BendTargetLabel>, Without<BendNaturalLabel>)>,
-    mut metrics: Query<(&BendMetric, &mut Text)>,
-    mut slots: Query<(&BendSlotMarker, &mut Node, &mut Text, &mut Visibility)>,
+    mut band: Query<
+        &mut Node,
+        (
+            With<BendTargetBand>,
+            Without<BendTraceDot>,
+            Without<BendLiveMarker>,
+        ),
+    >,
+    mut slots: Query<
+        (&BendSlotMarker, &mut Node, &mut Text, &mut Visibility),
+        (
+            Without<BendTraceDot>,
+            Without<BendLiveMarker>,
+            Without<BendTargetBand>,
+        ),
+    >,
+    mut natural_labels: Query<&mut Text, (With<BendNaturalLabel>, Without<BendSlotMarker>)>,
+    mut target_labels: Query<
+        &mut Text,
+        (
+            With<BendTargetLabel>,
+            Without<BendSlotMarker>,
+            Without<BendNaturalLabel>,
+        ),
+    >,
+    mut metrics: Query<
+        (&BendMetric, &mut Text),
+        (
+            Without<BendSlotMarker>,
+            Without<BendNaturalLabel>,
+            Without<BendTargetLabel>,
+        ),
+    >,
 ) {
     let harp = richter_harp(&key.0);
     let Some(target_note) = target_note(&harp, *target) else {
@@ -390,7 +552,8 @@ pub fn update_bend_rail(
     let band_width = if natural_cents.abs() < 1.0 {
         10.0
     } else {
-        (2.0 * IN_TUNE_CENTS / natural_cents.abs() * (RAIL_END_PERCENT - RAIL_START_PERCENT))
+        (2.0 * settings.tolerance_cents / natural_cents.abs()
+            * (RAIL_END_PERCENT - RAIL_START_PERCENT))
             .clamp(3.0, 20.0)
     };
     for mut node in &mut band {
@@ -398,30 +561,34 @@ pub fn update_bend_rail(
         node.width = Val::Percent(band_width);
     }
 
+    // The drawn path is smoothed (a no-op at the default 0.0); everything
+    // measured off the trace stays on the raw samples — see `smoothed_cents`.
+    let drawn = smoothed_cents(&trace.samples, settings.trace_smoothing);
     let sample_step = trace.samples.len().div_ceil(TRACE_DOTS).max(1);
     let visible: Vec<_> = trace
         .samples
         .iter()
+        .zip(drawn.iter())
         .rev()
         .step_by(sample_step)
         .take(TRACE_DOTS)
         .collect();
     for (dot, mut node, mut color, mut visibility) in &mut dots {
-        let Some(sample) = visible.get(dot.0) else {
+        let Some((sample, cents)) = visible.get(dot.0) else {
             *visibility = Visibility::Hidden;
             continue;
         };
-        node.left = Val::Percent(rail_percent(sample.target_cents, natural_cents));
+        node.left = Val::Percent(rail_percent(**cents, natural_cents));
         let age = trace.elapsed - sample.time;
-        let alpha = (1.0 - age / TRACE_HISTORY_SECS).clamp(0.08, 0.72);
+        let alpha = (1.0 - age / settings.trace_secs).clamp(0.08, 0.72);
         color.0 = Color::srgba(0.45, 0.72, 0.95, alpha);
         *visibility = Visibility::Visible;
     }
     let Ok((mut node, mut visibility)) = marker.single_mut() else {
         return;
     };
-    if let Some(sample) = trace.samples.back() {
-        node.left = Val::Percent(rail_percent(sample.target_cents, natural_cents));
+    if let Some(cents) = drawn.last() {
+        node.left = Val::Percent(rail_percent(*cents, natural_cents));
         *visibility = Visibility::Visible;
     } else {
         *visibility = Visibility::Hidden;

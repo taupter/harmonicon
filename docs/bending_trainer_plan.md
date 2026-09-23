@@ -184,6 +184,29 @@ gesture can be replayed deterministically from a recorded pitch stream.
 
 ### 4. Give the adaptive drill an honest scope and memory
 
+**Implemented.** A Scope control cycles First bends / All bends / Blow bends /
+Overbends / Custom; the default never contains an overbend. Custom is a set
+the player assembles by clicking diagram cells while that scope is showing,
+falling back to the selected cell while empty. An attempt is counted only
+after a credible onset in the selected hole's family — a timeout with nothing
+heard is a *skip*, which moves no estimate of control. Selection weight now
+reads recent control, recent steadiness and staleness rather than lifetime hit
+rate, and the drill only advances once the practice shape reaches its terminal
+state, so a noisy frame cannot churn the target. `DrillRecord` grew its new
+fields behind `#[serde(default)]`, so existing profiles load unchanged.
+
+Two deliberate departures from the text below:
+
+- **Staleness is a drill ordinal, not a wall clock.**
+  `SystemTime::now()` panics on `wasm32-unknown-unknown`, and "how many
+  attempts ago did I last see this?" is the only unit the drill acts on
+  anyway. The ordinal derives from the stamps themselves
+  (`drill::next_sequence`), so there is no counter to keep in step across
+  save/load.
+- **Custom does not carry its own practice shape.** The shape control is
+  already global and applies to whatever target is up; binding a second copy
+  to one scope would have meant two places to look for the same setting.
+
 - Add drill scopes: **First bends**, **All bends**, **Blow bends**,
   **Overbends**, and **Custom**. Start novices with a small set of common draw
   bends; never introduce overbends through the default scope.
@@ -204,6 +227,50 @@ scope contains no overbends, and weak or stale targets return without trapping
 the player in a permanent low percentage.
 
 ### 5. Add professional controls without crowding the default
+
+**Implemented.** An Advanced drawer, collapsed by default and remembered
+across visits, holds bounded steppers for tolerance, hold-to-pass, attempt
+timeout, A4 reference, trace length, trace smoothing and the practice-shape
+subdivision, plus a live "this attempt" view (mean, spread, best hold,
+vibrato rate and depth, measured reed centre) and a Reset. All of it lives
+in `harmonicon-platform`'s `BendingTrainerSettings`, persisted with the rest
+of `settings.json`; the defaults reproduce exactly what the trainer used to
+do with these values hardcoded, so nothing changes for a player who never
+opens it. The readiness check now also captures that hole's observed reed
+centre, and `Forget measured reed` discards it.
+
+Four decisions worth recording:
+
+- **Steppers, not presets plus a custom field.** Two controls for one value
+  can disagree about what is set; a bounded stepper reaches the tolerances
+  named below in a few clicks and is its own readout. Bounds come from
+  `BendingTrainerSettings`' own constants, so the UI cannot offer a value
+  `clamped` would refuse — and `clamped` runs on load too, because
+  `settings.json` is a file a player can edit.
+- **The reference settings enter the pitch maths at exactly one point.**
+  A4 and the measured reed centre are both plain additive cents shifts, so
+  `feedback::reference_shift_cents` folds them into one number that
+  `tuner_observation` subtracts. The tuner, the rail, the gesture machines
+  and the drill therefore cannot disagree about where the target is.
+  Intervals *within* a hole are ratios of two table entries and are
+  deliberately left alone.
+- **Smoothing is display-only.** It filters the drawn path and nothing else;
+  stability and vibrato are always computed from raw samples, or
+  "steadiness" would become a function of a display knob. It defaults to
+  off, since the open question is whether smoothing hides useful motion.
+- **The vibrato estimator counts mean crossings, not an FFT.** The window is
+  a fraction of a second, far too short to resolve 4–7 Hz spectrally;
+  crossing-counting degrades into "no reading" rather than into a confident
+  wrong one, and refuses to report at all below a minimum depth.
+
+Known limitation, left for step 6: the drawer floats over the top-left
+corner of the harp diagram while open. It is absolutely positioned
+specifically so it never reflows the live trace (step 6's own requirement),
+and the left column cannot simply scroll instead — a `ScrollArea` clips to
+its content's height when that content is shorter than the space available,
+which would cut off the Key and Detect dropdowns whenever the drawer was
+shut. Step 6's hierarchy rework is where the drawer gets somewhere of its
+own to live.
 
 Put these in an Advanced drawer remembered across visits:
 

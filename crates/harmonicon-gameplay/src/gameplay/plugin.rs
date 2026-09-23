@@ -37,6 +37,19 @@ pub struct GameplayPlugin;
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 struct OverlaySet;
 
+/// The Bending Trainer's own run of `collect_pitches`, published as a set so
+/// its readers have something unambiguous to order against.
+///
+/// `collect_pitches` is registered **twice** in `Update` — once here for the
+/// trainer and once inside [`GameplayLogic`] — and a bare
+/// `.after(collect_pitches)` names a `SystemTypeSet`, which Bevy refuses to
+/// order against when the system has more than one instance. That is a
+/// schedule-build *panic* at the moment the screen is first entered, not a
+/// compile error. Same reasoning as `MusicVolumeSet` below: publish an
+/// ordering point, never a system name.
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+struct TrainerPitchSet;
+
 /// The pass that applies the live music-volume setting to every playing
 /// sink. Anything that adjusts an individual sink's volume — jam's
 /// per-track mute, say — orders itself `.after` this set, so a global
@@ -177,13 +190,13 @@ impl Plugin for GameplayPlugin {
             Update,
             (
                 bending_trainer::tick_clock,
-                collect_pitches,
+                collect_pitches.in_set(TrainerPitchSet),
                 bending_trainer::rebuild_overlay,
                 bending_trainer::update_selected_cell_border,
                 bending_trainer::update_pitch_range,
                 bending_trainer::update_target_label,
                 bending_trainer::update_hint_label,
-                bending_trainer::update_bend_trace.after(collect_pitches),
+                bending_trainer::update_bend_trace.after(TrainerPitchSet),
                 bending_trainer::update_tuner_readout.after(bending_trainer::update_bend_trace),
                 bending_trainer::update_bend_rail.after(bending_trainer::update_bend_trace),
                 bending_trainer::update_gesture_practice.after(bending_trainer::update_bend_trace),
@@ -192,9 +205,26 @@ impl Plugin for GameplayPlugin {
                 bending_trainer::update_natural_check,
                 bending_trainer::update_natural_check_label
                     .after(bending_trainer::update_natural_check),
-                bending_trainer::drill_update.after(bending_trainer::update_bend_trace),
+                // Reads the gesture's terminal phase to decide an attempt is
+                // over, so it must see *this* frame's phase, not last one's.
+                bending_trainer::drill_update
+                    .after(bending_trainer::update_bend_trace)
+                    .after(bending_trainer::update_gesture_practice),
                 bending_trainer::update_drill_label,
+                bending_trainer::update_drill_scope_label,
                 bending_trainer::update_drill_button_visual,
+                // Nested rather than flattened into the run above: Bevy's
+                // `add_systems` tuple tops out at 20 elements, and a
+                // 21st turns the whole tuple into a confusing
+                // "cannot become an ObserverSystem" error rather than
+                // anything about arity.
+                (
+                    bending_trainer::apply_advanced_visibility,
+                    bending_trainer::update_advanced_labels,
+                    // Reports the trace, so it wants this frame's samples.
+                    bending_trainer::update_advanced_readouts
+                        .after(bending_trainer::update_bend_trace),
+                ),
                 // Suspended while the guided tour is showing this screen —
                 // Esc shouldn't leave out from under it (see `menu::tutorial`).
                 bending_trainer::handle_escape.run_if(not(tour_active)),

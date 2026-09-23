@@ -65,6 +65,116 @@ pub struct ColorblindPalette(pub bool);
 #[derive(Resource, Default)]
 pub struct ReducedMotion(pub bool);
 
+/// The Bending Trainer's precision controls — its "Advanced" drawer.
+///
+/// **One resource rather than a resource per knob**, unlike every setting
+/// above it: these are one screen's worth of preferences, always read
+/// together, and this module threads each persisted resource through five
+/// places by hand (`apply_loaded_settings`, `mark_settings_dirty`,
+/// `tick_pending_save`, `flush_pending_save_on_exit`, `save_current`) —
+/// seven more would have crowded out the settings that genuinely are
+/// independent, and pushed those systems toward Bevy's parameter limit.
+///
+/// Every field is a *preference*, persisted here rather than on the player
+/// profile, which holds per-target performance evidence
+/// (`profile::DrillRecord`) instead. The one field that is a measurement
+/// rather than a taste — [`natural_center_cents`](Self::natural_center_cents)
+/// — is here because it describes the *instrument*, not the player's
+/// progress: it stays true across every session with that harp and means
+/// nothing about how well anyone plays it.
+///
+/// Defaults reproduce the behaviour that used to be hardcoded in
+/// `gameplay::bending_trainer`, so an existing player sees no change until
+/// they open the drawer.
+#[derive(Resource, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BendingTrainerSettings {
+    /// How close to the target counts as centred, in cents.
+    pub tolerance_cents: f32,
+    /// Seconds centred before the drill credits a controlled attempt.
+    pub hold_secs: f32,
+    /// Seconds before an unfinished drill attempt ends (as a miss if the
+    /// player was audibly trying, a skip otherwise).
+    pub timeout_secs: f32,
+    /// Concert-pitch reference. A real harp is not always at 440.
+    pub a4_hz: f32,
+    /// Seconds of pitch history the bend rail draws behind the live marker.
+    pub trace_secs: f32,
+    /// How hard the *drawn* path is smoothed, 0 (raw) to 0.9. Display only:
+    /// the stability residual is always computed from raw samples, or
+    /// "steadiness" would become a function of a display knob.
+    pub trace_smoothing: f32,
+    /// Metronome pulses per beat that the Repeated practice shape asks a
+    /// bend on. 1 = on the beat.
+    pub subdivision: u8,
+    /// Whether the Advanced drawer is open, remembered across visits.
+    pub advanced_open: bool,
+    /// Measured natural-reed centre in cents, keyed `"{key}:{hole}"` (e.g.
+    /// `"C:2"`) — captured by the readiness check, subtracted from readings
+    /// on that hole. Real reeds sit where they sit; an equal-tempered table
+    /// is an orientation, not ground truth.
+    pub natural_center_cents: std::collections::HashMap<String, f32>,
+}
+
+impl Default for BendingTrainerSettings {
+    fn default() -> Self {
+        Self {
+            tolerance_cents: 6.0,
+            hold_secs: 0.5,
+            timeout_secs: 12.0,
+            a4_hz: 440.0,
+            trace_secs: 3.0,
+            trace_smoothing: 0.0,
+            subdivision: 1,
+            advanced_open: false,
+            natural_center_cents: std::collections::HashMap::new(),
+        }
+    }
+}
+
+impl BendingTrainerSettings {
+    /// Inclusive bounds for each knob, as `(min, max)`. Public so the UI's
+    /// steppers and [`clamped`](Self::clamped) cannot disagree about what
+    /// is reachable.
+    pub const TOLERANCE_CENTS: (f32, f32) = (1.0, 30.0);
+    pub const HOLD_SECS: (f32, f32) = (0.1, 3.0);
+    pub const TIMEOUT_SECS: (f32, f32) = (4.0, 60.0);
+    /// Roughly A415 (baroque) to A466 — the range a real instrument or
+    /// ensemble might actually ask for.
+    pub const A4_HZ: (f32, f32) = (415.0, 466.0);
+    pub const TRACE_SECS: (f32, f32) = (1.0, 10.0);
+    pub const TRACE_SMOOTHING: (f32, f32) = (0.0, 0.9);
+    pub const SUBDIVISION: (u8, u8) = (1, 4);
+
+    /// The same values with every knob forced back inside its bounds.
+    /// `settings.json` is a plain file a player can edit, and a
+    /// `tolerance_cents` of `0` or a `trace_secs` of `-1` would otherwise
+    /// reach the trainer's maths as a divide-by-zero or an empty window.
+    #[must_use]
+    pub fn clamped(mut self) -> Self {
+        let clamp = |v: f32, (lo, hi): (f32, f32)| if v.is_finite() { v.clamp(lo, hi) } else { lo };
+        self.tolerance_cents = clamp(self.tolerance_cents, Self::TOLERANCE_CENTS);
+        self.hold_secs = clamp(self.hold_secs, Self::HOLD_SECS);
+        self.timeout_secs = clamp(self.timeout_secs, Self::TIMEOUT_SECS);
+        self.a4_hz = clamp(self.a4_hz, Self::A4_HZ);
+        self.trace_secs = clamp(self.trace_secs, Self::TRACE_SECS);
+        self.trace_smoothing = clamp(self.trace_smoothing, Self::TRACE_SMOOTHING);
+        self.subdivision = self
+            .subdivision
+            .clamp(Self::SUBDIVISION.0, Self::SUBDIVISION.1);
+        self
+    }
+
+    /// Key for [`natural_center_cents`](Self::natural_center_cents) — the
+    /// harp key and hole, since a measured reed centre belongs to one
+    /// physical instrument, not to a (hole, technique) skill the way
+    /// `profile::DrillRecord` does.
+    #[must_use]
+    pub fn center_key(harp_key: &str, hole: u8) -> String {
+        format!("{harp_key}:{hole}")
+    }
+}
+
 /// How the Song Editor's action buttons (transport strip, mod panel,
 /// timeline tools, ...) render their icon/label — see
 /// `song_editor::panel_widgets::spawn_button_shell`, which is the one place
@@ -135,6 +245,7 @@ struct Settings {
     colorblind_palette: bool,
     reduced_motion: bool,
     action_button_style: ActionButtonStyle,
+    bending_trainer: BendingTrainerSettings,
 }
 
 impl Default for Settings {
@@ -155,6 +266,7 @@ impl Default for Settings {
             colorblind_palette: false,
             reduced_motion: false,
             action_button_style: ActionButtonStyle::default(),
+            bending_trainer: BendingTrainerSettings::default(),
         }
     }
 }
@@ -217,6 +329,7 @@ impl Plugin for SettingsPlugin {
             .init_resource::<ColorblindPalette>()
             .init_resource::<ReducedMotion>()
             .init_resource::<ActionButtonStyle>()
+            .init_resource::<BendingTrainerSettings>()
             .init_resource::<PendingSave>()
             .add_systems(Startup, apply_loaded_settings)
             // Save whenever either settings resource changes. The Startup load
@@ -236,7 +349,8 @@ impl Plugin for SettingsPlugin {
                          fullscreen: Res<FullscreenEnabled>,
                          colorblind_palette: Res<ColorblindPalette>,
                          reduced_motion: Res<ReducedMotion>,
-                         action_button_style: Res<ActionButtonStyle>| {
+                         action_button_style: Res<ActionButtonStyle>,
+                         bending_trainer: Res<BendingTrainerSettings>| {
                             audio.is_changed()
                                 || theme_2d.is_changed()
                                 || theme_3d.is_changed()
@@ -248,6 +362,7 @@ impl Plugin for SettingsPlugin {
                                 || colorblind_palette.is_changed()
                                 || reduced_motion.is_changed()
                                 || action_button_style.is_changed()
+                                || bending_trainer.is_changed()
                         },
                     ),
                     tick_pending_save,
@@ -276,6 +391,7 @@ pub fn apply_loaded_settings(
     mut colorblind_palette: ResMut<ColorblindPalette>,
     mut reduced_motion: ResMut<ReducedMotion>,
     mut action_button_style: ResMut<ActionButtonStyle>,
+    mut bending_trainer: ResMut<BendingTrainerSettings>,
 ) {
     let settings = load_settings();
     audio.music_volume = settings.music_volume;
@@ -293,6 +409,10 @@ pub fn apply_loaded_settings(
     colorblind_palette.0 = settings.colorblind_palette;
     reduced_motion.0 = settings.reduced_motion;
     *action_button_style = settings.action_button_style;
+    // Clamped on the way in, not just on the way out: `settings.json` is a
+    // plain file, and an out-of-range value would otherwise reach the
+    // trainer's maths before the player ever opens the drawer.
+    *bending_trainer = settings.bending_trainer.clamped();
     info!(
         "Loaded settings: music={:.2} metronome={:.2} latency={}ms themes(2d={}, 3d={}) harmonica={} ui_theme={} note_numbers={} adaptive_difficulty={} fullscreen={} colorblind_palette={} reduced_motion={} action_button_style={:?}",
         audio.music_volume,
@@ -324,6 +444,7 @@ fn save_current(
     colorblind_palette: &ColorblindPalette,
     reduced_motion: &ReducedMotion,
     action_button_style: &ActionButtonStyle,
+    bending_trainer: &BendingTrainerSettings,
 ) {
     save_settings(&Settings {
         music_volume: audio.music_volume,
@@ -341,6 +462,7 @@ fn save_current(
         colorblind_palette: colorblind_palette.0,
         reduced_motion: reduced_motion.0,
         action_button_style: *action_button_style,
+        bending_trainer: bending_trainer.clone(),
     });
 }
 
@@ -381,6 +503,7 @@ fn tick_pending_save(
     colorblind_palette: Res<ColorblindPalette>,
     reduced_motion: Res<ReducedMotion>,
     action_button_style: Res<ActionButtonStyle>,
+    bending_trainer: Res<BendingTrainerSettings>,
 ) {
     let (should_save, remaining) = tick_debounce(pending.0, time.delta_secs());
     pending.0 = remaining;
@@ -397,6 +520,7 @@ fn tick_pending_save(
             &colorblind_palette,
             &reduced_motion,
             &action_button_style,
+            &bending_trainer,
         );
     }
 }
@@ -417,6 +541,7 @@ fn flush_pending_save_on_exit(
     colorblind_palette: Res<ColorblindPalette>,
     reduced_motion: Res<ReducedMotion>,
     action_button_style: Res<ActionButtonStyle>,
+    bending_trainer: Res<BendingTrainerSettings>,
 ) {
     if exit.read().next().is_none() || pending.0.is_none() {
         return;
@@ -434,6 +559,7 @@ fn flush_pending_save_on_exit(
         &colorblind_palette,
         &reduced_motion,
         &action_button_style,
+        &bending_trainer,
     );
 }
 
@@ -461,6 +587,68 @@ fn apply_fullscreen(
 mod tests {
     use super::*;
     use crate::localization::{Localization, LocalizationExt};
+
+    // ── BendingTrainerSettings ───────────────────────────────────────────
+
+    #[test]
+    fn trainer_defaults_reproduce_the_previously_hardcoded_behaviour() {
+        let s = BendingTrainerSettings::default();
+        assert_eq!(s.tolerance_cents, 6.0);
+        assert_eq!(s.hold_secs, 0.5);
+        assert_eq!(s.timeout_secs, 12.0);
+        assert_eq!(s.a4_hz, 440.0);
+        assert_eq!(s.trace_secs, 3.0);
+        assert_eq!(s.trace_smoothing, 0.0, "smoothing is opt-in, not default");
+        assert_eq!(s.subdivision, 1);
+        assert!(!s.advanced_open);
+        assert_eq!(s.clone().clamped(), s, "defaults must be inside bounds");
+    }
+
+    #[test]
+    fn a_hand_edited_settings_file_cannot_push_a_knob_out_of_range() {
+        let wild = BendingTrainerSettings {
+            tolerance_cents: 0.0,
+            hold_secs: -4.0,
+            timeout_secs: 9_000.0,
+            a4_hz: 12.0,
+            trace_secs: f32::NAN,
+            trace_smoothing: 5.0,
+            subdivision: 250,
+            ..default()
+        }
+        .clamped();
+        assert_eq!(
+            wild.tolerance_cents,
+            BendingTrainerSettings::TOLERANCE_CENTS.0
+        );
+        assert_eq!(wild.hold_secs, BendingTrainerSettings::HOLD_SECS.0);
+        assert_eq!(wild.timeout_secs, BendingTrainerSettings::TIMEOUT_SECS.1);
+        assert_eq!(wild.a4_hz, BendingTrainerSettings::A4_HZ.0);
+        // NaN can't be clamped into range — it takes the floor rather than
+        // propagating into the trace window's arithmetic.
+        assert_eq!(wild.trace_secs, BendingTrainerSettings::TRACE_SECS.0);
+        assert_eq!(
+            wild.trace_smoothing,
+            BendingTrainerSettings::TRACE_SMOOTHING.1
+        );
+        assert_eq!(wild.subdivision, BendingTrainerSettings::SUBDIVISION.1);
+    }
+
+    #[test]
+    fn an_older_settings_file_loads_with_trainer_defaults() {
+        let older: Settings =
+            serde_json::from_str(r#"{"music_volume":0.5,"input_latency_ms":20}"#).unwrap();
+        assert_eq!(older.music_volume, 0.5);
+        assert_eq!(older.input_latency_ms, 20);
+        assert_eq!(older.bending_trainer, BendingTrainerSettings::default());
+    }
+
+    #[test]
+    fn a_measured_reed_centre_is_keyed_by_harp_and_hole() {
+        // Not by technique: one reed, whatever is asked of it.
+        assert_eq!(BendingTrainerSettings::center_key("C", 2), "C:2");
+        assert_eq!(BendingTrainerSettings::center_key("F#", 10), "F#:10");
+    }
 
     // ── AdaptiveDifficultyEnabled ────────────────────────────────────────────────
 

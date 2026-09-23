@@ -561,6 +561,73 @@ mod tests {
         }
     }
 
+    /// A key whose text uses a Fluent variable (`{$note}`) must be resolved
+    /// with `msg_args`, never plain `msg`. Fluent doesn't fail the lookup —
+    /// it renders the placeholder literally and logs `Unknown variable`, so
+    /// the mistake compiles, passes every other test, and is often visually
+    /// invisible too: a label spawned that way is usually overwritten by its
+    /// update system a frame later, leaving a log line as the only trace.
+    ///
+    /// Scans every workspace source file for `.msg("literal-key")`. A key
+    /// chosen at runtime (a `match` returning a `&str`) can't be checked
+    /// statically and isn't; the literal case is the one that recurs.
+    #[test]
+    fn keys_with_variables_are_never_resolved_without_arguments() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let ftl = std::fs::read_to_string(root.join("assets/locales/en-US/main/ui.ftl"))
+            .expect("en-US ui.ftl must exist");
+        let takes_args: std::collections::HashSet<&str> = ftl
+            .lines()
+            .filter(|line| line.contains("{$"))
+            .filter_map(|line| line.split_once(" = ").map(|(key, _)| key.trim()))
+            .collect();
+        assert!(
+            !takes_args.is_empty(),
+            "expected some keys to use variables"
+        );
+
+        let mut dirs = vec![root.join("src")];
+        for entry in std::fs::read_dir(root.join("crates")).expect("crates dir") {
+            dirs.push(entry.unwrap().path().join("src"));
+        }
+        let mut offenders = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|e| e.to_str()) != Some("rs")
+                    || path.file_name().and_then(|n| n.to_str()) == Some("tests.rs")
+                {
+                    continue;
+                }
+                let source = std::fs::read_to_string(&path).unwrap();
+                for (number, line) in source.lines().enumerate() {
+                    for (index, _) in line.match_indices(".msg(\"") {
+                        let rest = &line[index + ".msg(\"".len()..];
+                        let Some(key) = rest.split('"').next() else {
+                            continue;
+                        };
+                        if takes_args.contains(key) {
+                            offenders.push(format!("{}:{}: {key}", path.display(), number + 1));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "these keys use a Fluent variable but are resolved with `msg` \
+             instead of `msg_args`, so the variable renders unresolved:\n{}",
+            offenders.join("\n")
+        );
+    }
+
     /// [`super::LOCALES`] is a fixed list (loaded by explicit path rather
     /// than a directory scan — see the module doc comment for why), so
     /// nothing else catches it silently drifting from what's actually

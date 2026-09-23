@@ -185,6 +185,7 @@ pub fn update_gesture_practice(
     target: Res<TrainerTarget>,
     active: Res<ActivePitches>,
     trace: Res<BendTrace>,
+    settings: Res<BendingTrainerSettings>,
     time: Res<Time>,
     clock: Res<GameplayClock>,
     tempo: Res<MetronomeTempo>,
@@ -194,8 +195,14 @@ pub fn update_gesture_practice(
         practice.reset_attempt();
     }
     let harp = richter_harp(&key.0);
-    let frame = classify_gesture_frame(&harp, *target, &active, &trace);
-    let beat = (clock.get() / tempo.beat_secs()).floor() as i64;
+    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    let frame = classify_gesture_frame(&harp, *target, &active, &trace, shift, &settings);
+    // `subdivision` splits the beat: at 2, Repeated asks for a bend on every
+    // eighth rather than every quarter. The pulse count is what changes, not
+    // the tempo — `MetronomeTempo` stays the shared clock for the whole
+    // screen, including the audible click.
+    let pulse_secs = tempo.beat_secs() / f64::from(settings.subdivision.max(1));
+    let beat = (clock.get() / pulse_secs).floor() as i64;
     practice.advance(frame, time.delta_secs(), Some(beat));
 }
 
@@ -204,13 +211,15 @@ fn classify_gesture_frame(
     target: TrainerTarget,
     active: &ActivePitches,
     trace: &BendTrace,
+    shift_cents: f32,
+    settings: &BendingTrainerSettings,
 ) -> GestureFrame {
-    let cents = match tuner_observation(harp, target, active) {
+    let cents = match tuner_observation(harp, target, active, shift_cents) {
         Some(TunerObservation::TargetFamily(cents)) => cents,
         Some(TunerObservation::WrongPitch(_)) => return GestureFrame::WrongPitch,
         _ => return GestureFrame::Silence,
     };
-    if !trace.unstable && cents.abs() <= IN_TUNE_CENTS {
+    if !trace.unstable && cents.abs() <= settings.tolerance_cents {
         return GestureFrame::Target;
     }
     let Some(natural) = natural_note_for_target(harp, target).and_then(|note| note_freq_hz(&note))

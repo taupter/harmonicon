@@ -4,7 +4,35 @@
 
 use super::*;
 
-pub(super) const IN_TUNE_CENTS: f32 = 6.0;
+/// Cents to subtract from a raw reading before judging it against the
+/// equal-tempered table, for one harp key and hole. Two sources, both plain
+/// additive shifts in cents, which is why they can be folded into one
+/// number and applied at the single point where cents is produced
+/// ([`tuner_observation`]) rather than threaded through every frequency
+/// lookup:
+///
+/// - **the A4 reference.** Retuning A4 scales every target frequency by the
+///   same factor, so in cents it is the constant `1200·log2(a4/440)`.
+/// - **the measured natural-reed centre** for this harp/hole, captured by
+///   the readiness check. A real reed sits where it sits; the table is an
+///   orientation, not ground truth.
+///
+/// Intervals *within* a hole (the rail's natural-to-target span, its
+/// intermediate slot positions) are ratios of two table entries and so are
+/// unaffected by either — do not subtract this from those.
+pub(super) fn reference_shift_cents(
+    settings: &BendingTrainerSettings,
+    harp_key: &str,
+    hole: u8,
+) -> f32 {
+    let a4 = 1200.0 * (settings.a4_hz / 440.0).log2();
+    let center = settings
+        .natural_center_cents
+        .get(&BendingTrainerSettings::center_key(harp_key, hole))
+        .copied()
+        .unwrap_or(0.0);
+    a4 + center
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum TunerObservation {
@@ -25,11 +53,40 @@ pub(super) fn natural_note_for_target(harp: &Harmonica, target: TrainerTarget) -
     }
 }
 
+/// How far off the table a measured reed centre is allowed to be before the
+/// readiness check stops believing it is the same note at all.
+const NATURAL_CHECK_WINDOW_CENTS: f32 = 12.0;
+
+/// Mean deviation from the table, in cents, of the samples the readiness
+/// check accepted — the reed's *observed* centre.
+///
+/// A mean rather than the last frame: the point of holding the note for a
+/// third of a second is to average out the detector's own jitter, and one
+/// frame would hand that jitter straight to every later reading as a fixed
+/// bias. `None` until at least a few samples are in.
+pub(super) fn observed_center_cents(samples: &[f32]) -> Option<f32> {
+    if samples.len() < 5 {
+        return None;
+    }
+    Some(samples.iter().sum::<f32>() / samples.len() as f32)
+}
+
+/// Runs the optional natural-note readiness check, and — once it confirms —
+/// records the reed's observed centre into
+/// [`BendingTrainerSettings::natural_center_cents`], which every later
+/// reading on that hole is then measured against
+/// ([`reference_shift_cents`]).
+///
+/// The capture is a side effect of a check the player already had a reason
+/// to run, never a calibration wizard they must complete first: the trainer
+/// works untouched, and a harp that was never checked just reads against
+/// the table.
 pub fn update_natural_check(
     key: Res<TrainerKey>,
     target: Res<TrainerTarget>,
     active: Res<ActivePitches>,
     time: Res<Time>,
+    mut settings: ResMut<BendingTrainerSettings>,
     mut check: ResMut<NaturalCheck>,
 ) {
     if target.is_changed() {
@@ -49,15 +106,32 @@ pub fn update_natural_check(
     let Some(freq) = note_freq_hz(&note) else {
         return;
     };
-    let centered = active.0.iter().any(|pitch| {
-        pitch.midi == midi && (1200.0 * (pitch.frequency / freq).log2()).abs() <= 12.0
-    });
-    check.hold_secs = if centered {
-        check.hold_secs + time.delta_secs()
+    // The A4 reference shifts what the table *means*, so it has to come off
+    // here too — otherwise checking a harp at A=442 would measure the
+    // reference back into the reed's own offset and double-count it.
+    let a4_shift = 1200.0 * (settings.a4_hz / 440.0).log2();
+    let deviation = active
+        .0
+        .iter()
+        .filter(|pitch| pitch.midi == midi)
+        .map(|pitch| 1200.0 * (pitch.frequency / freq).log2() - a4_shift)
+        .find(|cents| cents.abs() <= NATURAL_CHECK_WINDOW_CENTS);
+    if let Some(cents) = deviation {
+        check.hold_secs += time.delta_secs();
+        check.samples.push(cents);
     } else {
-        0.0
-    };
-    check.confirmed = check.hold_secs >= 0.35;
+        check.hold_secs = 0.0;
+        check.samples.clear();
+    }
+    if check.hold_secs >= 0.35 {
+        check.confirmed = true;
+        if let Some(center) = observed_center_cents(&check.samples) {
+            settings.natural_center_cents.insert(
+                BendingTrainerSettings::center_key(&key.0, target.hole),
+                center,
+            );
+        }
+    }
 }
 
 pub fn update_natural_check_label(
@@ -84,10 +158,16 @@ pub fn update_natural_check_label(
     }
 }
 
+/// Classifies what the microphone is hearing against `target`.
+/// `shift_cents` comes from [`reference_shift_cents`] and is subtracted from
+/// the reported distance — **the one place the player's reference settings
+/// enter the pitch maths**, so the tuner, the rail, the gesture machines and
+/// the drill cannot disagree about where the target is.
 pub(super) fn tuner_observation(
     harp: &Harmonica,
     target: TrainerTarget,
     active: &ActivePitches,
+    shift_cents: f32,
 ) -> Option<TunerObservation> {
     let target_freq = note_freq_hz(&target_note(harp, target)?)?;
     if active.0.is_empty() {
@@ -115,7 +195,7 @@ pub(super) fn tuner_observation(
         .min_by(by_distance)
     {
         return Some(TunerObservation::TargetFamily(
-            1200.0 * (heard.frequency / target_freq).log2(),
+            1200.0 * (heard.frequency / target_freq).log2() - shift_cents,
         ));
     }
     active
@@ -130,6 +210,7 @@ pub fn update_tuner_readout(
     target: Res<TrainerTarget>,
     active: Res<ActivePitches>,
     trace: Res<BendTrace>,
+    settings: Res<BendingTrainerSettings>,
     loc: Res<Localization>,
     mut labels: Query<(&mut Text, &mut TextColor), With<TunerReadout>>,
 ) {
@@ -142,7 +223,8 @@ pub fn update_tuner_readout(
         color.0 = Color::srgb(0.60, 0.60, 0.65);
         return;
     };
-    let Some(observation) = tuner_observation(&harp, *target, &active) else {
+    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    let Some(observation) = tuner_observation(&harp, *target, &active, shift) else {
         return;
     };
     let cents = match observation {
@@ -168,7 +250,7 @@ pub fn update_tuner_readout(
         }
         TunerObservation::TargetFamily(cents) => cents,
     };
-    let (key, color_value) = if cents.abs() <= IN_TUNE_CENTS {
+    let (key, color_value) = if cents.abs() <= settings.tolerance_cents {
         ("bending-in-tune", Color::srgb(0.45, 0.85, 0.50))
     } else if cents > 0.0 {
         ("bending-cents-sharp", Color::srgb(0.90, 0.70, 0.30))

@@ -12,9 +12,10 @@
 //! every menu page, see `menu::scene::header_scene`/`spawn_back_button`)
 //! sits above a two-column body, the same split `jam::session` uses: left
 //! has everything but the harmonica itself, top-aligned and grouped into
-//! four labelled sections — Setup (key, detect-algorithm), Practice Target
+//! five labelled sections — Setup (key, detect-algorithm), Practice Target
 //! (readout/Listen/tuner, one card), Drill (toggle + its hover explanation),
-//! Tempo (metronome + BPM steppers) — instead of one flat stack, and each
+//! Advanced (the collapsed precision drawer — see [`advanced`]) and Tempo
+//! (metronome + BPM steppers) — instead of one flat stack, and each
 //! group's own doc comment at its `setup` call site explains why (see
 //! [`left_section`]); right is entirely the harmonica — the bend diagram
 //! plus its technique hint.
@@ -32,6 +33,7 @@ use harmonicon_core::harmonica::{Harmonica, HoleNotes, hole_notes, richter_harp}
 use harmonicon_core::midi::{NOTE_NAMES, note_to_midi};
 use harmonicon_core::wav::encode_wav;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
+use harmonicon_platform::settings::BendingTrainerSettings;
 use harmonicon_ui::dialogs::algo_picker::{algo_labels, attach_algo_tooltip, on_algo_selected};
 use harmonicon_ui::dialogs::button;
 use harmonicon_ui::dialogs::button::BaseButtonColor;
@@ -161,7 +163,7 @@ impl Technique {
 /// The hole + technique the "Listen" button and the live tuner readout target.
 /// Not every hole has every technique (e.g. hole 5 has no bend) — [`Technique::note`]
 /// returns `None` for a hole/technique pair the harp can't produce.
-#[derive(Resource, Clone, Copy)]
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TrainerTarget {
     pub hole: u8,
     pub technique: Technique,
@@ -201,6 +203,15 @@ fn row_to_technique(row: Row) -> Option<Technique> {
 /// Shared across every selectable cell (see `spawn_harmonica_overlay_selectable`);
 /// looks up which cell fired via `DiagramCellTarget` on the clicked entity
 /// rather than a per-cell closure.
+///
+/// Under [`DrillScope::Custom`] the same click also toggles the cell's
+/// membership in the drill's own pool, which is what makes that scope a
+/// *set* the player builds rather than just whatever is selected right now.
+/// The diagram is the only sensible place to pick cells, and it already
+/// takes clicks — so a second interaction (a modifier chord, a separate
+/// edit mode) would have cost discoverability for nothing. Removing a cell
+/// leaves the target alone: taking something out of the pool is not a
+/// request to go practice it.
 // not-a-widget-button: harmonica-diagram cells are plain Nodes in a grid,
 // not buttons — the keyboard path to a cell is the trainer's own key
 // handling, not Tab focus.
@@ -208,6 +219,7 @@ fn on_diagram_cell_clicked(
     ev: On<PointerClick>,
     cells: Query<&DiagramCellTarget>,
     mut target: ResMut<TrainerTarget>,
+    mut drill: ResMut<DrillState>,
 ) {
     let Ok(cell) = cells.get(ev.entity) else {
         return;
@@ -215,6 +227,10 @@ fn on_diagram_cell_clicked(
     let Some(technique) = row_to_technique(cell.row) else {
         return;
     };
+    if drill.scope == DrillScope::Custom && !drill.custom.insert((cell.hole, technique)) {
+        drill.custom.remove(&(cell.hole, technique));
+        return;
+    }
     *target = TrainerTarget {
         hole: cell.hole,
         technique,
@@ -222,20 +238,33 @@ fn on_diagram_cell_clicked(
 }
 
 /// Yellow-borders whichever diagram cell matches the current [`TrainerTarget`]
-/// — the visible counterpart of [`on_diagram_cell_clicked`]. Written every
-/// frame rather than gated on `target.is_changed()`: the diagram itself is
-/// despawned and respawned on every key change (`rebuild_overlay`), and a
-/// change-gated system would miss re-applying the border to those fresh
-/// cells since the *target* didn't change, only the diagram under it.
+/// — the visible counterpart of [`on_diagram_cell_clicked`] — and, under
+/// [`DrillScope::Custom`], dim-ambers every other cell in the custom pool so
+/// the set the player is assembling is visible on the diagram itself rather
+/// than only as a count in the scope readout.
+///
+/// Written every frame rather than gated on `target.is_changed()`: the
+/// diagram itself is despawned and respawned on every key change
+/// (`rebuild_overlay`), and a change-gated system would miss re-applying the
+/// border to those fresh cells since the *target* didn't change, only the
+/// diagram under it.
 pub fn update_selected_cell_border(
     target: Res<TrainerTarget>,
+    drill: Res<DrillState>,
     mut cells: Query<(&DiagramCellTarget, &mut BorderColor)>,
 ) {
     const SELECTED: Color = Color::srgb(0.95, 0.85, 0.20);
+    const IN_CUSTOM_SCOPE: Color = Color::srgb(0.55, 0.45, 0.16);
+    let show_custom = drill.scope == DrillScope::Custom;
     for (cell, mut border) in &mut cells {
-        let selected =
-            cell.hole == target.hole && row_to_technique(cell.row) == Some(target.technique);
-        let color = if selected { SELECTED } else { Color::NONE };
+        let technique = row_to_technique(cell.row);
+        let color = if cell.hole == target.hole && technique == Some(target.technique) {
+            SELECTED
+        } else if show_custom && technique.is_some_and(|t| drill.custom.contains(&(cell.hole, t))) {
+            IN_CUSTOM_SCOPE
+        } else {
+            Color::NONE
+        };
         let wanted = BorderColor::all(color);
         if *border != wanted {
             *border = wanted;
@@ -260,6 +289,10 @@ pub struct NaturalCheck {
     requested: bool,
     hold_secs: f32,
     confirmed: bool,
+    /// Per-frame deviation from the table, in cents, of the samples accepted
+    /// so far — averaged into the reed's observed centre when the check
+    /// confirms (`feedback::observed_center_cents`).
+    samples: Vec<f32>,
 }
 
 #[derive(Component)]
@@ -346,6 +379,7 @@ pub fn setup(
     mut pitch_range: ResMut<PitchRange>,
     mut drill: ResMut<DrillState>,
     profile: Res<PlayerProfile>,
+    settings: Res<BendingTrainerSettings>,
     loc: Res<Localization>,
 ) {
     clock.set_free(0.0);
@@ -546,7 +580,16 @@ pub fn setup(
                     },
                 ));
                 card.spawn((
-                    Text::new(String::from(loc.msg("bending-check-natural-idle"))),
+                    Text::new(String::from(
+                        loc.msg_args(
+                            "bending-check-natural-idle",
+                            &[(
+                                "note",
+                                natural_note_for_target(&richter_harp(&key.0), *target)
+                                    .unwrap_or_else(|| "?".to_string()),
+                            )],
+                        ),
+                    )),
                     TextFont {
                         font_size: FontSize::Px(14.0),
                         ..default()
@@ -565,6 +608,27 @@ pub fn setup(
             // a left-column control used to change text nowhere near the
             // pointer) ───────────────────────────────────────────────────────
             left_section(left, &loc.msg("bending-section-drill"));
+            left.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(10.0),
+                ..default()
+            })
+            .with_children(|row| {
+                row.spawn_empty().apply_scene(button::small(
+                    &loc.msg("bending-scope-button"),
+                    cycle_drill_scope,
+                ));
+                row.spawn((
+                    Text::new(scope_status(&loc, DrillScope::default(), 0)),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
+                    DrillScopeLabel,
+                ));
+            });
             left.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
@@ -603,11 +667,17 @@ pub fn setup(
                             drill.enabled = !drill.enabled;
                             drill.hold_secs = 0.0;
                             drill.elapsed_secs = 0.0;
+                            drill.attempted = false;
                             if drill.enabled {
                                 let harp = richter_harp(&key.0);
-                                if let Some(next) =
-                                    pick_next_target(&harp, &drill.stats, Some(*target))
-                                {
+                                if let Some(next) = pick_next_target(
+                                    &harp,
+                                    &drill.stats,
+                                    Some(*target),
+                                    drill.scope,
+                                    &drill.custom,
+                                    *target,
+                                ) {
                                     *target = next;
                                 }
                             }
@@ -639,6 +709,10 @@ pub fn setup(
                 TextColor(Color::srgb(0.60, 0.60, 0.70)),
                 DrillExplanation,
             ));
+
+            // ── Advanced: the precision controls and the measurement
+            // view, collapsed by default (see `advanced`'s module doc) ──────
+            spawn_advanced_drawer(left, &loc, &settings);
 
             // ── Tempo control: −  ♩ = NN (in the metronome)  + ──────────────
             left_section(left, &loc.msg("bending-section-tempo"));
@@ -846,6 +920,7 @@ fn hide_drill_explanation(_: On<PointerOut>, mut labels: Query<&mut Text, With<D
     }
 }
 
+mod advanced;
 mod drill;
 mod feedback;
 mod gesture;
@@ -853,6 +928,7 @@ mod gesture;
 mod tests;
 mod trace;
 
+pub use advanced::*;
 pub use drill::*;
 pub use feedback::*;
 pub use gesture::*;

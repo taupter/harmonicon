@@ -2002,3 +2002,53 @@ fn score_notes_reports_an_unconfirmed_sustained_technique_when_the_sustain_ends(
         judgments[0]
     );
 }
+
+// ── GameplayPlugin's schedule ────────────────────────────────────────────
+
+/// Two whole classes of defect in this crate's schedule are invisible to the
+/// compiler and only surface as a panic when the screen is first entered:
+///
+/// - **B0001**, a system whose own queries take one component mutably twice
+///   without a `Without` proving them disjoint;
+/// - **an ambiguous `SystemTypeSet`**, from ordering `.after(some_system)`
+///   when that system is registered more than once in the schedule (this
+///   crate registers `collect_pitches` twice — see `TrainerPitchSet`).
+///
+/// `Schedule::initialize` performs exactly those two checks: it resolves the
+/// ordering graph and initializes every system's queries. Nothing needs to
+/// *run*, so no resources, assets or window are required — which is what
+/// makes covering the real plugin cheap enough to be worth doing, rather
+/// than re-listing its systems in a mirror that would drift.
+#[test]
+fn every_schedule_the_gameplay_plugin_builds_initializes() {
+    use bevy::asset::AssetPlugin;
+    use bevy::state::app::StatesPlugin;
+    use harmonicon_app::app::AppState;
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default(), StatesPlugin))
+        // The note-tail material plugins take a `Handle<Shader>` in their
+        // own `build`, and nothing here brings in `RenderPlugin` (which
+        // wants a GPU) to register that asset type for them.
+        .init_asset::<bevy::shader::Shader>()
+        .init_state::<AppState>()
+        .add_plugins(super::plugin::GameplayPlugin);
+    app.finish();
+
+    // Taken out of the world rather than borrowed through `resource_scope`:
+    // initializing a schedule can itself insert `Schedules` (state
+    // transitions add their own), which that scope rejects.
+    let mut schedules = app
+        .world_mut()
+        .remove_resource::<Schedules>()
+        .expect("the app has schedules");
+    let world = app.world_mut();
+    let mut built = 0;
+    for (label, schedule) in schedules.iter_mut() {
+        schedule
+            .initialize(world)
+            .unwrap_or_else(|err| panic!("schedule {label:?} failed to build: {err}"));
+        built += 1;
+    }
+    assert!(built > 0, "no schedules to check");
+}

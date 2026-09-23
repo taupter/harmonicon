@@ -93,6 +93,23 @@ where
 pub struct DrillRecord {
     pub attempts: u32,
     pub hits: u32,
+    /// Timeouts before a credible selected-hole onset. Kept separate so
+    /// putting the instrument down never lowers the player's accuracy.
+    pub skips: u32,
+    /// Exponentially weighted recent control (0..=1); absent in old profiles.
+    pub recent_control: f32,
+    pub recent_samples: u32,
+    /// Exponentially weighted line-fit residual (cents) of the held pitch on
+    /// recent attempts. `0.0` means never measured, which reads the same as
+    /// "rock steady" — deliberate, since an unmeasured target is already
+    /// drawn often by [`attempts`](Self::attempts) being low.
+    pub recent_stability_cents: f32,
+    /// Drill ordinal of the last attempt on this target, for staleness (see
+    /// the Bending Trainer's `drill::next_sequence`). **Not a wall clock**:
+    /// `SystemTime::now()` panics on `wasm32-unknown-unknown`, and a
+    /// monotonic count of drill attempts answers "how long since I last saw
+    /// this?" in the only unit the drill actually acts on. `0` = never.
+    pub practiced_at: u32,
 }
 
 /// Cross-session result for one lesson, keyed by the lesson manifest's
@@ -456,6 +473,18 @@ mod tests {
         // Older profile.json files predate the lessons map.
         let p: PlayerProfile = serde_json::from_str("{}").unwrap();
         assert!(p.lessons.is_empty());
+    }
+
+    #[test]
+    fn legacy_drill_records_gain_recent_evidence_defaults() {
+        let record: DrillRecord = serde_json::from_str(r#"{"attempts":7,"hits":3}"#).unwrap();
+        assert_eq!(record.attempts, 7);
+        assert_eq!(record.hits, 3);
+        assert_eq!(record.skips, 0);
+        assert_eq!(record.recent_samples, 0);
+        assert_eq!(record.recent_control, 0.0);
+        assert_eq!(record.recent_stability_cents, 0.0);
+        assert_eq!(record.practiced_at, 0);
     }
 
     #[test]
