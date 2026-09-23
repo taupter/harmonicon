@@ -2,10 +2,7 @@
 
 //! Pure tick-range functions over a song's notes — the Select/Erase/Remove
 //! timeline tools (`timeline.rs`) and the silence track (`grid.rs`) both
-//! read spans of the note list rather than mutating single notes. Split out
-//! of `state.rs` to stay under the file-size budget
-//! (`docs/physical_design_plan.md`); these functions don't touch
-//! `EditorState` itself, just `&[GridNote]`.
+//! read spans of the note list rather than mutating single notes.
 
 use super::state::{GridNote, Side};
 
@@ -31,14 +28,17 @@ pub(super) fn silence_gaps(notes: &[GridNote]) -> Vec<(usize, usize)> {
     let mut intervals: Vec<(usize, usize)> =
         notes.iter().map(|n| (n.tick, n.tick + n.len)).collect();
     intervals.sort_by_key(|&(start, _)| start);
-    let mut merged: Vec<(usize, usize)> = Vec::new();
-    for (start, end) in intervals {
-        match merged.last_mut() {
-            Some(last) if start <= last.1 => last.1 = last.1.max(end),
-            _ => merged.push((start, end)),
+    let Some((_, mut covered_end)) = intervals.first().copied() else {
+        return Vec::new();
+    };
+    let mut gaps = Vec::new();
+    for (start, end) in intervals.into_iter().skip(1) {
+        if start > covered_end {
+            gaps.push((covered_end, start));
         }
+        covered_end = covered_end.max(end);
     }
-    merged.windows(2).map(|w| (w[0].1, w[1].0)).collect()
+    gaps
 }
 
 /// The whole-side range a split point resolves to once the user clicks the
