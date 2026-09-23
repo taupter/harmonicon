@@ -592,7 +592,7 @@ pub(super) fn spawn_resize_grips(
                 move |ev: On<PointerDrag>,
                       mut state: ResMut<EditorState>,
                       ui_scale: Res<UiScale>| {
-                    let Some(drag) = state.dragging.clone() else {
+                    let Some(drag) = state.dragging.as_ref() else {
                         return;
                     };
                     if drag.kind != DragKind::Resize(edge) {
@@ -650,15 +650,16 @@ pub(super) fn spawn_resize_grips(
             )
             .observe(
                 move |_: On<PointerDragEnd>, mut state: ResMut<EditorState>| {
-                    let Some(drag) = state.dragging.clone() else {
+                    let Some(drag) = state.dragging.as_ref() else {
                         return;
                     };
                     if drag.kind != DragKind::Resize(edge) {
                         return;
                     }
+                    let id = drag.id;
                     state.dragging = None;
-                    enforce_direction(&mut state, drag.id);
-                    enforce_expr(&mut state, drag.id);
+                    enforce_direction(&mut state, id);
+                    enforce_expr(&mut state, id);
                 },
             );
     }
@@ -681,13 +682,19 @@ pub(super) fn update_resize_grips(
         .flatten();
     for (grip, mut node, mut vis) in &mut grips {
         let Some(note) = target else {
-            *vis = Visibility::Hidden;
+            if *vis != Visibility::Hidden {
+                *vis = Visibility::Hidden;
+            }
             continue;
         };
         let (left, top) = resize_grip_position(&note, grip.0);
-        node.left = Val::Px(left);
-        node.top = Val::Px(top);
-        *vis = Visibility::Inherited;
+        if node.left != Val::Px(left) || node.top != Val::Px(top) {
+            node.left = Val::Px(left);
+            node.top = Val::Px(top);
+        }
+        if *vis != Visibility::Inherited {
+            *vis = Visibility::Inherited;
+        }
     }
 }
 
