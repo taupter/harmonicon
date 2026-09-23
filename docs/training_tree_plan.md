@@ -25,8 +25,9 @@ the plan should not re-propose it.
   (per-technique hit rate), `ScaleAdherence`, `ChordToneAdherence`,
   `PhraseDiscipline`.
 - **Per-lesson progress**: `LessonRecord { passed, best_accuracy, attempts }`,
-  and `DrillRecord { attempts, hits }` per (hole, technique) from the
-  Bending Trainer's adaptive drill.
+  and a `DrillRecord` per (hole, technique) from the Bending Trainer's
+  adaptive drill (lifetime attempts/hits/skips plus recent control,
+  steadiness and a staleness stamp).
 - **Difficulty machinery**: `gameplay::adaptive_difficulty` already unlocks
   a chart phrase by phrase as the player earns it.
 - **Generated charts have precedent**: `jam::backing::generated_chart(key,
