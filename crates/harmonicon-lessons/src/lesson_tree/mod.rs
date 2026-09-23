@@ -358,10 +358,13 @@ pub(crate) fn setup_lesson_tree(
 
     // A unit discovered while the app is running starts expanded. Existing
     // animation values survive page rebuilds and visits to the reader.
-    let unit_ids: Vec<String> = tree.units.iter().map(|unit| unit.id.clone()).collect();
-    for id in unit_ids {
-        let initial = if collapsed.0.contains(&id) { 0.0 } else { 1.0 };
-        expansions.0.entry(id).or_insert(initial);
+    for unit in &tree.units {
+        let initial = if collapsed.0.contains(&unit.id) {
+            0.0
+        } else {
+            1.0
+        };
+        expansions.0.entry(unit.id.clone()).or_insert(initial);
     }
 
     // The plain root's content column sizes to its own content, so a canvas
@@ -681,14 +684,16 @@ fn tooltip_for(node: &PlacedNode, loc: &Localization) -> String {
     if node.state != NodeState::Locked || node.unmet.is_empty() {
         return head;
     }
-    let wants: Vec<String> = node
-        .unmet
-        .iter()
-        .map(|key| String::from(loc.msg(key)))
-        .collect();
+    let mut wants = String::new();
+    for key in &node.unmet {
+        if !wants.is_empty() {
+            wants.push_str(", ");
+        }
+        wants.push_str(&loc.msg(key));
+    }
     format!(
         "{head}\n{}",
-        loc.msg_args("lesson-tree-needs", &[("lessons", wants.join(", "))])
+        loc.msg_args("lesson-tree-needs", &[("lessons", wants)])
     )
 }
 
