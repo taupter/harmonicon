@@ -636,6 +636,7 @@ pub(crate) fn setup_lesson_reader(
                             clock: PhraseLoopClock::default(),
                             cells,
                             bpm: *bpm,
+                            displayed_bpm: *bpm as u32,
                             beats_per_step: *beats_per_step,
                             label,
                         },
@@ -729,6 +730,7 @@ pub(crate) fn setup_lesson_reader(
                         LessonMetronome {
                             clock: MetronomeClock::default(),
                             bpm: *bpm,
+                            displayed_bpm: *bpm as u32,
                             initial_bpm: *bpm,
                             tempo_steps: tempo_steps.clone(),
                             tempo_step: 0,

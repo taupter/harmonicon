@@ -11,6 +11,7 @@ use super::*;
 pub(crate) struct LessonMetronome {
     pub(super) clock: MetronomeClock,
     pub(super) bpm: f32,
+    pub(super) displayed_bpm: u32,
     pub(super) initial_bpm: f32,
     pub(super) tempo_steps: Vec<f32>,
     pub(super) tempo_step: usize,
@@ -107,6 +108,7 @@ pub(crate) struct LessonPhraseLooper {
     pub(super) clock: PhraseLoopClock,
     pub(super) cells: Vec<Entity>,
     pub(super) bpm: f32,
+    pub(super) displayed_bpm: u32,
     pub(super) beats_per_step: f32,
     pub(super) label: Entity,
 }
@@ -206,8 +208,12 @@ pub(crate) fn update_lesson_phrase_loopers(
     mut backgrounds: Query<&mut BackgroundColor>,
 ) {
     for mut looper in &mut loopers {
-        if let Ok(mut text) = labels.get_mut(looper.label) {
-            *text = Text::new(format!("♩ = {}", looper.bpm as u32));
+        let bpm_label = looper.bpm as u32;
+        if looper.displayed_bpm != bpm_label {
+            if let Ok(mut text) = labels.get_mut(looper.label) {
+                *text = Text::new(format!("♩ = {bpm_label}"));
+            }
+            looper.displayed_bpm = bpm_label;
         }
         let bpm = looper.bpm;
         let beats_per_step = looper.beats_per_step;
@@ -252,8 +258,12 @@ pub(crate) fn update_lesson_metronomes(
             // no meter, so its beat is its BPM beat — `60 / bpm` is the
             // honest answer here, not an x/4 assumption.
             .advance(time.delta_secs_f64(), 60.0 / f64::from(bpm), feel);
-        if let Ok(mut text) = labels.get_mut(metronome.label) {
-            *text = Text::new(format!("\u{2669} = {}", bpm as u32));
+        let bpm_label = bpm as u32;
+        if metronome.displayed_bpm != bpm_label {
+            if let Ok(mut text) = labels.get_mut(metronome.label) {
+                *text = Text::new(format!("\u{2669} = {bpm_label}"));
+            }
+            metronome.displayed_bpm = bpm_label;
         }
         let Some(tick) = tick else { continue };
         if !metronome.muted
