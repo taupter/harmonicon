@@ -2,11 +2,8 @@
 
 //! Undo/redo for the note grid — `Ctrl+Z`/`Ctrl+Y` (see
 //! `interaction::handle_undo_redo`) step through a history of the editor's
-//! *content*: [`EditorState::notes`], [`EditorState::tempo_changes`], and
-//! the harmonica kind that constrains which notes are valid. Other fields
-//! remain excluded so undoing a note edit does not rewind unrelated UI state.
-//! Every other `EditorState` field is deliberately excluded — undoing a
-//! note edit shouldn't rewind an unrelated scroll position or field.
+//! *content*: notes, timing changes, note metadata, and the harmonica kind.
+//! UI state such as selection and scroll position is excluded.
 //!
 //! Snapshot-based, not command-based: [`track_changes`] runs every frame
 //! `EditorState` changes and diffs against the last-seen snapshot, pushing
@@ -17,6 +14,7 @@
 //! one is active, collapsing the whole take into one undo step.
 
 use bevy::prelude::*;
+use std::collections::VecDeque;
 
 use super::record::RecordState;
 use super::state::{EditorState, GridNote, HarmonicaKind, LoadedHarmonica, PhraseAnnotation};
@@ -88,8 +86,8 @@ impl Snapshot {
 /// more likely to confuse than help.
 #[derive(Resource, Default)]
 pub(super) struct UndoHistory {
-    past: Vec<Snapshot>,
-    future: Vec<Snapshot>,
+    past: VecDeque<Snapshot>,
+    future: VecDeque<Snapshot>,
     /// The content as of the last [`Self::record_if_changed`] call —
     /// `None` only before the very first one, which seeds it without
     /// pushing anything (there's nothing to undo *to* yet).
@@ -113,9 +111,9 @@ impl UndoHistory {
         bytes += self.last.as_ref().map_or(0, Snapshot::bytes);
         while self.past.len() + self.future.len() > HISTORY_LIMIT || bytes > budget {
             let removed = if !self.past.is_empty() {
-                self.past.remove(0)
+                self.past.pop_front().unwrap()
             } else if !self.future.is_empty() {
-                self.future.remove(0)
+                self.future.pop_front().unwrap()
             } else {
                 break;
             };
@@ -135,11 +133,11 @@ impl UndoHistory {
     /// current one onto the redo stack. A no-op if there's nothing to
     /// undo.
     pub(super) fn undo(&mut self, state: &mut EditorState) {
-        let Some(prev) = self.past.pop() else {
+        let Some(prev) = self.past.pop_back() else {
             return;
         };
         if let Some(current) = self.last.replace(prev.clone()) {
-            self.future.push(current);
+            self.future.push_back(current);
         }
         prev.restore(state);
         self.trim();
@@ -149,11 +147,11 @@ impl UndoHistory {
     /// back onto the undo stack. No-op if there's nothing to redo, or after
     /// any fresh edit — a new edit invalidates redo, same as any editor.
     pub(super) fn redo(&mut self, state: &mut EditorState) {
-        let Some(next) = self.future.pop() else {
+        let Some(next) = self.future.pop_back() else {
             return;
         };
         if let Some(current) = self.last.replace(next.clone()) {
-            self.past.push(current);
+            self.past.push_back(current);
         }
         next.restore(state);
         self.trim();
@@ -169,7 +167,7 @@ impl UndoHistory {
             return;
         }
         if let Some(prev) = self.last.replace(Snapshot::capture(state)) {
-            self.past.push(prev);
+            self.past.push_back(prev);
         }
         self.future.clear();
         self.trim();

@@ -49,10 +49,12 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/interaction.rs` — borrow drag state during resize and avoid unconditional grip component writes on idle frames, reducing cloning and Bevy change-detection churn. The sticky intensity string still needs ownership in note metadata. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/clipboard.rs` — reserve paste-target capacity once from the clipboard length and fix the stale function link in module docs. Returned owned notes remain required for assigning fresh IDs. All six paste tests passed.
 - `crates/harmonicon-editor/src/song_editor/metadata_sync.rs` — reuse the editor's selection vector when opening a phrase or pasting, avoiding temporary or replacement ID vectors. Other metadata clones are required to retain copied clipboard values or re-key annotations. All 377 editor tests passed.
+- `crates/harmonicon-editor/src/song_editor/undo.rs` — use `VecDeque` for history so evicting old snapshots does not shift the retained history; correct docs that omitted already-tracked metadata. Snapshot clones on undo/redo still serve the current state and history independently. All 12 undo-filtered tests passed.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
-- Next review: continue `harmonicon-editor` at `src/song_editor/undo.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
+- Next review: continue `harmonicon-editor` at `src/song_editor/ranges.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
