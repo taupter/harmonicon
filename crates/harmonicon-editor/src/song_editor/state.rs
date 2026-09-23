@@ -446,11 +446,19 @@ impl EditorState {
     /// is the *opening* meter only, for the consumers that genuinely take
     /// one value (the metronome's click and the staff's head).
     pub(super) fn meter_map(&self) -> harmonicon_ui::music_score::MeterMap {
+        let mut changes: Vec<_> = self
+            .meter_changes
+            .iter()
+            .filter(|(tick, _)| *tick > 0)
+            .collect();
+        changes.sort_by_key(|(tick, _)| *tick);
+        changes.dedup_by_key(|(tick, _)| *tick);
         harmonicon_ui::music_score::MeterMap::new(
-            self.time_signature_map()
-                .iter()
-                .map(|p| (p.tick, p.time_signature.as_str()))
-                .collect::<Vec<_>>(),
+            std::iter::once((0, self.time_signature.as_str())).chain(
+                changes
+                    .into_iter()
+                    .map(|(tick, signature)| (*tick as u64, signature.as_str())),
+            ),
             TICKS_PER_BEAT as u32,
         )
     }
