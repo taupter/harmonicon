@@ -8,7 +8,11 @@ practice trainings hanging off each lesson, shown as a top-down skill
 tree. Curriculum content design stays in `docs/lessons_plan.md`; this
 covers structure, progression, UI and motivation.
 
-Nothing here is built yet.
+Status: the graph and validators, training records and results routing,
+the tree view and the per-lesson mastery ring are built. Trainings exist
+only for the `bend` track, pending a verdict on whether generated drills
+are good enough; the per-track mastery meter, review queue and practice
+streak are not built. `PLAN.md` tracks what's open.
 
 ## What already exists
 

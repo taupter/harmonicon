@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-//! Generated Jam Session backing: a synthesized 12-bar bass line, in a
-//! genre-selectable rhythmic shape ([`Genre`]), for any key/tempo/
-//! progression, so Jam Session doesn't require picking an existing song.
-//! Design and open listening work: `docs/jam_feel_plan.md`.
+//! Generated Jam Session backing: a synthesized rhythm section of bass,
+//! drums and chordal comping, for any key, tempo and progression, so Jam
+//! Session doesn't require picking an existing song. Each [`Genre`] has its
+//! own `GrooveArrangement` (per-role rhythmic slots, fills at bars 4, 8 and
+//! 11, a bar-12 turnaround), shaped over a four-chorus arc by [`BandEnergy`]
+//! and humanized deterministically from a stored seed. The three roles
+//! render as sample-aligned stems, so each can be muted live without
+//! drifting from the others. Design and open listening work:
+//! `docs/jam_feel_plan.md`.
 //!
-//! Deliberately not the harmonica-timbre synth `song_editor::playback`
-//! shares with `gameplay::call_response` — a backing bass is a different
-//! instrument, and reusing harmonica partials here would risk sounding like
+//! Deliberately not the harmonica-timbre synth in `harmonicon_core::synth`
+//! that `gameplay::call_response` uses. A backing band is a different set of
+//! instruments, and reusing harmonica partials here would risk sounding like
 //! a second harmonica part to echo instead of backing to play over.
 
 use std::f32::consts::TAU;
