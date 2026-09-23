@@ -33,7 +33,7 @@ pub(crate) fn setup_song_list(
     );
 
     if let Some(artist_songs) = songs.0.get(&selected_artist.0) {
-        let mut sorted = artist_songs.clone();
+        let mut sorted: Vec<_> = artist_songs.iter().collect();
         sorted.sort_unstable_by(|a, b| a.name.cmp(&b.name));
         for song in &sorted {
             let path = song.asset_path.clone();
