@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! The timeline ruler's Select editing tool. With Select active
+//! The timeline ruler's Select, Erase, Remove, Tempo, Meter, and Record
+//! seek interactions. With Select active
 //! (`EditorState::timeline_tool`), the header strip above the note grid
 //! builds a range selection ([`TimelineSelection`]) two ways:
 //!
