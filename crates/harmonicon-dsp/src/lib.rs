@@ -409,31 +409,17 @@ fn parabolic_peak(mags: &[f32], bin: usize, freq_res: f32) -> f32 {
 // Remove peaks that are integer multiples (harmonics) of a stronger peak.
 // The input slice must already be sorted by magnitude descending.
 fn suppress_harmonics(peaks: &[(f32, f32)]) -> Vec<(f32, f32)> {
-    let mut suppressed = vec![false; peaks.len()];
-    for i in 0..peaks.len() {
-        if suppressed[i] {
-            continue;
-        }
-        for j in 0..peaks.len() {
-            if i == j || suppressed[j] {
-                continue;
-            }
-            let ratio = peaks[j].0 / peaks[i].0;
-            for h in 2..=8u32 {
-                // 5 % tolerance per harmonic number
-                if (ratio - h as f32).abs() < 0.05 * h as f32 {
-                    suppressed[j] = true;
-                    break;
-                }
-            }
+    let mut fundamentals: Vec<(f32, f32)> = Vec::with_capacity(peaks.len());
+    for &peak in peaks {
+        let is_harmonic = fundamentals.iter().any(|&(freq, _)| {
+            let ratio = peak.0 / freq;
+            (2..=8u32).any(|h| (ratio - h as f32).abs() < 0.05 * h as f32)
+        });
+        if !is_harmonic {
+            fundamentals.push(peak);
         }
     }
-    peaks
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !suppressed[*i])
-        .map(|(_, &p)| p)
-        .collect()
+    fundamentals
 }
 
 // ── YIN ─────────────────────────────────────────────────────────────────────
@@ -778,10 +764,15 @@ fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict) -> Vec<PitchInfo> {
 
     // a ← a · (Dᵀy) / (DᵀD·a). Start uniform-positive so every note can grow.
     let mut a = vec![1.0f32; n];
+    let mut dtda = vec![0.0f32; n];
     for _ in 0..NMF_ITERS {
-        let dtda: Vec<f32> = (0..n)
-            .map(|k| (0..n).map(|j| dict.dtd[k][j] * a[j]).sum::<f32>())
-            .collect();
+        for (value, row) in dtda.iter_mut().zip(&dict.dtd) {
+            *value = row
+                .iter()
+                .zip(&a)
+                .map(|(weight, activation)| weight * activation)
+                .sum();
+        }
         for k in 0..n {
             a[k] *= dty[k] / (dtda[k] + 1e-9);
         }
