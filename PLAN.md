@@ -1,376 +1,124 @@
 # Plan
 
-Execution order and implementation notes for what's currently in flight.
-Companion to `TODO.md` (the open checklist) and `ROADMAP.md` (the
-destination). Once a phase ships, its detail belongs to git history, not
-this file — prune it back to a one-line summary under "Shipped" below.
+Open work only, gathered from every plan in `docs/` and checked against the
+code. Each item names the doc holding its design. When something lands,
+delete its line: git history is the record of what shipped, and `CLAUDE.md`
+holds any invariant future code must respect. Companions: `TODO.md` (the
+small-item checklist) and `ROADMAP.md` (the destination).
 
-## In flight
+## Needs a harp, a microphone, or ears
 
-- **Jam Session feel pass** — improve `harmonicon-jam` as an unscored musical
-  space rather than another teaching surface. All six phases of
-  `docs/jam_feel_plan.md` are in (continuity and endings, the generated
-  rhythm section, the four-chorus arc and Band energy, the listening-first
-  stage, phrase-shaped call-and-response, and the band listening without
-  grading). What remains is role-specific timbres for the rhythm section
-  and the listening reviews the audio phases still owe — balance,
-  genre credibility, the call's timbre against the band, the comping
-  thinning depth and whether the band's answers sit in each groove.
+Nothing below can be approved by a test.
 
-## Shipped
+- **Bending Trainer validation**, with the C and G harps on hand:
+  `docs/gameplay_validation.md` § Bending Trainer. Registers neither harp
+  reaches (below G3, above C7) stay open in `docs/bending_trainer_plan.md`
+  § Verification.
+- **Jam Session listening pass**, the only work left in
+  `docs/jam_feel_plan.md`. Run `cargo run -p harmonicon-jam --example
+  listening_matrix`, then complete the Jam Session rows in
+  `docs/gameplay_validation.md`: balance, genre credibility, the call's
+  timbre and duck depth, the thinning depth, and whether the band's answers
+  sit in each groove. The outcome must be rows marked complete or named mix
+  changes, not impressions.
+- **Scored play, live**: the mid-hold drop-out, the steady-vs-wobble vibrato
+  contrast, and whether judgment feedback lands on the same visual beat as
+  the judged note (`docs/gameplay_improvement_plan.md`, Phase 2).
+- **A recorded detection corpus** (`docs/pitch_detection_plan.md`): single
+  notes, bends, overbends, adjacent-hole chords, octave splits, tongue-block
+  intervals, blow/draw transitions, breath-only passages and room noise, at
+  several loudnesses, distances and, where practical, two microphones. Keep
+  the first takes fixed as the baseline. Once it exists:
+  - add detector strength to `PitchInfo` and infer direction from summed
+    evidence;
+  - tune onset, release and direction-change hysteresis from measured
+    errors, including whether `release_frames` should rise above 1;
+  - learn per-(hole, direction, technique) spectral templates and fit them
+    with sparse non-negative reconstruction plus noise and residual terms;
+  - add a frequency-dependent noise estimate and separate attack/sustain
+    thresholds;
+  - decide whether the harmonica constraint solver goes live, scoped to
+    NMF only. It is proven only on synthetic audio, and a real reed's
+    blow/draw transition may be stripped like a phantom.
 
-Full design detail for anything below lives in `CLAUDE.md` (architecture)
-and git history (implementation); this list is intentionally just a
-one-line index of what's landed.
+  Accept a change only if the corpus improves without losing exact chord
+  recall or adding latency.
 
-- **Scored-gameplay experience pass** — the five phases of
-  `docs/gameplay_improvement_plan.md`: highway hierarchy and authored-only
-  context, per-note judgment feedback (message contract, head pop/stamp,
-  hold-state tail, live technique status), practice aids in the live HUD,
-  results as coaching (`gameplay::coaching`, "Practice missed section"),
-  reduced motion, and a localization sweep. Dev autoplay
-  (`brpctl.py autoplay on`) and `scripts/locale_tour.py` came out of
-  verifying it. Still needing a real harp: the mid-hold drop-out and the
-  steady-vs-wobble vibrato contrast (`docs/gameplay_validation.md`).
-- **Bring your own harp, bring your own songs** — `harmonicon_core::
-  pitch_map` (exact, bends, slide, overblow/overdraw) and `harp_remap`;
-  the pre-play harp-check page with its cost line; `EffectiveHarmonica`
-  driving the judge, the detector range, and now every on-screen read of
-  the instrument (hole strip, hole glow, lane count, the "grab a G harp"
-  hint and its sounding key, Jam Session's hole map) — see
-  `harmonicon-gameplay`'s CLAUDE.md; `harmonicon-score` reading MIDI,
-  Guitar Pro 3–7, MuseScore and plain/compressed MusicXML behind one trait with
-  name-based harmonica-track selection.
-- **0.2 "Trustworthy"** — audio-synced clock, chart-derived detection
-  range, mic device picker/retry, per-song persistence.
-- **0.3 "Practice"** — A–B looping, practice speed, wait-for-note, tab
-  display, shuffle metronome, bend trainer progression.
-- **0.4, most of it** — adaptive difficulty, jam position/scale overlays,
-  the lessons engine + content wave 1, generated 12-bar backing,
-  selectable jam progressions/positions, freeform call-and-response in
-  Jam Session.
-- **Lessons content wave 2** — Units 1–3 (basics extensions, bar-counting/
-  train-rhythm drills, blues-vocabulary licks + improvisation), 19 lessons.
-- **Lessons content wave 3** — new Unit 4 "Scales and Improvisation" (6
-  lessons: major/minor-pentatonic/country scale run drills, major/minor-
-  pentatonic open-jam improvisation, quick-change improvisation) plus the
-  `JamScale` engine work making Jam Session's live scale feedback
-  configurable instead of hardcoded to blues (`docs/lessons_plan.md`).
-- **Lessons Unit 5 "jazz", 4 of 5 lessons** — swing-eighths, ii-V-I chord
-  tones, jazz-blues form (open jam), chromatic slide basics; all pure
-  content, no engine work needed. "Jazz heads" (actual repertoire) is
-  deliberately not built — blocked on specific pieces confirmed public
-  domain, not just content authoring (`docs/lessons_plan.md`).
-- **Genre-selectable Jam Session backing** — a `Genre` axis (Blues/Jazz/
-  Rock/Reggae/Country, `jam::backing`) alongside the existing `Progression`,
-  each with its own bass rhythm pattern and straight/swing feel; a new
-  "Genre" combobox on Generate Jam. Also fixed that page's comboboxes
-  getting their open dropdowns clipped (a `ScrollArea` clips to its
-  content's own height, not the full window, when content is shorter than
-  available space) via a new non-scrolling `spawn_menu_root_plain`.
-- **Harmonica rhythm guide + metronome swing-visual fix** — a live pulse
-  row in Jam Session (`jam::rhythm_guide`) showing when the picked genre's
-  groove wants a harmonica attack, reusing `jam::backing::genre_pattern`'s
-  rhythm data directly so it can't drift from the bass audio it's modeled
-  on. Along the way, fixed the metronome's visual beat dot to actually
-  pulse twice per beat in Shuffle feel (matching the audio click, which
-  already did) instead of a single beat-long decay.
-- **Circle-of-fifths lesson** — a new `dialogs::circle_of_fifths` diagram
-  widget (this crate's first circular UI layout) visualizing that a
-  harmonica `Position` is just a step count around the circle of fifths;
-  `Position` also grew `Fourth`/`Fifth`/`Twelfth` variants.
-- **Circle-of-fifths, live in Jam Session** — `jam::position_guide` adds a
-  live position compass (always shown in Jam Session) and a
-  `position_cycle` lesson mechanic that calls a new position every 4 bars,
-  reusing the existing `ScaleAdherence` scoring against a moving target
-  instead of a fixed one; new lesson `circle-of-fifths-jam`.
-- **Workspace split, done** — eleven library crates under `crates/`, the
-  root package reduced to the binary (`main.rs` + `src/bin/*`, keeping
-  `assets/`, `build.rs`, `tests/`, so `cargo run` and packaging are
-  unchanged). Layering is now compiler-enforced: a crate cycle isn't
-  expressible. `harmonicon-core` is Bevy-free, so pure-logic work iterates
-  in seconds. No re-export facades — call sites name the crate they depend
-  on. Extractions surfaced several real leaks: widgets whose internals were
-  reachable only because a caller ordered against a system by name (now
-  `ComboboxEscapeSet`/`MusicVolumeSet`), re-export chains hiding where code
-  lived, and a test that found `assets/` only by accident of CWD.
-- **Acyclic module graph, enforced** — broke every dependency cycle
-  (`settings ↔ audio_system`, and the `{gameplay, jam, menu, song_editor}`
-  component covering two thirds of the tree) and added
-  `no_module_dependency_cycles` to `tests/physical_design.rs` to keep it
-  that way, with no allowlist. Prerequisite for the workspace split, since
-  Cargo cannot express a circular crate dependency.
-- **Physical-design restructuring** — layering fixes, inline tests evicted
-  to `tests.rs` files, `gameplay`/`menu`/`lessons` split into their target
-  layouts, `jam` gathered into `harmonicon-jam`, a file-size budget test.
-- **Song editor: full authoring tool** — Record/Edit/Play modes with
-  live-mic recording, MIDI import, multi-select, copy-paste,
-  Select/Erase/Remove/Tempo tools, a real tempo map, selectable
-  out-of-scale coloring, lesson authoring alongside plain songs.
-- **Song editor: undo/redo, metronome + count-in, pitch audition on
-  select, save/validation feedback in the status bar, swing/triplet grid
-  snap** — the UX pass that closed out the authoring tool's remaining gaps.
-- **Code-duplication cleanup** (whole-tree scan) — shared note-builder/
-  glow-step/legend/diagram/MIDI-parsing helpers replacing near-identical
-  copies across gameplay 2D/3D, the Song Editor, and menus.
-- **Build-time message-registration check** — `build.rs` fails the build
-  if a `#[derive(Message)]` type is never registered, instead of only
-  surfacing as a runtime panic.
-- **Packaging CI fixes** — Flatpak `eu-strip` dependency fix; macOS
-  packaging now checked on every push, not just at a release tag.
-- **0.5: live auto-refresh of `~/Harmonicon`** — songs/themes/lessons
-  dropped into the external folder show up without a manual refresh or
-  restart.
-- **Options: fullscreen toggle**.
-- **Song-progress bar: per-hole note lanes + phrase overlay**, survives a
-  song with no backing track.
-- **Menu pages auto-scroll** instead of silently overflowing.
-- **0.6: jazz engine prerequisites** — ii–V–I chord tables, jazz-blues
-  progression. Content authoring is what's left (`TODO.md`).
-- **Alternate harmonica tunings** — Paddy Richter, natural minor.
-- **Accessibility: colorblind-safe note palette** (Play 2D/3D highway).
-- **`phrase_learned` stable keying** — adaptive-difficulty progress keyed
-  by phrase name, not track position.
-- **Jam Session: MIDI multi-track backing with per-track mute**.
-- **Shared music-notation staff** (`harmonicon-ui`'s `music_score/`, Bravura/SMuFL) —
-  below the song-progress bar in Play 2D/3D and in the Song Editor.
-- **Compact layout for narrow windows** (`harmonicon-platform`'s `responsive.rs`) — Play
-  2D/3D and the Song Editor adapt below a shared width breakpoint; menus
-  were already scroll-safe and out of scope.
-- **Android/iOS prep, desktop-verifiable groundwork** — on-screen
-  equivalents for every keyboard-only action found (UI zoom, the Song
-  Editor's Delete/Copy/Paste, the spectrogram's style cycle), plus
-  `MicStatus::AwaitingPermission` groundwork for a future mobile
-  permission-prompt flow.
-- **Android port: a real APK builds and runs on an emulator; never on real
-  hardware.**
-  `contributing/src/android-build.md` is the full record, including exactly what is and isn't
-  verified. `packaging/android` (Gradle + cargo-ndk, alongside the existing
-  flatpak/macos/windows packaging) emits a signed 147 MB APK whose contents
-  were inspected rather than assumed — arm64 cdylib exporting `android_main`
-  and `GameActivity_onCreate`, `GameActivity` in `classes.dex`,
-  `RECORD_AUDIO` declared, all 186 asset entries present, dev-only
-  `debug_songs` excluded — and CI's `android_check` job type-checks the
-  target via `cargo ndk`. Landed: `crates/harmonicon-android` (a cdylib
-  exporting `android_main`, with the composition root moved to
-  `src/lib.rs`'s `run()` so both entry points share it), GameActivity over
-  NativeActivity for its IME handling, manifest-backed asset *and lesson*
-  discovery for targets whose `assets/` isn't a readable directory, a real
-  `RECORD_AUDIO` runtime permission flow over JNI feeding the pre-existing
-  `MicStatus::AwaitingPermission`, and the `external://`/`~/Harmonicon`
-  paths gated off. It has since been **run on an Android 15 emulator**: it launches, the
-  menu renders, assets load out of the APK, and granting RECORD_AUDIO opens
-  a 44.1 kHz capture stream. Two bugs were found only by running it — the
-  games-activity POM declares no dependencies, so `androidx.appcompat` (its
-  own superclass) had to be added explicitly along with an AppCompat theme;
-  and `ndk_context` hands back the *Application*, not the Activity, so
-  `requestPermissions` threw `NoSuchMethodError`. Still open: **a real
-  phone** — nobody has played a harmonica into it, and an emulator says
-  nothing about mic latency or AGC — plus **nothing persists on Android**
-  (`dirs::config_dir()` is `None`, so progress and settings are lost on
-  exit) — plus a touch/hit-target pass, an app icon
-  (there is none), arm64-only ABI coverage, and replacing the debug signing
-  key. iOS is untouched and needs Xcode; the asset-discovery cfgs
-  deliberately exclude it, since an app bundle's Resources directory reads
-  like any other. Fixing Android's lesson discovery also fixed **wasm**,
-  where the Lessons menu had been silently empty.
+## Code work, unblocked
 
-## Current work
+- **Lesson tree honours Reduced Motion.** Its plan waited for a
+  shared setting; `settings::ReducedMotion` now exists, and the collapse
+  and neighbour-slide transitions should jump to their end state under it
+  (`docs/lesson_tree_layout_plan.md`).
+- **Training tiers state their goal.** A tier button reads only `1`–`5`.
+  Show the tier's name (Isolate … Interleave) and its concrete goal before
+  it starts; `training_criteria` already computes it
+  (`docs/training_tree_plan.md` §4).
+- **Practice motivation**, in this order: a per-track mastery meter (only
+  the per-node ring exists), a spaced "Warm-up" review queue from
+  last-passed dates, then a practice streak that forgives a missed day and
+  is never framed as loss (`docs/training_tree_plan.md` §4).
+- **Measure the curriculum's chokepoints.** `lessons::graph::min_choices`
+  has only ever run on synthetic graphs; the chokepoints were measured on
+  the old 41-lesson curriculum. Run it on the shipped 100 lessons, and where
+  one lesson is still the only way forward, widen the prerequisites
+  (`docs/training_tree_plan.md` §1).
+- **`note_bench` metrics**: exact-set chord precision/recall, per-note
+  precision/recall, direction accuracy, onset and release latency, and
+  per-scenario summaries. Buildable now against the synthetic dataset;
+  meaningful once the corpus exists (`docs/pitch_detection_plan.md`).
+- **Layout assertions** for scored play's pure decisions, such as which
+  contextual panels a chart shows (`docs/gameplay_improvement_plan.md`,
+  Phase 0).
+- **Song Editor arranging**: repeats and endings, pickups/count-in, lyrics,
+  transposition and batch editing. Each needs round-trip and playability
+  tests plus player and contributor docs as it lands.
 
-### Song Editor correctness and composition pass
+## Decide before building
 
-Work in risk order:
+- **Are generated trainings good enough?** The generator exists and the
+  `bend` track has specs (`first-bend`, `deep-bends`, `high-blow-bends`).
+  Play them. Only a yes rolls trainings out to the other tracks
+  (`docs/training_tree_plan.md`, Order of work 1 and 5).
+- **Technique symbols beside the notes.** The note-head label drops the
+  bend/overblow/slide suffix on purpose, so this reverses a design rather
+  than fixing an oversight (`docs/gameplay_improvement_plan.md`, Phase 1).
+- **Play 3D's hole map and beat guides.** Its lane is world-space geometry,
+  so guides mean projecting `HIT_Z` per beat, not reusing the 2D spawner
+  (same phase).
+- **The single-lesson `hand` track**: fold it into `tone`, or leave the gap
+  visible as a place the curriculum wants more lessons.
 
-1. **Done:** Make chart editing round-trip safe: preserve unequal simultaneous note
-   lengths, validate and migrate files on load, reject unsupported future
-   versions, and retain or clearly warn about chart fields the editor cannot
-   represent.
-2. **Done:** Keep editor state valid across undo and instrument changes, including the
-   harmonica kind and any other settings that determine whether notes are
-   playable.
-3. **Done:** Make score import harmonica-aware at the phrase level: import meter, detect
-   mixed-breath and duplicate-hole voicings, and report approximated or dropped
-   pitches instead of silently accepting them.
-4. Extend the document model for practical arranging: alternate tunings and
-   16-hole chromatic first, then section/chord markers, repeats and endings,
-   pickups/count-in, lyrics, transposition, and batch editing.
-   **Alternate tunings and 16-hole chromatic are done; arranging annotations
-   and editing operations remain.**
-5. Add focused round-trip and playability tests for each item, then update the
-   player and contributor documentation as behavior becomes available.
+## Deferred until a condition is met
 
-### Song Editor: one editing surface per kind of data
+- **A graded `Sustain` outcome**: only as a deliberate scoring change,
+  never folded into UI work.
+- **Judgment sounds**: only after testing against microphone capture,
+  since speaker feedback can contaminate detection.
+- **A lesson-map minimap**: only on usability evidence.
 
-The Details form mixes three kinds of field that are attached to three
-different things, and the per-note/per-phrase ones don't belong in a
-form whose job is "generic song information":
+## Content, not to be authored unsupervised
 
-| Attached to | Fields | Where it belongs |
-|---|---|---|
-| the song | tempo, key, meter, position, music, name, author, … | Details (stays) |
-| a phrase — the notes sharing an onset, keyed by tick | section, chord, groove, call, split | the annotation lane |
-| one note — keyed by id | technique, expression, expression depth | the toolbar |
+- **Blues starter pack** (1.0 rc3). The automatable half is validation and
+  difficulty calibration.
+- **Recorded backing loops** per style (shuffle, slow blues, swing), as an
+  alternative to the generated band.
 
-The toolbar is *already* the per-note surface: `panel::update_mod_panel`
-lights Blow/Draw, Bend (+ depth dot), Overblow/Overdraw/Slide and Wah/
-Vibrato (with the rate in the label) for the selected note, and with
-nothing selected shows the sticky-armed defaults the *next* placed note
-gets; a click both edits the selection and arms the sticky. Any second
-per-note surface — a popup under the note was considered — would
-duplicate that, two places lighting up for one note, on top of the
-occlusion and respawn-lifecycle costs a popup over the grid carries
-(note entities die on every `rebuild_grid`; the resize grips are
-persistent for exactly that reason). So the plan builds on the toolbar
-rather than beside it.
+## Release (1.0, desktop)
 
-1. **Done.** Two-column toolbar. Left: document and tools — back, save, load,
-   undo, redo, Edit/Record/Play, lock, metronome, legend, the timeline
-   tools, copy *and* paste (kept together; a needs-a-selection Copy dims
-   like Undo does rather than moving columns). Right: **the note** — the
-   selected one, or the next one to be placed — Blow/Draw, Bend/Overblow/
-   Overdraw/Slide, Wah/Vibrato, Depth, Call, Split, delete. The column is
-   named for what it *is*, not "the selection", because it never empties:
-   with nothing selected it shows what the next note gets. It's Edit-mode
-   content (`EditModeGroup` already hides the technique buttons in
-   Record/Play), so collapse it with `Display::None` outside Edit and give
-   the width back exactly when the grid needs it. Two icon columns are
-   112 px (`toolbar_width`); in the text-label styles show one column
-   only — two 168 px columns is a third of a small screen. This applies
-   the toolbar's own stated principle again: spend horizontal space, the
-   axis a landscape screen has to spare, instead of vertical.
-2. **Done — stepped.** Depth as a right-column cycle button (¼ ½ ¾ 1), dual-mode like the
-   Hz cycling Wah/Vibrato already do, replacing the Details text field.
-   **Open decision:** stepped depth loses the free 0–1 float the field
-   accepts today. If depth must stay a free number, it needs a text field
-   and the right column can't host it — it would then go to the phrase
-   strip below as a note-mode row. Decide before starting.
-3. **Done.** Call/Split as right-column buttons. They're phrase bools, bound to
-   the selected note's onset — how Details already resolves them — so
-   they need no phrase selection of their own.
-4. **Done.** Section/chord/groove on the annotation lane: markers at each
-   annotated onset (`annotation_lane.rs`), and clicking one opens a
-   persistent popover beneath it with the three text fields
-   (`phrase_editor.rs`), selecting the phrase's notes as it does. What's
-   still missing for step 5 is a way to annotate an onset that has *no*
-   marker yet — that's the right column's job (step 1: a "Phrase…" button
-   opening the same popover for the selected note's onset), so Details
-   keeps its rows until the toolbar lands.
-5. **Done.** Details becomes song-only. Remove the Section/Chord/Groove/
-   ExpressionIntensity rows and the Call/Split checkboxes from `FIELDS`
-   and `meta_form`. This also simplifies the audit plan's "controls for
-   preserved song settings" item — everything left in Details is genuinely
-   per-song.
+- Flathub submission and release signing keys. Version/tag agreement is
+  already enforced by `release.yaml`.
 
-All five done; the section below is now a record of the design, to be
-pruned to a one-line entry under "Shipped" once it has settled. Each step keeps `update_mod_panel`'s dual-mode
-tests green and adds the same shape of test for Depth/Call/Split.
+## Mobile (post-1.0, needs hardware)
 
-Finishing 0.4:
+`contributing/src/android-build.md` has the detail.
 
-1. **Backing track variety, remainder** (0.4): recorded loops per style
-   (shuffle, slow blues, swing) as a richer alternative to the generated
-   bass — real audio content, not a code task.
-2. **Lessons Unit 5 "jazz"** — 4 of 5 lessons shipped (see Shipped above);
-   what's left is just "jazz heads", blocked on rights-verified repertoire,
-   and it isn't part of finishing 0.4 (`ROADMAP.md`).
-
-No open Song Editor items remain in `TODO.md` — undo/redo, the
-metronome/count-in, note audition, save/validation feedback, and the
-swing/triplet grid snap are all done (see Shipped above).
-
-**Note detection benchmarking** (see `Harmonica Note Detection Roadmap.md`,
-repo root, not checked in): a **harmonica constraint solver**
-(`song::harmonica_constraints::plausible_notes` — rejects any simultaneous
-blow+draw pitch mix, keeps chords/octaves) and a **synthetic benchmark
-dataset generator** (`synthetic_dataset.rs` / `cargo run --bin
-gen_synthetic_dataset`, writing into `assets/debug_songs/` in
-`note_bench`'s own format, as a stand-in until real recordings exist) are
-done — `note_bench` prints a `<algorithm>+HC` row showing the solver's
-effect. It reliably cuts NMF's phantom count (e.g. single notes 67→43,
-octaves 26→15 in the synthetic benchmark) but occasionally drops a genuine
-hit too (its majority-wind-direction heuristic misjudging).
-
-**Deliberately not wired into live gameplay yet** — decided, not just
-not-gotten-to:
-- Only validated against synthetic (sample-accurate, noiseless) audio; a
-  real reed's blow/draw transition frames could get needlessly stripped
-  the same way a phantom does.
-- A dropped note costs the player score/combo live, while an un-filtered
-  phantom is already mostly harmless to scoring (it just doesn't match
-  the expected pitch) — so this trade needs real debug recordings to
-  confirm it's a net win before it's worth building, since right now
-  there's no plumbing at all to thread the active chart's `Harmonica`
-  down to where `PitchEvent` is consumed (`audio_system` deliberately
-  doesn't depend on `song`).
-- When it does go in, scope it to NMF only — FFT/YIN/MPM barely
-  benefited in the synthetic benchmark.
-- Blocked on: a real harmonica + real debug recordings via
-  `song_editor::debug_record` (`--features dev`), then re-running
-  `note_bench` against them before revisiting this decision.
-
-3. **Repo-wide comment-shortening pass — done.** Every directory under
-   `src/` (`song_editor/`, `gameplay/`, `menu/`, `dialogs/`, `jam/`,
-   `audio_system/`, `song/`, `lessons/`, `music_score/`,
-   `assets_management/`, `bin/`, `spectrogram/`, and the top-level
-   `src/*.rs` files) has been swept file by file for overly long
-   `///`/`//!` doc comments, tightening restatement/padding and cutting
-   historical narration ("used to be", "the old code") while keeping
-   every load-bearing fact (invariants, workaround reasons, cross-
-   references). A final full-repo scan turned up nothing left worth
-   trimming — remaining dense blocks are genuinely load-bearing technical
-   rationale (SMuFL glyph geometry in `music_score/`, psychoacoustic bass
-   in `jam/backing.rs`, etc.), not padding. Parallel subagents repeatedly
-   hit the session's usage limit mid-run with most work lost (uncommitted
-   edits don't survive a killed agent, tried twice); doing this file-by-
-   file directly worked reliably. Comment-only edits were committed
-   without a build/test/clippy cycle per file, per explicit instruction —
-   a final sanity build was still run at the end of the whole pass.
-
-## Road to 1.0 (desktop)
-
-`ROADMAP.md`'s 1.0 section defines the bar and why the scope is desktop
-only. Execution order, most valuable first:
-
-1. **First-run flow** (rc1) — **done.** `MenuPage::Welcome` opens when
-   `profile.json` is absent (`profile::FirstRun`, sampled once at plugin
-   build); its three steps each return to it when done (`app::WelcomeFlow`)
-   with a check beside them, Skip goes to Main, and **Help / About →
-   First-time setup** re-opens it without deleting a profile.
-2. **Mic trouble where it's noticed** (rc1) — **done.**
-   `gameplay::warning_banner` shows it during play in every mode, and
-   `audio_input::detect_stream_failure` turns a device that dies
-   mid-session into `MicStatus::Failed` (with tests), which the banner and
-   the Options page both react to.
-3. **Unwrap triage** (rc2) — **done, and it was almost entirely a
-   measurement error.** The "92, 46 in the editor" figure counted
-   `song_editor/tests.rs` as production code. The real count outside test
-   code is four, all safe; the chart and theme loaders already degrade
-   rather than abort. See `ROADMAP.md` for the breakdown and the counting
-   pitfall. A mic unplugged *mid-session* is handled by
-   `detect_stream_failure` (item 2).
-4. **Blues starter pack** (rc3) — **not to be authored unsupervised**, same
-   rights/judgment reasoning as `TODO.md`'s content item. The automatable
-   half is validation and difficulty calibration.
-5. **Release engineering**: Flathub and signing keys. Version
-   reconciliation is enforced (`release.yaml`'s `check_version_matches_tag`)
-   and the four line-budget splits are done — the allowlist is empty.
-
-## Post-1.0 (mobile + tooling)
-
-The remaining work needs hardware: confirm the mic actually captures usably
-on an Android tablet, and run a touch/hit-target pass.
-`contributing/src/android-build.md` lists the rest.
-
-## Working practices
-
-- Keep the pure-logic/ECS split: new mechanics get pure functions + unit
-  tests first, systems second.
-- Update `docs/gameplay_validation.md` whenever a phase adds a mode or
-  changes timing behaviour.
-- Chart schema changes must stay backward compatible (new fields optional);
-  bump `metadata.format_version` when adding any.
-- One phase per release; cut a tag when the phase's exit criteria pass —
-  none have been cut yet even though 0.2/0.3 are done (see `ROADMAP.md`).
-- Prune this file as work lands — a "done" item belongs in git history and,
-  if it's an architectural invariant future code must respect, in
-  `CLAUDE.md`; it doesn't need to live here too.
+- Run on a real phone or tablet: does the mic capture usably, and what are
+  its latency and AGC like?
+- Persist progress and settings on Android: `dirs::config_dir()` is `None`
+  there, so both are lost on exit.
+- A touch and hit-target pass, re-tuning `CompactLayout` against a real
+  device rather than a small desktop window.
+- An app icon, ABIs beyond arm64, and a release key in place of the debug
+  one.
+- iOS is untouched and needs Xcode.

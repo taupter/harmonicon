@@ -4,14 +4,13 @@ Where Harmonicon goes from `0.1.0`. The theme of the project is **teaching
 blues and jazz harmonica through play** — every milestone should move a
 self-taught player further than a YouTube tutorial would.
 
-Near-term bug/cleanup work lives in `TODO.md`; the execution order and
-implementation notes live in `PLAN.md`.
+Near-term bug/cleanup work lives in `TODO.md`; the open work, in order,
+lives in `PLAN.md`.
 
-**0.2 "Trustworthy" and 0.3 "Practice" are fully shipped** (see `PLAN.md`'s
-Shipped section). No release tags have been cut for either yet
-(`Cargo.toml` still says `0.1.0`; the newest tag is `v0.0.9.1`, from a
-release line that never tracked these phase numbers); reconciling the two
-is part of 1.0 below.
+**0.2 "Trustworthy" and 0.3 "Practice" are fully shipped** (git history
+has the detail). Neither has a tag of its own: releases follow a separate
+`v0.0.x` line (newest `v0.0.11`, matching `Cargo.toml`) that never tracked
+these phase numbers, and reconciling the two is part of 1.0 below.
 
 ## 1.0 — "Ready for strangers" (desktop)
 
@@ -140,11 +139,10 @@ minor-blues/phrase-discipline improvisation) are all done — see
   multi-point tempo map, lesson authoring alongside plain songs), and the
   workflow/UX pass that followed (2026-07-27: undo/redo, metronome/
   count-in, note audition, save/validation feedback, and a swing/triplet-
-  aware grid snap — see `PLAN.md`'s Shipped section) closed out every item
-  it found.
+  aware grid snap) closed out every item it found.
 - Downloadable song packs / community sharing for the `~/Harmonicon`
   external-source folder. Live auto-refresh of that folder (songs, themes,
-  and lessons) is done — see `PLAN.md`. The actual packaging/download/
+  and lessons) is done. The actual packaging/download/
   hosting mechanism for community song packs is still open — a product
   decision (where packs are hosted, how they're verified) rather than a
   small code task.
@@ -218,7 +216,7 @@ remains:
   watcher (`notify-debouncer-full`), none of which have browser
   equivalents.
 - Android: **a real APK builds; it has never been run on a device.** See
-  `contributing/src/android-build.md` for the full record and `PLAN.md` for what landed.
+  `contributing/src/android-build.md` for the full record and `PLAN.md` for what is still open.
   `packaging/android` (Gradle + cargo-ndk) emits a signed, installable APK
   with verified contents, and CI type-checks the target — so the port can't
   silently rot. It has been run on an emulator — it launches, renders, loads assets from

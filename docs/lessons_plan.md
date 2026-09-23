@@ -3,7 +3,7 @@
 Design doc for the Lessons feature (`ROADMAP.md` 0.4 → 0.6). Covers what's
 shipped (wave 1, compactly), the scoring primitives lessons are built from,
 and the plan for the next batch of exercises (wave 2). Read this before
-writing any lesson code — `PLAN.md`'s Lessons entry just points here.
+writing any lesson code.
 
 **Structure, progression and motivation live in
 `docs/training_tree_plan.md`** — the technique DAG, the five-tier training

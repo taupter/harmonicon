@@ -20,7 +20,8 @@ Planning docs — keep these current as work lands; prune finished items rather
 than accumulating history (git log/commit messages are the historical record):
 - `TODO.md` — open, actionable items only
 - `ROADMAP.md` — versioned feature direction (0.4 → 0.6+)
-- `PLAN.md` — execution order and implementation notes for what's in flight
+- `PLAN.md` — every open item, in order, gathered from the plans below;
+  delete a line when it lands
 - `docs/lessons_plan.md` — curriculum design for the Lessons feature
 - `docs/training_tree_plan.md` — the technique DAG, per-lesson training
   ladder, skill-tree view and practice-motivation design (planned, not

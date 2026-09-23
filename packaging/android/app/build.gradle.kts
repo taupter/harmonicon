@@ -70,7 +70,8 @@ android {
     }
 
     // Dev-only content with no business in a shipped APK: `debug_songs` is
-    // note_bench's synthetic benchmark corpus (see PLAN.md).
+    // note_bench's synthetic benchmark corpus (`cargo run --bin
+    // gen_synthetic_dataset`).
     androidResources {
         ignoreAssetsPatterns.add("debug_songs")
     }

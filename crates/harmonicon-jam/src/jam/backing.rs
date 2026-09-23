@@ -3,7 +3,7 @@
 //! Generated Jam Session backing: a synthesized 12-bar bass line, in a
 //! genre-selectable rhythmic shape ([`Genre`]), for any key/tempo/
 //! progression, so Jam Session doesn't require picking an existing song.
-//! See `PLAN.md`'s "Backing track variety" entry.
+//! Design and open listening work: `docs/jam_feel_plan.md`.
 //!
 //! Deliberately not the harmonica-timbre synth `song_editor::playback`
 //! shares with `gameplay::call_response` — a backing bass is a different
