@@ -118,7 +118,7 @@ pub(crate) fn check_loading(
 /// On entering the menu, jumps to the song list if a song was just quit
 /// ("Quit Song" returns to the list, not the main menu); otherwise opens
 /// the default page (Main) unless a return-to flag says otherwise. A
-/// finished/quit *lesson* run returns to the lesson list instead, and its
+/// finished/quit *lesson* run returns to the lesson tree instead, and its
 /// [`LessonContext`] ends here — the boundary where a lesson run stops
 /// being in flight (Results→Retry never passes through the menu, so
 /// retries keep their context).

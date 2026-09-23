@@ -21,9 +21,12 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-lessons/src/lesson_reader/mod.rs` — page assembly and widget constructors reviewed. Initialize the displayed BPM cache for each metronome and phrase looper. The remaining manifest clones belong to owned Bevy components or button observers. All 76 lessons tests and Clippy passed.
 - `crates/harmonicon-lessons/src/lesson_reader/widgets.rs` — eliminated per-frame BPM label formatting and text replacement while the tempo is unchanged. All 76 lessons tests and Clippy passed.
 - `crates/harmonicon-menu/src/lib.rs` — replaced malformed and inaccurate crate documentation; retained the existing public re-export API.
+- `crates/harmonicon-menu/src/menu/mod.rs` — plugin registration and page cleanup ordering reviewed; no change needed.
+- `crates/harmonicon-menu/src/menu/routing.rs` — routing and Escape navigation reviewed; corrected a stale reference to the removed lesson list page.
+- `crates/harmonicon-menu/src/menu/scene.rs` — shared page and button helpers reviewed; removed documentation that described an older themed-button implementation and clarified the root marker's actual role.
 
 ## Findings and follow-up
 
 - `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
-- Next review: `harmonicon-menu` files, starting with `menu/mod.rs`, `routing.rs`, and `scene.rs`.
+- Next review: `harmonicon-menu/src/menu/pages/`, starting with the top-level page files and continuing into Options and Harp Check.

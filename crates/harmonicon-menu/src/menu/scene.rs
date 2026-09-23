@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 //! Shared menu scene helpers: the full-screen root container every page
-//! spawns into (with its background image), the themed/plain button
-//! widget, and the `MenuRoot` marker `cleanup_menu` despawns on page exit.
+//! spawns into (with its background image), the shared button helper,
+//! and the `MenuRoot` marker `cleanup_menu` despawns on page exit.
 //!
 //! Every page follows the same top-level shape:
 //! ```text
@@ -45,8 +45,7 @@ use harmonicon_ui::dialogs::scroll_area::spawn_scroll_area;
 const SCROLLBAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.35);
 const SCROLLBAR_THUMB_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
 
-/// Marks every entity that belongs to a menu screen so `cleanup_menu` can
-/// remove it in one sweep when the page changes. Shared with the `options` page.
+/// Marks each menu page root so `cleanup_menu` can remove its whole subtree.
 #[derive(Component, Default, Clone)]
 pub struct MenuRoot;
 
@@ -252,11 +251,7 @@ pub fn spawn_menu_root_plain(
     (content, header, root)
 }
 
-/// Spawn a single button as a child of `parent`, in the normal flex flow —
-/// themes control appearance only, never layout. When the theme has
-/// shaders the button also gets a smoke background layer, an optional
-/// icon, and audio on hover/click. `on_click` is wired inline as the
-/// `on(...)` callback (plain buttons) or via `observe` (themed buttons).
+/// Spawn a shared button as a child of `parent`, in the normal flex flow.
 pub fn spawn_button<M: 'static>(
     commands: &mut Commands,
     parent: Entity,
