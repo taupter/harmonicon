@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! The meta form's third column: a colour legend naming what every colour
-//! the grid, mod panel and scrollbar uses actually means, plus the system
-//! that shows and hides it.
-//!
-//! Split out of `meta_form` for that file's line budget
-//! (`docs/physical_design_plan.md`) — this is read-only explanatory UI with
-//! no field editing in it, which made it the cleanest seam.
+//! The song editor's color legend and visibility control.
 
 use bevy::prelude::*;
 
@@ -28,12 +22,15 @@ pub(super) fn update_legend_visibility(
     if !state.is_changed() {
         return;
     }
+    let display = if state.legend_visible {
+        Display::Flex
+    } else {
+        Display::None
+    };
     for mut node in &mut columns {
-        node.display = if state.legend_visible {
-            Display::Flex
-        } else {
-            Display::None
-        };
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 
