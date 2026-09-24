@@ -203,7 +203,13 @@ pub fn update_gesture_practice(
     // screen, including the audible click.
     let pulse_secs = tempo.beat_secs() / f64::from(settings.subdivision.max(1));
     let beat = (clock.get() / pulse_secs).floor() as i64;
-    practice.advance(frame, time.delta_secs(), Some(beat));
+    let previous_phase = practice.phase;
+    practice
+        .bypass_change_detection()
+        .advance(frame, time.delta_secs(), Some(beat));
+    if practice.phase != previous_phase {
+        practice.set_changed();
+    }
 }
 
 fn classify_gesture_frame(
@@ -248,7 +254,7 @@ pub fn update_practice_shape_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<PracticeShapeLabel>>,
 ) {
-    if !practice.is_changed() {
+    if !practice.is_changed() && !loc.is_changed() {
         return;
     }
     let shape = loc.msg(practice.shape.label_key());
@@ -259,10 +265,13 @@ pub fn update_practice_shape_label(
         GesturePhase::Returning => "bending-phase-returning",
         GesturePhase::Complete => "bending-phase-complete",
     });
+    let label = String::from(loc.msg_args(
+        "bending-shape-status",
+        &[("shape", shape.to_string()), ("phase", phase.to_string())],
+    ));
     for mut text in &mut labels {
-        *text = Text::new(String::from(loc.msg_args(
-            "bending-shape-status",
-            &[("shape", shape.to_string()), ("phase", phase.to_string())],
-        )));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
