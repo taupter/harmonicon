@@ -1,18 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! The Jam Session feature: the free-play screen and live hole-map feedback
-//! ([`session`]), its improv-lesson scale-adherence accumulator
-//! ([`improv`]), on-demand judging for jam-based lessons ([`lesson`]), its
-//! freeform (unscored) call-and-response practice mode ([`call_response`]),
-//! the live circle-of-fifths position compass ([`position_guide`]), and the
-//! procedurally-generated 12-bar backing track ([`backing`]) for jamming
-//! without picking an existing song.
-//!
-//! [`JamPlugin`] registers all of it. It used to be registered from
-//! `gameplay::plugin`, which made `gameplay` depend on `jam` while `jam`
-//! already depended on `gameplay` — a cycle. Composition belongs at the
-//! top, so `main.rs` adds this plugin alongside `GameplayPlugin` instead
-//! (`docs/physical_design_plan.md` rule 2).
+//! Jam Session systems for free play, generated backing, and practice guides.
 
 use bevy::prelude::*;
 
