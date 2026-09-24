@@ -256,6 +256,7 @@ pub(super) fn record_tick(
     mut pitch_events: MessageReader<PitchEvent>,
     mut record: ResMut<RecordState>,
     mut state: ResMut<EditorState>,
+    mut raw: Local<Vec<u8>>,
 ) {
     if !record.active || playhead.paused {
         // Drain unread pitch events so they don't pile up while idle or
@@ -280,12 +281,13 @@ pub(super) fn record_tick(
     // the frame rate — each one is a real detector verdict, so each drives
     // the onset/release debounce counters.
     for ev in pitch_events.read() {
-        let raw: Vec<u8> = ev.0.iter().map(|p| p.midi).collect();
-        let detected = match record.tracker.as_mut() {
-            Some(tracker) => tracker.update(&raw).active,
-            None => raw,
-        };
-        apply_detected_pitches(&mut record, &mut state, &detected, t, secs_per_tick);
+        raw.clear();
+        raw.extend(ev.0.iter().map(|p| p.midi));
+        let tracked = record.tracker.as_mut().map(|tracker| tracker.update(&raw));
+        let detected = tracked
+            .as_ref()
+            .map_or(raw.as_slice(), |notes| &notes.active);
+        apply_detected_pitches(&mut record, &mut state, detected, t, secs_per_tick);
     }
 
     grow_open_notes(
@@ -403,18 +405,19 @@ fn finish_open_notes(
     t: f32,
     secs_per_tick: f32,
 ) {
-    let mut spans: Vec<(usize, usize)> = Vec::new();
     for (_, open) in record.open.drain() {
         if open.events_seen < CONFIRM_EVENTS {
             notes.retain(|n| n.id != open.id);
             record.note_count = record.note_count.saturating_sub(1);
-        } else if let Some(n) = notes.iter_mut().find(|n| n.id == open.id) {
-            n.len = note_len(open.start_secs, t, secs_per_tick);
-            spans.push((n.tick, n.tick + n.len));
+        } else {
+            let span = notes.iter_mut().find(|n| n.id == open.id).map(|n| {
+                n.len = note_len(open.start_secs, t, secs_per_tick);
+                (n.tick, n.tick + n.len)
+            });
+            if let Some((s, e)) = span {
+                punch_out_overlaps(notes, &record.take_ids, s, e);
+            }
         }
-    }
-    for (s, e) in spans {
-        punch_out_overlaps(notes, &record.take_ids, s, e);
     }
 }
 
@@ -453,20 +456,18 @@ fn grow_open_notes(
     t: f32,
     secs_per_tick: f32,
 ) {
-    let mut spans: Vec<(usize, usize)> = Vec::new();
     for o in open.values() {
         if o.missed_events > 0 {
             continue;
         }
-        if let Some(n) = notes.iter_mut().find(|n| n.id == o.id) {
+        let span = notes.iter_mut().find(|n| n.id == o.id).map(|n| {
             n.len = note_len(o.start_secs, t, secs_per_tick);
-            spans.push((n.tick, n.tick + n.len));
+            (n.tick, n.tick + n.len)
+        });
+        // A growing note keeps punching out what it extends over.
+        if let Some((s, e)) = span {
+            punch_out_overlaps(notes, take_ids, s, e);
         }
-    }
-    // A growing note keeps punching out what it extends over — see the
-    // module docs' punch-in rule.
-    for (s, e) in spans {
-        punch_out_overlaps(notes, take_ids, s, e);
     }
 }
 
