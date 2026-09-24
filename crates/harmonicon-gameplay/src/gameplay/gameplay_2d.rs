@@ -112,8 +112,8 @@ pub fn setup(
     let (notes, play_mode_tags) = super::build_scheduled_notes(&effective, chart, &adaptive);
     *song_notes = SongNotes { notes, cursor: 0 };
     *render_assets = NoteRenderAssets {
-        head_image: Some(head_image.clone()),
-        tail_cfg: Some(tail_cfg.clone()),
+        head_image: Some(head_image),
+        tail_cfg: Some(tail_cfg),
         play_mode_tags,
     };
 
@@ -670,8 +670,10 @@ pub fn size_note_tails(
     // ComputedNode sizes are physical px; Node lengths are logical px.
     let logical = height_px * hw.inverse_scale_factor();
     for (tail, mut node) in &mut tails {
-        let len = (SCROLL_SPAN / 100.0) * tail.duration_frac * logical;
-        node.height = Val::Px(len.max(1.0));
+        let height = Val::Px(((SCROLL_SPAN / 100.0) * tail.duration_frac * logical).max(1.0));
+        if node.height != height {
+            node.height = height;
+        }
     }
 }
 
