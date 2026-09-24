@@ -103,6 +103,9 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-jam/src/jam/backing/humanize.rs` — shift and scale each varied slot inside the rendered sound's own buffer instead of allocating a second slot-length vector; clamp the delay to the slot so an oversized delay still yields a silent slot of the original length. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/backing/preview.rs` — one-shot dev-tooling mix for the listening example; no hot path. No change needed.
 - `crates/harmonicon-jam/src/jam/band.rs` — a frame spanning more than one beat fed the listener only the completed beat, breaking its every-beat contract and able to skip a phrase boundary (comping target) or a due answer. `BandListener::observe_until` now feeds skipped beats as silent, capped to the log length for long stalls; three tests cover it. Phrase density reads the log through `make_contiguous` instead of collecting a vector. All 125 Jam tests and Clippy passed.
+- `crates/harmonicon-jam/examples/listening_matrix.rs` — one-shot export of nine previews; no change needed.
+- `crates/harmonicon-jam/src/jam/{band,call_response,call_response/phrase,hole_map,improv,session}/tests.rs` — fixtures and assertions are off the runtime path; no change needed.
+- Workspace Clippy (`--release --features dev --all-targets -D warnings`) had drifted during this review: `op_ref` in five Jam label comparisons, a collapsible `if` in the editor's timeline overlay, and needless borrows in the menu's harp check. All fixed; the workspace is clean again.
 
 ## Findings and follow-up
 
@@ -111,4 +114,5 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry.
+- `harmonicon-editor` and `harmonicon-jam` file lists reconciled: every Rust source has a completed review entry. Next review: `harmonicon-bench`, then `harmonicon-gameplay`.
+- Run workspace Clippy after each crate, not only the crate's own: the lints above slipped in because only per-crate tests ran.
