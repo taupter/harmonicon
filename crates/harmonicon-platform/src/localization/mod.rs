@@ -440,7 +440,7 @@ impl LocalizationExt for Localization {
     fn msg_args(&self, key: &str, args: &[(&str, String)]) -> LocalizedStr {
         let mut fluent_args = FluentArgs::new();
         for (name, value) in args {
-            fluent_args.set(*name, value.clone());
+            fluent_args.set(*name, value.as_str());
         }
         let request = Request::new(key).args(&fluent_args);
         let s = self.content(request).unwrap_or_else(|| {
@@ -459,7 +459,12 @@ impl LocalizationExt for Localization {
 /// scripts still gets correct isolation from Fluent itself and only the
 /// rendered label loses the invisible marks.
 fn strip_bidi_isolates(s: String) -> String {
-    s.replace(['\u{2068}', '\u{2069}'], "")
+    const MARKS: [char; 2] = ['\u{2068}', '\u{2069}'];
+    if s.contains(MARKS) {
+        s.replace(MARKS, "")
+    } else {
+        s
+    }
 }
 
 #[cfg(test)]
