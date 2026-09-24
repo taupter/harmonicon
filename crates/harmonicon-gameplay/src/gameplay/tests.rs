@@ -195,7 +195,7 @@ fn ticks_per_beat_never_returns_zero() {
 #[test]
 fn beat_ticks_marks_every_bar_start_as_a_downbeat() {
     // Two bars of 4/4 at 480 ticks per beat: beats 0 and 4 start a bar.
-    let beats = beat_ticks_in_range(0, 480 * 7, 480, 4);
+    let beats = beat_ticks_in_range(0, 480 * 7, 480, 4).collect::<Vec<_>>();
     assert_eq!(beats.len(), 8);
     let downbeats: Vec<u64> = beats
         .iter()
@@ -210,7 +210,7 @@ fn beat_ticks_counts_the_bar_from_tick_zero_not_from_the_window() {
     // A window starting mid-bar must not relabel its first visible beat as a
     // downbeat — the bar phase belongs to the song, not to whatever happens
     // to be on screen.
-    let beats = beat_ticks_in_range(480 * 5, 480 * 9, 480, 4);
+    let beats = beat_ticks_in_range(480 * 5, 480 * 9, 480, 4).collect::<Vec<_>>();
     assert_eq!(beats.first(), Some(&(480 * 5, false)));
     assert!(
         beats.contains(&(480 * 8, true)),
@@ -220,20 +220,31 @@ fn beat_ticks_counts_the_bar_from_tick_zero_not_from_the_window() {
 
 #[test]
 fn beat_ticks_includes_a_beat_exactly_on_the_window_edge() {
-    assert_eq!(beat_ticks_in_range(480, 480, 480, 4), vec![(480, false)]);
+    assert_eq!(
+        beat_ticks_in_range(480, 480, 480, 4).collect::<Vec<_>>(),
+        vec![(480, false)]
+    );
 }
 
 #[test]
 fn beat_ticks_is_empty_for_an_inverted_or_degenerate_window() {
-    assert!(beat_ticks_in_range(960, 480, 480, 4).is_empty());
-    assert!(beat_ticks_in_range(0, 960, 0, 4).is_empty());
+    assert!(
+        beat_ticks_in_range(960, 480, 480, 4)
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
+    assert!(
+        beat_ticks_in_range(0, 960, 0, 4)
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
 }
 
 #[test]
 fn beat_ticks_treats_a_zero_beat_count_as_one_bar_per_beat() {
     // `numerator.max(1)` upstream should make this unreachable; guard the
     // modulo anyway rather than divide by zero if a chart ever says 0/4.
-    let beats = beat_ticks_in_range(0, 480 * 2, 480, 0);
+    let beats = beat_ticks_in_range(0, 480 * 2, 480, 0).collect::<Vec<_>>();
     assert!(
         beats.iter().all(|(_, is_downbeat)| *is_downbeat),
         "{beats:?}"

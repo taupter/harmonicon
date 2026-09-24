@@ -305,20 +305,25 @@ pub(crate) fn update_score_display(
         }
     }
 
-    feedback.timer = (feedback.timer - time.delta_secs()).max(0.0);
+    if feedback.timer > 0.0 {
+        feedback.timer = (feedback.timer - time.delta_secs()).max(0.0);
+    }
 
+    // Colours are only written when they differ, so an idle HUD (nothing
+    // judged, or a verdict already faded out) stops touching its text.
+    let headline = match feedback.judgment {
+        None => Color::srgba(0.0, 0.0, 0.0, 0.0),
+        Some(judgment) => {
+            let alpha = (feedback.timer / FEEDBACK_FADE_SECS).clamp(0.0, 1.0);
+            // Scale up then fade: pulse from 1.4× down to 1× size isn't
+            // easily done here, so we just fade alpha.
+            let (_, r, g, b) = feedback_style(judgment);
+            Color::srgba(r, g, b, alpha)
+        }
+    };
     for (_, mut color) in &mut q_feedback {
-        match feedback.judgment {
-            None => {
-                *color = TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0));
-            }
-            Some(judgment) => {
-                let alpha = (feedback.timer / FEEDBACK_FADE_SECS).clamp(0.0, 1.0);
-                // Scale up then fade: pulse from 1.4× down to 1× size isn't
-                // easily done here, so we just fade alpha.
-                let (_, r, g, b) = feedback_style(judgment);
-                *color = TextColor(Color::srgba(r, g, b, alpha));
-            }
+        if color.0 != headline {
+            color.0 = headline;
         }
     }
 
@@ -329,13 +334,16 @@ pub(crate) fn update_score_display(
         None => 0.0,
         Some(_) => (feedback.timer / FEEDBACK_FADE_SECS).clamp(0.0, 1.0) * 0.85,
     };
+    let detail = Color::srgba(0.92, 0.92, 0.92, detail_alpha);
     for (_, mut color) in &mut q_detail {
-        *color = TextColor(Color::srgba(0.92, 0.92, 0.92, detail_alpha));
+        if color.0 != detail {
+            color.0 = detail;
+        }
     }
 
     // Cleared here rather than inside the colour loop above, so a screen with
     // no feedback text spawned at all still lets a judgment expire.
-    if feedback.timer == 0.0 {
+    if feedback.timer == 0.0 && feedback.judgment.is_some() {
         feedback.judgment = None;
     }
 }

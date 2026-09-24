@@ -117,23 +117,39 @@ pub(super) fn update_beat_guides(
             let beat_time = tick_to_seconds(tick, timing.resolution, &timing.tempo_map);
             let bottom = note_head_bottom_pct(beat_time, elapsed, LOOKAHEAD);
             if !(0.0..=100.0).contains(&bottom) {
-                *visibility = Visibility::Hidden;
+                set_visibility(&mut visibility, Visibility::Hidden);
                 continue;
             }
             node.bottom = Val::Percent(bottom);
-            node.height = Val::Px(if is_downbeat { 2.0 } else { 1.0 });
-            *color = BackgroundColor(if is_downbeat {
+            // Only the position moves every frame; the rest changes when a
+            // pooled line switches between a beat and a downbeat or shows up.
+            let height = Val::Px(if is_downbeat { 2.0 } else { 1.0 });
+            if node.height != height {
+                node.height = height;
+            }
+            let tint = if is_downbeat {
                 DOWNBEAT_COLOR
             } else {
                 BEAT_COLOR
-            });
-            *visibility = Visibility::Visible;
+            };
+            if color.0 != tint {
+                color.0 = tint;
+            }
+            set_visibility(&mut visibility, Visibility::Visible);
         }
     }
 
     // Whatever the pool didn't need this frame — including every guide while
     // the manifest is still loading.
     for (_, mut visibility, _) in guides {
-        *visibility = Visibility::Hidden;
+        set_visibility(&mut visibility, Visibility::Hidden);
+    }
+}
+
+/// Writes only on a change, so an unchanged guide doesn't re-run visibility
+/// propagation every frame.
+fn set_visibility(visibility: &mut Mut<Visibility>, wanted: Visibility) {
+    if **visibility != wanted {
+        **visibility = wanted;
     }
 }

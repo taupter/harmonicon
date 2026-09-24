@@ -67,16 +67,18 @@ pub fn beat_ticks_in_range(
     end_tick: u64,
     ticks_per_beat: u64,
     beats_per_bar: usize,
-) -> Vec<(u64, bool)> {
-    if ticks_per_beat == 0 || end_tick < start_tick {
-        return Vec::new();
-    }
+) -> impl Iterator<Item = (u64, bool)> {
     let beats_per_bar = beats_per_bar.max(1) as u64;
-    let first = start_tick.div_ceil(ticks_per_beat);
-    let last = end_tick / ticks_per_beat;
-    (first..=last)
-        .map(|beat| (beat * ticks_per_beat, beat % beats_per_bar == 0))
-        .collect()
+    // An empty range for a zero stride or a reversed window.
+    let (first, last) = if ticks_per_beat == 0 || end_tick < start_tick {
+        (1, 0)
+    } else {
+        (
+            start_tick.div_ceil(ticks_per_beat),
+            end_tick / ticks_per_beat,
+        )
+    };
+    (first..=last).map(move |beat| (beat * ticks_per_beat, beat % beats_per_bar == 0))
 }
 
 /// How many whole bars have elapsed since the clock last hit 0 (song/jam
@@ -137,8 +139,15 @@ pub(crate) fn track_current_bar(
     let bpm = manifest.chart.song.tempo_bpm as f64;
     let spb = config.meter.bar_secs(bpm);
     let bar = current_bar_index(clock.get(), spb);
-    current.0 = bar;
-    absolute.0 = absolute_bar_index(clock.get(), spb);
+    // Written only on a change: Jam Session's labels and ending check gate on
+    // these resources' `is_changed()` to mean "the bar moved".
+    if current.0 != bar {
+        current.0 = bar;
+    }
+    let absolute_bar = absolute_bar_index(clock.get(), spb);
+    if absolute.0 != absolute_bar {
+        absolute.0 = absolute_bar;
+    }
     if *last != Some(bar) {
         changed.write(BarChanged(bar));
     }
