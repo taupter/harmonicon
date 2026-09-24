@@ -60,11 +60,19 @@ pub fn update_scope(
     osc: Res<OscMaterial>,
     mut materials: ResMut<Assets<OscilloscopeMaterial>>,
 ) {
+    let sample = |i: usize| spectrum.waveform.get(i).copied().unwrap_or(0.0);
+    // Writing through `get_mut` re-uploads the material, so only when the
+    // trace actually moved (a new audio block, not just another frame).
+    let Some(current) = materials.get(&osc.0) else {
+        return;
+    };
+    if (0..WAVE_POINTS).all(|i| current.wave[i / 4][i % 4] == sample(i)) {
+        return;
+    }
     let Some(mut mat) = materials.get_mut(&osc.0) else {
         return;
     };
     for i in 0..WAVE_POINTS {
-        let v = spectrum.waveform.get(i).copied().unwrap_or(0.0);
-        mat.wave[i / 4][i % 4] = v;
+        mat.wave[i / 4][i % 4] = sample(i);
     }
 }

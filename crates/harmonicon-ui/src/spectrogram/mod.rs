@@ -333,7 +333,11 @@ fn analyze_audio(frame: Res<AudioFrame>, time: Res<Time<Real>>, mut spectrum: Re
         *cur = smooth_toward(*cur, tgt, attack, decay);
     }
 
-    spectrum.waveform = compute_waveform(&frame.samples, WAVE_POINTS);
+    // The bands ease every frame, but the waveform is a direct picture of
+    // the latest audio block, which arrives far less often than frames do.
+    if frame.is_changed() {
+        spectrum.waveform = compute_waveform(&frame.samples, WAVE_POINTS);
+    }
 }
 
 #[cfg(test)]

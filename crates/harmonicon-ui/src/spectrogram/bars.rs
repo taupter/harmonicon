@@ -51,9 +51,16 @@ pub fn update_bars(
             .copied()
             .unwrap_or(0.0)
             .clamp(0.0, 1.0);
-        // Keep a 1% floor so idle bars stay visible as a baseline.
-        node.height = Val::Percent(1.0 + level * 99.0);
-        *bg = BackgroundColor(band_color(bar.0, level));
+        // Keep a 1% floor so idle bars stay visible as a baseline. Written
+        // only on a change, so settled (e.g. silent) bars leave layout alone.
+        let height = Val::Percent(1.0 + level * 99.0);
+        if node.height != height {
+            node.height = height;
+        }
+        let color = band_color(bar.0, level);
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
