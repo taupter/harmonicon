@@ -218,9 +218,9 @@ pub struct MusicScoreNotes(pub Vec<NotationNote>);
 /// because the crowding a player sees is set by the shortest subdivision
 /// the music actually sustains — a piece of sixteenths needs more room per
 /// beat than a piece of quarters, and one constant cannot suit both. Kept
-/// in a resource, not recomputed inside the rebuild, because the rebuild
-/// runs on every playhead change (i.e. every frame) while this only moves
-/// when the notes do.
+/// in a resource, not recomputed inside [`rebuild_score_notes`], because
+/// that runs on every playhead change (i.e. every frame) while this only
+/// moves when the notes do.
 #[derive(Resource)]
 pub struct MusicScoreSpacing(pub f32);
 
@@ -375,10 +375,11 @@ pub struct MusicScorePlayhead(pub f64);
 #[derive(Component)]
 struct MusicScorePanel;
 
-/// The (persistent) child of the panel that [`rebuild_score_notes`]
-/// despawns and respawns the note glyphs under — everything *except* this
-/// layer (the staff lines, the clef, the reference line) is spawned once
-/// by [`spawn_music_score`] and never touched again.
+/// The (persistent) child of the panel that holds the note glyphs.
+/// [`rebuild_score_notes`] slides it as the playhead moves and respawns
+/// its glyphs only when they run out — everything *except* this layer (the
+/// staff lines, the clef, the reference line) is spawned once by
+/// [`spawn_music_score`] and never moved.
 #[derive(Component)]
 struct MusicScoreNotesLayer;
 
@@ -439,7 +440,7 @@ fn load_bravura_font(mut fonts: ResMut<Assets<Font>>, mut commands: Commands) {
 
 /// Spawns the persistent part of the score panel — background, the 5
 /// staff lines, the clef, the "now" reference line, and an empty notes
-/// layer [`rebuild_score_notes`] fills in every time [`MusicScoreNotes`]/
+/// layer [`rebuild_score_notes`] fills and scrolls as [`MusicScoreNotes`]/
 /// [`MusicScorePlayhead`] change. The panel carries no assumption about
 /// where it sits on screen beyond its own fixed [`PANEL_HEIGHT`] — each
 /// caller places it in their own layout (below `song_progress_overlay`'s
@@ -543,12 +544,12 @@ pub fn spawn_music_score(parent: &mut ChildSpawnerCommands, bravura: &BravuraFon
             },
             BackgroundColor(Color::srgba(0.95, 0.80, 0.35, 0.5)),
         ));
-        // Notes layer: positioned so its own local x=0 IS the playhead —
-        // every note glyph spawned inside it is placed at
-        // `(note.start_beat - now) * MusicScoreSpacing`, which can (and
-        // routinely does) go negative for a note just behind the
-        // playhead; `overflow: clip_x()` on the panel itself keeps that
-        // from spilling past the panel's own left edge.
+        // Notes layer: its local x=0 is the beat the glyphs were last
+        // spawned around, and `rebuild_score_notes` slides it so that beat
+        // tracks the playhead. Glyphs sit at `(note.start_beat - origin) *
+        // MusicScoreSpacing`, which routinely goes negative or runs past
+        // the right edge (a panel-width margin is spawned on each side);
+        // `overflow: clip_x()` on the panel itself clips both.
         panel.spawn((
             Node {
                 position_type: PositionType::Absolute,
@@ -573,14 +574,34 @@ fn panel_width_changed(panel: Query<(), (With<MusicScorePanel>, Changed<Computed
     !panel.is_empty()
 }
 
+/// What [`rebuild_score_notes`] last spawned glyphs for: which notes layer,
+/// at what panel width, and the beat span covered. Glyphs are placed
+/// relative to `origin` (the playhead at that rebuild), so while the
+/// playhead stays inside `lo..hi` only the layer needs to move.
+struct SpawnedWindow {
+    layer: Entity,
+    panel_width: f32,
+    origin: f64,
+    lo: f64,
+    hi: f64,
+}
+
+/// Keeps the notes layer showing the current playhead. The playhead moves
+/// every frame during playback, so this does *not* rebuild on every move:
+/// glyphs are spawned one panel-width beyond each visible edge, relative to
+/// a fixed origin, and an ordinary playhead change just slides the layer.
+/// A rebuild (despawn and respawn every glyph, recompute clef, beams and
+/// accidentals) happens only when the notes, meter, spacing, panel width or
+/// layer change, or when the playhead scrolls out of the spawned span.
 fn rebuild_score_notes(
     mut commands: Commands,
+    mut window: Local<Option<SpawnedWindow>>,
     bravura: Option<Res<BravuraFont>>,
     tie_material: Option<Res<TieMaterialHandle>>,
     notes: Res<MusicScoreNotes>,
     playhead: Res<MusicScorePlayhead>,
     panels: Query<&ComputedNode, With<MusicScorePanel>>,
-    layers: Query<Entity, With<MusicScoreNotesLayer>>,
+    mut layers: Query<(Entity, &mut Node), (With<MusicScoreNotesLayer>, Without<MusicScoreClef>)>,
     existing: Query<Entity, With<MusicScoreNoteGlyph>>,
     meter: Res<MusicScoreMeter>,
     spacing: Res<MusicScoreSpacing>,
@@ -607,9 +628,81 @@ fn rebuild_score_notes(
     else {
         return;
     };
+    let Some((layer, _)) = layers.iter().next() else {
+        return;
+    };
+    let scale = spacing.0;
+    let now = playhead.0;
+    let (beats_behind, beats_ahead) = visible_beats(panel_width, scale);
+
+    let covered = window.as_ref().is_some_and(|w| {
+        w.layer == layer
+            && w.panel_width == panel_width
+            && now - beats_behind >= w.lo
+            && now + beats_ahead <= w.hi
+    });
+    if !covered || notes.is_changed() || meter.is_changed() || spacing.is_changed() {
+        let span = beats_behind + beats_ahead;
+        let lo = now - beats_behind - span;
+        let hi = now + beats_ahead + span;
+        spawn_window(
+            &mut commands,
+            &bravura,
+            &tie_material,
+            &notes.0,
+            &meter,
+            scale,
+            layer,
+            now,
+            lo,
+            hi,
+            &existing,
+            &mut clefs,
+            &mut time_sigs,
+        );
+        *window = Some(SpawnedWindow {
+            layer,
+            panel_width,
+            origin: now,
+            lo,
+            hi,
+        });
+    }
+
+    let Some(origin) = window.as_ref().map(|w| w.origin) else {
+        return;
+    };
+    // Local x=0 of the layer is `origin`; shifting it by how far the
+    // playhead has moved since keeps the reference line on "now".
+    let left = Val::Px(PLAYHEAD_X + ((origin - now) * scale as f64) as f32);
+    for (_, mut node) in &mut layers {
+        if node.left != left {
+            node.left = left;
+        }
+    }
+}
+
+/// Despawns the previous glyphs and spawns every glyph in `lo..hi` beats,
+/// positioned relative to `origin`, after re-pointing the clef and time
+/// signature.
+fn spawn_window(
+    commands: &mut Commands,
+    bravura: &BravuraFont,
+    tie_material: &TieMaterialHandle,
+    notes: &[NotationNote],
+    meter: &MusicScoreMeter,
+    scale: f32,
+    layer: Entity,
+    origin: f64,
+    lo: f64,
+    hi: f64,
+    existing: &Query<Entity, With<MusicScoreNoteGlyph>>,
+    clefs: &mut Query<(&mut Text, &mut Node), With<MusicScoreClef>>,
+    time_sigs: &mut Query<(&MusicScoreTimeSig, &mut Text), Without<MusicScoreClef>>,
+) {
     // One clef for the whole song, from its own range — see `choose_clef`.
-    let clef = choose_clef(&notes.0);
-    for (mut text, mut node) in &mut clefs {
+    let clef = choose_clef(notes);
+    for (mut text, mut node) in clefs.iter_mut() {
         let glyph = clef.glyph();
         if text.0 != glyph {
             text.0 = glyph.to_string();
@@ -617,7 +710,7 @@ fn rebuild_score_notes(
         }
     }
 
-    for (slot, mut text) in &mut time_sigs {
+    for (slot, mut text) in time_sigs.iter_mut() {
         let digit = if slot.numerator {
             meter.numerator
         } else {
@@ -633,67 +726,59 @@ fn rebuild_score_notes(
     // the window edge must still agree on one direction and beam line, and
     // an accidental's effect on the rest of its bar has to be known even
     // when the note that established it has already scrolled off.
-    let beams = beam_groups(&notes.0, clef);
-    let marks = accidentals(&notes.0, clef, meter.beats_per_bar());
+    let beams = beam_groups(notes, clef);
+    let marks = accidentals(notes, clef, meter.beats_per_bar());
 
-    let scale = spacing.0;
-    let (beats_behind, beats_ahead) = visible_beats(panel_width, scale);
-    for glyph in &existing {
+    for glyph in existing {
         commands.entity(glyph).despawn();
     }
 
-    let now = playhead.0;
-    for layer in &layers {
-        commands.entity(layer).with_children(|parent| {
-            // `prev` tracks the immediately-preceding element of `notes.0`
-            // regardless of visibility — `split_at_bar_lines` always
-            // produces a split note's segments as consecutive entries, so
-            // this is reliably "the segment `note` was tied from" whenever
-            // `note.tied_from_previous` is set, even if that segment itself
-            // scrolled out of the visible window and wasn't spawned.
-            // Bar lines first, so a notehead always paints over one
-            // rather than under it.
-            for beat in bar_line_beats(now - beats_behind, now + beats_ahead, meter.beats_per_bar())
-            {
-                let x = ((beat - now) * scale as f64) as f32;
-                parent.spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x),
-                        top: Val::Px(y_for_step(8)),
-                        width: Val::Px(1.0),
-                        // Top line to bottom line: 8 steps, i.e. the four
-                        // spaces between the five staff lines.
-                        height: Val::Px(8.0 * STEP_PX),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.75, 0.75, 0.80, 0.45)),
-                    MusicScoreNoteGlyph,
-                ));
-            }
+    commands.entity(layer).with_children(|parent| {
+        // `prev` tracks the immediately-preceding element of `notes`
+        // regardless of visibility — `split_at_bar_lines` always produces a
+        // split note's segments as consecutive entries, so this is reliably
+        // "the segment `note` was tied from" whenever `note.tied_from_previous`
+        // is set, even if that segment itself lies outside the spawned span.
+        // Bar lines first, so a notehead always paints over one rather than
+        // under it.
+        for beat in bar_line_beats(lo, hi, meter.beats_per_bar()) {
+            let x = ((beat - origin) * scale as f64) as f32;
+            parent.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(x),
+                    top: Val::Px(y_for_step(8)),
+                    width: Val::Px(1.0),
+                    // Top line to bottom line: 8 steps, i.e. the four
+                    // spaces between the five staff lines.
+                    height: Val::Px(8.0 * STEP_PX),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.75, 0.75, 0.80, 0.45)),
+                MusicScoreNoteGlyph,
+            ));
+        }
 
-            let mut prev: Option<&NotationNote> = None;
-            for (i, note) in notes.0.iter().enumerate() {
-                let visible = note.start_beat + note.duration_beats >= now - beats_behind
-                    && note.start_beat <= now + beats_ahead;
-                if visible {
-                    spawn_note_glyphs(
-                        parent,
-                        &bravura,
-                        &tie_material,
-                        note,
-                        prev,
-                        now,
-                        clef,
-                        beams[i],
-                        marks[i],
-                        scale,
-                    );
-                }
-                prev = Some(note);
+        let mut prev: Option<&NotationNote> = None;
+        for (i, note) in notes.iter().enumerate() {
+            let visible = note.start_beat + note.duration_beats >= lo && note.start_beat <= hi;
+            if visible {
+                spawn_note_glyphs(
+                    parent,
+                    bravura,
+                    tie_material,
+                    note,
+                    prev,
+                    origin,
+                    clef,
+                    beams[i],
+                    marks[i],
+                    scale,
+                );
             }
-        });
-    }
+            prev = Some(note);
+        }
+    });
 }
 
 fn spawn_note_glyphs(
