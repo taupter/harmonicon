@@ -393,29 +393,35 @@ pub(super) fn sync_chrome_height(
 ) {
     let h = grid_height(state.hole_count());
     for mut node in &mut rows {
-        node.height = Val::Px(h);
+        if node.height != Val::Px(h) {
+            node.height = Val::Px(h);
+        }
     }
 }
 
 /// Respawns the hole column's per-hole rows for the current harmonica's hole
-/// count. The rows carry no interaction state (unlike the note grid), so a
-/// full despawn/respawn on every `EditorState` change is simple and cheap.
+/// count, or when their theme or localized labels change.
 pub(super) fn sync_hole_column(
     mut commands: Commands,
     state: Res<EditorState>,
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
     col: Query<(Entity, Option<&Children>), With<HoleColumnContent>>,
+    mut last: Local<Option<(Entity, u8)>>,
 ) {
     let Ok((entity, children)) = col.single() else {
         return;
     };
+    let hole_count = state.hole_count();
+    if *last == Some((entity, hole_count)) && !theme.is_changed() && !loc.is_changed() {
+        return;
+    }
+    *last = Some((entity, hole_count));
     if let Some(children) = children {
         for &c in children {
             commands.entity(c).despawn();
         }
     }
-    let hole_count = state.hole_count();
     let colors = theme.song_editor_colors();
     commands.entity(entity).insert(Node {
         width: Val::Px(HOLE_COL_W),
