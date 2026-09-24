@@ -183,6 +183,7 @@ pub fn groove_harmonica(
     clock: Res<super::super::GameplayClock>,
     selected: Res<SelectedSong>,
     manifests: Res<Assets<SongManifest>>,
+    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
     mut groove: Query<&mut Transform, With<HarmonicaGroove>>,
 ) {
     use std::f32::consts::{PI, TAU};
@@ -190,12 +191,14 @@ pub fn groove_harmonica(
     let Some(manifest) = manifests.get(&selected.0) else {
         return;
     };
-    // Hold still during the countdown (clock is negative); only dance once the
-    // music has started.
-    if clock.get() < 0.0 {
+    // Hold still during the countdown (clock is negative) and under reduced
+    // motion — the sway is decoration; only dance once the music has started.
+    if clock.get() < 0.0 || reduced_motion.0 {
         for mut tf in &mut groove {
-            tf.translation = Vec3::ZERO;
-            tf.rotation = Quat::IDENTITY;
+            if tf.translation != Vec3::ZERO || tf.rotation != Quat::IDENTITY {
+                tf.translation = Vec3::ZERO;
+                tf.rotation = Quat::IDENTITY;
+            }
         }
         return;
     }

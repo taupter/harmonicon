@@ -56,10 +56,12 @@ pub struct ColorblindPalette(pub bool);
 
 /// Whether the highway's decorative motion is stilled: the head pop on a hit
 /// (a miss's shrink becomes immediate — it's a state, not a flourish), the
-/// flowing technique animations on note tails and the hold shimmer. The
+/// flowing technique animations on note tails and the hold shimmer, and the
+/// 3D harmonica's groove sway. The
 /// notes themselves still scroll: that *is* the game, and the hit line never
 /// moves either way. Off by default; edited on the Options page and read by
-/// `gameplay::note_feedback::judged_scale` and the tail animators. Exists
+/// `gameplay::note_feedback::judged_scale`, the tail animators and
+/// `groove_harmonica`. Exists
 /// ahead of any camera shake or larger pulse, so those can be gated from
 /// day one rather than retrofitted.
 #[derive(Resource, Default)]

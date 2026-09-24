@@ -32,7 +32,8 @@
 - **Colorblind Palette** — a fixed colorblind-safe blow/draw colour pair
   on the highway instead of the current theme's note colours.
 - **Reduced Motion** — stills the decorative motion on the highway: the
-  pop when a note is hit and the flowing animation on note tails. Notes
+  pop when a note is hit, the flowing animation on note tails, and the 3D
+  harmonica's sway to the beat. Notes
   keep scrolling as usual (that *is* the game), a missed note still
   shrinks — just immediately, without the movement into it — and the hit
   line never moves either way.
