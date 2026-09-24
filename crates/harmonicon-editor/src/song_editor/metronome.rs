@@ -25,7 +25,7 @@ use harmonicon_audio::pitch_detect::PitchRange;
 use harmonicon_gameplay::gameplay::metronome_overlay::{
     MetronomeFeel, MetronomeMuted, MetronomeSounds, MetronomeTempo, play_click_if_due,
 };
-use harmonicon_ui::music_score::MusicScoreMeter;
+use harmonicon_ui::music_score::{MeterMap, MusicScoreMeter};
 
 use super::TICKS_PER_BEAT;
 use super::playback::{EditorAudio, PendingMusicSeek, Playhead, secs_per_tick};
@@ -114,15 +114,33 @@ pub(super) fn begin_count_in(state: &EditorState, playhead_secs: f32, count_in: 
 /// Clock and meter local to the active meter segment. Resetting the clock at
 /// a change makes that change's first beat a downbeat even when its tick was
 /// not a bar boundary in the preceding meter.
-fn segment_clock(state: &EditorState, elapsed_secs: f32) -> (f64, MusicScoreMeter) {
-    let secs_per_tick = secs_per_tick(state);
+fn segment_clock(map: &MeterMap, secs_per_tick: f32, elapsed_secs: f32) -> (f64, MusicScoreMeter) {
     let tick = (elapsed_secs.max(0.0) / secs_per_tick).round() as u64;
-    let map = state.meter_map();
     let segment = map.segment_at(tick);
     (
         (tick - segment.start_tick) as f64 * f64::from(secs_per_tick),
         segment.meter,
     )
+}
+
+pub(super) struct MeterClockCache {
+    opening: String,
+    changes: Vec<(usize, String)>,
+    map: MeterMap,
+}
+
+impl MeterClockCache {
+    fn from_state(state: &EditorState) -> Self {
+        Self {
+            opening: state.time_signature.clone(),
+            changes: state.meter_changes.clone(),
+            map: state.meter_map(),
+        }
+    }
+
+    fn matches(&self, state: &EditorState) -> bool {
+        self.opening == state.time_signature && self.changes == state.meter_changes
+    }
 }
 
 /// Keeps `MetronomeTempo` in step with the chart currently being edited —
@@ -133,8 +151,12 @@ fn segment_clock(state: &EditorState, elapsed_secs: f32) -> (f64, MusicScoreMete
 /// (different `AppState`s), so this can't fight the others over the same
 /// shared resource — whichever context is entered next reseeds it.
 pub(super) fn sync_tempo(state: Res<EditorState>, mut tempo: ResMut<MetronomeTempo>) {
-    tempo.bpm = tempo_bpm(&state);
-    tempo.meter = state.meter();
+    let bpm = tempo_bpm(&state);
+    let meter = state.meter();
+    if tempo.bpm != bpm || tempo.meter != meter {
+        tempo.bpm = bpm;
+        tempo.meter = meter;
+    }
 }
 
 /// Plays the metronome clicks for the editor's own clock (`Playhead`)
@@ -152,12 +174,23 @@ pub(super) fn click_metronome(
     sounds: Res<MetronomeSounds>,
     audio: Res<AudioSettings>,
     mut last: ResMut<EditorLastClickedTick>,
+    mut meter_cache: Local<Option<MeterClockCache>>,
     mut commands: Commands,
 ) {
     if count_in.active() || !playhead.playing || playhead.paused {
         return;
     }
-    let (clock, meter) = segment_clock(&state, playhead.elapsed);
+    if meter_cache
+        .as_ref()
+        .is_none_or(|cache| !cache.matches(&state))
+    {
+        *meter_cache = Some(MeterClockCache::from_state(&state));
+    }
+    let (clock, meter) = segment_clock(
+        &meter_cache.as_ref().unwrap().map,
+        secs_per_tick(&state),
+        playhead.elapsed,
+    );
     let active_tempo = MetronomeTempo {
         bpm: tempo.bpm,
         meter,
@@ -350,10 +383,12 @@ mod tests {
             meter_changes: vec![(84, "3/4".into())],
             ..Default::default()
         };
-        let (at_change, changed_meter) = segment_clock(&state, 3.5);
+        let map = state.meter_map();
+        let spt = secs_per_tick(&state);
+        let (at_change, changed_meter) = segment_clock(&map, spt, 3.5);
         assert!(at_change.abs() < 1e-6);
         assert_eq!(changed_meter, meter("3/4"));
-        let (one_quarter_later, _) = segment_clock(&state, 4.0);
+        let (one_quarter_later, _) = segment_clock(&map, spt, 4.0);
         assert!((one_quarter_later - 0.5).abs() < 1e-6);
     }
 
