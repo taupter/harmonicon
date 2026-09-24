@@ -94,7 +94,6 @@ load-bearing about *this* crate.
     3+3 as two dotted-quarter pulses; that's a `MetronomeFeel`-shaped
     design decision, not a bar-length one, and wasn't folded in here.
 
-- **Scoring:** pure functions in `harmonicon-core`'s `scoring` (reachable
 - **Bending Trainer pitch feedback is target-family locked.** Lifecycle,
   the target model and the technique hints stay in `bending_trainer/mod.rs`;
   where things sit on screen is `bending_trainer/layout.rs`; live feedback
@@ -508,9 +507,9 @@ load-bearing about *this* crate.
   `force_wait: true`, which `tick_clock`'s freeze condition
   (`wait_freeze_index`) treats like `WaitForNoteMode` being on regardless
   of the player's own toggle, so the response always waits for them. At
-  song setup those same notes are also synthesized (via `song_editor::
-  playback`'s synth — `PhraseNote`/`render_pcm`/`encode_wav`, widened to
-  `pub(crate)` for this) into a one-shot "call" demo, scheduled to finish
+  song setup those same notes are also synthesized (via
+  `harmonicon_core::synth`'s `PhraseNote`/`render_pcm` and
+  `harmonicon_core::wav::encode_wav`) into a one-shot "call" demo, scheduled to finish
   playing a fixed buffer before the phrase's first note. That playback is
   a plain fire-and-forget `AudioPlayer` spawn, like a hit-feedback sound —
   it never touches `GameplayClock` or the sink, so it can't run afoul of
