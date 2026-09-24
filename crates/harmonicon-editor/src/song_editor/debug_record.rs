@@ -262,11 +262,14 @@ fn update_debug_waveform(
     let Ok(mut row_node) = row.single_mut() else {
         return;
     };
-    row_node.display = if checked {
+    let display = if checked {
         Display::Flex
     } else {
         Display::None
     };
+    if row_node.display != display {
+        row_node.display = display;
+    }
     if !checked || raw.samples.len() == *last_len {
         return;
     }
@@ -274,7 +277,10 @@ fn update_debug_waveform(
     let peaks = bucket_peaks(&raw.samples, WAVEFORM_BUCKETS);
     for (bar, mut node) in &mut bars {
         let amplitude = peaks.get(bar.0).copied().unwrap_or(0.0).clamp(0.0, 1.0);
-        node.height = Val::Px((amplitude * DEBUG_WAVEFORM_H).max(1.0));
+        let height = Val::Px((amplitude * DEBUG_WAVEFORM_H).max(1.0));
+        if node.height != height {
+            node.height = height;
+        }
     }
 }
 
@@ -292,11 +298,14 @@ fn update_checkbox_glyph(
     let Ok(mut vis) = glyph.single_mut() else {
         return;
     };
-    *vis = if checked {
+    let visibility = if checked {
         Visibility::Inherited
     } else {
         Visibility::Hidden
     };
+    if *vis != visibility {
+        *vis = visibility;
+    }
 }
 
 /// Distinguishes "armed but no take running yet" from "actually capturing
@@ -326,7 +335,9 @@ fn update_debug_record_status_label(
         loc.msg("editor-debug-recording-armed")
     };
     for mut t in &mut labels {
-        *t = Text::new(text.to_string());
+        if t.0.as_str() != &*text {
+            t.0 = text.to_string();
+        }
     }
 }
 
