@@ -153,20 +153,35 @@ pub(crate) fn animate_unit_expansion(
         With<WidgetButton>,
     >,
 ) {
+    // Runs every frame on the tree, so every write below is guarded: once
+    // no unit is mid-transition, an idle tree touches nothing (unguarded, it
+    // re-ran transform and visibility propagation over every node).
     let step = time.delta_secs() / TRANSITION_SECONDS;
-    for (id, amount) in &mut expansions.0 {
-        *amount = expansion_after(*amount, collapsed.0.contains(id), step);
+    let moving = expansions
+        .0
+        .iter()
+        .any(|(id, &amount)| expansion_after(amount, collapsed.0.contains(id), step) != amount);
+    if moving {
+        for (id, amount) in &mut expansions.0 {
+            *amount = expansion_after(*amount, collapsed.0.contains(id), step);
+        }
     }
 
     for (member, mut transform, mut visibility) in &mut members {
         let amount = expansions.0.get(&member.0).copied().unwrap_or(1.0);
         let eased = amount * amount * (3.0 - 2.0 * amount);
-        transform.scale = Vec2::splat(eased.max(0.001));
-        *visibility = if amount <= 0.0 {
+        let scale = Vec2::splat(eased.max(0.001));
+        if transform.scale != scale {
+            transform.scale = scale;
+        }
+        let wanted = if amount <= 0.0 {
             Visibility::Hidden
         } else {
             Visibility::Visible
         };
+        if *visibility != wanted {
+            *visibility = wanted;
+        }
     }
 
     for (chevron, mut text) in &mut chevrons {
@@ -181,11 +196,17 @@ pub(crate) fn animate_unit_expansion(
         }
     }
     for (button, mut accessibility) in &mut unit_buttons {
-        accessibility.set_expanded(!collapsed.0.contains(&button.0));
+        let expanded = !collapsed.0.contains(&button.0);
+        if accessibility.is_expanded() != Some(expanded) {
+            accessibility.set_expanded(expanded);
+        }
     }
     for (entity, member, mut tab_index, disabled) in &mut lesson_buttons {
         let closing = collapsed.0.contains(&member.0);
-        tab_index.0 = if closing { -1 } else { 0 };
+        let wanted = if closing { -1 } else { 0 };
+        if tab_index.0 != wanted {
+            tab_index.0 = wanted;
+        }
         match (closing, disabled) {
             (true, false) => {
                 commands.entity(entity).insert(InteractionDisabled);
