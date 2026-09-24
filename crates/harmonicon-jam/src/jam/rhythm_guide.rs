@@ -142,17 +142,29 @@ pub(crate) fn update_rhythm_guide(
 
     for (slot, mut bg, mut border) in &mut slots {
         if arrangement.bass[slot.0].is_none() {
-            *bg = BackgroundColor(Color::NONE);
-            *border = BorderColor::all(REST_BORDER);
+            let color = BackgroundColor(Color::NONE);
+            let outline = BorderColor::all(REST_BORDER);
+            if *bg != color {
+                *bg = color;
+            }
+            if *border != outline {
+                *border = outline;
+            }
             continue;
         }
-        *border = BorderColor::all(HIT_BORDER);
+        let outline = BorderColor::all(HIT_BORDER);
+        if *border != outline {
+            *border = outline;
+        }
         let brightness = if slot.0 == current {
             (1.0 - phase).powf(1.5)
         } else {
             0.0
         };
-        *bg = BackgroundColor(HIT_IDLE.mix(&HIT_PEAK, brightness));
+        let color = BackgroundColor(HIT_IDLE.mix(&HIT_PEAK, brightness));
+        if *bg != color {
+            *bg = color;
+        }
     }
 }
 
