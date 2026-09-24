@@ -8,15 +8,22 @@ use super::*;
 // ── Dedicated slider callbacks ────────────────────────────────────────────────
 
 pub(super) fn set_music_volume(ev: On<ValueChange<f32>>, mut settings: ResMut<AudioSettings>) {
-    settings.music_volume = ev.value;
+    if settings.music_volume != ev.value {
+        settings.music_volume = ev.value;
+    }
 }
 
 pub(super) fn set_metronome_volume(ev: On<ValueChange<f32>>, mut settings: ResMut<AudioSettings>) {
-    settings.metronome_volume = ev.value;
+    if settings.metronome_volume != ev.value {
+        settings.metronome_volume = ev.value;
+    }
 }
 
 pub(super) fn set_input_latency(ev: On<ValueChange<f32>>, mut settings: ResMut<AudioSettings>) {
-    settings.input_latency_ms = ev.value.round() as i32;
+    let latency = ev.value.round() as i32;
+    if settings.input_latency_ms != latency {
+        settings.input_latency_ms = latency;
+    }
 }
 
 // ── Volume sliders ──────────────────────────────────────────────────────────
@@ -197,10 +204,16 @@ pub(super) fn update_latency_slider(
     }
     let frac = (settings.input_latency_ms as f32 / LATENCY_MAX_MS as f32).clamp(0.0, 1.0);
     for mut node in &mut fills {
-        node.width = Val::Percent(frac * 100.0);
+        let width = Val::Percent(frac * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
     }
+    let label = format!("{}ms", settings.input_latency_ms);
     for mut text in &mut labels {
-        text.0 = format!("{}ms", settings.input_latency_ms);
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -214,9 +227,15 @@ pub(super) fn update_sliders(
         return;
     }
     for (mut node, fill) in &mut fills {
-        node.width = Val::Percent(audio_level(&settings, fill.0) * 100.0);
+        let width = Val::Percent(audio_level(&settings, fill.0) * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
     }
     for (mut text, label) in &mut labels {
-        text.0 = format!("{:.0}%", audio_level(&settings, label.0) * 100.0);
+        let wanted = format!("{:.0}%", audio_level(&settings, label.0) * 100.0);
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
     }
 }
