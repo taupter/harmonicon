@@ -89,11 +89,6 @@ pub(super) fn transpose_notes(
     // two candidates fighting over one hole should lose one, not both.
     // Each pass reverts exactly one candidate or is the last.
     loop {
-        let placed: Vec<GridNote> = notes
-            .iter()
-            .enumerate()
-            .map(|(i, n)| choices[i].map_or(*n, |choice| candidates[i][choice]))
-            .collect();
         // When two moving notes collide, advance the one with more remaining
         // fingerings. This preserves a note with only one playable home and
         // lets an ambiguous pitch (such as G4 on a C harp) try its next hole.
@@ -101,8 +96,9 @@ pub(super) fn transpose_notes(
             .filter(|&i| {
                 choices[i].is_some_and(|choice| {
                     let candidate = candidates[i][choice];
-                    placed.iter().enumerate().any(|(j, other)| {
-                        j != i && other.hole == candidate.hole && overlaps(&candidate, other)
+                    notes.iter().enumerate().any(|(j, original)| {
+                        let other = choices[j].map_or(*original, |choice| candidates[j][choice]);
+                        j != i && other.hole == candidate.hole && overlaps(&candidate, &other)
                     })
                 })
             })
@@ -141,8 +137,7 @@ pub(super) fn transpose_notes(
 pub(super) fn transpose_selection(state: &mut EditorState, semitones: i32) {
     let harp = state.effective_harp();
     let kind = state.harmonica_kind;
-    let scope = state.selected.clone();
-    let outcome = transpose_notes(&mut state.notes, &scope, semitones, &harp, kind);
+    let outcome = transpose_notes(&mut state.notes, &state.selected, semitones, &harp, kind);
     state.transpose_notice = Some(outcome);
 }
 
