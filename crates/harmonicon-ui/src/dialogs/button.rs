@@ -24,7 +24,8 @@ pub const CHOICE_HOVER: Color = Color::srgb(0.20, 0.20, 0.32);
 /// selection/active/enabled state; those now write *this* instead of
 /// `BackgroundColor` directly, and [`apply_button_visuals`] is the only
 /// system that still touches `BackgroundColor` — layering the hover/press
-/// tint on top of whatever `BaseButtonColor` currently holds, each frame.
+/// tint on top of whatever `BaseButtonColor` currently holds, whenever
+/// either changes.
 /// Without this split, a per-frame active-state rewrite and a transient
 /// hover/press tint would each blindly overwrite `BackgroundColor` and
 /// erase the other. See [`make_interactive`] for attaching the whole thing
@@ -118,18 +119,20 @@ fn mouse_drag_end(ev: On<PointerDragEnd>, mut states: Query<&mut ButtonInteracti
 /// Recomputes every interactive button's actual `BackgroundColor` from its
 /// `BaseButtonColor` + `ButtonInteractionState` — see `BaseButtonColor`'s
 /// doc comment for why this is the *only* system allowed to write
-/// `BackgroundColor` on an entity carrying both. Runs unconditionally each
-/// frame (cheap — at most a few dozen buttons exist at once) rather than
-/// gating on a change check, so it always reflects the current frame's
-/// `BaseButtonColor` regardless of whether a caller's own active-state
-/// system, this module's hover/press observers, or both, touched it.
+/// `BackgroundColor` on an entity carrying both. Visits only buttons whose
+/// `BaseButtonColor` or `ButtonInteractionState` changed (spawning counts),
+/// which covers a caller's own active-state system and this module's
+/// hover/press observers alike, since both write one of those two.
 /// Registered once app-wide by [`ButtonVisualsPlugin`].
 fn apply_button_visuals(
-    mut buttons: Query<(
-        &BaseButtonColor,
-        &ButtonInteractionState,
-        &mut BackgroundColor,
-    )>,
+    mut buttons: Query<
+        (
+            &BaseButtonColor,
+            &ButtonInteractionState,
+            &mut BackgroundColor,
+        ),
+        Or<(Changed<BaseButtonColor>, Changed<ButtonInteractionState>)>,
+    >,
 ) {
     for (base, interaction, mut bg) in &mut buttons {
         let color = if interaction.pressed {
@@ -139,7 +142,9 @@ fn apply_button_visuals(
         } else {
             base.0
         };
-        *bg = BackgroundColor(color);
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
@@ -323,5 +328,50 @@ pub fn default<M: 'static>(
                 TextColor({Color::WHITE})
                 Pickable { should_block_lower: {false}, is_hoverable: {false} }
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn background(world: &World, entity: Entity) -> Color {
+        world.get::<BackgroundColor>(entity).unwrap().0
+    }
+
+    #[test]
+    fn visuals_follow_hover_and_leave_an_idle_button_alone() {
+        let mut world = World::new();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(apply_button_visuals);
+        let base = color_default();
+        let button = world
+            .spawn((
+                BaseButtonColor(base),
+                ButtonInteractionState::default(),
+                BackgroundColor(Color::BLACK),
+            ))
+            .id();
+
+        // A freshly spawned button is painted from its base colour.
+        schedule.run(&mut world);
+        assert_eq!(background(&world, button), base);
+
+        world
+            .get_mut::<ButtonInteractionState>(button)
+            .unwrap()
+            .hovered = true;
+        schedule.run(&mut world);
+        assert_eq!(background(&world, button), brighten(base));
+
+        // Nothing changed this frame, so the colour is not rewritten.
+        world.get_mut::<BackgroundColor>(button).unwrap().0 = Color::WHITE;
+        schedule.run(&mut world);
+        assert_eq!(background(&world, button), Color::WHITE);
+
+        // A caller's new resting colour is picked up, hover still layered on.
+        world.get_mut::<BaseButtonColor>(button).unwrap().0 = CHOICE_SELECTED;
+        schedule.run(&mut world);
+        assert_eq!(background(&world, button), brighten(CHOICE_SELECTED));
     }
 }
