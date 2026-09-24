@@ -120,7 +120,7 @@ pub fn navigate_diagram(
         dy = 1;
     }
     if dx != 0 || dy != 0 {
-        let next = step_target(&richter_harp(&key.0), *target, dx, dy);
+        let next = step_target(key.harp(), *target, dx, dy);
         if next != *target {
             *target = next;
         }

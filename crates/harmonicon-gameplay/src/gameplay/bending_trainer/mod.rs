@@ -55,13 +55,41 @@ const MIN_BPM: f32 = 40.0;
 const MAX_BPM: f32 = 220.0;
 const BPM_STEP: f32 = 5.0;
 
-/// The key the trainer's diagram is currently built for.
+/// The key the trainer's diagram is currently built for, and the Richter
+/// harp in that key. The harp is built once when the key is set rather than
+/// by every per-frame system that needs it, and the fields are private so
+/// the two can never disagree.
 #[derive(Resource)]
-pub struct TrainerKey(pub String);
+pub struct TrainerKey {
+    name: String,
+    harp: Harmonica,
+}
+
+impl TrainerKey {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            harp: richter_harp(name),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn harp(&self) -> &Harmonica {
+        &self.harp
+    }
+
+    /// Switches key, rebuilding the harp to match.
+    pub fn set(&mut self, name: &str) {
+        *self = Self::new(name);
+    }
+}
 
 impl Default for TrainerKey {
     fn default() -> Self {
-        Self("C".to_string())
+        Self::new("C")
     }
 }
 
@@ -77,7 +105,7 @@ fn key_labels() -> Vec<String> {
 /// picking a new key from the dropdown behaves exactly like the old
 /// prev/next stepper did.
 fn on_key_selected(ev: On<ComboboxSelect>, mut key: ResMut<TrainerKey>) {
-    key.0 = ev.value.clone();
+    key.set(&ev.value);
 }
 
 /// Wraps the harmonica diagram so it can be despawned + rebuilt on key change.
@@ -380,7 +408,7 @@ pub fn setup(
     loc: Res<Localization>,
 ) {
     clock.set_free(0.0);
-    *pitch_range = pitch_range_for_key(&key.0);
+    *pitch_range = pitch_range_for_key(key.name());
     tempo.meter = harmonicon_ui::music_score::MusicScoreMeter::default();
     // Keep whatever BPM was last set; default to a comfortable practice tempo.
     if tempo.bpm < MIN_BPM || tempo.bpm > MAX_BPM {
@@ -434,12 +462,12 @@ pub fn setup(
         .single()
         .map(|window| layout::orientation_for(window.width(), window.height()))
         .unwrap_or(layout::TrainerOrientation::Landscape);
-    layout::spawn_strip(&mut commands, root_id, &loc, &key.0, &audio, &tempo);
+    layout::spawn_strip(&mut commands, root_id, &loc, key.name(), &audio, &tempo);
     layout::spawn_body(
         &mut commands,
         root_id,
         &loc,
-        &key.0,
+        key.name(),
         *target,
         &audio,
         &settings,
@@ -477,7 +505,7 @@ pub fn rebuild_overlay(
     if !key.is_changed() {
         return;
     }
-    let harp = richter_harp(&key.0);
+    let harp = key.harp();
     for (host, children) in &hosts {
         if let Some(children) = children {
             for &c in children {
@@ -495,7 +523,7 @@ pub fn update_pitch_range(key: Res<TrainerKey>, mut pitch_range: ResMut<PitchRan
     if !key.is_changed() {
         return;
     }
-    *pitch_range = pitch_range_for_key(&key.0);
+    *pitch_range = pitch_range_for_key(key.name());
 }
 
 /// Esc returns to the menu — specifically the Play page, where "Bending

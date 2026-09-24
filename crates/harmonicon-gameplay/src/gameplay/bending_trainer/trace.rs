@@ -379,7 +379,7 @@ pub fn update_bend_trace(
 ) {
     let target_changed = trace.last_hole != Some(target.hole)
         || trace.last_technique != Some(target.technique)
-        || trace.last_key != key.0;
+        || trace.last_key != key.name();
     if target_changed {
         trace.samples.clear();
         trace.unstable = false;
@@ -389,12 +389,12 @@ pub fn update_bend_trace(
         trace.longest_centered_hold_secs = 0.0;
         trace.last_hole = Some(target.hole);
         trace.last_technique = Some(target.technique);
-        trace.last_key.clone_from(&key.0);
+        trace.last_key.replace_range(.., key.name());
     }
 
     trace.elapsed += time.delta_secs();
-    let harp = richter_harp(&key.0);
-    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    let harp = key.harp();
+    let shift = reference_shift_cents(&settings, key.name(), target.hole);
     match tuner_observation(&harp, *target, &active, shift) {
         Some(TunerObservation::TargetFamily(target_cents)) => {
             let elapsed = trace.elapsed;
@@ -494,7 +494,7 @@ pub fn update_bend_rail(
         ),
     >,
 ) {
-    let harp = richter_harp(&key.0);
+    let harp = key.harp();
     let Some(target_note) = target_note(&harp, *target) else {
         return;
     };

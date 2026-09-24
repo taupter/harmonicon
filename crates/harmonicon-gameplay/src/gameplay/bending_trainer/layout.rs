@@ -490,7 +490,7 @@ fn play_natural_reference(
     mut sources: ResMut<Assets<AudioSource>>,
     mut commands: Commands,
 ) {
-    if let Some(note) = natural_note_for_target(&richter_harp(&key.0), *target) {
+    if let Some(note) = natural_note_for_target(key.harp(), *target) {
         play_reference_note(&note, &mut sources, &mut commands);
     }
 }
@@ -502,7 +502,7 @@ fn play_target_reference(
     mut sources: ResMut<Assets<AudioSource>>,
     mut commands: Commands,
 ) {
-    if let Some(note) = target_note(&richter_harp(&key.0), *target) {
+    if let Some(note) = target_note(key.harp(), *target) {
         play_reference_note(&note, &mut sources, &mut commands);
     }
 }
@@ -527,7 +527,7 @@ pub fn update_setup_summary(
         return;
     }
     for mut text in &mut labels {
-        *text = Text::new(setup_summary(&loc, &key.0, &audio));
+        *text = Text::new(setup_summary(&loc, key.name(), &audio));
     }
 }
 

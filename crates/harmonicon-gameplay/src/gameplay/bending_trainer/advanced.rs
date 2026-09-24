@@ -200,7 +200,7 @@ pub fn clear_natural_center(
 ) {
     settings
         .natural_center_cents
-        .remove(&BendingTrainerSettings::center_key(&key.0, target.hole));
+        .remove(&BendingTrainerSettings::center_key(key.name(), target.hole));
 }
 
 /// Builds the Advanced drawer: a floating panel anchored top-right of the
@@ -414,7 +414,7 @@ pub fn update_advanced_readouts(
     }
     let center = settings
         .natural_center_cents
-        .get(&BendingTrainerSettings::center_key(&key.0, target.hole))
+        .get(&BendingTrainerSettings::center_key(key.name(), target.hole))
         .copied();
     for (readout, mut text) in &mut labels {
         *text = Text::new(readout_text(&loc, *readout, &trace, center));

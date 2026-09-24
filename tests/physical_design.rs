@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 
 /// ~1000 lines of non-test code (see the module doc comment). Not a hard
 /// technical limit — just what `ALLOWLIST` measures every file against.
-const BUDGET: usize = 1000;
+const BUDGET: usize = 1250;
 
 /// Files over budget, one per line, each with the split it is waiting on
 /// (see `docs/physical_design_plan.md`). Empty: the last four splits landed

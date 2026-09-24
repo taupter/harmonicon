@@ -177,7 +177,7 @@ pub fn cycle_drill_scope(
     drill.elapsed_secs = 0.0;
     drill.attempted = false;
     if drill.enabled {
-        let harp = richter_harp(&key.0);
+        let harp = key.harp();
         if let Some(next) = pick_next_target(
             &harp,
             &drill.stats,
@@ -557,7 +557,7 @@ pub fn drill_update(
     if !drill.enabled {
         return;
     }
-    let harp = richter_harp(&key.0);
+    let harp = key.harp();
     if target_note(&harp, *target).is_none() {
         return;
     }
@@ -570,7 +570,7 @@ pub fn drill_update(
     let timers = drill.bypass_change_detection();
     timers.elapsed_secs += dt;
 
-    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    let shift = reference_shift_cents(&settings, key.name(), target.hole);
     let observation = tuner_observation(&harp, *target, &active, shift);
     if matches!(observation, Some(TunerObservation::TargetFamily(_))) {
         timers.attempted = true;
@@ -663,7 +663,7 @@ pub fn toggle_drill(
     drill.attempted = false;
     if drill.enabled
         && let Some(next) = pick_next_target(
-            &richter_harp(&key.0),
+            key.harp(),
             &drill.stats,
             Some(*target),
             drill.scope,
@@ -694,7 +694,7 @@ pub fn skip_drill_target(
     finish_attempt(
         &mut drill,
         &mut target,
-        &richter_harp(&key.0),
+        key.harp(),
         DrillOutcome::Skipped,
         None,
     );

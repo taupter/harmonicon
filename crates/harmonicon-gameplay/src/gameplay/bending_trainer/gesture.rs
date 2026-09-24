@@ -194,8 +194,8 @@ pub fn update_gesture_practice(
     if target.is_changed() || key.is_changed() {
         practice.reset_attempt();
     }
-    let harp = richter_harp(&key.0);
-    let shift = reference_shift_cents(&settings, &key.0, target.hole);
+    let harp = key.harp();
+    let shift = reference_shift_cents(&settings, key.name(), target.hole);
     let frame = classify_gesture_frame(&harp, *target, &active, &trace, shift, &settings);
     // `subdivision` splits the beat: at 2, Repeated asks for a bend on every
     // eighth rather than every quarter. The pulse count is what changes, not
