@@ -87,6 +87,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/selected_metadata.rs` — metadata accessors return borrowed strings; setters retain owned annotations or intensity text as required by editor state. The few depth labels are built only on user interaction. No code change needed.
 - `crates/harmonicon-editor/src/song_editor/tests.rs` — test fixtures and assertions are off the runtime path. Existing coverage exercises chart round trips, editor interactions, lesson manifests, and safe path segments; no production allocation or SIMD change belongs in this file. No code change needed.
 - `crates/harmonicon-editor/src/song_editor/transpose/tests.rs` — transpose fixtures and assertions are outside the runtime path; their temporary vectors make expected note positions easy to compare. All seven transpose tests passed in the editor suite; no code change needed.
+- `crates/harmonicon-jam/src/lib.rs` — crate root only exports the Jam module; corrected literal `\\n` escapes and overlong crate documentation. No runtime change.
 
 ## Findings and follow-up
 
@@ -95,4 +96,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: move to the next top-level crate, `harmonicon-jam`.
+- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: `harmonicon-jam/src/jam/mod.rs`, then its feature modules.
