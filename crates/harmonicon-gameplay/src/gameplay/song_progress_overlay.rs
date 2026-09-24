@@ -564,8 +564,11 @@ fn update_progress(
     } else {
         0.0
     };
+    let left = Val::Percent(progress * 100.0);
     for mut node in &mut playheads {
-        node.left = Val::Percent(progress * 100.0);
+        if node.left != left {
+            node.left = left;
+        }
     }
 }
 
@@ -835,9 +838,8 @@ fn update_loop_marker(
 /// manual pause-menu edit, or a fresh song's initial load) without
 /// respawning — the bars themselves are only ever (re)created in
 /// [`spawn_song_progress`], since their count/geometry only changes when
-/// the song itself does. Color is now fixed ([`PHRASE_BAR_COLOR`]), so
-/// unlike the old fill/accent-stripe version this no longer needs
-/// `ColorblindPalette` at all.
+/// the song itself does. Colour is fixed ([`PHRASE_BAR_COLOR`]), so this
+/// never needs `ColorblindPalette`.
 fn update_phrase_mastery_bars(
     adaptive: Res<AdaptiveDifficulty>,
     mut bars: Query<(&PhraseMasteryBar, &mut Node)>,
@@ -879,20 +881,21 @@ fn sync_phrase_overlay_visibility(
 /// uses for blow/draw — the same source `gameplay_2d::spawn_visible_notes`
 /// tints the falling notes from, via the same `harmonicon_platform::theme::
 /// effective_note_colors`, so the bar's markers never drift from what the
-/// rest of the screen shows. Runs unconditionally each frame (cheap — a
-/// song has at most a few dozen markers visible at once) rather than
-/// gating on a change check, the same "just re-sync every currently-
-/// spawned one" approach `gameplay_2d`'s own `update_note_visuals*`
-/// systems use, which sidesteps needing an `Added`-vs-`Changed` split to
-/// catch both a fresh song's new markers and a live theme/setting change.
+/// rest of the screen shows. The bar carries one marker per note in the
+/// whole song, so this paints all of them only on a theme or palette
+/// change, and otherwise just markers spawned since the last run.
 fn sync_note_marker_colors(
     theme: Res<harmonicon_platform::theme::LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
-    mut markers: Query<(&NoteMarkerRect, &mut BackgroundColor)>,
+    mut markers: Query<(Ref<NoteMarkerRect>, &mut BackgroundColor)>,
 ) {
+    let all = theme.is_changed() || colorblind.is_changed();
     let colors =
         harmonicon_platform::theme::effective_note_colors(theme.note_colors(), colorblind.0);
     for (marker, mut color) in &mut markers {
+        if !all && !marker.is_added() {
+            continue;
+        }
         let base = if marker.is_blow {
             colors.blow
         } else {
