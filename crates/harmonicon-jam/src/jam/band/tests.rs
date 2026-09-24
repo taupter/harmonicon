@@ -153,6 +153,37 @@ fn comping_target_only_changes_at_phrase_boundaries() {
 }
 
 #[test]
+fn beats_skipped_by_a_long_frame_still_reach_the_phrase_boundary() {
+    let mut listener = BandListener::default();
+    run(&mut listener, &[BUSY; 13]);
+    // One frame jumps from beat 13 to beat 17: beats 14–16 are fed silent,
+    // so the boundary after beat 15 still thins the comping.
+    assert_eq!(listener.observe_until(13, BUSY, 17), None);
+    assert_eq!(listener.comping_target(), THINNED_COMPING);
+}
+
+#[test]
+fn an_answer_due_on_a_skipped_beat_is_still_returned() {
+    let mut listener = BandListener::default();
+    run(&mut listener, &[PLAYING; 11]);
+    // Beats 12 and 13 pass silently inside one frame; the answer due as
+    // beat 14 begins is not lost.
+    assert_eq!(
+        listener.observe_until(11, PLAYING, 15),
+        Some(BandAnswer::Drums)
+    );
+}
+
+#[test]
+fn a_long_stall_replays_at_most_the_log() {
+    let mut listener = BandListener::default();
+    run(&mut listener, &[BUSY; 16]);
+    assert_eq!(listener.observe_until(15, QUIET, 10_000), None);
+    assert_eq!(listener.beats.len(), LOG_BEATS);
+    assert_eq!(listener.comping_target(), 1.0);
+}
+
+#[test]
 fn the_same_activity_stream_always_yields_the_same_reactions() {
     let mut stream = Vec::new();
     for round in 0..6u32 {

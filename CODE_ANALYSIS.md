@@ -101,6 +101,8 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-jam/src/jam/call_response/phrase.rs` — reserve the playable-note vector from the harp's hole count and choose weighted motif candidates directly from their `(note, weight)` pairs, removing the extra weight vector. Kept the `lay_out` vector return shape used by focused tests. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/backing.rs` — keep at most three comping frequencies on the stack and scale each rendered slot's samples in place instead of collecting another vector. Generated PCM stems, WAV bytes, and the mixed waveform buffer are owned by their output APIs; changing per-sample math for SIMD needs audio comparison benchmarks. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/backing/humanize.rs` — shift and scale each varied slot inside the rendered sound's own buffer instead of allocating a second slot-length vector; clamp the delay to the slot so an oversized delay still yields a silent slot of the original length. All 122 Jam tests passed.
+- `crates/harmonicon-jam/src/jam/backing/preview.rs` — one-shot dev-tooling mix for the listening example; no hot path. No change needed.
+- `crates/harmonicon-jam/src/jam/band.rs` — a frame spanning more than one beat fed the listener only the completed beat, breaking its every-beat contract and able to skip a phrase boundary (comping target) or a due answer. `BandListener::observe_until` now feeds skipped beats as silent, capped to the log length for long stalls; three tests cover it. Phrase density reads the log through `make_contiguous` instead of collecting a vector. All 125 Jam tests and Clippy passed.
 
 ## Findings and follow-up
 

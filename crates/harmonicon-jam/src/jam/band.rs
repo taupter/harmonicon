@@ -148,8 +148,8 @@ impl BandListener {
 
         if next.is_multiple_of(BEATS_PER_PHRASE) {
             let start = self.beats.len().saturating_sub(BEATS_PER_PHRASE);
-            let phrase: Vec<BeatActivity> = self.beats.range(start..).copied().collect();
-            self.comping_target = comping_target_after(phrase_density(&phrase));
+            let phrase = &self.beats.make_contiguous()[start..];
+            self.comping_target = comping_target_after(phrase_density(phrase));
         }
 
         let bar_in_phrase = (next / BEATS_PER_BAR) % BARS_PER_PHRASE;
@@ -168,6 +168,24 @@ impl BandListener {
             });
         }
         None
+    }
+
+    /// Records `beat` as complete with `activity`, then every beat before
+    /// `current` as silent — a frame long enough to skip a beat still feeds
+    /// each one, so no phrase boundary is missed. A stall longer than the
+    /// log replays only the beats the log can hold. Returns the latest
+    /// answer due.
+    pub fn observe_until(
+        &mut self,
+        beat: usize,
+        activity: BeatActivity,
+        current: usize,
+    ) -> Option<BandAnswer> {
+        let mut answer = self.observe(beat, activity);
+        for skipped in (beat + 1).max(current.saturating_sub(LOG_BEATS))..current {
+            answer = self.observe(skipped, BeatActivity::default()).or(answer);
+        }
+        answer
     }
 
     /// The comping gain the band currently wants (1.0 = as rendered).
@@ -300,7 +318,7 @@ pub fn listen_and_react(
             && beat > prev
         {
             let completed = std::mem::take(&mut tracker.current);
-            answer = listener.observe(prev, completed);
+            answer = listener.observe_until(prev, completed, beat);
         }
         tracker.beat_index = Some(beat);
     }
