@@ -82,6 +82,7 @@ circle-of-fifths-harp-label = harp
 artist-song-count-one = {$n} song
 artist-song-count-many = {$n} songs
 select-song = Select Song
+song-list-by-artist = by {$artist}
 no-songs-found = No songs found. Add folders under assets/songs/<artist>/<song>/
 
 # Options

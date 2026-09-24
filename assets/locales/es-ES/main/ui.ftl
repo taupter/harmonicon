@@ -80,6 +80,7 @@ circle-of-fifths-harp-label = armónica
 artist-song-count-one = {$n} canción
 artist-song-count-many = {$n} canciones
 select-song = Seleccionar Canción
+song-list-by-artist = de {$artist}
 no-songs-found = No se encontraron canciones. Añade carpetas en assets/songs/<artista>/<canción>/
 
 # Opciones

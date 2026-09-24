@@ -80,6 +80,7 @@ circle-of-fifths-harp-label = gaita
 artist-song-count-one = {$n} música
 artist-song-count-many = {$n} músicas
 select-song = Selecionar Música
+song-list-by-artist = de {$artist}
 no-songs-found = Nenhuma música encontrada. Adicione pastas em assets/songs/<artista>/<música>/
 
 # Opções

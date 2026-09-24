@@ -23,7 +23,10 @@ pub(crate) fn setup_song_list(
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
 ) {
-    let subtitle = format!("by {}", selected_artist.0);
+    let subtitle = loc.msg_args(
+        "song-list-by-artist",
+        &[("artist", selected_artist.0.clone())],
+    );
     let (root, header, _page_root) = spawn_menu_root(
         &mut commands,
         &loc.msg("select-song"),
