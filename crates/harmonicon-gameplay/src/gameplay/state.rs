@@ -28,6 +28,8 @@ pub struct ActivePitches(pub Vec<PitchInfo>);
 pub struct HarmonicaPitchFilter {
     tracker: Option<HarmonicaNoteTracker>,
     pitches: HashMap<u8, PitchInfo>,
+    /// The current hop's MIDI numbers, kept to reuse its storage.
+    midis: Vec<u8>,
     /// Seconds of latency onset confirmation adds, fixed for the whole song:
     /// the sample rate comes from the capture stream and the number of hops
     /// is a constant of the tracker (see `TrackedNotes::confirmed`), so
@@ -47,6 +49,7 @@ impl HarmonicaPitchFilter {
             }),
             tracker: Some(tracker),
             pitches: HashMap::new(),
+            midis: Vec::new(),
         };
     }
 
@@ -75,21 +78,27 @@ impl HarmonicaPitchFilter {
         }
     }
 
-    fn update(&mut self, raw: &[PitchInfo]) -> Vec<PitchInfo> {
+    /// Feeds one detector hop through the tracker and writes the pitches it
+    /// holds active into `out`, reusing `out`'s storage.
+    fn update(&mut self, raw: &[PitchInfo], out: &mut Vec<PitchInfo>) {
+        out.clear();
         let Some(tracker) = self.tracker.as_mut() else {
-            return raw.to_vec();
+            out.extend_from_slice(raw);
+            return;
         };
         for pitch in raw {
             self.pitches.insert(pitch.midi, pitch.clone());
         }
-        let midis: Vec<u8> = raw.iter().map(|pitch| pitch.midi).collect();
-        let tracked = tracker.update(&midis);
+        self.midis.clear();
+        self.midis.extend(raw.iter().map(|pitch| pitch.midi));
+        let tracked = tracker.update(&self.midis);
         self.pitches.retain(|midi, _| tracked.active.contains(midi));
-        tracked
-            .active
-            .iter()
-            .filter_map(|midi| self.pitches.get(midi).cloned())
-            .collect()
+        out.extend(
+            tracked
+                .active
+                .iter()
+                .filter_map(|midi| self.pitches.get(midi).cloned()),
+        );
     }
 }
 
@@ -533,13 +542,14 @@ pub(super) fn collect_pitches(
     mut filter: ResMut<HarmonicaPitchFilter>,
     settings: Res<AudioSettings>,
 ) {
-    let engaged = filter.engaged(settings.pitch_algorithm);
-    for ev in reader.read() {
-        active.0 = if engaged {
-            filter.update(&ev.0)
-        } else {
-            ev.0.clone()
-        };
+    if filter.engaged(settings.pitch_algorithm) {
+        // The tracker counts onsets per hop, so every event must pass
+        // through it even though only the last one's output is kept.
+        for ev in reader.read() {
+            filter.update(&ev.0, &mut active.0);
+        }
+    } else if let Some(ev) = reader.read().last() {
+        active.0.clone_from(&ev.0);
     }
 }
 
@@ -627,13 +637,19 @@ mod pitch_filter_tests {
         }
     }
 
+    fn run(filter: &mut HarmonicaPitchFilter, raw: &[PitchInfo]) -> Vec<PitchInfo> {
+        let mut out = Vec::new();
+        filter.update(raw, &mut out);
+        out
+    }
+
     #[test]
     fn confirms_an_onset_over_two_frames_and_releases_on_the_first_silent_one() {
         let mut filter = HarmonicaPitchFilter::default();
         filter.configure(richter_harp("C"), Some(44_100));
-        assert!(filter.update(&[pitch(60)]).is_empty());
-        assert_eq!(filter.update(&[pitch(60)])[0].midi, 60);
-        assert!(filter.update(&[]).is_empty());
+        assert!(run(&mut filter, &[pitch(60)]).is_empty());
+        assert_eq!(run(&mut filter, &[pitch(60)])[0].midi, 60);
+        assert!(run(&mut filter, &[]).is_empty());
     }
 
     #[test]
@@ -643,11 +659,11 @@ mod pitch_filter_tests {
         // can only ever satisfy one note however many times it is played.
         let mut filter = HarmonicaPitchFilter::default();
         filter.configure(richter_harp("C"), Some(44_100));
-        filter.update(&[pitch(60)]);
-        filter.update(&[pitch(60)]);
-        assert!(filter.update(&[]).is_empty());
-        filter.update(&[pitch(60)]);
-        assert_eq!(filter.update(&[pitch(60)])[0].midi, 60);
+        run(&mut filter, &[pitch(60)]);
+        run(&mut filter, &[pitch(60)]);
+        assert!(run(&mut filter, &[]).is_empty());
+        run(&mut filter, &[pitch(60)]);
+        assert_eq!(run(&mut filter, &[pitch(60)])[0].midi, 60);
     }
 
     #[test]
@@ -674,11 +690,11 @@ mod pitch_filter_tests {
         let mut filter = HarmonicaPitchFilter::default();
         filter.configure(richter_harp("C"), Some(44_100));
         let quiet = filter.onset_lag_secs(PitchAlgorithm::Nmf);
-        filter.update(&[pitch(60)]);
-        filter.update(&[pitch(60)]);
+        run(&mut filter, &[pitch(60)]);
+        run(&mut filter, &[pitch(60)]);
         assert_eq!(filter.onset_lag_secs(PitchAlgorithm::Nmf), quiet);
         for _ in 0..5 {
-            filter.update(&[pitch(60), pitch(64)]);
+            run(&mut filter, &[pitch(60), pitch(64)]);
             assert_eq!(filter.onset_lag_secs(PitchAlgorithm::Nmf), quiet);
         }
     }
@@ -708,8 +724,8 @@ mod pitch_filter_tests {
     fn rejects_opposite_wind_phantoms() {
         let mut filter = HarmonicaPitchFilter::default();
         filter.configure(richter_harp("C"), Some(44_100));
-        filter.update(&[pitch(60), pitch(64), pitch(62)]);
-        let stable = filter.update(&[pitch(60), pitch(64), pitch(62)]);
+        run(&mut filter, &[pitch(60), pitch(64), pitch(62)]);
+        let stable = run(&mut filter, &[pitch(60), pitch(64), pitch(62)]);
         let midis: Vec<u8> = stable.iter().map(|pitch| pitch.midi).collect();
         assert_eq!(midis, vec![60, 64]);
     }
