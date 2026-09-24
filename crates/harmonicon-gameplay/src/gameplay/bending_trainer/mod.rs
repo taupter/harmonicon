@@ -1,24 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! Standalone Bending Trainer: the Let's Bend-style harmonica bend diagram +
-//! the metronome, with a directly pickable key and adjustable tempo — no
-//! song. Its own [`AppState::BendingTrainer`](harmonicon_app::app::AppState), driving
-//! the decoupled [`MetronomeTempo`] and its own copy of the gameplay clock
-//! so the metronome ticks with nothing loaded. The harp is synthesised for
-//! the chosen key (transposed Richter layout), rebuilding the diagram
-//! whenever the key changes.
-//!
-//! A shared header (title top-left, Back button top-right — same shape as
-//! every menu page, see `menu::scene::header_scene`/`spawn_back_button`)
-//! sits above a two-column body, the same split `jam::session` uses: left
-//! has everything but the harmonica itself, top-aligned and grouped into
-//! five labelled sections — Setup (key, detect-algorithm), Practice Target
-//! (readout/Listen/tuner, one card), Drill (toggle + its hover explanation),
-//! Advanced (the collapsed precision drawer — see [`advanced`]) and Tempo
-//! (metronome + BPM steppers) — instead of one flat stack, and each
-//! group's own doc comment at its `setup` call site explains why (see
-//! [`left_section`]); right is entirely the harmonica — the bend diagram
-//! plus its technique hint.
+//! Standalone harmonica bending practice with a live tuner, drill, and metronome.
+//! The selected key owns a transposed Richter harp shared by trainer systems.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::picking::events::PointerClick;
@@ -83,7 +66,9 @@ impl TrainerKey {
 
     /// Switches key, rebuilding the harp to match.
     pub fn set(&mut self, name: &str) {
-        *self = Self::new(name);
+        if self.name != name {
+            *self = Self::new(name);
+        }
     }
 }
 
@@ -105,7 +90,9 @@ fn key_labels() -> Vec<String> {
 /// picking a new key from the dropdown behaves exactly like the old
 /// prev/next stepper did.
 fn on_key_selected(ev: On<ComboboxSelect>, mut key: ResMut<TrainerKey>) {
-    key.set(&ev.value);
+    if key.name() != ev.value {
+        key.set(&ev.value);
+    }
 }
 
 /// Wraps the harmonica diagram so it can be despawned + rebuilt on key change.
@@ -286,16 +273,16 @@ pub(super) fn choose_cell(drill: &mut DrillState, target: &mut TrainerTarget, ce
 /// the set the player is assembling is visible on the diagram itself rather
 /// than only as a count in the scope readout.
 ///
-/// Written every frame rather than gated on `target.is_changed()`: the
-/// diagram itself is despawned and respawned on every key change
-/// (`rebuild_overlay`), and a change-gated system would miss re-applying the
-/// border to those fresh cells since the *target* didn't change, only the
-/// diagram under it.
+/// Repaints on target/scope changes or after the diagram is rebuilt.
 pub fn update_selected_cell_border(
     target: Res<TrainerTarget>,
     drill: Res<DrillState>,
-    mut cells: Query<(&DiagramCellTarget, &mut BorderColor)>,
+    mut cells: Query<(Ref<DiagramCellTarget>, &mut BorderColor)>,
 ) {
+    if !target.is_changed() && !drill.is_changed() && !cells.iter().any(|(cell, _)| cell.is_added())
+    {
+        return;
+    }
     const SELECTED: Color = Color::srgb(0.95, 0.85, 0.20);
     const IN_CUSTOM_SCOPE: Color = Color::srgb(0.55, 0.45, 0.16);
     let show_custom = drill.scope == DrillScope::Custom;
@@ -384,9 +371,8 @@ fn technique_hint(loc: &Localization, technique: Technique, hole: u8) -> String 
 /// The pitch detector's search range for `key`'s transposed Richter harp,
 /// widened by a semitone margin — the trainer's own key-derived range, kept
 /// separate from a loaded chart's (see `setup_scoring_config` in `mod.rs`).
-fn pitch_range_for_key(key: &str) -> PitchRange {
-    richter_harp(key)
-        .frequency_range()
+fn pitch_range_for_harp(harp: &Harmonica) -> PitchRange {
+    harp.frequency_range()
         .map(|(lo, hi)| PitchRange::from_freqs([lo, hi], PITCH_RANGE_MARGIN_SEMITONES))
         .unwrap_or_default()
 }
@@ -408,7 +394,7 @@ pub fn setup(
     loc: Res<Localization>,
 ) {
     clock.set_free(0.0);
-    *pitch_range = pitch_range_for_key(key.name());
+    *pitch_range = pitch_range_for_harp(key.harp());
     tempo.meter = harmonicon_ui::music_score::MusicScoreMeter::default();
     // Keep whatever BPM was last set; default to a comfortable practice tempo.
     if tempo.bpm < MIN_BPM || tempo.bpm > MAX_BPM {
@@ -502,7 +488,7 @@ pub fn rebuild_overlay(
     mut commands: Commands,
     loc: Res<Localization>,
 ) {
-    if !key.is_changed() {
+    if !key.is_changed() && !loc.is_changed() {
         return;
     }
     let harp = key.harp();
@@ -523,7 +509,7 @@ pub fn update_pitch_range(key: Res<TrainerKey>, mut pitch_range: ResMut<PitchRan
     if !key.is_changed() {
         return;
     }
-    *pitch_range = pitch_range_for_key(key.name());
+    *pitch_range = pitch_range_for_harp(key.harp());
 }
 
 /// Esc returns to the menu — specifically the Play page, where "Bending
@@ -558,11 +544,14 @@ pub fn update_target_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<TargetLabel>>,
 ) {
-    if !target.is_changed() {
+    if !target.is_changed() && !loc.is_changed() {
         return;
     }
+    let label = target_label_text(&loc, target.hole, target.technique);
     for mut text in &mut labels {
-        *text = Text::new(target_label_text(&loc, target.hole, target.technique));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -572,11 +561,14 @@ pub fn update_hint_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<HintLabel>>,
 ) {
-    if !target.is_changed() {
+    if !target.is_changed() && !loc.is_changed() {
         return;
     }
+    let hint = technique_hint(&loc, target.technique, target.hole);
     for mut text in &mut labels {
-        *text = Text::new(technique_hint(&loc, target.technique, target.hole));
+        if text.0 != hint {
+            text.0.clone_from(&hint);
+        }
     }
 }
 
