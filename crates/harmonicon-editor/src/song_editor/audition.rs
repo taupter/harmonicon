@@ -3,9 +3,7 @@
 //! Plays a short reference tone for a note the instant it becomes the
 //! primary selection — confirms a bend/overblow/overdraw sounds like what
 //! was meant, without running Play/Practice or reaching for a real harp.
-//! Reuses `audio_system::synth`'s additive harmonica voice via
-//! `playback::note_freq`/`render_pcm`, the same synth Play/Practice/Record
-//! preview already use.
+//! Uses `playback::note_freq` and the shared `harmonicon_core::synth` voice.
 //!
 //! Scoped to *selection changing to a different note*: a fresh placement or
 //! clicking an existing note both go through `EditorState::selected_note`,
@@ -57,7 +55,9 @@ pub(super) fn audition_on_select(
     mut commands: Commands,
 ) {
     let Some(note) = state.selected_note() else {
-        last.0 = None;
+        if last.0.is_some() {
+            last.0 = None;
+        }
         return;
     };
     if last.0 == Some(note.id) {
