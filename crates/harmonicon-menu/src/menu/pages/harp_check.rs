@@ -396,7 +396,7 @@ pub(crate) fn refresh_harp_cost(
         return;
     };
     if !choice.seeded {
-        seed_choice(&mut choice, &chart);
+        seed_choice(&mut choice, chart);
     } else if !choice.is_changed() {
         return;
     }
@@ -405,8 +405,8 @@ pub(crate) fn refresh_harp_cost(
         *label = Text::new(written_for.clone());
     }
 
-    let baseline = cost_of(&chart, &baseline_choice(&chart));
-    let text = cost_message(&cost_of(&chart, &choice), &baseline, &loc);
+    let baseline = cost_of(chart, &baseline_choice(chart));
+    let text = cost_message(&cost_of(chart, &choice), &baseline, &loc);
     for mut label in &mut labels {
         *label = Text::new(text.clone());
     }

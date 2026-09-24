@@ -166,10 +166,10 @@ pub(super) fn update_timeline_overlays(
 }
 
 fn hide<F: bevy::ecs::query::QueryFilter>(q: &mut Query<(&mut Node, &mut Visibility), F>) {
-    if let Ok((_, mut vis)) = q.single_mut() {
-        if *vis != Visibility::Hidden {
-            *vis = Visibility::Hidden;
-        }
+    if let Ok((_, mut vis)) = q.single_mut()
+        && *vis != Visibility::Hidden
+    {
+        *vis = Visibility::Hidden;
     }
 }
 
