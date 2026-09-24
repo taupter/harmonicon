@@ -78,7 +78,9 @@ pub(super) fn harmonica_button_scene(
         BackgroundColor({color})
         HarmonicaButton({name})
         on(move |_: On<Activate>, mut selected: ResMut<SelectedHarmonicaModel>| {
-            selected.0 = pick.clone();
+            if selected.0 != pick {
+                selected.0.clone_from(&pick);
+            }
         })
         on(harm_over)
         on(harm_out)
@@ -211,7 +213,10 @@ pub(super) fn harm_over(
     if let Ok((btn, mut bg)) = buttons.get_mut(ev.entity)
         && btn.0 != selected.0
     {
-        *bg = BackgroundColor(button::CHOICE_HOVER);
+        let wanted = BackgroundColor(button::CHOICE_HOVER);
+        if *bg != wanted {
+            *bg = wanted;
+        }
     }
 }
 
@@ -223,7 +228,10 @@ pub(super) fn harm_out(
     if let Ok((btn, mut bg)) = buttons.get_mut(ev.entity)
         && btn.0 != selected.0
     {
-        *bg = BackgroundColor(button::color_default());
+        let wanted = BackgroundColor(button::color_default());
+        if *bg != wanted {
+            *bg = wanted;
+        }
     }
 }
 
@@ -236,10 +244,13 @@ pub(super) fn harmonica_button_visuals(
         return;
     }
     for (button, mut bg) in &mut buttons {
-        bg.0 = if button.0 == selected.0 {
+        let wanted = if button.0 == selected.0 {
             button::CHOICE_SELECTED
         } else {
             button::color_default()
         };
+        if bg.0 != wanted {
+            bg.0 = wanted;
+        }
     }
 }
