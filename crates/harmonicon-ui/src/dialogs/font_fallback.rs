@@ -124,6 +124,14 @@ struct GeneratedSpan;
 #[derive(Component)]
 pub struct SkipFontFallback;
 
+/// Points `font` at `source`, writing only on a change so an unchanged
+/// label's `TextFont` isn't marked changed.
+fn set_font(font: &mut Mut<TextFont>, source: FontSource) {
+    if font.font != source {
+        font.font = source;
+    }
+}
+
 /// Rewrites any changed [`Text`] containing a known-missing character: the
 /// entity's own `Text`/`TextFont` become the first run, and each further run
 /// is appended as a [`TextSpan`] child sourcing the matching fallback font.
@@ -140,6 +148,13 @@ fn apply_font_fallback(
 ) {
     let Some(fallback) = fallback else { return };
     for (entity, text, mut font, color, children) in &mut texts {
+        // Plain text — nearly every label — is one default-font run, so it
+        // skips building the owned run list below. (Empty text has no run
+        // and is left alone, as below.)
+        if !text.0.is_empty() && !text.0.chars().any(|c| fallback_kind(c).is_some()) {
+            set_font(&mut font, FontSource::default());
+            continue;
+        }
         let runs = split_runs(&text.0);
         if runs.len() <= 1 {
             // Nothing to split into spans. Still make sure the font matches
@@ -155,10 +170,13 @@ fn apply_font_fallback(
             // nothing left in `runs[1..]` — never recreate it, leaving only
             // the icon on screen.
             if let Some((_, kind)) = runs.first() {
-                font.font = match kind {
-                    Some(k) => FontSource::Handle(fallback.handle(*k)),
-                    None => FontSource::default(),
-                };
+                set_font(
+                    &mut font,
+                    match kind {
+                        Some(k) => FontSource::Handle(fallback.handle(*k)),
+                        None => FontSource::default(),
+                    },
+                );
             }
             continue;
         }
@@ -177,10 +195,13 @@ fn apply_font_fallback(
                 .entity(entity)
                 .insert(Text::new(first_text.clone()));
         }
-        font.font = match first_kind {
-            Some(kind) => FontSource::Handle(fallback.handle(*kind)),
-            None => FontSource::default(),
-        };
+        set_font(
+            &mut font,
+            match first_kind {
+                Some(kind) => FontSource::Handle(fallback.handle(*kind)),
+                None => FontSource::default(),
+            },
+        );
 
         let base_size = font.font_size;
         let base_color = color.0;
