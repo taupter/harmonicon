@@ -84,6 +84,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/phrase_editor.rs` — reuse the editor's cached meter map while the popover is open, guard unchanged popover layout writes, and reuse title string capacity. Text box commits still need an owned annotation string. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/save_feedback.rs` — short-lived localized status message and countdown perform no temporary allocations or unnecessary copies; the timer update while active is needed to expire the message. No code change needed.
 - `crates/harmonicon-editor/src/song_editor/scoring_settings.rs` — UI-editable scoring strings are necessarily owned in the editor state; this value type has no hot loop or temporary vector. No code change needed.
+- `crates/harmonicon-editor/src/song_editor/selected_metadata.rs` — metadata accessors return borrowed strings; setters retain owned annotations or intensity text as required by editor state. The few depth labels are built only on user interaction. No code change needed.
 
 ## Findings and follow-up
 
@@ -92,4 +93,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- Next review: continue `harmonicon-editor` at `src/song_editor/selected_metadata.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/tests.rs`, then finish the remaining editor review before `harmonicon-jam` and `harmonicon-gameplay`.
