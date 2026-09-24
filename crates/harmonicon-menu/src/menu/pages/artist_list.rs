@@ -43,10 +43,10 @@ pub(crate) fn setup_artist_list(
             .id();
         commands.entity(root).add_child(msg);
     } else {
-        let mut artists: Vec<&String> = songs.0.keys().collect();
-        artists.sort_unstable();
-        for artist in artists {
-            let n = songs.0[artist].len();
+        let mut artists: Vec<_> = songs.0.iter().collect();
+        artists.sort_unstable_by_key(|(artist, _)| *artist);
+        for (artist, artist_songs) in artists {
+            let n = artist_songs.len();
             let count = loc.msg_args(
                 if n == 1 {
                     "artist-song-count-one"
