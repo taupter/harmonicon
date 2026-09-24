@@ -40,7 +40,7 @@ pub(super) fn zoom_fraction(scale: f32) -> f32 {
 /// [`update_zoom_slider_visuals`]), which costs nothing to update every
 /// frame.
 pub(super) fn set_zoom(ev: On<ValueChange<f32>>, mut ui_scale: ResMut<UiScale>) {
-    if ev.is_final {
+    if ev.is_final && ui_scale.0 != ev.value {
         ui_scale.0 = ev.value;
     }
 }
@@ -92,18 +92,27 @@ pub(super) fn zoom_slider_scene(value: f32, frac: f32) -> impl Scene {
 /// Mirrors changed slider values onto the fill and percentage label.
 pub(super) fn update_zoom_slider_visuals(
     loc: Res<Localization>,
-    sliders: Query<&SliderValue, (With<ZoomSlider>, Changed<SliderValue>)>,
+    sliders: Query<Ref<SliderValue>, With<ZoomSlider>>,
     mut fills: Query<&mut Node, With<ZoomSliderFill>>,
     mut labels: Query<&mut Text, With<ZoomLabel>>,
 ) {
     let Ok(value) = sliders.single() else {
         return;
     };
-    for mut node in &mut fills {
-        node.width = Val::Percent(zoom_fraction(value.0) * 100.0);
+    if !value.is_changed() && !loc.is_changed() {
+        return;
     }
+    for mut node in &mut fills {
+        let width = Val::Percent(zoom_fraction(value.0) * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
+    }
+    let label = zoom_label_text(&loc, value.0);
     for mut text in &mut labels {
-        *text = Text::new(zoom_label_text(&loc, value.0));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -112,13 +121,15 @@ pub(super) fn update_zoom_slider_visuals(
 /// `insert`, not `&mut`), same as every other `bevy_ui_widgets` value type.
 pub(super) fn sync_zoom_slider_from_ui_scale(
     ui_scale: Res<UiScale>,
-    sliders: Query<Entity, With<ZoomSlider>>,
+    sliders: Query<(Entity, &SliderValue), With<ZoomSlider>>,
     mut commands: Commands,
 ) {
     if !ui_scale.is_changed() {
         return;
     }
-    for entity in &sliders {
-        commands.entity(entity).insert(SliderValue(ui_scale.0));
+    for (entity, value) in &sliders {
+        if value.0 != ui_scale.0 {
+            commands.entity(entity).insert(SliderValue(ui_scale.0));
+        }
     }
 }
