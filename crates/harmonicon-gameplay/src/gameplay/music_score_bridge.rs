@@ -13,11 +13,9 @@ use bevy::prelude::*;
 use harmonicon_app::app::{AppState, GameplayMode, SelectedSong};
 use harmonicon_core::chart::seconds_to_tick;
 use harmonicon_song::song::SongManifest;
-use harmonicon_ui::music_score::{
-    MusicScoreMeter, MusicScoreNotes, MusicScorePlayhead, parse_time_signature,
-};
+use harmonicon_ui::music_score::{MusicScoreMeter, MusicScoreNotes, MusicScorePlayhead};
 
-use super::{GameplayClock, GameplayLogic, SongNotes, notes_to_notation};
+use super::{GameplayClock, GameplayLogic, SongNotes, chart_meter, notes_to_notation};
 
 pub struct MusicScoreBridgePlugin;
 
@@ -53,17 +51,9 @@ fn sync_music_score_notes(
         return;
     };
     let timing = &manifest.chart.timing;
-    // Same precedence `lifecycle::setup_scoring_config` uses — the tempo
-    // map's own signature at tick 0 wins over the song-level field. This
-    // used to read only the song field, so a chart that set one and not
-    // the other could have the staff and the bar counter disagree.
-    let time_sig = timing
-        .time_signature_map
-        .as_deref()
-        .and_then(|m| harmonicon_core::chart::time_sig_at_tick(0, m))
-        .or(manifest.chart.song.time_signature.as_deref())
-        .unwrap_or("4/4");
-    let parsed = parse_time_signature(time_sig);
+    // The one reading of a chart's meter, so the staff and the bar counter
+    // cannot disagree.
+    let parsed = chart_meter(&manifest.chart);
     if *meter != parsed {
         *meter = parsed;
     }
@@ -90,5 +80,9 @@ fn update_music_score_playhead(
     };
     let timing = &manifest.chart.timing;
     let tick = seconds_to_tick(clock.get().max(0.0), timing.resolution, &timing.tempo_map);
-    playhead.0 = tick as f64 / timing.resolution.max(1) as f64;
+    let beat = tick as f64 / timing.resolution.max(1) as f64;
+    // Unchanged while paused or frozen on a wait-for-note.
+    if playhead.0 != beat {
+        playhead.0 = beat;
+    }
 }
