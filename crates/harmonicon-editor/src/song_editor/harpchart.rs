@@ -189,10 +189,10 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 Harmonica::Diatonic {
                     layout: Some(l), ..
                 } => (
-                    l.blow.clone().unwrap_or_default(),
-                    l.draw.clone().unwrap_or_default(),
+                    l.blow.as_deref().unwrap_or(&[]),
+                    l.draw.as_deref().unwrap_or(&[]),
                 ),
-                _ => (Vec::new(), Vec::new()),
+                _ => (&[][..], &[][..]),
             };
             let bending_profile = match state.harmonica_kind {
                 HarmonicaKind::Diatonic => "richter_standard",
@@ -215,12 +215,12 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 Harmonica::Chromatic {
                     layout: Some(l), ..
                 } => (
-                    l.blow.clone().unwrap_or_default(),
-                    l.draw.clone().unwrap_or_default(),
-                    l.blow_slide.clone().unwrap_or_default(),
-                    l.draw_slide.clone().unwrap_or_default(),
+                    l.blow.as_deref().unwrap_or(&[]),
+                    l.draw.as_deref().unwrap_or(&[]),
+                    l.blow_slide.as_deref().unwrap_or(&[]),
+                    l.draw_slide.as_deref().unwrap_or(&[]),
                 ),
-                _ => (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+                _ => (&[][..], &[][..], &[][..], &[][..]),
             };
             json!({
                 "type": "chromatic",
@@ -569,7 +569,6 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
     state.phrase_annotations.clear();
     state.expression_intensities.clear();
     let mut next_id = 0u32;
-    let empty = vec![];
     let hole_count = state.hole_count();
 
     if let Some(track) = v["track"].as_array() {
@@ -617,7 +616,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             );
             let len = (end_tick as usize).saturating_sub(start_tick).max(1);
 
-            let events = phrase["events"].as_array().unwrap_or(&empty);
+            let events = phrase["events"].as_array().map_or(&[][..], Vec::as_slice);
             for event in events {
                 let hole = event["hole"].as_u64().unwrap_or(1) as u8;
                 if !(1..=hole_count).contains(&hole) {
@@ -628,8 +627,7 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
                 } else {
                     Dir::Blow
                 };
-                let mods_empty = vec![];
-                let mods = event["modifiers"].as_array().unwrap_or(&mods_empty);
+                let mods = event["modifiers"].as_array().map_or(&[][..], Vec::as_slice);
                 let (pitch, expr) = parse_pitch_expr(mods);
                 if let Some(intensity) = mods.iter().find_map(|modifier| {
                     matches!(modifier["type"].as_str(), Some("vibrato" | "wah-wah"))
@@ -897,18 +895,18 @@ fn save_midi_backing(
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 pub(super) fn safe_path_segment(s: &str) -> String {
-    s.trim()
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '-' {
-                c
-            } else {
-                '_'
+    let mut segment = String::new();
+    let mut separator = false;
+    for c in s.trim().chars() {
+        if c.is_alphanumeric() || c == '-' {
+            if separator && !segment.is_empty() {
+                segment.push('_');
             }
-        })
-        .collect::<String>()
-        .split('_')
-        .filter(|p| !p.is_empty())
-        .collect::<Vec<_>>()
-        .join("_")
+            segment.push(c);
+            separator = false;
+        } else {
+            separator = true;
+        }
+    }
+    segment
 }
