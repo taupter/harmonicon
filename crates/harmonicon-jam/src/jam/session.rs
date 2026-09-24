@@ -92,7 +92,10 @@ pub fn setup(
     // count (empty for an ordinary, non-MIDI-backed song, so the mute row
     // below simply doesn't spawn and the apply/UI systems have nothing to
     // iterate).
-    stem_mute.0 = vec![false; manifest.backing_stems.as_ref().map_or(0, Vec::len)];
+    stem_mute
+        .0
+        .resize(manifest.backing_stems.as_ref().map_or(0, Vec::len), false);
+    stem_mute.0.fill(false);
 
     let chart = &manifest.chart;
     let key = chart.song.key.as_str();
@@ -622,12 +625,16 @@ pub fn update_jam_loop_label(
     if !jam_loop.is_changed() && added.is_empty() {
         return;
     }
+    let want = loc.msg(if jam_loop.0 {
+        "jam-loop-on"
+    } else {
+        "jam-loop-off"
+    });
     for mut text in &mut labels {
-        *text = Text::new(String::from(if jam_loop.0 {
-            loc.msg("jam-loop-on")
-        } else {
-            loc.msg("jam-loop-off")
-        }));
+        if text.0 != &*want {
+            text.0.clear();
+            text.0.push_str(&want);
+        }
     }
 }
 
