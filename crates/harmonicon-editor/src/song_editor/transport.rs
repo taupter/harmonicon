@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! The mod panel's transport clusters: chart file I/O (Save/Load/Import,
-//! always visible), the Play-mode playback/practice buttons, and the
-//! Record-mode recording transport — split out of `mod_panel` (which
-//! assembles the panel and owns the Edit-mode tool strip) purely along the
-//! "button cluster" seam. Built from `panel_widgets`' shared shapes.
+//! Editor file, playback, practice, and recording controls, built with
+//! `panel_widgets`' shared button helpers.
 
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
