@@ -675,12 +675,15 @@ fn comping_slot(
     secs: f32,
     genre: Genre,
 ) -> Vec<f32> {
-    let frequencies: Vec<f32> = chord_intervals(quality)
-        .iter()
-        .take(3)
-        .filter_map(|interval| note_to_midi(&format!("{}3", semitone(root, *interval))))
-        .map(|midi| midi_to_freq_hz(midi as f32))
-        .collect();
+    let mut frequencies = [0.0; 3];
+    let mut count = 0;
+    for interval in chord_intervals(quality).iter().take(3) {
+        if let Some(midi) = note_to_midi(&format!("{}3", semitone(root, *interval))) {
+            frequencies[count] = midi_to_freq_hz(midi as f32);
+            count += 1;
+        }
+    }
+    let frequencies = &frequencies[..count];
     let n = (secs * SAMPLE_RATE as f32).max(1.0) as usize;
     (0..n)
         .map(|i| {
@@ -758,11 +761,12 @@ fn generate_comping_pcm(
                 let secs = if slot % 2 == 0 { long } else { short };
                 let event = arrangement.comping[slot];
                 if event.hit {
+                    let mut sound = comping_slot(root, *quality, secs, genre);
+                    for sample in &mut sound {
+                        *sample *= event.accent;
+                    }
                     out.extend(varied_slot(
-                        comping_slot(root, *quality, secs, genre)
-                            .into_iter()
-                            .map(|sample| sample * event.accent)
-                            .collect(),
+                        sound,
                         secs,
                         performance_variation(seed, genre, GrooveRole::Comping, chorus, bar, slot),
                     ));
