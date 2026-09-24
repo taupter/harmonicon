@@ -6,8 +6,6 @@
 //!
 //! Resolved once at song setup into [`SongInfo`] and read from there by every
 //! screen that shows it, rather than each one re-deriving it from the chart.
-//! Both gameplay modes built this block independently and identically before,
-//! down to the same em dash and the same `metadata.as_ref().and_then(...)`.
 //!
 //! **It is read material, not a readout.** None of it changes during a
 //! performance, so it belongs where the player has time to read it — the
@@ -43,24 +41,14 @@ impl SongInfo {
     pub fn from_chart(chart: &HarpChart, harp: &Harmonica, key: &str, loc: &Localization) -> Self {
         Self {
             title: format!("{} \u{2014} {}", chart.song.artist, chart.song.title),
-            meter: String::from(
-                loc.msg_args(
-                    "gameplay-chart-info",
-                    &[
-                        ("key", key.to_string()),
-                        ("bpm", (chart.song.tempo_bpm as u32).to_string()),
-                        (
-                            "time_sig",
-                            chart
-                                .song
-                                .time_signature
-                                .as_deref()
-                                .unwrap_or("4/4")
-                                .to_string(),
-                        ),
-                    ],
-                ),
-            ),
+            meter: String::from(loc.msg_args(
+                "gameplay-chart-info",
+                &[
+                    ("key", key.to_string()),
+                    ("bpm", (chart.song.tempo_bpm as u32).to_string()),
+                    ("time_sig", time_signature_label(chart)),
+                ],
+            )),
             harp: harp_line(&harp.summary(), loc),
             description: chart.metadata.as_ref().and_then(|m| m.description.clone()),
             chart_author: chart.metadata.as_ref().and_then(|m| {
@@ -72,6 +60,15 @@ impl SongInfo {
             }),
         }
     }
+}
+
+/// The meter as the song info line shows it (`"6/8"`), from the same
+/// [`chart_meter`](super::bars::chart_meter) reading every other part of
+/// gameplay uses, so a chart whose `time_signature_map` overrides the song
+/// field shows the meter it actually plays in.
+pub(super) fn time_signature_label(chart: &HarpChart) -> String {
+    let meter = super::bars::chart_meter(chart);
+    format!("{}/{}", meter.numerator, meter.denominator)
 }
 
 /// A chart's position string (`"2nd"`) in the player's language when it is
@@ -133,8 +130,8 @@ pub fn harp_banner_text(harp: &Harmonica, song_key: &str, loc: &Localization) ->
 /// The title alone, for the strip that stays up while notes are falling.
 ///
 /// Everything else in [`SongInfo`] is deliberately absent here: a player
-/// mid-phrase is not reading a description, and the column it used to occupy
-/// is worth more as highway.
+/// mid-phrase is not reading a description, and the space is worth more as
+/// highway.
 pub fn spawn_song_header(parent: &mut ChildSpawnerCommands, info: &SongInfo) {
     parent.spawn((
         Text::new(info.title.clone()),

@@ -33,9 +33,9 @@ pub fn spawn_countdown(
     harp_hint: Option<&str>,
     song_info: Option<&SongInfo>,
 ) {
-    // The full-screen overlay shell is static and font/handle-free, so it's a
-    // `bsn!` scene. The countdown text children carry a custom `FontSource`,
-    // which `bsn!` can't take directly in 0.19-rc.3, so they stay imperative.
+    // The full-screen overlay shell is static, so it's a `bsn!` scene. The
+    // children stay imperative because the harp hint and song details are
+    // optional and spawned conditionally.
     let overlay = commands
         .spawn_scene(bsn! {
             Node {
@@ -99,10 +99,21 @@ pub fn update_countdown(
     mode: Res<GameplayMode>,
     mut commands: Commands,
 ) {
-    if clock.get() >= 0.0 {
-        for mut vis in &mut overlay {
-            *vis = Visibility::Hidden;
+    // The overlay's visibility is only written when it flips: rewriting the
+    // same value re-runs visibility propagation over its whole subtree, and
+    // this system runs every frame of the song.
+    let wanted = if clock.get() >= 0.0 {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    };
+    for mut vis in &mut overlay {
+        if *vis != wanted {
+            *vis = wanted;
         }
+    }
+
+    if clock.get() >= 0.0 {
         if !music_started.0 {
             music_started.0 = true;
             // `manifest.music` is `None` for a song with no `song/*.ogg`/
@@ -148,17 +159,16 @@ pub fn update_countdown(
         return;
     }
 
-    for mut vis in &mut overlay {
-        *vis = Visibility::Visible;
-    }
-
     let remaining = -clock.get();
     let n = remaining.ceil() as u32;
     let frac = remaining.fract() as f32;
     let font_size = 80.0 + (1.0 - frac) * 80.0;
 
     for (mut t, mut font) in &mut text {
-        t.0 = format!("{n}");
+        // The digit changes once a second; only the size animates per frame.
+        if t.0.parse::<u32>().ok() != Some(n) {
+            t.0 = n.to_string();
+        }
         font.font_size = FontSize::Px(font_size);
     }
 }

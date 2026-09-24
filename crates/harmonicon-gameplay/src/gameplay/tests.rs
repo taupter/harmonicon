@@ -162,6 +162,20 @@ fn chart_meter_keeps_the_denominator() {
     assert!((m.bar_secs(180.0) - 1.0).abs() < 1e-9);
 }
 
+#[test]
+fn the_song_info_meter_follows_the_map_like_everything_else() {
+    use super::song_info::time_signature_label;
+    assert_eq!(
+        time_signature_label(&chart_with_meter(Some("4/4"), Some("6/8"))),
+        "6/8"
+    );
+    assert_eq!(
+        time_signature_label(&chart_with_meter(Some("3/4"), None)),
+        "3/4"
+    );
+    assert_eq!(time_signature_label(&chart_with_meter(None, None)), "4/4");
+}
+
 // ── beat guides (tick-space beat placement) ──────────────────────────────
 
 #[test]
