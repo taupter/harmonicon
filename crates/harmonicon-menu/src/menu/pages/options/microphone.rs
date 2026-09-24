@@ -135,20 +135,25 @@ pub(super) fn update_mic_banner(
     mut banners: Query<&mut Node, With<MicBanner>>,
     mut texts: Query<&mut Text, With<MicBannerText>>,
 ) {
-    if !status.is_changed() {
+    if !status.is_changed() && !loc.is_changed() {
         return;
     }
     let visible = mic_banner_visible(&status);
     for mut node in &mut banners {
-        node.display = if visible {
+        let display = if visible {
             Display::Flex
         } else {
             Display::None
         };
+        if node.display != display {
+            node.display = display;
+        }
     }
     let text = mic_banner_text(&status, &loc);
     for mut t in &mut texts {
-        **t = text.clone();
+        if t.0 != text {
+            t.0.clone_from(&text);
+        }
     }
 }
 
@@ -206,5 +211,9 @@ pub(super) fn sync_mic_combobox(
     let Ok(mut value) = values.get_mut(root) else {
         return;
     };
-    value.0 = connected_device_name(&status).unwrap_or("None").to_string();
+    let connected = connected_device_name(&status).unwrap_or("None");
+    if value.0 != connected {
+        value.0.clear();
+        value.0.push_str(connected);
+    }
 }
