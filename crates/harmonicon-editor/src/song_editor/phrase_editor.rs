@@ -42,6 +42,7 @@ use harmonicon_ui::dialogs::button::make_interactive;
 use harmonicon_ui::dialogs::text_input::{TextInputCommitted, spawn_text_input};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 
+use super::metronome::MeterClockCache;
 use super::state::{EditorState, Field, Scroll};
 use super::timeline::describe_tick;
 use super::ui::GridArea;
@@ -228,6 +229,7 @@ pub(super) fn update_phrase_editor(
     mut root: Query<&mut Node, With<PhraseEditor>>,
     mut title: Query<&mut Text, With<PhraseEditorTitle>>,
     mut boxes: Query<(Entity, &PhraseEditorBox, &mut EditableText)>,
+    mut meter_cache: Local<Option<MeterClockCache>>,
 ) {
     let Ok(mut node) = root.single_mut() else {
         return;
@@ -248,15 +250,24 @@ pub(super) fn update_phrase_editor(
         .single()
         .map(|c| c.size().x * c.inverse_scale_factor())
         .unwrap_or(WIDTH);
-    node.display = Display::Flex;
-    node.left = Val::Px(popover_left(tick, scroll.px, area_width));
-    node.top = Val::Px(ANNOTATION_TOP + ANNOTATION_H + GAP_BELOW_LANE);
+    if node.display != Display::Flex {
+        node.display = Display::Flex;
+    }
+    let left = Val::Px(popover_left(tick, scroll.px, area_width));
+    if node.left != left {
+        node.left = left;
+    }
+    let top = Val::Px(ANNOTATION_TOP + ANNOTATION_H + GAP_BELOW_LANE);
+    if node.top != top {
+        node.top = top;
+    }
 
     if let Ok(mut text) = title.single_mut() {
-        let position = describe_tick(tick, &state.meter_map());
+        let position = describe_tick(tick, MeterClockCache::map_for(&mut meter_cache, &state));
         let want = loc.msg_args("editor-phrase-editor-title", &[("position", position)]);
         if **text != *want {
-            **text = want.to_string();
+            text.0.clear();
+            text.0.push_str(&want);
         }
     }
     // Same rule as `panel::sync_meta_field_text`: never overwrite the box
