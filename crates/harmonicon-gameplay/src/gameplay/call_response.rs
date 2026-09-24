@@ -1,20 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! Call-and-response phrases: a chart's consecutive `TrackItem::call: true`
-//! items are synthesized into a one-shot "call" demo (reusing
-//! `audio_system::synth`, the same synth behind the song editor's own Play
-//! button), played automatically before the phrase's notes arrive as the
-//! scored "response." The response notes are ordinary `ScheduledNote`s with
-//! `force_wait: true` (see `gameplay::wait_freeze_index`), so the player
-//! always gets the freeze-and-wait treatment to echo them, regardless of
-//! the practice-only `WaitForNoteMode` toggle.
-//!
-//! Deliberately not a clock-jumping feature: the demo plays as a plain
-//! fire-and-forget overlay sound, timed by working backwards from the
-//! response's own authored start time — `GameplayClock`/the music sink are
-//! never touched, so this can't run afoul of the sink-anchoring invariant
-//! (see `CLAUDE.md`'s clock notes). A chart author just needs to leave
-//! enough silence before a call group for its demo to finish playing.
+//! Chart call phrases are synthesized once and played before their scored response.
+//! The call audio leaves the gameplay clock and music sink unchanged.
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
@@ -26,6 +13,7 @@ use harmonicon_core::midi::midi_to_freq_hz;
 use harmonicon_core::synth::{Expr, PhraseNote, SAMPLE_RATE, TICKS_PER_BEAT, render_pcm};
 use harmonicon_core::wav::encode_wav;
 use harmonicon_song::song::SongManifest;
+use std::borrow::Cow;
 
 use super::{GameplayClock, GameplayRoot, resolve_item_time, target_pitch};
 
@@ -74,12 +62,18 @@ pub(super) fn call_phrase_groups(track: &[TrackItem]) -> Vec<(usize, usize)> {
 /// The natural (un-bent) pitch name for `item`'s hole/action, same fallback
 /// `gameplay_2d::build_combined_notes`/`gameplay_3d::build_notes_3d` use: the
 /// event's own authored `note` if present, else the harmonica's layout.
-fn natural_pitch(chart: &HarpChart, event: &harmonicon_core::chart::NoteEvent) -> String {
-    event.note.clone().unwrap_or_else(|| {
-        chart
-            .harmonica
-            .wind_direction_label(event.hole, &event.action)
-    })
+fn natural_pitch<'a>(
+    chart: &HarpChart,
+    event: &'a harmonicon_core::chart::NoteEvent,
+) -> Cow<'a, str> {
+    match event.note.as_deref() {
+        Some(note) => Cow::Borrowed(note),
+        None => Cow::Owned(
+            chart
+                .harmonica
+                .wind_direction_label(event.hole, &event.action),
+        ),
+    }
 }
 
 /// The expression LFO a call-phrase note's demo audio should carry, mapped
@@ -112,21 +106,21 @@ pub(super) fn build_phrase_notes(
     bpm: f32,
 ) -> Vec<PhraseNote> {
     let secs_per_tick = 60.0 / bpm.max(1.0) / TICKS_PER_BEAT as f32;
-    let mut notes = Vec::new();
+    let mut notes = Vec::with_capacity(track_group.iter().map(|item| item.events.len()).sum());
     for item in track_group {
         let item_time = resolve_item_time(item, &chart.timing);
         let rel_secs = (item_time - group_start_time).max(0.0) as f32;
         let tick = (rel_secs / secs_per_tick).round() as usize;
         let len = ((item.duration as f32 / secs_per_tick).round() as usize).max(1);
         for event in &item.events {
-            let modifiers = event.modifiers.clone().unwrap_or_default();
+            let modifiers = event.modifiers.as_deref().unwrap_or_default();
             let natural = natural_pitch(chart, event);
-            let freq = target_pitch(&natural, &modifiers).map(|m| midi_to_freq_hz(m as f32));
+            let freq = target_pitch(&natural, modifiers).map(|m| midi_to_freq_hz(m as f32));
             notes.push(PhraseNote {
                 tick,
                 len,
                 freq,
-                expr: demo_expr(&modifiers),
+                expr: demo_expr(modifiers),
             });
         }
     }
