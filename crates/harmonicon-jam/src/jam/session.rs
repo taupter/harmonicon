@@ -631,7 +631,7 @@ pub fn update_jam_loop_label(
         "jam-loop-off"
     });
     for mut text in &mut labels {
-        if text.0 != &*want {
+        if text.0 != *want {
             text.0.clear();
             text.0.push_str(&want);
         }

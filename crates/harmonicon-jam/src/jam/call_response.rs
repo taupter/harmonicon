@@ -238,7 +238,7 @@ pub fn update_call_response_banner(
             CallResponsePhase::Calling => loc.msg("jam-call-response-listen"),
             CallResponsePhase::Responding => loc.msg("jam-call-response-your-turn"),
         };
-        if text.0 != &*want {
+        if text.0 != *want {
             text.0.clear();
             text.0.push_str(&want);
         }
@@ -263,7 +263,7 @@ pub fn update_call_response_label(
         "jam-call-response-off"
     });
     for mut text in &mut labels {
-        if text.0 != &*want {
+        if text.0 != *want {
             text.0.clear();
             text.0.push_str(&want);
         }
@@ -290,7 +290,7 @@ pub fn update_call_density_label(
     }
     let want = loc.msg(density_key(density.0));
     for mut text in &mut labels {
-        if text.0 != &*want {
+        if text.0 != *want {
             text.0.clear();
             text.0.push_str(&want);
         }

@@ -77,7 +77,7 @@ pub fn update_jam_guides(
         "jam-guides-off"
     });
     for mut text in &mut labels {
-        if text.0 != &*label {
+        if text.0 != *label {
             text.0.clear();
             text.0.push_str(&label);
         }
