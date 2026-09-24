@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! The chart metadata form (harmonica kind/key/position/tempo/... fields,
-//! the MIDI-track import row) and the hole-column spawning it's visually
-//! paired with in the setup layout (both are per-hole/per-chart "reference"
-//! panels, unlike the interactive note grid or mod panel).
+//! Chart metadata fields, MIDI import controls, and hole labels.
 
 use bevy::ecs::system::IntoObserverSystem;
 use bevy::input_focus::tab_navigation::TabIndex;
@@ -461,7 +458,7 @@ pub(super) fn spawn_field_row(
             });
         } else {
             let on_commit = move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
-                *state.field_text_mut(field) = ev.value.clone();
+                state.field_text_mut(field).clone_from(&ev.value);
             };
             let input_id = if field == Field::Description {
                 spawn_multiline_text_input(
@@ -735,7 +732,7 @@ pub(super) fn spawn_time_signature_combobox(
 }
 
 fn on_time_signature_selected(ev: On<ComboboxSelect>, mut state: ResMut<EditorState>) {
-    state.time_signature = ev.value.clone();
+    state.time_signature.clone_from(&ev.value);
 }
 
 /// Keeps the meter combobox's displayed value in step with
@@ -758,7 +755,7 @@ pub(super) fn sync_time_signature_combobox_value(
         if let Ok(mut value) = values.get_mut(child)
             && value.0 != state.time_signature
         {
-            value.0 = state.time_signature.clone();
+            value.0.clone_from(&state.time_signature);
         }
     }
 }

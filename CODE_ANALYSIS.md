@@ -80,6 +80,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/lesson_form.rs` — guard unchanged lesson panel, body, and conditional-row display writes; borrow cached header labels and use `clone_from` only when the text changes. Manifest-owned strings remain necessary in editor state. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/loop_settings.rs` — four UI-editable owned strings and a static loop-type array; no temporary vectors or hot-path copies. No code change needed.
 - `crates/harmonicon-editor/src/song_editor/material.rs` — Bevy material descriptor and plugin registration only; shader uniforms are compact copied values and there is no host-side loop to vectorize. No code change needed.
+- `crates/harmonicon-editor/src/song_editor/meta_form.rs` — reuse existing string allocations when committing text fields and syncing meter combobox values; trim overlong module description. Combobox option vectors and file-dialog extension vectors are owned by their widget/message APIs and constructed only on setup or click. All 377 editor tests passed.
 
 ## Findings and follow-up
 
@@ -88,4 +89,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- Next review: continue `harmonicon-editor` at `src/song_editor/meta_form.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/phrase_editor.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
