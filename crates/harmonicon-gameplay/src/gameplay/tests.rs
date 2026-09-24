@@ -1427,9 +1427,12 @@ fn the_detail_line_explains_a_wrong_pitch_and_clears_on_the_next_judgment() {
 fn notes_needing_spawn_is_empty_well_before_or_after_a_note() {
     let notes = [overlap_test_note(10.0)];
     let none = HashSet::new();
-    assert_eq!(notes_needing_spawn(&notes, &none, 0.0), Vec::<usize>::new());
     assert_eq!(
-        notes_needing_spawn(&notes, &none, 20.0),
+        notes_needing_spawn(&notes, &none, 0.0).collect::<Vec<_>>(),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        notes_needing_spawn(&notes, &none, 20.0).collect::<Vec<_>>(),
         Vec::<usize>::new()
     );
 }
@@ -1439,9 +1442,12 @@ fn notes_needing_spawn_includes_a_note_right_at_the_lookahead_edge() {
     let notes = [overlap_test_note(10.0)];
     let none = HashSet::new();
     // Window opens at note.time - LOOKAHEAD = 7.0.
-    assert_eq!(notes_needing_spawn(&notes, &none, 7.0), vec![0]);
     assert_eq!(
-        notes_needing_spawn(&notes, &none, 6.999),
+        notes_needing_spawn(&notes, &none, 7.0).collect::<Vec<_>>(),
+        vec![0]
+    );
+    assert_eq!(
+        notes_needing_spawn(&notes, &none, 6.999).collect::<Vec<_>>(),
         Vec::<usize>::new()
     );
 }
@@ -1450,7 +1456,10 @@ fn notes_needing_spawn_includes_a_note_right_at_the_lookahead_edge() {
 fn notes_needing_spawn_skips_indices_already_spawned() {
     let notes = [overlap_test_note(10.0), overlap_test_note(10.5)];
     let one_spawned = HashSet::from([0]);
-    assert_eq!(notes_needing_spawn(&notes, &one_spawned, 8.0), vec![1]);
+    assert_eq!(
+        notes_needing_spawn(&notes, &one_spawned, 8.0).collect::<Vec<_>>(),
+        vec![1]
+    );
 }
 
 #[test]
@@ -1461,7 +1470,10 @@ fn notes_needing_spawn_returns_every_note_whose_window_is_open() {
         overlap_test_note(20.0), // window not open yet at elapsed=9.0
     ];
     let none = HashSet::new();
-    assert_eq!(notes_needing_spawn(&notes, &none, 9.0), vec![0, 1]);
+    assert_eq!(
+        notes_needing_spawn(&notes, &none, 9.0).collect::<Vec<_>>(),
+        vec![0, 1]
+    );
 }
 
 #[test]
@@ -1474,7 +1486,10 @@ fn notes_needing_spawn_stops_scanning_once_a_note_is_too_far_out() {
         overlap_test_note(1000.0),
     ];
     let none = HashSet::new();
-    assert_eq!(notes_needing_spawn(&notes, &none, 9.0), vec![0, 1]);
+    assert_eq!(
+        notes_needing_spawn(&notes, &none, 9.0).collect::<Vec<_>>(),
+        vec![0, 1]
+    );
 }
 
 // ── loop_reset_range (A/B loop wrap note reset) ───────────────────────────

@@ -69,6 +69,7 @@ pub(super) fn build_song_notes_3d(
 /// spawn cursor, just "is this note's window open, and does it already have
 /// a visual" recomputed each frame.
 pub fn spawn_visible_notes_3d(
+    mut already_spawned: Local<HashSet<usize>>,
     mut commands: Commands,
     clock: Res<super::super::GameplayClock>,
     song_notes: Res<super::super::SongNotes>,
@@ -90,7 +91,8 @@ pub fn spawn_visible_notes_3d(
     }
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
     let elapsed = clock.get();
-    let already_spawned: HashSet<usize> = existing.iter().map(|v| v.note_id).collect();
+    already_spawned.clear();
+    already_spawned.extend(existing.iter().map(|v| v.note_id));
     for i in super::super::notes_needing_spawn(&song_notes.notes, &already_spawned, elapsed) {
         if note_has_left_view(&render_assets, &song_notes.notes[i], elapsed) {
             continue;

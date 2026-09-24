@@ -418,6 +418,7 @@ pub fn note_head_bottom_pct(note_time: f64, elapsed: f64, lookahead: f64) -> f32
 /// a visual", so notes reappear correctly once the (rewound) clock nears
 /// them again.
 pub fn spawn_visible_notes(
+    mut already_spawned: Local<HashSet<usize>>,
     mut commands: Commands,
     clock: Res<super::GameplayClock>,
     song_notes: Res<SongNotes>,
@@ -450,9 +451,11 @@ pub fn spawn_visible_notes(
     let lane_pct = 100.0 / hole_count as f32;
     let elapsed = clock.get();
 
-    let already_spawned: HashSet<usize> = existing.iter().map(|v| v.note_id).collect();
-    let to_spawn = super::notes_needing_spawn(&song_notes.notes, &already_spawned, elapsed);
-    if to_spawn.is_empty() {
+    already_spawned.clear();
+    already_spawned.extend(existing.iter().map(|v| v.note_id));
+    let mut to_spawn =
+        super::notes_needing_spawn(&song_notes.notes, &already_spawned, elapsed).peekable();
+    if to_spawn.peek().is_none() {
         return;
     }
 

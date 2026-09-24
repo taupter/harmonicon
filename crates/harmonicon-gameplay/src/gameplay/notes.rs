@@ -140,24 +140,21 @@ pub struct SongNotes {
 /// until `elapsed` passes it (recycling/despawning is each mode's own
 /// concern, based on how far the note has visually scrolled — this only
 /// decides when a *new* visual should appear).
-pub(crate) fn notes_needing_spawn(
-    notes: &[ScheduledNote],
-    already_spawned: &HashSet<usize>,
+pub(crate) fn notes_needing_spawn<'a>(
+    notes: &'a [ScheduledNote],
+    already_spawned: &'a HashSet<usize>,
     elapsed: f64,
-) -> Vec<usize> {
+) -> impl Iterator<Item = usize> + 'a {
     // Sorted by time, so this is the first index whose window could
     // possibly be open — no need to consider anything before it.
     let start = notes.partition_point(|n| n.time + LOOKAHEAD < elapsed);
-    let mut result = Vec::new();
-    for (i, note) in notes.iter().enumerate().skip(start) {
-        if note.time - LOOKAHEAD > elapsed {
-            break; // sorted — nothing further out needs spawning yet either.
-        }
-        if !already_spawned.contains(&i) {
-            result.push(i);
-        }
-    }
-    result
+    notes[start..]
+        .iter()
+        // Sorted — nothing further out needs spawning yet either.
+        .take_while(move |note| note.time - LOOKAHEAD <= elapsed)
+        .enumerate()
+        .map(move |(offset, _)| start + offset)
+        .filter(move |i| !already_spawned.contains(i))
 }
 
 /// Index of the first not-yet-resolved, *playable* note in `notes[cursor..]`
