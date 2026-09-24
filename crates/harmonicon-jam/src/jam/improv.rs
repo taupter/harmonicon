@@ -162,13 +162,13 @@ pub fn accumulate_improv_stats(
     let Some(guide) = guide else {
         return;
     };
-    let sounding: HashSet<u8> = active
-        .0
-        .iter()
-        .filter(|p| guide.note_to_holes.contains_key(&p.midi))
-        .map(|p| p.midi)
-        .collect();
-    gate.0.release_absent(|m| sounding.contains(&m));
+    let mut sounding = [false; 256];
+    for pitch in &active.0 {
+        if guide.note_to_holes.contains_key(&pitch.midi) {
+            sounding[pitch.midi as usize] = true;
+        }
+    }
+    gate.0.release_absent(|m| sounding[m as usize]);
 
     let chord_tones = &guide.chord_tones_by_bar[current.0];
     let resting = in_rest_window(absolute.0, PHRASE_PLAY_BARS, PHRASE_REST_BARS);
