@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Theme picker screen.
-//!
-//! Layout (via the shared `menu::scene::spawn_menu_root` header/body split):
-//!
-//!   ┌─ THEME ──────────────────────────────────────────── ← ┐
-//!   │ ┌─ theme list ──┐  ┌─ preview ───────────────────────┐ │
-//!   │ │ default  ●    │  │                                  │ │
-//!   │ │ dark          │  │   [themes/<name>/preview.png]    │ │
-//!   │ │ light         │  │                                  │ │
-//!   │ └───────────────┘  └──────────────────────────────────┘ │
-//!   └─────────────────────────────────────────────────────────┘
+//! Theme selection with a preview image for the chosen theme.
 
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
@@ -174,7 +164,9 @@ fn theme_button_scene(name: String, is_selected: bool) -> impl Scene {
         BackgroundColor({color})
         ThemeButton({name})
         on(move |_: On<Activate>, mut selected: ResMut<SelectedTheme>| {
-            selected.0 = pick.clone();
+            if selected.0 != pick {
+                selected.0.clone_from(&pick);
+            }
         })
         on(theme_over)
         on(theme_out)
@@ -196,7 +188,10 @@ fn theme_over(
     if let Ok((btn, mut bg)) = buttons.get_mut(ev.entity)
         && btn.0 != selected.0
     {
-        *bg = BackgroundColor(THEME_HOVER);
+        let wanted = BackgroundColor(THEME_HOVER);
+        if *bg != wanted {
+            *bg = wanted;
+        }
     }
 }
 
@@ -208,7 +203,10 @@ fn theme_out(
     if let Ok((btn, mut bg)) = buttons.get_mut(ev.entity)
         && btn.0 != selected.0
     {
-        *bg = BackgroundColor(button::color_default());
+        let wanted = BackgroundColor(button::color_default());
+        if *bg != wanted {
+            *bg = wanted;
+        }
     }
 }
 
@@ -221,11 +219,14 @@ fn update_button_visuals(
         return;
     }
     for (btn, mut bg) in &mut buttons {
-        bg.0 = if btn.0 == selected.0 {
+        let wanted = if btn.0 == selected.0 {
             THEME_SELECTED
         } else {
             button::color_default()
         };
+        if bg.0 != wanted {
+            bg.0 = wanted;
+        }
     }
 }
 
@@ -258,6 +259,8 @@ fn update_preview(
         selected.0
     ));
     for mut img in &mut previews {
-        img.image = handle.clone();
+        if img.image != handle {
+            img.image = handle.clone();
+        }
     }
 }
