@@ -114,7 +114,7 @@ pub(crate) fn build_hole_guide(
         })
     };
     let mut note_to_holes: HashMap<u8, Vec<u8>> = HashMap::new();
-    let mut holes = Vec::new();
+    let mut holes = Vec::with_capacity(harp.hole_count() as usize);
 
     for hole in 1..=harp.hole_count() {
         let blow = harp.wind_direction_label(hole, &Action::Blow);
@@ -253,18 +253,15 @@ pub fn update_hole_map(
     let chord_tones = &guide.chord_tones_by_bar[current.0];
 
     // Map each currently-lit hole to the best fit among all notes sounding it.
-    let mut lit: HashMap<u8, super::improv::NoteFit> = HashMap::new();
+    let mut lit = [None; 256];
     for p in &active.0 {
         if let Some(holes) = guide.note_to_holes.get(&p.midi) {
             let fit = classify_note_fit(&p.note, chord_tones, &guide.scale_classes);
             for &h in holes {
-                lit.entry(h)
-                    .and_modify(|v| {
-                        if fit > *v {
-                            *v = fit
-                        }
-                    })
-                    .or_insert(fit);
+                let slot = &mut lit[h as usize];
+                if slot.is_none_or(|previous| fit > previous) {
+                    *slot = Some(fit);
+                }
             }
         }
     }
@@ -275,13 +272,16 @@ pub fn update_hole_map(
         .unwrap_or(&[]);
 
     for (cell, mut bg) in &mut cells {
-        bg.0 = match lit.get(&cell.hole) {
+        let color = match lit[cell.hole as usize] {
             Some(super::improv::NoteFit::ChordTone) => PLAY_CHORD_TONE,
             Some(super::improv::NoteFit::InScale) => PLAY_IN_SCALE,
             Some(super::improv::NoteFit::OutOfScale) => PLAY_OUT_SCALE,
             None if ghost_holes.contains(&cell.hole) => PLAY_GHOST_LICK,
             None => HOLE_DEFAULT,
         };
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
