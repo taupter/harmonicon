@@ -2,18 +2,9 @@
 
 //! The editor's view of [`harmonicon_core::pitch_map`].
 //!
-//! The resolution itself — which hole, breath and technique produces a
-//! pitch, and which harp key fits a set of notes — now lives in core, where
-//! gameplay and score importers can reach it too. What stays here is the
-//! translation into the editor's own `Dir`/`Pitch`/`HarmonicaKind`
-//! vocabulary, which exists because those are what the mod-panel buttons
-//! produce and what a `GridNote` stores.
-//!
-//! Kept as a module rather than dissolved into its two callers so that MIDI
-//! import (which wants every note to land *somewhere* — [`map_pitch`]) and
-//! live recording (which wants to *discard* what the harp can't have made —
-//! [`map_pitch_playable`]) still name the same pair of functions they always
-//! did.
+//! Core resolves pitches; this module maps assignments to the editor's
+//! `Dir` and `Pitch` types. MIDI import permits nearest-note fallback
+//! through [`map_pitch`], while recording uses [`map_pitch_playable`].
 
 use super::playback::build_harp;
 use super::state::{Dir, HARP_KEYS, HarmonicaKind, Pitch};
@@ -22,12 +13,6 @@ use harmonicon_core::harmonica::Harmonica;
 use harmonicon_core::pitch_map::{self, HoleAssignment, Technique};
 
 /// Core's resolution in the editor's own terms.
-///
-/// Note that core's `Technique::Overblow`/`Overdraw` arms are reachable now
-/// in a way they weren't before: the editor's old resolver stopped at bends
-/// and the chromatic slide, so an unreachable note fell through to the
-/// nearest-note fallback instead. Both map straight onto the `Pitch`
-/// variants the mod panel already had.
 fn from_core(assignment: HoleAssignment) -> (u8, Dir, Pitch) {
     let dir = match assignment.action {
         Action::Blow => Dir::Blow,
