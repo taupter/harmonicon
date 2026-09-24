@@ -199,12 +199,15 @@ pub(super) fn update_lesson_form_visibility(
     mut groups: Query<&mut Node, With<LessonFormGroup>>,
 ) {
     let visible = state.content_kind == ContentKind::Lesson;
+    let display = if visible {
+        Display::Flex
+    } else {
+        Display::None
+    };
     for mut node in &mut groups {
-        node.display = if visible {
-            Display::Flex
-        } else {
-            Display::None
-        };
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 
@@ -215,19 +218,25 @@ pub(super) fn update_lesson_details_visibility(
     mut bodies: Query<&mut Node, With<LessonDetailsBody>>,
     mut labels: Query<(&mut Text, &LessonDetailsToggleLabel)>,
 ) {
+    let display = if state.lesson_details_expanded {
+        Display::Flex
+    } else {
+        Display::None
+    };
     for mut node in &mut bodies {
-        node.display = if state.lesson_details_expanded {
-            Display::Flex
-        } else {
-            Display::None
-        };
+        if node.display != display {
+            node.display = display;
+        }
     }
     for (mut text, label) in &mut labels {
-        **text = if state.lesson_details_expanded {
-            label.expanded.clone()
+        let value = if state.lesson_details_expanded {
+            &label.expanded
         } else {
-            label.collapsed.clone()
+            &label.collapsed
         };
+        if text.0 != *value {
+            text.0.clone_from(value);
+        }
     }
 }
 
@@ -246,7 +255,10 @@ pub(super) fn update_lesson_conditional_rows(
             Field::LessonTechnique => state.lesson_pass_criteria == "technique",
             _ => true,
         };
-        node.display = if show { Display::Flex } else { Display::None };
+        let display = if show { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 
