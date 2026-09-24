@@ -139,12 +139,19 @@ pub fn update_stem_mute_buttons(
 ) {
     for (icon, mut text) in &mut icons {
         if let Some(&muted) = mute.0.get(icon.0) {
-            *text = Text::new(if muted { MUTED_ICON } else { SOUND_ICON });
+            let want = if muted { MUTED_ICON } else { SOUND_ICON };
+            if text.0 != want {
+                text.0.clear();
+                text.0.push_str(want);
+            }
         }
     }
     for (cell, mut bg) in &mut cells {
         if let Some(&muted) = mute.0.get(cell.0) {
-            bg.0 = if muted { MUTED_BG } else { UNMUTED_BG };
+            let want = if muted { MUTED_BG } else { UNMUTED_BG };
+            if bg.0 != want {
+                bg.0 = want;
+            }
         }
     }
 }
