@@ -397,18 +397,22 @@ pub(crate) fn refresh_harp_cost(
     };
     if !choice.seeded {
         seed_choice(&mut choice, chart);
-    } else if !choice.is_changed() {
+    } else if !choice.is_changed() && !loc.is_changed() {
         return;
     }
     let written_for = harp_name(&chart.harmonica, &loc);
     for mut label in &mut harp_labels {
-        *label = Text::new(written_for.clone());
+        if label.0 != written_for {
+            label.0.clone_from(&written_for);
+        }
     }
 
     let baseline = cost_of(chart, &baseline_choice(chart));
     let text = cost_message(&cost_of(chart, &choice), &baseline, &loc);
     for mut label in &mut labels {
-        *label = Text::new(text.clone());
+        if label.0 != text {
+            label.0.clone_from(&text);
+        }
     }
 }
 
@@ -515,13 +519,19 @@ fn on_track_selected(
     mut manifests: ResMut<Assets<SongManifest>>,
     mut choice: ResMut<HarpChoice>,
 ) {
-    let Some(mut manifest) = selected.as_ref().and_then(|s| manifests.get_mut(&s.0)) else {
+    let Some(selected) = selected.as_ref() else {
         return;
     };
     let index = ev.index;
-    if index >= manifest.source_tracks.len() {
+    let Some(manifest) = manifests.get(&selected.0) else {
+        return;
+    };
+    if index >= manifest.source_tracks.len() || manifest.source_track == Some(index) {
         return;
     }
+    let Some(mut manifest) = manifests.get_mut(&selected.0) else {
+        return;
+    };
     manifest.chart = manifest.source_tracks[index].chart.clone();
     manifest.source_track = Some(index);
     // Each part was fitted to its own harmonica, so the harp shown for the
