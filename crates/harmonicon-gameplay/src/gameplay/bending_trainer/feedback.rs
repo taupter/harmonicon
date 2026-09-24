@@ -141,7 +141,7 @@ pub fn update_natural_check_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<NaturalCheckLabel>>,
 ) {
-    if !check.is_changed() && !target.is_changed() && !key.is_changed() {
+    if !check.is_changed() && !target.is_changed() && !key.is_changed() && !loc.is_changed() {
         return;
     }
     let note = natural_note_for_target(key.harp(), *target).unwrap_or_else(|| "?".to_string());
@@ -152,8 +152,11 @@ pub fn update_natural_check_label(
     } else {
         "bending-check-natural-idle"
     };
+    let label = String::from(loc.msg_args(key, &[("note", note)]));
     for mut text in &mut labels {
-        *text = Text::new(String::from(loc.msg_args(key, &[("note", note.clone())])));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -173,24 +176,28 @@ pub(super) fn tuner_observation(
         return Some(TunerObservation::Silent);
     }
     let holes = hole_notes(harp, target.hole);
-    let family: HashSet<u8> = holes
+    let mut family = [false; 256];
+    for midi in holes
         .blow
         .iter()
         .chain(holes.draw.iter())
         .chain(holes.bends.iter())
         .chain(holes.over.iter())
         .filter_map(|note| note_to_midi(note).map(|midi| midi as u8))
-        .collect();
+    {
+        family[usize::from(midi)] = true;
+    }
+    let target_log2 = target_freq.log2();
     let by_distance = |a: &&harmonicon_audio::pitch_detect::PitchInfo,
                        b: &&harmonicon_audio::pitch_detect::PitchInfo| {
-        (a.frequency.log2() - target_freq.log2())
+        (a.frequency.log2() - target_log2)
             .abs()
-            .total_cmp(&(b.frequency.log2() - target_freq.log2()).abs())
+            .total_cmp(&(b.frequency.log2() - target_log2).abs())
     };
     if let Some(heard) = active
         .0
         .iter()
-        .filter(|p| family.contains(&p.midi))
+        .filter(|p| family[usize::from(p.midi)])
         .min_by(by_distance)
     {
         return Some(TunerObservation::TargetFamily(
@@ -202,6 +209,15 @@ pub(super) fn tuner_observation(
         .iter()
         .min_by(by_distance)
         .map(|heard| TunerObservation::WrongPitch(format!("{}{}", heard.note, heard.octave)))
+}
+
+fn set_tuner_readout(text: &mut Text, color: &mut TextColor, label: String, tint: Color) {
+    if text.0 != label {
+        text.0 = label;
+    }
+    if color.0 != tint {
+        color.0 = tint;
+    }
 }
 
 pub fn update_tuner_readout(
@@ -218,8 +234,12 @@ pub fn update_tuner_readout(
     };
     let harp = key.harp();
     let Some(target_note) = target_note(harp, *target) else {
-        *text = Text::new(String::from(loc.msg("bending-no-note-for-technique")));
-        color.0 = Color::srgb(0.60, 0.60, 0.65);
+        set_tuner_readout(
+            &mut text,
+            &mut color,
+            String::from(loc.msg("bending-no-note-for-technique")),
+            Color::srgb(0.60, 0.60, 0.65),
+        );
         return;
     };
     let shift = reference_shift_cents(&settings, key.name(), target.hole);
@@ -228,23 +248,33 @@ pub fn update_tuner_readout(
     };
     let cents = match observation {
         TunerObservation::Silent => {
-            *text = Text::new(String::from(
-                loc.msg_args("bending-play-it-target", &[("note", target_note)]),
-            ));
-            color.0 = Color::srgb(0.60, 0.60, 0.65);
+            set_tuner_readout(
+                &mut text,
+                &mut color,
+                String::from(loc.msg_args("bending-play-it-target", &[("note", target_note)])),
+                Color::srgb(0.60, 0.60, 0.65),
+            );
             return;
         }
         TunerObservation::WrongPitch(heard) => {
-            *text = Text::new(String::from(loc.msg_args(
-                "bending-wrong-pitch",
-                &[("note", heard), ("hole", target.hole.to_string())],
-            )));
-            color.0 = Color::srgb(0.90, 0.60, 0.30);
+            set_tuner_readout(
+                &mut text,
+                &mut color,
+                String::from(loc.msg_args(
+                    "bending-wrong-pitch",
+                    &[("note", heard), ("hole", target.hole.to_string())],
+                )),
+                Color::srgb(0.90, 0.60, 0.30),
+            );
             return;
         }
         TunerObservation::TargetFamily(_) if trace.unstable => {
-            *text = Text::new(String::from(loc.msg("bending-signal-unstable")));
-            color.0 = Color::srgb(0.75, 0.65, 0.45);
+            set_tuner_readout(
+                &mut text,
+                &mut color,
+                String::from(loc.msg("bending-signal-unstable")),
+                Color::srgb(0.75, 0.65, 0.45),
+            );
             return;
         }
         TunerObservation::TargetFamily(cents) => cents,
@@ -257,6 +287,10 @@ pub fn update_tuner_readout(
         ("bending-cents-flat", Color::srgb(0.90, 0.70, 0.30))
     };
     let args = &[("cents", format!("{cents:+.0}")), ("note", target_note)];
-    *text = Text::new(String::from(loc.msg_args(key, args)));
-    color.0 = color_value;
+    set_tuner_readout(
+        &mut text,
+        &mut color,
+        String::from(loc.msg_args(key, args)),
+        color_value,
+    );
 }
