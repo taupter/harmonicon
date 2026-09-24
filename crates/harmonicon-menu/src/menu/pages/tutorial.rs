@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! A guided auto-tour of Harmonicon's top-level screens: starting it drives
-//! `NextState<MenuPage>`/`NextState<AppState>` through a fixed sequence on a
-//! timer, with a click-blocking overlay naming the current screen and
-//! briefly explaining it, then returns to whichever page the tour started
-//! from. Alongside the no-selection-required menu pages, a few steps enter
-//! live gameplay for a look — [`TourTarget::Playing`] (2D and Jam Session,
-//! both against the bundled `DEMO_SONG_PATH`), [`TourTarget::
-//! BendingTrainer`], and [`TourTarget::SongEditor`] — using the exact same
-//! `AppState` transitions their normal entry points do, so those screens'
-//! own systems never need to know a tour is happening. Not covered:
-//! `ArtistList`/`SongList`/`LessonReader`, which need something picked
-//! first.
+//! Guided tour of menu pages and selected live screens, driven by timed state changes.
 
 use bevy::asset::AssetServer;
 use bevy::input_focus::tab_navigation::TabGroup;
@@ -318,9 +307,8 @@ pub(crate) fn advance_tutorial_tour(
     }
 }
 
-/// Rebuilds the overlay only when the tour step changes, and removes it when
-/// the tour ends. The resource also changes on every timer tick, so its
-/// Bevy change flag cannot identify a new step.
+/// Rebuilds the overlay when the step or locale changes and removes it on exit.
+/// Timer ticks also change the tour resource, so the step is compared directly.
 pub(crate) fn sync_tutorial_overlay(
     tour: Option<Res<TutorialTour>>,
     existing: Query<Entity, With<TutorialOverlayRoot>>,
@@ -335,7 +323,7 @@ pub(crate) fn sync_tutorial_overlay(
         *last_step = None;
         return;
     };
-    if *last_step == Some(tour.step) && !existing.is_empty() {
+    if *last_step == Some(tour.step) && !loc.is_changed() && !existing.is_empty() {
         return;
     }
     *last_step = Some(tour.step);
