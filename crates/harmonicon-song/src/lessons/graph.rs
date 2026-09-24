@@ -32,6 +32,7 @@
 //! instead of asserting it, and widening those chokepoints is curriculum
 //! work rather than something a test can enforce.
 
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 
 use super::manifest::LessonManifest;
@@ -100,10 +101,12 @@ pub struct LessonGraph {
 }
 
 impl LessonGraph {
-    /// Places every lesson, or says why it can't.
-    pub fn build(manifests: &[LessonManifest]) -> Result<Self, GraphError> {
+    /// Places every lesson, or says why it can't. Takes owned manifests or
+    /// references to them, so a caller holding them elsewhere needn't clone.
+    pub fn build<M: Borrow<LessonManifest>>(manifests: &[M]) -> Result<Self, GraphError> {
+        let manifests: Vec<&LessonManifest> = manifests.iter().map(Borrow::borrow).collect();
         let known: HashSet<&str> = manifests.iter().map(|m| m.id.as_str()).collect();
-        for m in manifests {
+        for m in &manifests {
             for p in &m.prerequisites {
                 if !known.contains(p.as_str()) {
                     return Err(GraphError::UnknownPrerequisite {
@@ -116,7 +119,7 @@ impl LessonGraph {
 
         // Kahn's algorithm, taking ids in sorted order at each step so the
         // result is deterministic rather than dependent on scan order.
-        let mut remaining: Vec<&LessonManifest> = manifests.iter().collect();
+        let mut remaining = manifests.clone();
         remaining.sort_by(|a, b| a.id.cmp(&b.id));
 
         let mut placed: HashMap<String, usize> = HashMap::new();

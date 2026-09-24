@@ -58,7 +58,7 @@ use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::lessons::graph::LessonGraph;
 use harmonicon_song::lessons::units::UnitChain;
-use harmonicon_song::lessons::{AvailableLessons, LessonsRescanned};
+use harmonicon_song::lessons::{AvailableLessons, LessonManifest, LessonsRescanned};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 
 use crate::lesson_reader::SelectedLesson;
@@ -260,7 +260,7 @@ pub(crate) fn setup_lesson_tree(
         "LessonTree",
     );
 
-    let manifests: Vec<_> = lessons.0.iter().map(|e| e.manifest.clone()).collect();
+    let manifests: Vec<&LessonManifest> = lessons.0.iter().map(|e| &e.manifest).collect();
     let chain = UnitChain::build(&manifests);
     let tree = match LessonGraph::build(&manifests) {
         Ok(graph) => layout_with_collapsed(&lessons.0, &graph, &chain, &profile, &collapsed.0),

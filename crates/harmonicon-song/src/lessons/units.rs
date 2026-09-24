@@ -27,6 +27,7 @@
 //!
 //! Pure and Bevy-free, like the rest of `lessons`' data layer.
 
+use std::borrow::Borrow;
 use std::collections::HashSet;
 
 use super::manifest::LessonManifest;
@@ -74,9 +75,10 @@ impl UnitChain {
     /// cannot fail: a lesson always has a unit (the manifest field is
     /// required), and a unit is whatever its lessons say it is, so there is
     /// no such thing as an unknown or cyclic one.
-    pub fn build(manifests: &[LessonManifest]) -> Self {
+    pub fn build<M: Borrow<LessonManifest>>(manifests: &[M]) -> Self {
         let mut units: Vec<UnitNode> = Vec::new();
         for m in manifests {
+            let m: &LessonManifest = m.borrow();
             match units.iter_mut().find(|u| u.id == m.unit) {
                 Some(unit) => {
                     unit.lessons.push(m.id.clone());

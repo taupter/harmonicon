@@ -106,7 +106,7 @@ fn a_prerequisite_that_does_not_exist_is_its_own_error() {
 
 #[test]
 fn an_empty_curriculum_builds() {
-    let g = LessonGraph::build(&[]).unwrap();
+    let g = LessonGraph::build::<LessonManifest>(&[]).unwrap();
     assert!(g.nodes().is_empty());
     assert_eq!(g.max_depth(), 0);
 }
