@@ -226,14 +226,22 @@ pub fn update_call_response_banner(
     }
     for (mut text, mut vis) in &mut banners {
         if !enabled.0 {
-            *vis = Visibility::Hidden;
+            if *vis != Visibility::Hidden {
+                *vis = Visibility::Hidden;
+            }
             continue;
         }
-        *vis = Visibility::Visible;
-        *text = Text::new(String::from(match state.phase {
+        if *vis != Visibility::Visible {
+            *vis = Visibility::Visible;
+        }
+        let want = match state.phase {
             CallResponsePhase::Calling => loc.msg("jam-call-response-listen"),
             CallResponsePhase::Responding => loc.msg("jam-call-response-your-turn"),
-        }));
+        };
+        if text.0 != &*want {
+            text.0.clear();
+            text.0.push_str(&want);
+        }
     }
 }
 
@@ -249,12 +257,16 @@ pub fn update_call_response_label(
     if !enabled.is_changed() && added.is_empty() {
         return;
     }
+    let want = loc.msg(if enabled.0 {
+        "jam-call-response-on"
+    } else {
+        "jam-call-response-off"
+    });
     for mut text in &mut labels {
-        *text = Text::new(String::from(if enabled.0 {
-            loc.msg("jam-call-response-on")
-        } else {
-            loc.msg("jam-call-response-off")
-        }));
+        if text.0 != &*want {
+            text.0.clear();
+            text.0.push_str(&want);
+        }
     }
 }
 
@@ -276,8 +288,12 @@ pub fn update_call_density_label(
     if !density.is_changed() {
         return;
     }
+    let want = loc.msg(density_key(density.0));
     for mut text in &mut labels {
-        *text = Text::new(String::from(loc.msg(density_key(density.0))));
+        if text.0 != &*want {
+            text.0.clear();
+            text.0.push_str(&want);
+        }
     }
 }
 
@@ -345,7 +361,8 @@ pub fn drive_call_response(
         density: density.0,
         seed: call_seed(state.seed, absolute.0),
     });
-    state.lick_holes = call.iter().map(|n| n.note.hole).collect();
+    state.lick_holes.clear();
+    state.lick_holes.extend(call.iter().map(|n| n.note.hole));
     state.lick_holes.sort_unstable();
     state.lick_holes.dedup();
     if call.is_empty() {
