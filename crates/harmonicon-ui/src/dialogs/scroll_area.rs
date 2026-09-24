@@ -318,12 +318,20 @@ pub fn update_scrollbar_visibility(
             ControlOrientation::Vertical => area.content_size().y > area.size().y + 1.0,
             ControlOrientation::Horizontal => area.content_size().x > area.size().x + 1.0,
         };
-        *vis = if needed {
+        // Written only on a flip: every menu page has a scroll area, and an
+        // unconditional `Node` write each frame forces a UI layout pass.
+        let visibility = if needed {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
-        node.display = if needed { Display::Flex } else { Display::None };
+        if *vis != visibility {
+            *vis = visibility;
+        }
+        let display = if needed { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 

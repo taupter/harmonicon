@@ -116,7 +116,9 @@ fn sync_checkbox_visuals(
             Visibility::Hidden
         };
         for child in children {
-            if let Ok(mut vis) = marks.get_mut(*child) {
+            if let Ok(mut vis) = marks.get_mut(*child)
+                && *vis != visible
+            {
                 *vis = visible;
             }
         }

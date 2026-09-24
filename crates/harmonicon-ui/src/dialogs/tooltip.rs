@@ -172,8 +172,11 @@ fn update_tooltip(
         window.width() / ui_scale.0,
         window.height() / ui_scale.0,
     );
-    node.left = Val::Px(left);
-    node.top = Val::Px(top);
+    // Only when the cursor moved: a `Node` write forces a layout pass.
+    if node.left != Val::Px(left) || node.top != Val::Px(top) {
+        node.left = Val::Px(left);
+        node.top = Val::Px(top);
+    }
 
     for mut text in &mut texts {
         if text.0 != tooltip.0 {
