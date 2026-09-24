@@ -280,12 +280,16 @@ pub fn update_metronome(
         };
         let is_downbeat = cell.0 == 0;
         let base = if is_downbeat { 0.25 } else { 0.12 };
-        *bg = BackgroundColor(Color::srgba(
+        let color = Color::srgba(
             base + brightness * 0.9,
             base + brightness * if is_downbeat { 0.4 } else { 0.7 },
             base + brightness * if is_downbeat { 0.1 } else { 0.9 },
             0.9,
-        ));
+        );
+        // Only the current beat's dot animates; the rest hold still.
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 

@@ -8,8 +8,6 @@
 //! harps get a simpler blow/draw + slide diagram sized to the harp's actual
 //! hole count, since bends and overblow/overdraw don't exist on that harp.
 
-use std::collections::HashSet;
-
 use bevy::picking::events::PointerClick;
 use bevy::prelude::*;
 
@@ -416,14 +414,15 @@ pub fn update_harmonica_overlay(
     active: Res<ActivePitches>,
     mut cells: Query<(&HarpOverlayCell, &mut BackgroundColor)>,
 ) {
-    let played: HashSet<u8> = active.0.iter().map(|p| p.midi).collect();
-
+    // A handful of sounding pitches at most, so a scan beats building a set.
     for (cell, mut bg) in &mut cells {
-        bg.0 = if cell.midi.is_some_and(|m| played.contains(&m)) {
-            CELL_LIT
-        } else {
-            CELL_DEFAULT
-        };
+        let lit = cell
+            .midi
+            .is_some_and(|m| active.0.iter().any(|p| p.midi == m));
+        let color = if lit { CELL_LIT } else { CELL_DEFAULT };
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
