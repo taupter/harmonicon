@@ -277,16 +277,28 @@ pub(super) fn update_mode_visibility(
 ) {
     let display = |on: bool| if on { Display::Flex } else { Display::None };
     for mut node in &mut edit_group {
-        node.display = display(state.mode == Mode::Edit);
+        let want = display(state.mode == Mode::Edit);
+        if node.display != want {
+            node.display = want;
+        }
     }
     for mut node in &mut record_group {
-        node.display = display(state.mode == Mode::Record);
+        let want = display(state.mode == Mode::Record);
+        if node.display != want {
+            node.display = want;
+        }
     }
     for mut node in &mut play_group {
-        node.display = display(state.mode == Mode::Play);
+        let want = display(state.mode == Mode::Play);
+        if node.display != want {
+            node.display = want;
+        }
     }
     for mut node in &mut expected_notes_group {
-        node.display = display(state.mode == Mode::ExpectedNotes);
+        let want = display(state.mode == Mode::ExpectedNotes);
+        if node.display != want {
+            node.display = want;
+        }
     }
 }
 
@@ -303,11 +315,14 @@ pub(super) fn update_note_column(
 ) {
     let editing = state.mode == Mode::Edit;
     for mut node in &mut column {
-        node.display = if editing {
+        let want = if editing {
             Display::Flex
         } else {
             Display::None
         };
+        if node.display != want {
+            node.display = want;
+        }
     }
     for (widths, mut node) in &mut toolbar {
         let want = Val::Px(if editing {
@@ -335,11 +350,14 @@ pub(super) fn update_technique_button_visibility(
             ModButton::Slide => !diatonic_only,
             _ => continue,
         };
-        node.display = if visible {
+        let want = if visible {
             Display::Flex
         } else {
             Display::None
         };
+        if node.display != want {
+            node.display = want;
+        }
     }
 }
 
