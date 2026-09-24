@@ -198,10 +198,16 @@ pub fn update_cell_progress_bars(
         }
         match drill_accuracy(drill.stats.get(&(bar.0.hole, bar.0.technique))) {
             Some(accuracy) => {
-                node.width = Val::Percent(accuracy.clamp(0.0, 1.0) * 100.0);
-                *visibility = Visibility::Inherited;
+                let width = Val::Percent(accuracy.clamp(0.0, 1.0) * 100.0);
+                if node.width != width {
+                    node.width = width;
+                }
+                if *visibility != Visibility::Inherited {
+                    *visibility = Visibility::Inherited;
+                }
             }
-            None => *visibility = Visibility::Hidden,
+            None if *visibility != Visibility::Hidden => *visibility = Visibility::Hidden,
+            None => {}
         }
     }
 }
