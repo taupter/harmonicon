@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Credits screen: a slow-rotating 3D harmonica in the background, dark
-//! translucent overlay in front, vertical scrolling credit text on top.
-//!
-//! Entry: Main Menu → Credits button.
-//! Exit:  ESC key or the "Back to Menu" button.
+//! Scrolling credits over a slowly moving 3D harmonica.
 
 use bevy::{
     camera::visibility::RenderLayers, input_focus::tab_navigation::TabGroup, prelude::*,
@@ -415,7 +411,6 @@ fn spawn_credit_line(parent: &mut ChildSpawnerCommands, item: CreditLine) {
 // ── Update systems ────────────────────────────────────────────────────────────
 
 fn rotate_harmonica(time: Res<Time>, mut q: Query<&mut Transform, With<CreditsHarmonica>>) {
-    let dt = time.delta_secs();
     let t = time.elapsed_secs();
     for mut tf in &mut q {
         // Slow Y-axis spin plus a gentle breathing bob.
@@ -426,7 +421,7 @@ fn rotate_harmonica(time: Res<Time>, mut q: Query<&mut Transform, With<CreditsHa
             (t * 0.5).sin() * 0.02,
         );
         // Tiny vertical float so it feels alive.
-        tf.translation.y = (t * 0.6).sin() * 0.008 * dt.recip().min(200.0) * dt;
+        tf.translation.y = (t * 0.6).sin() * 0.008;
     }
 }
 
