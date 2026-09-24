@@ -125,21 +125,37 @@ pub(crate) fn cleanup_lesson_audio(
     }
 }
 
+/// Paints each of `cells` with `color_for(index)`, writing only cells whose
+/// colour actually changes — the highlights below repaint a whole row on
+/// every step or beat, but only two cells move.
+fn paint_cells(
+    cells: &[Entity],
+    backgrounds: &mut Query<&mut BackgroundColor>,
+    mut color_for: impl FnMut(usize) -> Color,
+) {
+    for (index, entity) in cells.iter().enumerate() {
+        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
+            let color = color_for(index);
+            if bg.0 != color {
+                bg.0 = color;
+            }
+        }
+    }
+}
+
 pub(super) fn highlight_lesson_grid(
     grid: &LessonGrid,
     bar: usize,
     colors: harmonicon_platform::theme::TwelveBarColors,
     backgrounds: &mut Query<&mut BackgroundColor>,
 ) {
-    for (index, entity) in grid.cells.iter().enumerate() {
-        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
-            *bg = if index == bar {
-                BackgroundColor(Color::srgba(0.75, 0.55, 0.08, 0.95))
-            } else {
-                BackgroundColor(bar_bg(index, &grid.key, grid.progression, colors))
-            };
+    paint_cells(&grid.cells, backgrounds, |index| {
+        if index == bar {
+            Color::srgba(0.75, 0.55, 0.08, 0.95)
+        } else {
+            bar_bg(index, &grid.key, grid.progression, colors)
         }
-    }
+    });
 }
 
 pub(super) const fn stepped_bar(current: usize, delta: i32) -> usize {
@@ -158,15 +174,13 @@ pub(super) fn highlight_form_section(
     section: usize,
     backgrounds: &mut Query<&mut BackgroundColor>,
 ) {
-    for (index, entity) in map.cells.iter().enumerate() {
-        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
-            *bg = if index == section {
-                BackgroundColor(Color::srgba(0.82, 0.62, 0.10, 1.0))
-            } else {
-                BackgroundColor(section_bg(&map.sections[index]))
-            };
+    paint_cells(&map.cells, backgrounds, |index| {
+        if index == section {
+            Color::srgba(0.82, 0.62, 0.10, 1.0)
+        } else {
+            section_bg(&map.sections[index])
         }
-    }
+    });
 }
 
 pub(super) fn highlight_rhythm_step(
@@ -174,15 +188,13 @@ pub(super) fn highlight_rhythm_step(
     selected: usize,
     backgrounds: &mut Query<&mut BackgroundColor>,
 ) {
-    for (index, entity) in pattern.cells.iter().enumerate() {
-        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
-            *bg = BackgroundColor(if index == selected {
-                RHYTHM_ACTIVE_BG
-            } else {
-                step_bg(&pattern.steps[index])
-            });
+    paint_cells(&pattern.cells, backgrounds, |index| {
+        if index == selected {
+            RHYTHM_ACTIVE_BG
+        } else {
+            step_bg(&pattern.steps[index])
         }
-    }
+    });
 }
 
 pub(super) fn highlight_phrase_step(
@@ -190,15 +202,13 @@ pub(super) fn highlight_phrase_step(
     selected: usize,
     backgrounds: &mut Query<&mut BackgroundColor>,
 ) {
-    for (index, entity) in looper.cells.iter().enumerate() {
-        if let Ok(mut bg) = backgrounds.get_mut(*entity) {
-            *bg = BackgroundColor(if index == selected {
-                LOOP_ACTIVE_BG
-            } else {
-                LOOP_CELL_BG
-            });
+    paint_cells(&looper.cells, backgrounds, |index| {
+        if index == selected {
+            LOOP_ACTIVE_BG
+        } else {
+            LOOP_CELL_BG
         }
-    }
+    });
 }
 
 pub(crate) fn update_lesson_phrase_loopers(
