@@ -120,19 +120,19 @@ pub(super) fn autoplay_pitches(
         clock.get(),
         f64::from(autoplay.late_ms) / 1000.0,
     );
-    active.0 = pitches
-        .into_iter()
-        .map(|(midi, cents)| PitchInfo {
+    active.0.clear();
+    active
+        .0
+        .extend(pitches.into_iter().map(|(midi, cents)| PitchInfo {
             midi,
             note: midi_to_note(i32::from(midi)),
             octave: i32::from(midi) / 12 - 1,
             frequency: midi_to_freq_hz(f32::from(midi) + cents / 100.0),
-        })
-        .collect();
+        }));
     // The judge reads loudness as the RMS of this block, so a flat block at
     // `amplitude` *is* that loudness.
-    frame.samples.clear();
     frame.samples.resize(256, amplitude);
+    frame.samples.fill(amplitude);
 }
 
 #[cfg(test)]
