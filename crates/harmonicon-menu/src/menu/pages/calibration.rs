@@ -1,24 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Latency calibration screen.
-//!
-//! Layout during Recording:
-//!
-//!   ┌─ LATENCY CALIBRATION ──────────────────────────────┐
-//!   │  Play any note on each beat.                       │
-//!   │                                                    │
-//!   │  [ ●  ●  ●  ● ]      ← beat dots                  │
-//!   │                                                    │
-//!   │  Mic  [████████░░░░░]  ← mic-level bar             │
-//!   │                                                    │
-//!   │  |▓▓▓▓▒▒▒|▒▒▒▓▓▓▓|   ← timing window bar         │
-//!   │       ↑   ↑             (green=perfect, orange=good)│
-//!   │     hit markers                                    │
-//!   │                                                    │
-//!   │  +42ms  -5ms  +18ms   ← per-hit offsets           │
-//!   │  3 / 8 hits                                        │
-//!   │                       [ Cancel ]                   │
-//!   └────────────────────────────────────────────────────┘
+//! Latency calibration from note attacks played against metronome beats.
 
 use bevy::{
     audio::{AudioSource, Volume},
@@ -65,6 +47,7 @@ enum CalPhase {
 
 #[derive(Resource, Default)]
 struct CalState {
+    generation: u64,
     phase: CalPhase,
     clock: f64,
     beat_count: u32,
@@ -75,7 +58,14 @@ struct CalState {
 
 impl CalState {
     fn reset(&mut self) {
-        *self = CalState::default();
+        let generation = self.generation.wrapping_add(1);
+        let offsets = std::mem::take(&mut self.offsets);
+        *self = Self {
+            generation,
+            offsets,
+            ..default()
+        };
+        self.offsets.clear();
     }
 
     fn mean_offset_ms(&self) -> Option<f64> {
@@ -192,7 +182,7 @@ fn tick(time: Res<Time>, mut cal: ResMut<CalState>) {
     if cal.phase != CalPhase::Recording {
         return;
     }
-    cal.clock += time.delta_secs_f64();
+    cal.bypass_change_detection().clock += time.delta_secs_f64();
     let beat = (cal.clock / BEAT_DUR).floor() as u32;
     if beat > cal.beat_count {
         cal.beat_count = beat;
@@ -238,7 +228,7 @@ fn collect_hits(mut pitches: MessageReader<PitchEvent>, mut cal: ResMut<CalState
         }
     }
     let is_attack = has_pitch && !cal.prev_has_pitch;
-    cal.prev_has_pitch = has_pitch;
+    cal.bypass_change_detection().prev_has_pitch = has_pitch;
 
     if !is_attack || cal.beat_count <= WARMUP_BEATS {
         return;
@@ -273,11 +263,14 @@ fn update_beat_dots(cal: Res<CalState>, mut dots: Query<(&BeatDot, &mut Backgrou
         (usize::MAX, 0.0)
     };
     for (dot, mut bg) in &mut dots {
-        if dot.0 == active {
+        let wanted = if dot.0 == active {
             let b = (1.0 - phase_f).powf(1.5);
-            *bg = BackgroundColor(Color::srgb(0.25 + b * 0.75, 0.55 + b * 0.45, 0.95));
+            BackgroundColor(Color::srgb(0.25 + b * 0.75, 0.55 + b * 0.45, 0.95))
         } else {
-            *bg = BackgroundColor(Color::srgb(0.12, 0.12, 0.20));
+            BackgroundColor(Color::srgb(0.12, 0.12, 0.20))
+        };
+        if *bg != wanted {
+            *bg = wanted;
         }
     }
 }
@@ -298,12 +291,18 @@ fn update_mic_bar(
     *level = level.clamp(0.0, 1.0);
 
     for (mut node, mut bg) in &mut fills {
-        node.width = Val::Percent(*level * 100.0);
-        bg.0 = if *level > 0.1 {
+        let width = Val::Percent(*level * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
+        let color = if *level > 0.1 {
             Color::srgb(0.20, 0.75 + *level * 0.25, 0.55 + *level * 0.45)
         } else {
             Color::srgb(0.10, 0.18, 0.14)
         };
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
@@ -312,19 +311,17 @@ fn sync_hit_markers(
     mut commands: Commands,
     cal: Res<CalState>,
     bar: Query<Entity, With<TimingBarContainer>>,
-    markers: Query<(), With<TimingMarker>>,
+    mut spawned: Local<(u64, usize)>,
 ) {
-    if !cal.is_changed() {
+    if spawned.0 != cal.generation {
+        *spawned = (cal.generation, 0);
+    }
+    if cal.offsets.len() == spawned.1 {
         return;
     }
-    let existing = markers.iter().count();
-    if cal.offsets.len() <= existing {
-        return;
-    }
-
     let Ok(bar_entity) = bar.single() else { return };
 
-    for &offset_secs in &cal.offsets[existing..] {
+    for &offset_secs in &cal.offsets[spawned.1..] {
         let ms = offset_secs * 1000.0;
         // Map ms → 0..1 within ±BAR_RANGE_MS.
         let frac = ((ms / BAR_RANGE_MS) * 0.5 + 0.5).clamp(0.0, 1.0) as f32;
@@ -353,6 +350,7 @@ fn sync_hit_markers(
             ));
         });
     }
+    spawned.1 = cal.offsets.len();
 }
 
 /// Fades hit markers over time and removes them when fully transparent.
@@ -385,12 +383,12 @@ fn fade_hit_markers(
 fn update_offset_summary(
     cal: Res<CalState>,
     mut texts: Query<&mut Text, With<HitOffsetsSummary>>,
-    mut shown_count: Local<usize>,
+    mut shown: Local<(u64, usize)>,
 ) {
-    if cal.offsets.len() == *shown_count {
+    if *shown == (cal.generation, cal.offsets.len()) {
         return;
     }
-    *shown_count = cal.offsets.len();
+    *shown = (cal.generation, cal.offsets.len());
     let mut line = String::new();
     for &offset in &cal.offsets {
         if !line.is_empty() {
@@ -404,7 +402,9 @@ fn update_offset_summary(
         }
     }
     for mut t in &mut texts {
-        t.0 = line.clone();
+        if t.0 != line {
+            t.0.clone_from(&line);
+        }
     }
 }
 
@@ -426,7 +426,9 @@ fn update_status(cal: Res<CalState>, mut texts: Query<&mut Text, With<CalStatusT
         CalPhase::Done => "Calibration complete!".into(),
     };
     for mut t in &mut texts {
-        t.0 = msg.clone();
+        if t.0 != msg {
+            t.0.clone_from(&msg);
+        }
     }
 }
 
@@ -437,7 +439,9 @@ fn update_result_block(
     mut mean_texts: Query<(&mut Text, &mut TextColor), With<CalMeanText>>,
     mut suggested_texts: Query<&mut Text, (With<CalSuggestedText>, Without<CalMeanText>)>,
 ) {
-    if !cal.is_changed() || cal.phase != CalPhase::Done {
+    if cal.phase != CalPhase::Done
+        || (!cal.is_changed() && !audio.is_changed() && !loc.is_changed())
+    {
         return;
     }
     if let Some(ms) = cal.mean_offset_ms() {
@@ -481,18 +485,24 @@ fn sync_phase_visibility(
     let show_w = cal.phase == CalPhase::Waiting;
     let show_d = cal.phase == CalPhase::Done;
     for mut v in &mut waiting {
-        *v = if show_w {
+        let wanted = if show_w {
             Visibility::Inherited
         } else {
             Visibility::Hidden
         };
+        if *v != wanted {
+            *v = wanted;
+        }
     }
     for mut v in &mut done {
-        *v = if show_d {
+        let wanted = if show_d {
             Visibility::Inherited
         } else {
             Visibility::Hidden
         };
+        if *v != wanted {
+            *v = wanted;
+        }
     }
 }
 
@@ -929,5 +939,35 @@ mod tests {
         // Outside: |ms| > 130
         let ms = 160.0_f64;
         assert!(ms.abs() > GOOD_MS);
+    }
+
+    #[test]
+    fn faded_hits_do_not_respawn_but_new_hits_and_sessions_do() {
+        let mut world = World::new();
+        world.insert_resource(state_with_offsets(&[0.03]));
+        world.spawn(TimingBarContainer);
+        let mut schedule = Schedule::default();
+        schedule.add_systems(sync_hit_markers);
+        let mut markers = world.query_filtered::<Entity, With<TimingMarker>>();
+
+        schedule.run(&mut world);
+        let first = markers.single(&world).unwrap();
+        world.despawn(first);
+        world.resource_mut::<CalState>().clock += 1.0;
+        schedule.run(&mut world);
+        assert_eq!(markers.iter(&world).count(), 0);
+
+        world.resource_mut::<CalState>().offsets.push(0.08);
+        schedule.run(&mut world);
+        let second = markers.single(&world).unwrap();
+        world.despawn(second);
+
+        {
+            let mut cal = world.resource_mut::<CalState>();
+            cal.reset();
+            cal.offsets.push(-0.02);
+        }
+        schedule.run(&mut world);
+        assert_eq!(markers.iter(&world).count(), 1);
     }
 }
