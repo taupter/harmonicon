@@ -1,26 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! The Advanced drawer: the trainer's precision controls and its live
-//! measurement view.
-//!
-//! Everything here is opt-in and collapsed by default. A first-time player
-//! never opens it, and the trainer's defaults are exactly what it used to do
-//! with these values hardcoded — so the cost of the drawer existing, for
-//! someone who ignores it, is one extra button.
-//!
-//! The controls are **steppers, not preset buttons**. A preset row and a
-//! custom field would be two controls for one value, each able to disagree
-//! with the other about what is currently set; a bounded stepper reaches
-//! every preset (the tolerances the plan names — 12, 6 and 3 cents — are a
-//! few clicks apart) and is its own readout. Bounds come from
-//! `BendingTrainerSettings`' own constants, so the UI cannot offer a value
-//! `clamped` would refuse.
-//!
-//! The measurement view reports pitch and nothing else: distance, spread,
-//! best hold, vibrato rate and depth. It says how wide and how fast, never
-//! whether that is *good*, and never anything about breath pressure,
-//! embouchure or reed condition — a microphone carries no evidence for those
-//! claims (`docs/bending_trainer_plan.md`, "Deliberately out of scope").
+//! Precision controls and live pitch measurements for the Bending Trainer.
 
 use harmonicon_ui::dialogs::drawer::Drawer;
 
@@ -365,7 +345,10 @@ pub fn update_advanced_labels(
         return;
     }
     for (knob, mut text) in &mut labels {
-        *text = Text::new(knob.value_text(&settings));
+        let want = knob.value_text(&settings);
+        if text.0 != want {
+            text.0.clone_from(&want);
+        }
     }
 }
 
@@ -407,9 +390,17 @@ pub fn update_advanced_readouts(
     trace: Res<BendTrace>,
     settings: Res<BendingTrainerSettings>,
     loc: Res<Localization>,
+    added: Query<(), Added<AdvancedReadout>>,
     mut labels: Query<(&AdvancedReadout, &mut Text)>,
 ) {
-    if !settings.advanced_open {
+    if !settings.advanced_open
+        || (!key.is_changed()
+            && !target.is_changed()
+            && !trace.is_changed()
+            && !settings.is_changed()
+            && !loc.is_changed()
+            && added.is_empty())
+    {
         return;
     }
     let center = settings
@@ -417,6 +408,9 @@ pub fn update_advanced_readouts(
         .get(&BendingTrainerSettings::center_key(key.name(), target.hole))
         .copied();
     for (readout, mut text) in &mut labels {
-        *text = Text::new(readout_text(&loc, *readout, &trace, center));
+        let want = readout_text(&loc, *readout, &trace, center);
+        if text.0 != want {
+            text.0.clone_from(&want);
+        }
     }
 }
