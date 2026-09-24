@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Judging for the jam-based lesson types — the ones with no natural end,
-//! finished on demand from the pause menu's "Finish Lesson" button.
-//!
-//! The button itself is built by `gameplay::pause_menu` (that is where the
-//! pause menu lives) and only emits `FinishLessonRequested`; the judging is
-//! here because it reads `ImprovStats`, which is jam's. `jam` may depend on
-//! `gameplay`, never the reverse (`docs/physical_design_plan.md` rule 2).
+//! On-demand judging for open-ended Jam lessons.
 
 use bevy::prelude::*;
 

@@ -93,6 +93,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-jam/src/jam/session_ui.rs` — guard unchanged guide display, visibility, width, and label writes, and format chord-position text once per bar update. Static twelve-bar strip construction has no hot-path allocations. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/hole_map.rs` — replace the per-frame lit-hole hash map with a fixed array indexed by `u8` hole ID, reserve setup-time hole info capacity, and skip unchanged background writes. The persistent pitch-to-holes and chord-class maps remain appropriate lookup structures. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/improv.rs` — replace the per-frame set of sounding `u8` MIDI pitches with a fixed presence array before releasing inactive attack-gate entries. Persistent scale/chord hash sets are borrowed. All 122 Jam tests passed.
+- `crates/harmonicon-jam/src/jam/lesson.rs` — on-demand lesson judging has no hot-path allocation or meaningful reference change; the lesson ID clone is needed as an owned profile key. Trimmed historical module documentation. No runtime change.
 
 ## Findings and follow-up
 
@@ -101,4 +102,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: `harmonicon-jam/src/jam/lesson.rs`, then its feature modules.
+- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: `harmonicon-jam/src/jam/midi_tracks.rs`, then its feature modules.
