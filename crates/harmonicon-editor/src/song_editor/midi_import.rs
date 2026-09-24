@@ -215,7 +215,7 @@ pub(super) struct ImportDiagnostics {
 }
 
 pub(super) fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> ImportDiagnostics {
-    use std::collections::{BTreeMap, HashSet};
+    use std::collections::BTreeMap;
 
     let mut by_tick: BTreeMap<usize, Vec<&GridNote>> = BTreeMap::new();
     for note in notes {
@@ -231,8 +231,11 @@ pub(super) fn phrase_diagnostics(notes: &[GridNote], approximated: usize) -> Imp
         {
             diagnostics.mixed_breath_groups += 1;
         }
-        let unique_holes: HashSet<u8> = group.iter().map(|note| note.hole).collect();
-        if unique_holes.len() != group.len() {
+        if group
+            .iter()
+            .enumerate()
+            .any(|(i, note)| group[..i].iter().any(|earlier| earlier.hole == note.hole))
+        {
             diagnostics.duplicate_hole_groups += 1;
         }
     }
@@ -286,7 +289,8 @@ pub(super) fn import_track_notes(
     let midi_tempo = collect_tempo_map(&smf);
     let editor_map = editor_tempo_map(&midi_tempo, tpq);
     let initial_bpm = editor_map[0].bpm;
-    let editor_meter = editor_meter_map(&collect_time_signature_map(&smf), tpq);
+    let mut meter_changes = editor_meter_map(&collect_time_signature_map(&smf), tpq);
+    let time_signature = meter_changes.remove(0).1;
 
     let harp = build_harp(key, kind);
     let mut notes = Vec::with_capacity(raw_notes.len());
@@ -317,8 +321,8 @@ pub(super) fn import_track_notes(
         .collect();
     Ok(ImportedTrack {
         initial_bpm,
-        time_signature: editor_meter[0].1.clone(),
-        meter_changes: editor_meter[1..].to_vec(),
+        time_signature,
+        meter_changes,
         tempo_changes,
         diagnostics: phrase_diagnostics(&notes, approximated),
         notes,
@@ -339,7 +343,7 @@ pub(super) fn remove_track_bytes(bytes: &[u8], track_index: usize) -> Result<Vec
 }
 
 /// Mixes every track *except* `skip_track` down to a single PCM buffer via
-/// the shared `audio_system::synth::render_pcm` (which already sums
+/// the shared `harmonicon_core::synth::render_pcm` (which already sums
 /// overlapping notes — the same machinery a chord preview uses) — a
 /// synthesized stand-in backing track, not a sampled/GM-accurate mix, since
 /// the editor has only ever had one instrument voice to render with.
@@ -477,12 +481,7 @@ fn on_midi_track_selected(
     mut feedback: ResMut<SaveFeedback>,
     loc: Res<Localization>,
 ) {
-    let Some(index) = midi
-        .tracks
-        .iter()
-        .find(|t| t.option_label() == ev.value)
-        .map(|t| t.index)
-    else {
+    let Some(index) = midi.tracks.get(ev.index).map(|track| track.index) else {
         return;
     };
     import_selected_track(&mut midi, &mut state, index, &mut feedback, &loc);

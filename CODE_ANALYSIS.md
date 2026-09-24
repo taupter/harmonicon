@@ -66,6 +66,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/metronome.rs` — cache the parsed meter map across playback frames, rebuilding only when the opening signature or meter-change list changes; avoid unchanged shared tempo-resource writes. All 12 metronome tests passed.
 - `crates/harmonicon-editor/src/song_editor/audition.rs` — avoid unchanged `LastAuditioned` writes when selection is empty and correct the stale synth-module description. Audio bytes must be owned by the Bevy asset. Both audition tests passed.
 - `crates/harmonicon-editor/src/song_editor/waveform.rs` — reject unsupported extensions before reading the file and compare extensions case-insensitively without allocating a lowercase string; correct the decoder-module description. Worker task and path ownership remain necessary. All 10 waveform tests passed.
+- `crates/harmonicon-editor/src/song_editor/midi_import.rs` — detect duplicate holes without allocating a set per chord; move the opening time-signature string out of the imported meter vector instead of cloning all meter strings; use the combobox's selected index instead of formatting each track label to find it; correct a stale synth reference. All 24 MIDI-filtered tests passed.
 
 ## Findings and follow-up
 
@@ -73,4 +74,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
-- Next review: continue `harmonicon-editor` at `src/song_editor/midi_import.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/pitch_map.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
