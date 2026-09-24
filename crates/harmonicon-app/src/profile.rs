@@ -311,9 +311,11 @@ fn apply_loaded_profile(mut profile: ResMut<PlayerProfile>) {
 
 /// Accumulates wall-clock time spent actually playing — separate from
 /// `GameplayClock`, which tracks position *within* a song's own timeline and
-/// resets on retry/loop, not cumulative session time.
+/// resets on retry/loop, not cumulative session time. Ticks without marking
+/// the profile changed: nothing shows play time live, and a per-frame change
+/// would defeat any `PlayerProfile::is_changed()` gate for the whole song.
 fn accumulate_play_time(time: Res<Time>, mut profile: ResMut<PlayerProfile>) {
-    profile.total_play_secs += time.delta_secs_f64();
+    profile.bypass_change_detection().total_play_secs += time.delta_secs_f64();
 }
 
 /// Flushes the profile on exit so `total_play_secs` (which otherwise only
