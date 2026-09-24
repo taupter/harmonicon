@@ -240,6 +240,7 @@ pub fn groove_harmonica(
 }
 
 pub fn update_holes_3d(
+    mut sounding: Local<std::collections::HashSet<u8>>,
     time: Res<Time>,
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
@@ -257,7 +258,7 @@ pub fn update_holes_3d(
 
     let attack = 1.0 - (-dt * 25.0_f32).exp();
     let decay = 1.0 - (-dt * 4.0_f32).exp();
-    let harp_pitches = super::super::gameplay_2d::harp_pitches(&active, &valid_notes);
+    super::super::gameplay_2d::harp_pitches(&active, &valid_notes, &mut sounding);
 
     for (cell, hole_mat, mut state) in &mut cells {
         let blow = harp.wind_direction_midi(cell.0, &Action::Blow);
@@ -273,26 +274,29 @@ pub fn update_holes_3d(
         };
 
         super::super::gameplay_2d::step_hole_glow(
-            &mut state,
-            blow,
-            draw,
-            hint,
-            &harp_pitches,
-            attack,
-            decay,
+            &mut state, blow, draw, hint, &sounding, attack, decay,
         );
         let b = state.brightness;
 
-        if let Some(mut mat) = materials.get_mut(&hole_mat.0) {
-            if state.is_blow {
-                mat.emissive =
-                    LinearRgba::new(0.05 + 0.15 * b, 0.10 + 0.50 * b, 0.10 + 2.0 * b, 1.0);
-                mat.base_color = Color::srgb(0.05 + 0.20 * b, 0.08 + 0.40 * b, 0.08 + 0.75 * b);
-            } else {
-                mat.emissive = LinearRgba::new(0.05 + 2.0 * b, 0.05 + 0.40 * b, 0.02, 1.0);
-                mat.base_color =
-                    Color::srgb(0.08 + 0.78 * b, 0.06 + 0.25 * b, (0.08 - 0.04 * b).max(0.0));
-            }
+        let (emissive, base_color) = if state.is_blow {
+            (
+                LinearRgba::new(0.05 + 0.15 * b, 0.10 + 0.50 * b, 0.10 + 2.0 * b, 1.0),
+                Color::srgb(0.05 + 0.20 * b, 0.08 + 0.40 * b, 0.08 + 0.75 * b),
+            )
+        } else {
+            (
+                LinearRgba::new(0.05 + 2.0 * b, 0.05 + 0.40 * b, 0.02, 1.0),
+                Color::srgb(0.08 + 0.78 * b, 0.06 + 0.25 * b, (0.08 - 0.04 * b).max(0.0)),
+            )
+        };
+        // An unchanged write through `get_mut` still re-uploads the material.
+        if materials
+            .get(&hole_mat.0)
+            .is_some_and(|m| m.emissive != emissive || m.base_color != base_color)
+            && let Some(mut mat) = materials.get_mut(&hole_mat.0)
+        {
+            mat.emissive = emissive;
+            mat.base_color = base_color;
         }
     }
 }

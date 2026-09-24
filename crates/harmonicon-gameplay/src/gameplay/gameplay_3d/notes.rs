@@ -402,6 +402,7 @@ pub(super) fn note_tint_3d(
 /// frame rather than reacting to `Changed<ScheduledNote>` — cheap since only
 /// a `LOOKAHEAD` window's worth of notes are ever spawned.
 pub fn update_note_visuals_3d(
+    mut sounding: Local<HashSet<u8>>,
     song_notes: Res<super::super::SongNotes>,
     clock: Res<super::super::GameplayClock>,
     audio: Res<harmonicon_audio::AudioSettings>,
@@ -418,7 +419,7 @@ pub fn update_note_visuals_3d(
 ) {
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
     let judged = judged_instant(clock.get(), &audio, Some(&pitch_filter));
-    let sounding = harp_pitches(&active, &valid_notes);
+    harp_pitches(&active, &valid_notes, &mut sounding);
     for (visual, children) in &notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
@@ -431,14 +432,22 @@ pub fn update_note_visuals_3d(
             note.expected_pitch.is_some_and(|m| sounding.contains(&m)),
             live_technique_status(&note.modifiers, &note.pitch_samples, &note.amp_samples),
         );
+        // Writing through `get_mut` queues `AssetEvent::Modified` and a GPU
+        // re-upload even for an unchanged value, so compare first.
         for child in children {
             if let Ok(h) = heads.get(*child)
+                && std_materials
+                    .get(&h.0)
+                    .is_some_and(|m| m.base_color != base || m.emissive != emissive)
                 && let Some(mut m) = std_materials.get_mut(&h.0)
             {
                 m.base_color = base;
                 m.emissive = emissive;
             }
             if let Ok(h) = tails.get(*child)
+                && tail_materials
+                    .get(&h.0)
+                    .is_some_and(|m| m.color != tail_color || m.hold != hold)
                 && let Some(mut m) = tail_materials.get_mut(&h.0)
             {
                 m.color = tail_color;

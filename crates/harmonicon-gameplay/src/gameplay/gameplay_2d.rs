@@ -705,6 +705,7 @@ fn note_tint(hit: bool, missed: bool, is_blow: bool, colors: NoteColors) -> (Col
 /// frame rather than reacting to `Changed<ScheduledNote>` — cheap since only
 /// a `LOOKAHEAD` window's worth of notes are ever spawned.
 pub fn update_note_visuals(
+    mut sounding: Local<HashSet<u8>>,
     song_notes: Res<SongNotes>,
     clock: Res<super::GameplayClock>,
     audio: Res<harmonicon_audio::AudioSettings>,
@@ -720,7 +721,7 @@ pub fn update_note_visuals(
 ) {
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
     let judged = judged_instant(clock.get(), &audio, Some(&pitch_filter));
-    let sounding = harp_pitches(&active, &valid_notes);
+    harp_pitches(&active, &valid_notes, &mut sounding);
     for (visual, children) in &notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
@@ -734,14 +735,22 @@ pub fn update_note_visuals(
             note.expected_pitch.is_some_and(|m| sounding.contains(&m)),
             live_technique_status(&note.modifiers, &note.pitch_samples, &note.amp_samples),
         );
+        let tail_color = tail_tint.to_linear();
         for child in children {
-            if let Ok(mut head) = heads.get_mut(*child) {
+            if let Ok(mut head) = heads.get_mut(*child)
+                && head.color != head_tint
+            {
                 head.color = head_tint;
             }
+            // Writing through `get_mut` queues `AssetEvent::Modified` and a
+            // GPU re-upload even for an unchanged value, so compare first.
             if let Ok(tail) = tails.get(*child)
+                && shape_materials
+                    .get(&tail.0)
+                    .is_some_and(|m| m.color != tail_color || m.hold != hold)
                 && let Some(mut material) = shape_materials.get_mut(&tail.0)
             {
-                material.color = tail_tint.to_linear();
+                material.color = tail_color;
                 material.hold = hold;
             }
         }
@@ -835,14 +844,21 @@ fn head_label(hole: u8, is_blow: bool, show_numbers: bool) -> String {
 
 /// The set of currently-sounding MIDI pitches that are actually producible
 /// on this harp — shared `harp_pitches` builder `update_holes`/
-/// `update_holes_3d` each need before their per-cell glow loop.
-pub(super) fn harp_pitches(active: &ActivePitches, valid_notes: &ValidHarpNotes) -> HashSet<u8> {
-    active
-        .0
-        .iter()
-        .map(|p| p.midi)
-        .filter(|m| valid_notes.0.contains(m))
-        .collect()
+/// `update_holes_3d` each need before their per-cell glow loop. Refills
+/// `out` so a caller's per-frame set keeps its storage.
+pub(super) fn harp_pitches(
+    active: &ActivePitches,
+    valid_notes: &ValidHarpNotes,
+    out: &mut HashSet<u8>,
+) {
+    out.clear();
+    out.extend(
+        active
+            .0
+            .iter()
+            .map(|p| p.midi)
+            .filter(|m| valid_notes.0.contains(m)),
+    );
 }
 
 /// One hole cell's brightness/hint glow step for one frame — the shared
@@ -887,9 +903,18 @@ pub(super) fn step_hole_glow(
         decay
     };
     state.brightness += (target - state.brightness) * factor;
+    // Exponential easing never lands exactly; settle once the remaining gap
+    // is far below one 8-bit colour step, so an idle cell stops repainting.
+    if (target - state.brightness).abs() < GLOW_SETTLE {
+        state.brightness = target;
+    }
 }
 
+/// Brightness gap below which [`step_hole_glow`] snaps to its target.
+const GLOW_SETTLE: f32 = 1e-3;
+
 pub fn update_holes(
+    mut sounding: Local<HashSet<u8>>,
     time: Res<Time>,
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
@@ -907,7 +932,7 @@ pub fn update_holes(
 
     let attack = 1.0 - (-dt * 25.0_f32).exp();
     let decay = 1.0 - (-dt * 4.0_f32).exp();
-    let harp_pitches = harp_pitches(&active, &valid_notes);
+    harp_pitches(&active, &valid_notes, &mut sounding);
 
     for (cell, mut bg, mut state) in &mut cells {
         let blow = harp.wind_direction_midi(cell.0, &Action::Blow);
@@ -922,7 +947,7 @@ pub fn update_holes(
                 .map(|(_, b)| *b)
         };
 
-        step_hole_glow(&mut state, blow, draw, hint, &harp_pitches, attack, decay);
+        step_hole_glow(&mut state, blow, draw, hint, &sounding, attack, decay);
         let b = state.brightness;
 
         let color = if state.is_blow {
@@ -930,7 +955,9 @@ pub fn update_holes(
         } else {
             Color::srgb(0.10 + 0.78 * b, 0.12 + 0.22 * b, (0.16 - 0.04 * b).max(0.0))
         };
-        *bg = BackgroundColor(color);
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
@@ -1148,7 +1175,9 @@ mod tests {
     fn harp_pitches_keeps_only_sounding_pitches_the_harp_can_play() {
         let active = ActivePitches(vec![pitch_info(60), pitch_info(61)]);
         let valid = ValidHarpNotes(HashSet::from([60u8]));
-        assert_eq!(harp_pitches(&active, &valid), HashSet::from([60u8]));
+        let mut sounding = HashSet::from([99u8]);
+        harp_pitches(&active, &valid, &mut sounding);
+        assert_eq!(sounding, HashSet::from([60u8]), "stale entries are cleared");
     }
 
     #[test]
@@ -1215,6 +1244,19 @@ mod tests {
         // decay=0.5 halves the distance to the 0.0 target each step.
         assert!((state.brightness - 0.5).abs() < 1e-6);
         assert!(state.is_blow, "direction is only updated on an actual hit");
+    }
+
+    #[test]
+    fn step_hole_glow_settles_exactly_on_its_target() {
+        let mut state = HoleState {
+            brightness: 1.0,
+            is_blow: true,
+        };
+        let sounding = HashSet::new();
+        for _ in 0..200 {
+            step_hole_glow(&mut state, Some(60), Some(64), None, &sounding, 1.0, 0.1);
+        }
+        assert_eq!(state.brightness, 0.0, "an idle cell must stop changing");
     }
 }
 
