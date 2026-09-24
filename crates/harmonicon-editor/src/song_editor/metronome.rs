@@ -141,6 +141,13 @@ impl MeterClockCache {
     fn matches(&self, state: &EditorState) -> bool {
         self.opening == state.time_signature && self.changes == state.meter_changes
     }
+
+    pub(super) fn map_for<'a>(cache: &'a mut Option<Self>, state: &EditorState) -> &'a MeterMap {
+        if cache.as_ref().is_none_or(|entry| !entry.matches(state)) {
+            *cache = Some(Self::from_state(state));
+        }
+        &cache.as_ref().unwrap().map
+    }
 }
 
 /// Keeps `MetronomeTempo` in step with the chart currently being edited —
@@ -180,14 +187,8 @@ pub(super) fn click_metronome(
     if count_in.active() || !playhead.playing || playhead.paused {
         return;
     }
-    if meter_cache
-        .as_ref()
-        .is_none_or(|cache| !cache.matches(&state))
-    {
-        *meter_cache = Some(MeterClockCache::from_state(&state));
-    }
     let (clock, meter) = segment_clock(
-        &meter_cache.as_ref().unwrap().map,
+        MeterClockCache::map_for(&mut meter_cache, &state),
         secs_per_tick(&state),
         playhead.elapsed,
     );

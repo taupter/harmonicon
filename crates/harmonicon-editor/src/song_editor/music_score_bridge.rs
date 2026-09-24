@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-//! Wires the Song Editor's own note/playhead state into the shared
-//! `music_score` overlay — the editor's sibling of `gameplay::
-//! music_score_bridge`, translating `EditorState::notes`/`playback::
-//! Playhead` into `MusicScoreNotes`/`MusicScorePlayhead`. Editor ticks are
-//! already tempo-independent multiples of a beat (`TICKS_PER_BEAT`), so
-//! unlike gameplay's bridge this needs no tempo-map conversion, just a
-//! division.
+//! Converts editor notes and playhead ticks for the shared music score.
 
 use bevy::prelude::*;
 
@@ -16,6 +10,7 @@ use harmonicon_ui::music_score::{
 };
 
 use super::TICKS_PER_BEAT;
+use super::metronome::MeterClockCache;
 use super::playback::{Playhead, note_midi};
 use super::state::EditorState;
 
@@ -26,24 +21,24 @@ fn notation_segments(
 ) -> Vec<NotationNote> {
     let start = note.tick as u64;
     let end = (note.tick + note.len.max(1)) as u64;
-    let mut boundaries = vec![start];
-    boundaries.extend(
-        meter_map
-            .bar_starts(start.saturating_add(1), end)
-            .into_iter()
-            .map(|(tick, _)| tick),
-    );
-    boundaries.push(end);
-    boundaries
-        .windows(2)
-        .enumerate()
-        .map(|(index, pair)| NotationNote {
-            start_beat: pair[0] as f64 / TICKS_PER_BEAT as f64,
-            duration_beats: (pair[1] - pair[0]) as f64 / TICKS_PER_BEAT as f64,
+    let mut segments = Vec::new();
+    let mut segment_start = start;
+    for (tick, _) in meter_map.bar_starts(start.saturating_add(1), end) {
+        segments.push(NotationNote {
+            start_beat: segment_start as f64 / TICKS_PER_BEAT as f64,
+            duration_beats: (tick - segment_start) as f64 / TICKS_PER_BEAT as f64,
             midi,
-            tied_from_previous: index > 0,
-        })
-        .collect()
+            tied_from_previous: !segments.is_empty(),
+        });
+        segment_start = tick;
+    }
+    segments.push(NotationNote {
+        start_beat: segment_start as f64 / TICKS_PER_BEAT as f64,
+        duration_beats: (end - segment_start) as f64 / TICKS_PER_BEAT as f64,
+        midi,
+        tied_from_previous: !segments.is_empty(),
+    });
+    segments
 }
 
 /// Rebuilds [`MusicScoreNotes`] from `EditorState::notes` whenever the
@@ -88,16 +83,27 @@ pub(super) fn sync_music_score_playhead(
     state: Res<EditorState>,
     mut score_playhead: ResMut<MusicScorePlayhead>,
     mut meter: ResMut<MusicScoreMeter>,
+    mut meter_cache: Local<Option<MeterClockCache>>,
 ) {
-    let tick = if playhead.playing && playhead.secs_per_tick > 0.0 {
+    let (beat, tick) = if playhead.playing && playhead.secs_per_tick > 0.0 {
         let cur_tick = playhead.elapsed / playhead.secs_per_tick;
-        score_playhead.0 = (cur_tick / TICKS_PER_BEAT as f32) as f64;
-        cur_tick.max(0.0).round() as u64
+        (
+            (cur_tick / TICKS_PER_BEAT as f32) as f64,
+            cur_tick.max(0.0).round() as u64,
+        )
     } else {
-        score_playhead.0 = state.scroll_beat as f64;
-        (state.scroll_beat * TICKS_PER_BEAT) as u64
+        (
+            state.scroll_beat as f64,
+            (state.scroll_beat * TICKS_PER_BEAT) as u64,
+        )
     };
-    *meter = state.meter_map().meter_at(tick);
+    if score_playhead.0 != beat {
+        score_playhead.0 = beat;
+    }
+    let active_meter = MeterClockCache::map_for(&mut meter_cache, &state).meter_at(tick);
+    if *meter != active_meter {
+        *meter = active_meter;
+    }
 }
 
 #[cfg(test)]
