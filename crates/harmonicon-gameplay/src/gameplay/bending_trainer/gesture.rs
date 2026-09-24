@@ -196,7 +196,7 @@ pub fn update_gesture_practice(
     }
     let harp = key.harp();
     let shift = reference_shift_cents(&settings, key.name(), target.hole);
-    let frame = classify_gesture_frame(&harp, *target, &active, &trace, shift, &settings);
+    let frame = classify_gesture_frame(harp, *target, &active, &trace, shift, &settings);
     // `subdivision` splits the beat: at 2, Repeated asks for a bend on every
     // eighth rather than every quarter. The pulse count is what changes, not
     // the tempo — `MetronomeTempo` stays the shared clock for the whole

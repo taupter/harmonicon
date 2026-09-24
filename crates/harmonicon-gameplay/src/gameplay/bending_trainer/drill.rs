@@ -179,7 +179,7 @@ pub fn cycle_drill_scope(
     if drill.enabled {
         let harp = key.harp();
         if let Some(next) = pick_next_target(
-            &harp,
+            harp,
             &drill.stats,
             Some(*target),
             drill.scope,
@@ -558,7 +558,7 @@ pub fn drill_update(
         return;
     }
     let harp = key.harp();
-    if target_note(&harp, *target).is_none() {
+    if target_note(harp, *target).is_none() {
         return;
     }
     let dt = time.delta_secs();
@@ -571,7 +571,7 @@ pub fn drill_update(
     timers.elapsed_secs += dt;
 
     let shift = reference_shift_cents(&settings, key.name(), target.hole);
-    let observation = tuner_observation(&harp, *target, &active, shift);
+    let observation = tuner_observation(harp, *target, &active, shift);
     if matches!(observation, Some(TunerObservation::TargetFamily(_))) {
         timers.attempted = true;
     }
@@ -596,7 +596,7 @@ pub fn drill_update(
     finish_attempt(
         &mut drill,
         &mut target,
-        &harp,
+        harp,
         outcome,
         trace.stability_cents,
     );

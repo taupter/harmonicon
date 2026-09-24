@@ -395,7 +395,7 @@ pub fn update_bend_trace(
     trace.elapsed += time.delta_secs();
     let harp = key.harp();
     let shift = reference_shift_cents(&settings, key.name(), target.hole);
-    match tuner_observation(&harp, *target, &active, shift) {
+    match tuner_observation(harp, *target, &active, shift) {
         Some(TunerObservation::TargetFamily(target_cents)) => {
             let elapsed = trace.elapsed;
             trace.samples.push_back(TraceSample {
@@ -495,10 +495,10 @@ pub fn update_bend_rail(
     >,
 ) {
     let harp = key.harp();
-    let Some(target_note) = target_note(&harp, *target) else {
+    let Some(target_note) = target_note(harp, *target) else {
         return;
     };
-    let Some(natural_note) = natural_note_for_target(&harp, *target) else {
+    let Some(natural_note) = natural_note_for_target(harp, *target) else {
         return;
     };
     let (Some(target_freq), Some(natural_freq)) =
@@ -540,7 +540,7 @@ pub fn update_bend_rail(
         };
         *text = Text::new(String::from(loc.msg_args(key, &[("value", value)])));
     }
-    let intermediate = intermediate_bend_notes(&harp, *target);
+    let intermediate = intermediate_bend_notes(harp, *target);
     for (slot, mut node, mut text, mut visibility) in &mut slots {
         let Some(note) = intermediate.get(slot.0) else {
             *visibility = Visibility::Hidden;

@@ -97,7 +97,7 @@ pub fn update_natural_check(
         return;
     }
     let harp = key.harp();
-    let Some(note) = natural_note_for_target(&harp, *target) else {
+    let Some(note) = natural_note_for_target(harp, *target) else {
         return;
     };
     let Some(midi) = note_to_midi(&note).map(|midi| midi as u8) else {
@@ -217,13 +217,13 @@ pub fn update_tuner_readout(
         return;
     };
     let harp = key.harp();
-    let Some(target_note) = target_note(&harp, *target) else {
+    let Some(target_note) = target_note(harp, *target) else {
         *text = Text::new(String::from(loc.msg("bending-no-note-for-technique")));
         color.0 = Color::srgb(0.60, 0.60, 0.65);
         return;
     };
     let shift = reference_shift_cents(&settings, key.name(), target.hole);
-    let Some(observation) = tuner_observation(&harp, *target, &active, shift) else {
+    let Some(observation) = tuner_observation(harp, *target, &active, shift) else {
         return;
     };
     let cents = match observation {

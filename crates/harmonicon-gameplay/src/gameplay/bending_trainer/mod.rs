@@ -513,7 +513,7 @@ pub fn rebuild_overlay(
             }
         }
         commands.entity(host).with_children(|h| {
-            spawn_harmonica_overlay_selectable(h, &harp, on_diagram_cell_clicked, &loc);
+            spawn_harmonica_overlay_selectable(h, harp, on_diagram_cell_clicked, &loc);
         });
     }
 }
