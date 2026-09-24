@@ -1,34 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-//! Screen composition: where everything on the Bending Trainer sits.
-//!
-//! A calm three-part hierarchy (`docs/bending_trainer_plan.md`, step 6):
-//!
-//! - **a compact strip across the top** — what the player sets once per
-//!   session or per exercise (Setup, Scope, Practice, tempo, Advanced);
-//! - **the selected hole's bend path as the large centre**, with every
-//!   action the current attempt needs within reach of it: Natural, Target,
-//!   Drill, Skip and the readiness check;
-//! - **the full diagram beside it in landscape and below it in portrait**, as
-//!   the target picker and progress map.
-//!
-//! Anything used rarely — key, detector, the precision controls — lives in a
-//! [`Drawer`] that *floats*: opening one never reflows the live trace. Two
-//! reasons it floats rather than sitting in flow: a drawer in flow pushed
-//! the rest of the column off a 1080-tall screen, and the column cannot
-//! scroll instead, because a `ScrollArea` clips to its content's height when
-//! that content is shorter than the space available — which would cut off
-//! the Key and Detect dropdowns (the bug `spawn_menu_root_plain` exists to
-//! avoid on Generate Jam).
-//!
-//! **Orientation is live**, unlike `CompactLayout` elsewhere, which is read
-//! once at setup. A tablet is rotated in the hand mid-session, and here the
-//! only thing that differs between the two layouts is the body's
-//! `flex_direction`, so following it costs one field write rather than a
-//! respawn.
-//!
-//! Nothing here is reached by hover: every explanation that used to appear
-//! on `PointerOver` is shown inline, because a touch screen has no hover.
+//! Bending Trainer layout: a control strip, bend path, and selectable diagram.
+//! The diagram moves beside or below the path as the window changes shape.
+//! Drawers float above the body so opening one does not move the live trace.
 
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::window::PrimaryWindow;
@@ -523,11 +497,14 @@ pub fn update_setup_summary(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<SetupSummary>>,
 ) {
-    if !key.is_changed() && !audio.is_changed() {
+    if !key.is_changed() && !audio.is_changed() && !loc.is_changed() {
         return;
     }
+    let summary = setup_summary(&loc, key.name(), &audio);
     for mut text in &mut labels {
-        *text = Text::new(setup_summary(&loc, key.name(), &audio));
+        if text.0 != summary {
+            text.0.clone_from(&summary);
+        }
     }
 }
 
@@ -542,10 +519,14 @@ pub fn update_drill_slots(
         return;
     }
     for mut drawer in &mut skip {
-        drawer.open = drill.enabled;
+        if drawer.open != drill.enabled {
+            drawer.open = drill.enabled;
+        }
     }
     for mut drawer in &mut intro {
-        drawer.open = !drill.enabled;
+        if drawer.open == drill.enabled {
+            drawer.open = !drill.enabled;
+        }
     }
 }
 
@@ -556,12 +537,14 @@ pub fn update_target_progress(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<TargetProgressLabel>>,
 ) {
-    if !drill.is_changed() && !target.is_changed() {
+    if !drill.is_changed() && !target.is_changed() && !loc.is_changed() {
         return;
     }
     let text = progress_text(&loc, drill.stats.get(&(target.hole, target.technique)));
     for mut label in &mut labels {
-        *label = Text::new(text.clone());
+        if label.0 != text {
+            label.0.clone_from(&text);
+        }
     }
 }
 
