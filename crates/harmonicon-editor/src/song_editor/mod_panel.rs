@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! The mod panel's two-strip assembly: a short, fixed global-transport strip
-//! (Back / Edit / Perform / Lock / Save / Load — always the same regardless
-//! of mode), then a `flex_wrap: Wrap` contextual tool strip below it (the
-//! current mode's whole tool palette). See [`spawn_mod_panel`]'s doc comment
-//! for why it's two stacked rows rather than one ever-growing row. Built
-//! from the reusable button shapes in `super::panel_widgets`.
+//! The editor's scrollable tool sidebar, built from button helpers in
+//! `super::panel_widgets`.
 
 use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
@@ -30,27 +26,7 @@ use harmonicon_platform::theme::SongEditorColors;
 use harmonicon_ui::dialogs::algo_picker::{algo_labels, attach_algo_tooltip, on_algo_selected};
 use harmonicon_ui::dialogs::combobox;
 
-/// The tool sidebar down the **left edge** of the editor: a fixed global
-/// transport group (Back / Edit / Record / Play / Save / Load — the same
-/// regardless of mode), then the current mode's contextual tool group below
-/// it, all stacked in one narrow column.
-///
-/// Vertical rather than the horizontal strip this used to be, because the
-/// editor's problem is *height*: on a phone in landscape the grid alone can
-/// fill the screen, and a horizontal panel below it is simply off the
-/// bottom with nothing able to scroll to it. A sidebar spends width — which
-/// a 2400x1080 screen has in abundance — instead.
-///
-/// Taller than the viewport is expected, so the column scrolls: see
-/// [`EditorToolbarContent`](super::ui::EditorToolbarContent) and
-/// `view_scroll::drag_toolbar`.
-/// How wide the tool sidebar is, in logical px, for a given button style.
-///
-/// Width of one toolbar column. Glyph-only buttons need barely more than
-/// the glyph itself, which is the whole point on a phone — the toolbar
-/// spends horizontal space, the axis a landscape screen has to spare,
-/// instead of the vertical one it does not. The text styles need room for
-/// the longest label, so they get a wider column rather than truncating.
+/// Width of one toolbar column in logical pixels.
 pub(super) fn toolbar_width(style: ActionButtonStyle) -> f32 {
     match style {
         ActionButtonStyle::IconOnly => 56.0,
@@ -76,6 +52,7 @@ pub(super) fn toolbar_width_with_note_column(style: ActionButtonStyle) -> f32 {
     }
 }
 
+/// Builds the scrollable document and note-control columns beside the grid.
 pub(super) fn spawn_mod_panel(
     root: &mut ChildSpawnerCommands,
     loc: &Localization,
