@@ -73,6 +73,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/metronome.rs` (revisited) — expose its existing meter-map cache lookup to the score bridge so both systems use the same invalidation logic. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/annotation_lane.rs` — scan visible phrase markers with a peekable iterator instead of collecting a temporary entry vector, and compute each marker label once. The label's owned string is still needed by the UI text and tooltip. All 377 editor tests passed.
 - `crates/harmonicon-editor/src/song_editor/details_fields.rs` — fixed enum and static field-label registry have no runtime allocation, temporary vector, or copy issue. No code change needed.
+- `crates/harmonicon-editor/src/song_editor/expected_notes.rs` — borrow drag state and selected note instead of cloning on pointer moves or panel updates; only build a harp for the bend modifier; avoid unchanged visibility and color writes. The dev-only overlay still rebuilds from scratch on editor-state changes, intentionally for short benchmark clips. All 377 editor tests passed with `dev` enabled.
 
 ## Findings and follow-up
 
@@ -80,4 +81,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
-- Next review: continue `harmonicon-editor` at `src/song_editor/expected_notes.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/debug_record.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.

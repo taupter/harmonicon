@@ -176,7 +176,7 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
         return;
     }
 
-    let harp = state.effective_harp();
+    let harp = (kind == ModButton::Bend).then(|| state.effective_harp());
     let Some(note) = state.expected_selected_note_mut() else {
         match kind {
             ModButton::Bend => super::interaction::cycle_sticky_bend(state),
@@ -192,7 +192,7 @@ pub(super) fn apply_expected_modifier(state: &mut EditorState, kind: ModButton) 
     match kind {
         ModButton::Blow | ModButton::Draw => unreachable!(),
         ModButton::Bend => {
-            let max = max_bend(&harp, note.hole);
+            let max = max_bend(harp.as_ref().unwrap(), note.hole);
             if max <= 0.0 {
                 return;
             }
@@ -470,11 +470,14 @@ fn update_expected_technique_button_visibility(
             ModButton::Slide => !diatonic_only,
             _ => continue,
         };
-        node.display = if visible {
+        let display = if visible {
             Display::Flex
         } else {
             Display::None
         };
+        if node.display != display {
+            node.display = display;
+        }
     }
 }
 
@@ -484,18 +487,21 @@ fn update_expected_mod_panel(
     mut buttons: Query<(&ExpectedModButton, &mut BackgroundColor)>,
 ) {
     let colors = theme.song_editor_colors();
-    let selected = state.expected_selected_note().copied();
+    let selected = state.expected_selected_note();
     let (dir, pitch, expr) = match selected {
         Some(n) => (n.dir, n.pitch, n.expr),
         None => (state.sticky_dir, state.sticky_pitch, state.sticky_expr),
     };
     for (ExpectedModButton(kind), mut bg) in &mut buttons {
         let active = mod_button_active(*kind, dir, pitch, expr);
-        bg.0 = if active {
+        let color = if active {
             colors.btn_active
         } else {
             colors.btn_bg
         };
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 
@@ -585,7 +591,7 @@ fn rebuild_expected_notes_overlay(
                       mut state: ResMut<EditorState>,
                       ui_scale: Res<UiScale>,
                       mut nodes: Query<&mut Node, With<ExpectedNoteVisual>>| {
-                    let Some(drag) = state.expected_dragging.clone() else {
+                    let Some(drag) = state.expected_dragging.as_ref() else {
                         return;
                     };
                     if drag.kind != DragKind::Move {
@@ -688,7 +694,7 @@ fn spawn_expected_resize_handle(
                   mut state: ResMut<EditorState>,
                   ui_scale: Res<UiScale>,
                   mut boxes: Query<(&ExpectedNoteVisual, &mut Node)>| {
-                let Some(drag) = state.expected_dragging.clone() else {
+                let Some(drag) = state.expected_dragging.as_ref() else {
                     return;
                 };
                 if drag.kind != DragKind::Resize(edge) {
