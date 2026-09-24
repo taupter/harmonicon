@@ -1,23 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! The coaching card shown while `pause_menu::WaitForNoteMode` (or a
-//! call-and-response note's `force_wait`) has frozen gameplay at an unhit
-//! note. Without it, a frozen clock and a motionless highway look exactly
-//! like the game has hung.
-//!
-//! It sits **at the hit line**, where the frozen note is and where the
-//! player is already looking — not at a fixed height up the highway, which
-//! put it over whichever note happened to be scrolling past. Each mode
-//! spawns it against its own hit-line anchor, the same way the score
-//! readout is placed (`hud::ScoreReadoutAnchor`), since 2D's hit line is the
-//! bottom of a UI node and 3D's is a mesh the camera projects.
-//!
-//! Two lines: what to play, and what is being heard right now. The second
-//! is what makes this a coaching state rather than a hang notice — a player
-//! who is *trying* sees their attempt named ("hearing 4↑") and can correct
-//! it, instead of waiting in silence for a freeze that never lifts. The
-//! heard pitch is resolved through the judge's own `heard_tab`, so this
-//! never names a hole the scorer wouldn't.
+//! Coaching card at the hit line while gameplay waits for an unhit note.
+//! It shows the target and the nearest heard pitch using the judge's tab mapping.
 
 use bevy::prelude::*;
 
@@ -119,7 +103,7 @@ fn sync_wait_freeze_prompt(
     mut roots: Query<&mut Visibility, With<WaitFreezePrompt>>,
     mut targets: Query<&mut Text, With<WaitFreezeTarget>>,
 ) {
-    if !state.is_changed() {
+    if !state.is_changed() && !song_notes.is_changed() && !loc.is_changed() {
         return;
     }
     let target = state.0.and_then(|i| song_notes.notes.get(i)).map(|note| {
@@ -135,15 +119,20 @@ fn sync_wait_freeze_prompt(
         ))
     });
     for mut vis in &mut roots {
-        *vis = if target.is_some() {
+        let wanted = if target.is_some() {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        if *vis != wanted {
+            *vis = wanted;
+        }
     }
     if let Some(label) = target {
         for mut text in &mut targets {
-            *text = Text::new(label.clone());
+            if text.0 != label {
+                text.0.clone_from(&label);
+            }
         }
     }
 }
@@ -161,6 +150,15 @@ fn update_wait_freeze_heard(
     loc: Res<Localization>,
     mut heard_lines: Query<&mut Text, With<WaitFreezeHeard>>,
 ) {
+    if !state.is_changed()
+        && !song_notes.is_changed()
+        && !active.is_changed()
+        && !valid.is_changed()
+        && !harp.is_changed()
+        && !loc.is_changed()
+    {
+        return;
+    }
     let Some(note) = state.0.and_then(|i| song_notes.notes.get(i)) else {
         return;
     };
@@ -181,7 +179,7 @@ fn update_wait_freeze_heard(
     };
     for mut text in &mut heard_lines {
         if text.0 != label {
-            *text = Text::new(label.clone());
+            text.0.clone_from(&label);
         }
     }
 }
