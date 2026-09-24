@@ -47,27 +47,40 @@ pub fn update_jam_guides(
     if !guides.is_changed() && added.is_empty() {
         return;
     }
+    let display = if guides.0 {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    let visible = if guides.0 {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
     for (mut node, mut visibility) in &mut panels {
-        node.display = if guides.0 {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        *visibility = if guides.0 {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        if node.display != display {
+            node.display = display;
+        }
+        if *visibility != visible {
+            *visibility = visible;
+        }
     }
+    let width = Val::Percent(if guides.0 { 50.0 } else { 100.0 });
     for mut node in &mut primary {
-        node.width = Val::Percent(if guides.0 { 50.0 } else { 100.0 });
+        if node.width != width {
+            node.width = width;
+        }
     }
+    let label = loc.msg(if guides.0 {
+        "jam-guides-on"
+    } else {
+        "jam-guides-off"
+    });
     for mut text in &mut labels {
-        *text = Text::new(String::from(if guides.0 {
-            loc.msg("jam-guides-on")
-        } else {
-            loc.msg("jam-guides-off")
-        }));
+        if text.0 != &*label {
+            text.0.clear();
+            text.0.push_str(&label);
+        }
     }
 }
 
@@ -128,7 +141,10 @@ pub fn update_jam_chord_position(
         return;
     };
     let next = &chords.0[(current.0 + 1) % chords.0.len()];
+    let label = format!("{now}  →  {next}");
     for mut text in &mut labels {
-        *text = Text::new(format!("{now}  →  {next}"));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
