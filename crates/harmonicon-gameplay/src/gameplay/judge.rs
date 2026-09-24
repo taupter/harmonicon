@@ -204,14 +204,12 @@ fn observed_failure(
     gate: &PitchGate,
     harp: &PlayedHarp,
 ) -> Option<MissReason> {
-    let attacked: Vec<u8> = sounding
+    let mut attacked = sounding
         .iter()
         .copied()
         .filter(|&pitch| gate.is_fresh(pitch, true))
-        .collect();
-    if attacked.is_empty() {
-        return None;
-    }
+        .peekable();
+    attacked.peek()?;
     if !note.chord_pitches.is_empty()
         && note
             .chord_pitches
@@ -227,7 +225,7 @@ fn observed_failure(
             hole: note.hole,
             is_blow: note.is_blow,
         },
-        heard: nearest_attacked(&attacked, expected).and_then(|pitch| heard_tab(pitch, harp)),
+        heard: nearest_attacked(attacked, expected).and_then(|pitch| heard_tab(pitch, harp)),
     })
 }
 
@@ -236,10 +234,9 @@ fn observed_failure(
 /// most plausibly reaching for. Ties break low, and `attacked` arrives from a
 /// `HashSet` — so this has to pick by a rule rather than take the first, or
 /// the same frame could report different pitches on different runs.
-pub(super) fn nearest_attacked(attacked: &[u8], expected: u8) -> Option<u8> {
+pub(super) fn nearest_attacked(attacked: impl IntoIterator<Item = u8>, expected: u8) -> Option<u8> {
     attacked
-        .iter()
-        .copied()
+        .into_iter()
         .min_by_key(|&pitch| (pitch.abs_diff(expected), pitch))
 }
 
@@ -255,7 +252,16 @@ pub(super) fn heard_tab(pitch: u8, harp: &PlayedHarp) -> Option<HoleTab> {
     })
 }
 
+/// Per-frame working storage for [`score_notes`], kept between frames so
+/// judging allocates only when a frame needs more room than any before it.
+#[derive(Default)]
+pub(crate) struct JudgeScratch {
+    harp_pitches: HashSet<u8>,
+    pending: Vec<usize>,
+}
+
 pub(crate) fn score_notes(
+    mut scratch: Local<JudgeScratch>,
     clock: Res<GameplayClock>,
     time: Res<Time>,
     active: Res<ActivePitches>,
@@ -300,12 +306,19 @@ pub(crate) fn score_notes(
         scored.write(NoteScored { judgment: None });
     }
 
-    let harp_pitches: HashSet<u8> = active
-        .0
-        .iter()
-        .map(|p| p.midi)
-        .filter(|m| valid_notes.0.contains(m))
-        .collect();
+    let JudgeScratch {
+        harp_pitches,
+        pending,
+    } = &mut *scratch;
+    harp_pitches.clear();
+    harp_pitches.extend(
+        active
+            .0
+            .iter()
+            .map(|p| p.midi)
+            .filter(|m| valid_notes.0.contains(m)),
+    );
+    let harp_pitches = &*harp_pitches;
 
     // Re-arm any pitch the player has stopped sounding, so its next attack is
     // fresh. Pitches still held remain consumed and can't score again.
@@ -331,8 +344,10 @@ pub(crate) fn score_notes(
     // array order, so when two same-pitch notes overlap the hit window,
     // whichever is actually due consumes the attack — not just whichever
     // happened to be classified first.
-    let mut pending: Vec<usize> = Vec::new();
+    pending.clear();
     let len = song_notes.notes.len();
+    // One frame's loudness, shared by every note sustaining a wah.
+    let mut frame_rms = None;
 
     for i in song_notes.cursor..len {
         let note = &mut song_notes.notes[i];
@@ -365,7 +380,8 @@ pub(crate) fn score_notes(
                         note.pitch_samples
                             .push((clock.get(), 1200.0 * (hz / expected_hz).log2()));
                     }
-                    note.amp_samples.push((clock.get(), rms(&frame.samples)));
+                    let level = *frame_rms.get_or_insert_with(|| rms(&frame.samples));
+                    note.amp_samples.push((clock.get(), level));
                 }
             } else {
                 score.points += sustain_points(note.held, note.duration);
@@ -428,7 +444,7 @@ pub(crate) fn score_notes(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    for i in pending {
+    for &i in pending.iter() {
         let note = &mut song_notes.notes[i];
         // A note the player's harp cannot produce is not part of the
         // performance: never hit, never missed, absent from the stats. It
@@ -448,14 +464,14 @@ pub(crate) fn score_notes(
         let playing = note.expected_pitch.is_some_and(|m| {
             gate.is_fresh(m, harp_pitches.contains(&m))
                 && (note.chord_pitches.is_empty()
-                    || chord_is_sounding(&note.chord_pitches, &harp_pitches))
+                    || chord_is_sounding(&note.chord_pitches, harp_pitches))
         });
 
         // Keep the first frame's explanation rather than the last one's: the
         // player's mistake is the note they actually attacked, not whatever
         // happens to still be ringing when the window finally closes.
         if note.miss_evidence.is_none() {
-            note.miss_evidence = observed_failure(note, &harp_pitches, &gate, &played_harp);
+            note.miss_evidence = observed_failure(note, harp_pitches, &gate, &played_harp);
         }
 
         match classify_note(
@@ -506,7 +522,7 @@ pub(crate) fn score_notes(
                     // sounding is the whole point (see the doc comment on
                     // `SongStats::clean_attack`).
                     if note.chord_pitches.is_empty() {
-                        bump(&mut stats.clean_attack, is_clean_attack(&harp_pitches, m));
+                        bump(&mut stats.clean_attack, is_clean_attack(harp_pitches, m));
                     }
                 }
                 match quality {
