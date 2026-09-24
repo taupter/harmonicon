@@ -58,11 +58,14 @@ pub(super) fn update_wait_mode_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<WaitForNoteLabel>>,
 ) {
-    if !wait_mode.is_changed() {
+    if !wait_mode.is_changed() && !loc.is_changed() {
         return;
     }
+    let label = wait_mode_label_text(&loc, wait_mode.0);
     for mut text in &mut labels {
-        *text = Text::new(wait_mode_label_text(&loc, wait_mode.0));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -104,10 +107,7 @@ fn set_practice_speed(ev: On<ValueChange<f32>>, mut speed: ResMut<PracticeSpeed>
     speed.0 = ev.value;
 }
 
-/// One row: a "Speed" slider (`50%..=100%`) + "Speed: NN%" readout, wired to
-/// [`PracticeSpeed`]. The track is a `bsn!` `Slider`; the label/readout stay
-/// imperative like every other pause-menu readout (custom font, which `bsn!`
-/// can't set in 0.19).
+/// Practice-speed slider and percentage readout.
 fn spawn_practice_speed_row(
     commands: &mut Commands,
     parent: Entity,
@@ -180,15 +180,21 @@ pub(super) fn update_practice_speed_slider(
     mut fills: Query<&mut Node, With<PracticeSpeedFill>>,
     mut labels: Query<&mut Text, With<PracticeSpeedLabel>>,
 ) {
-    if !speed.is_changed() {
+    if !speed.is_changed() && !loc.is_changed() {
         return;
     }
     let frac = (speed.0 - PRACTICE_SPEED_MIN) / (PRACTICE_SPEED_MAX - PRACTICE_SPEED_MIN);
     for mut node in &mut fills {
-        node.width = Val::Percent(frac * 100.0);
+        let width = Val::Percent(frac * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
     }
+    let label = practice_speed_label_text(&loc, speed.0);
     for mut text in &mut labels {
-        *text = Text::new(practice_speed_label_text(&loc, speed.0));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -228,11 +234,14 @@ pub(super) fn update_loop_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<LoopRangeLabel>>,
 ) {
-    if !loop_cfg.is_changed() {
+    if !loop_cfg.is_changed() && !loc.is_changed() {
         return;
     }
+    let label = loop_label_text(&loc, &loop_cfg);
     for mut text in &mut labels {
-        *text = Text::new(loop_label_text(&loc, &loop_cfg));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -289,7 +298,7 @@ pub(super) fn update_phrase_selector_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<PhraseSelectorLabel>>,
 ) {
-    if !selected.is_changed() && !adaptive.is_changed() {
+    if !selected.is_changed() && !adaptive.is_changed() && !loc.is_changed() {
         return;
     }
     let section = adaptive.sections.get(selected.0);
@@ -298,7 +307,9 @@ pub(super) fn update_phrase_selector_label(
         .unwrap_or(0.0);
     let text = phrase_selector_text(&loc, section.map(|s| s.name.as_str()), learned);
     for mut label in &mut labels {
-        *label = Text::new(text.clone());
+        if label.0 != text {
+            label.0.clone_from(&text);
+        }
     }
 }
 
@@ -315,11 +326,14 @@ pub(super) fn update_adaptive_difficulty_label(
     loc: Res<Localization>,
     mut labels: Query<&mut Text, With<AdaptiveDifficultyLabel>>,
 ) {
-    if !adaptive.is_changed() {
+    if !adaptive.is_changed() && !loc.is_changed() {
         return;
     }
+    let text = adaptive_difficulty_label_text(&loc, adaptive.enabled);
     for mut label in &mut labels {
-        *label = Text::new(adaptive_difficulty_label_text(&loc, adaptive.enabled));
+        if label.0 != text {
+            label.0.clone_from(&text);
+        }
     }
 }
 
@@ -487,7 +501,7 @@ fn phrase_learned_slider_scene(value: f32) -> impl Scene {
 pub(super) fn update_phrase_learned_slider(
     selected: Res<SelectedPhraseIndex>,
     adaptive: Res<AdaptiveDifficulty>,
-    sliders: Query<Entity, With<PhraseLearnedSlider>>,
+    sliders: Query<(Entity, &SliderValue), With<PhraseLearnedSlider>>,
     mut fills: Query<&mut Node, With<PhraseLearnedFill>>,
     mut labels: Query<&mut Text, With<PhraseLearnedValueLabel>>,
     mut commands: Commands,
@@ -499,14 +513,22 @@ pub(super) fn update_phrase_learned_slider(
     // `SliderValue` is an immutable component (bevy_ui_widgets), so it can
     // only be replaced wholesale via `insert`, not mutated in place — same
     // as `slider_self_update` does for a drag-driven change.
-    for entity in &sliders {
-        commands.entity(entity).insert(SliderValue(value));
+    for (entity, current) in &sliders {
+        if current.0 != value {
+            commands.entity(entity).insert(SliderValue(value));
+        }
     }
     for mut node in &mut fills {
-        node.width = Val::Percent(value * 100.0);
+        let width = Val::Percent(value * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
     }
+    let label = format!("{:.0}%", value * 100.0);
     for mut text in &mut labels {
-        *text = Text::new(format!("{:.0}%", value * 100.0));
+        if text.0 != label {
+            text.0.clone_from(&label);
+        }
     }
 }
 
@@ -541,32 +563,8 @@ fn spawn_group_heading(commands: &mut Commands, card: Entity, loc: &Localization
     });
 }
 
-/// Spawns the (initially hidden) pause overlay. Tagged `GameplayRoot` so
-/// it's torn down with the scene.
-///
-/// Three groups, each on its own [`MODAL_PANEL_BG`] card: **session actions**
-/// (Resume/Restart/Quit Song, + Finish Lesson where it applies), **playback
-/// aids** (wait-for-note, practice speed) and **phrase practice** (adaptive
-/// difficulty, the selected section, the A–B loop). Session actions stay
-/// apart from the rest so a slip of the mouse over the "big" actions isn't
-/// one misclick from a tweak knob, or vice versa.
-///
-/// **The cards are what make this readable, not the backdrop.** A translucent
-/// wash over live gameplay leaves the HUD underneath competing with the
-/// menu's own 13px labels — see [`MODAL_PANEL_BG`]'s own comment for what
-/// that looked like.
-///
-/// Most of the tree is authored declaratively with `bsn!`; sliders and their
-/// readouts are imperative (`SliderRange`/`SliderStep` have no `Default`, so
-/// they can't be bsn! patches, and labels need the default font, which
-/// `bsn!` can't set in 0.19).
-///
-/// Speed and Wait-for-Note are practice aids for a scored, fixed-length
-/// song — Jam Session has no notes to wait for and no fixed pacing to slow
-/// down — so they're omitted entirely in that mode rather than shown
-/// disabled. The A–B loop controls stay in every mode: dragging a range on
-/// the progress bar while paused is "select a part of the song to repeat,"
-/// just as useful for free-play practice as for a scored run.
+/// Spawns the hidden pause overlay and its session, playback, and phrase cards.
+/// Playback aids are omitted in Jam Session; loop controls remain available.
 pub(super) fn setup_pause_menu(
     mut commands: Commands,
     mode: Res<GameplayMode>,
