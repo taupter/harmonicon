@@ -69,12 +69,8 @@ pub(super) struct Playhead {
 
 // ── Pure functions ────────────────────────────────────────────────────────────
 
-/// Builds the synthetic [`Harmonica`] the editor's own `GridNote`s (not a
-/// loaded chart's authored layout) are resolved against — a Richter
-/// diatonic or 12-hole chromatic, transposed to `key`. Shared with the
-/// Bending Trainer via `harmonicon_core::harmonica::{richter_harp,
-/// chromatic_harp}`, so both agree on note names, key transposition, and
-/// (via [`hole_notes`]) which reed an overblow/overdraw sounds above.
+/// Builds the named preset for the selected key and harmonica kind.
+/// Loaded chart layouts are retained by `EditorState::effective_harp`.
 pub(super) fn build_harp(key: &str, kind: HarmonicaKind) -> Harmonica {
     match kind {
         HarmonicaKind::Diatonic => richter_harp(key),
@@ -276,12 +272,19 @@ pub(super) fn update_playhead_view(
         return;
     };
     if !playhead.playing || playhead.secs_per_tick <= 0.0 {
-        *vis = Visibility::Hidden;
+        if *vis != Visibility::Hidden {
+            *vis = Visibility::Hidden;
+        }
         return;
     }
     let cur_tick = playhead.elapsed / playhead.secs_per_tick;
-    node.left = Val::Px(cur_tick * TICK_W);
-    *vis = Visibility::Inherited;
+    let left = Val::Px(cur_tick * TICK_W);
+    if node.left != left {
+        node.left = left;
+    }
+    if *vis != Visibility::Inherited {
+        *vis = Visibility::Inherited;
+    }
 }
 
 pub(super) fn update_progress_bar(
@@ -294,6 +297,9 @@ pub(super) fn update_progress_bar(
         0.0
     };
     for mut node in &mut fills {
-        node.width = Val::Percent(p * 100.0);
+        let width = Val::Percent(p * 100.0);
+        if node.width != width {
+            node.width = width;
+        }
     }
 }

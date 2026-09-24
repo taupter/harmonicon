@@ -60,6 +60,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-editor/src/song_editor/panel_widgets.rs` — one-time button construction and observers reviewed; the label clone is needed because text and the live-label marker both own the base string. No code change needed.
 - `crates/harmonicon-editor/src/song_editor/mod_panel.rs` — one-time sidebar assembly has no meaningful clone or hot-loop issue; removed obsolete two-strip documentation and fixed a misplaced function description.
 - `crates/harmonicon-editor/src/song_editor/transport.rs` — file dialog vectors are owned message fields created on user clicks; transport button setup has no hot-loop allocation issue. Removed historical module-split rationale and inaccurate Import claim.
+- `crates/harmonicon-editor/src/song_editor/playback.rs` — guard unchanged playhead and progress UI writes, especially while playback is idle; correct preset-harp documentation. The renderer's `PhraseNote` slice still requires a vector at playback start. All 377 editor tests passed.
 
 ## Findings and follow-up
 
@@ -67,4 +68,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
-- Next review: continue `harmonicon-editor` at `src/song_editor/playback.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
+- Next review: continue `harmonicon-editor` at `src/song_editor/practice.rs`, then work through its modules before `harmonicon-jam` and `harmonicon-gameplay`.
