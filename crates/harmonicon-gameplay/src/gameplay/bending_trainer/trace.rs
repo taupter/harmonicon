@@ -42,8 +42,7 @@ pub struct BendTrace {
 
 impl BendTrace {
     /// The raw history, for the Advanced drawer's own analysis. Raw is the
-    /// point: `trace_smoothing` is a *display* setting
-    /// ([`smoothed_cents`]), and a stability or vibrato figure computed off
+    /// point: `trace_smoothing` is a *display* setting, and a stability or vibrato figure computed off
     /// a smoothed path would measure the knob rather than the playing.
     pub(super) fn samples(&self) -> &VecDeque<TraceSample> {
         &self.samples
@@ -139,9 +138,17 @@ pub(super) fn vibrato(samples: &VecDeque<TraceSample>) -> Option<Vibrato> {
 /// a stronger setting also lags the live marker further behind the player —
 /// which is exactly the trade-off an expert is choosing between, and why
 /// this never touches [`residual_rms`] or [`vibrato`].
+#[cfg(test)]
 pub(super) fn smoothed_cents(samples: &VecDeque<TraceSample>, smoothing: f32) -> Vec<f32> {
+    let mut out = Vec::new();
+    smooth_cents_into(samples, smoothing, &mut out);
+    out
+}
+
+fn smooth_cents_into(samples: &VecDeque<TraceSample>, smoothing: f32, out: &mut Vec<f32>) {
     let alpha = 1.0 - smoothing.clamp(0.0, 0.95);
-    let mut out = Vec::with_capacity(samples.len());
+    out.clear();
+    out.reserve(samples.len());
     let mut state: Option<f32> = None;
     for sample in samples {
         let next = match state {
@@ -151,7 +158,6 @@ pub(super) fn smoothed_cents(samples: &VecDeque<TraceSample>, smoothing: f32) ->
         state = Some(next);
         out.push(next);
     }
-    out
 }
 
 const TRACE_DOTS: usize = 32;
@@ -331,36 +337,41 @@ pub(super) fn intermediate_bend_notes(harp: &Harmonica, target: TrainerTarget) -
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn residual_rms(samples: &VecDeque<TraceSample>) -> Option<f32> {
-    if samples.len() < MIN_STABILITY_SAMPLES {
+    residual_rms_iter(samples.iter().copied())
+}
+
+fn residual_rms_iter(samples: impl Iterator<Item = TraceSample> + Clone) -> Option<f32> {
+    let n = samples.clone().count();
+    if n < MIN_STABILITY_SAMPLES {
         return None;
     }
-    let span = samples.back()?.time - samples.front()?.time;
+    let span = samples.clone().last()?.time - samples.clone().next()?.time;
     if span < MIN_STABILITY_SPAN_SECS {
         return None;
     }
 
-    let n = samples.len() as f32;
-    let mean_t = samples.iter().map(|sample| sample.time).sum::<f32>() / n;
+    let n = n as f32;
+    let mean_t = samples.clone().map(|sample| sample.time).sum::<f32>() / n;
     let mean_c = samples
-        .iter()
+        .clone()
         .map(|sample| sample.target_cents)
         .sum::<f32>()
         / n;
     let variance_t = samples
-        .iter()
+        .clone()
         .map(|sample| (sample.time - mean_t).powi(2))
         .sum::<f32>();
     if variance_t <= f32::EPSILON {
         return None;
     }
     let slope = samples
-        .iter()
+        .clone()
         .map(|sample| (sample.time - mean_t) * (sample.target_cents - mean_c))
         .sum::<f32>()
         / variance_t;
     let residual = samples
-        .iter()
         .map(|sample| {
             let fitted = mean_c + slope * (sample.time - mean_t);
             (sample.target_cents - fitted).powi(2)
@@ -409,13 +420,13 @@ pub fn update_bend_trace(
             {
                 trace.samples.pop_front();
             }
-            let stability_samples = trace
-                .samples
-                .iter()
-                .filter(|sample| elapsed - sample.time <= STABILITY_HISTORY_SECS)
-                .copied()
-                .collect();
-            trace.stability_cents = residual_rms(&stability_samples);
+            trace.stability_cents = residual_rms_iter(
+                trace
+                    .samples
+                    .iter()
+                    .filter(|sample| elapsed - sample.time <= STABILITY_HISTORY_SECS)
+                    .copied(),
+            );
             trace.unstable = trace
                 .stability_cents
                 .is_some_and(|residual| residual > UNSTABLE_RESIDUAL_CENTS);
@@ -447,6 +458,7 @@ pub fn update_bend_rail(
     trace: Res<BendTrace>,
     settings: Res<BendingTrainerSettings>,
     loc: Res<Localization>,
+    mut drawn: Local<Vec<f32>>,
     // Four of these take `&mut Node` and four take `&mut Text`, so every pair
     // sharing one needs a `Without` proving them disjoint — a marker component
     // the *other* query requires is not enough, since Bevy's check is purely
@@ -568,23 +580,27 @@ pub fn update_bend_rail(
     }
 
     // The drawn path is smoothed (a no-op at the default 0.0); everything
-    // measured off the trace stays on the raw samples — see `smoothed_cents`.
-    let drawn = smoothed_cents(&trace.samples, settings.trace_smoothing);
+    // measured off the trace stays on the raw samples.
+    smooth_cents_into(&trace.samples, settings.trace_smoothing, &mut drawn);
     let sample_step = trace.samples.len().div_ceil(TRACE_DOTS).max(1);
-    let visible: Vec<_> = trace
+    let mut visible = [None; TRACE_DOTS];
+    for (index, (sample, cents)) in trace
         .samples
         .iter()
         .zip(drawn.iter())
         .rev()
         .step_by(sample_step)
         .take(TRACE_DOTS)
-        .collect();
+        .enumerate()
+    {
+        visible[index] = Some((*sample, *cents));
+    }
     for (dot, mut node, mut color, mut visibility) in &mut dots {
-        let Some((sample, cents)) = visible.get(dot.0) else {
+        let Some(Some((sample, cents))) = visible.get(dot.0) else {
             *visibility = Visibility::Hidden;
             continue;
         };
-        node.left = Val::Percent(rail_percent(**cents, natural_cents));
+        node.left = Val::Percent(rail_percent(*cents, natural_cents));
         let age = trace.elapsed - sample.time;
         let alpha = (1.0 - age / settings.trace_secs).clamp(0.08, 0.72);
         color.0 = Color::srgba(0.45, 0.72, 0.95, alpha);
