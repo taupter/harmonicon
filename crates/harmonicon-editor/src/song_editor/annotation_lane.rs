@@ -51,17 +51,17 @@ pub(super) fn spawn(
     colors: SongEditorColors,
     loc: &Localization,
 ) {
-    let visible: Vec<_> = state
+    let mut visible = state
         .phrase_annotations
         .range(first_tick..last_tick)
-        .filter(|(_, annotation)| !label(annotation).is_empty())
-        .collect();
-    for (index, entry) in visible.iter().enumerate() {
-        let (tick, annotation) = *entry;
-        let tick = *tick;
+        .filter_map(|(&tick, annotation)| {
+            let text = label(annotation);
+            (!text.is_empty()).then_some((tick, annotation, text))
+        })
+        .peekable();
+    while let Some((tick, annotation, text)) = visible.next() {
         let x = tick as f32 * TICK_W;
-        let next_tick = visible.get(index + 1).map(|(tick, _)| **tick);
-        let text = label(annotation);
+        let next_tick = visible.peek().map(|(tick, _, _)| *tick);
         let tooltip = loc.msg_args(
             "editor-phrase-marker-tooltip",
             &[("tick", tick.to_string()), ("details", text.clone())],
