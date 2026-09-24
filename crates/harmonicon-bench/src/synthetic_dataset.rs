@@ -16,7 +16,7 @@
 //! perfectly known ground truth. Real debug recordings still need to
 //! happen once a harmonica is back in hand.
 //!
-//! Reuses the same additive harmonica voice (`audio_system::synth`) that
+//! Reuses the same additive harmonica voice (`harmonicon_core::synth`) that
 //! already renders the Song Editor's Play/Practice preview and
 //! `gameplay::call_response`'s call demo, rather than a separate tone
 //! generator, so the synthetic audio at least carries this crate's own
@@ -37,8 +37,7 @@ use harmonicon_core::wav::encode_wav;
 /// Sustain per synthesized note.
 const NOTE_DUR_SECS: f64 = 0.45;
 /// Silence between notes. Long enough for two independent reasons: the
-/// pipeline's RMS silence gate (`audio_system::pitch_detect::
-/// SILENCE_THRESHOLD`) needs a clean gap to separate one note's analysis
+/// pipeline's RMS silence gate (`harmonicon_dsp`'s `SILENCE_THRESHOLD`) needs a clean gap to separate one note's analysis
 /// frames from the next, and — the tighter constraint —
 /// `note_bench::expected_at` widens each note's window by
 /// `DEFAULT_TIMING_TOLERANCE_SECS` (±0.25s) on *both* ends before checking
@@ -110,7 +109,7 @@ fn single_notes_scenario(harp: &Harmonica) -> SyntheticScenario {
 }
 
 /// Every bend on `harp` (draw bends on holes 1-6, blow bends on 7-10 — see
-/// `song::harmonica::hole_notes`), one at a time.
+/// `harmonicon_core::harmonica::hole_notes`), one at a time.
 fn bends_scenario(harp: &Harmonica) -> SyntheticScenario {
     let mut items = Vec::new();
     let mut t = GAP_SECS;
@@ -170,7 +169,7 @@ fn overblows_overdraws_scenario(harp: &Harmonica) -> SyntheticScenario {
 /// classic holes-1-2-3 blow "train" chord) — legal since one breath can
 /// sound several reeds in the same direction at once; only mixing blow and
 /// draw simultaneously is physically impossible (see
-/// `song::harmonica_constraints`).
+/// `harmonicon_core::harmonica_constraints`).
 fn chords_scenario(harp: &Harmonica) -> SyntheticScenario {
     let mut items = Vec::new();
     let mut t = GAP_SECS;

@@ -187,7 +187,7 @@ Manual testing needs a mic, audio out, and a display.
   | `harmonicon-jam` / `harmonicon-editor` | Jam Session / Song Editor — **siblings**, neither imports the other | yes |
   | `harmonicon-menu` | page state machine, routing, and shared menu chrome | yes |
   | `harmonicon-lessons` | lesson tree/reader UI and pure tree layout | yes |
-  | `harmonicon-bench` | pitch-detection benchmark + dataset generator (dev tooling) | yes |
+  | `harmonicon-bench` | pitch-detection benchmark + dataset generator (dev tooling) | **no** |
   | `harmonicon` (root) | `lib.rs` (composition root) + `main.rs` + `src/bin/*`; owns `assets/`, `build.rs`, `tests/` | yes |
   | `harmonicon-android` | `android_main` only — the one crate *above* the root, and the only cdylib | yes |
 

@@ -105,6 +105,8 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-jam/src/jam/band.rs` — a frame spanning more than one beat fed the listener only the completed beat, breaking its every-beat contract and able to skip a phrase boundary (comping target) or a due answer. `BandListener::observe_until` now feeds skipped beats as silent, capped to the log length for long stalls; three tests cover it. Phrase density reads the log through `make_contiguous` instead of collecting a vector. All 125 Jam tests and Clippy passed.
 - `crates/harmonicon-jam/examples/listening_matrix.rs` — one-shot export of nine previews; no change needed.
 - `crates/harmonicon-jam/src/jam/{band,call_response,call_response/phrase,hole_map,improv,session}/tests.rs` — fixtures and assertions are off the runtime path; no change needed.
+- `crates/harmonicon-bench/src/note_bench.rs` — `compare` moved each frame's expected set into the confusion key instead of cloning it, and broke count ties by pitch set: `HashMap` order made the printed confusion table differ between runs of a benchmark meant to be reproducible. Corrected pre-split module paths in docs. Per-frame `expected_at` is a linear scan; it is fine for recording-sized charts. All 22 bench tests passed.
+- `crates/harmonicon-bench/src/synthetic_dataset.rs` — one-shot generator; no hot path. Corrected pre-split module paths in docs. Root `CLAUDE.md`'s crate table wrongly listed this crate as using Bevy; fixed.
 - Workspace Clippy (`--release --features dev --all-targets -D warnings`) had drifted during this review: `op_ref` in five Jam label comparisons, a collapsible `if` in the editor's timeline overlay, and needless borrows in the menu's harp check. All fixed; the workspace is clean again.
 
 ## Findings and follow-up
@@ -114,5 +116,5 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- `harmonicon-editor` and `harmonicon-jam` file lists reconciled: every Rust source has a completed review entry. Next review: `harmonicon-bench`, then `harmonicon-gameplay`.
+- `harmonicon-editor` and `harmonicon-jam` file lists reconciled: every Rust source has a completed review entry. `harmonicon-bench` is also complete. Next review: `harmonicon-gameplay`.
 - Run workspace Clippy after each crate, not only the crate's own: the lints above slipped in because only per-crate tests ran.

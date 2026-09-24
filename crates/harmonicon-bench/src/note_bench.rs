@@ -129,7 +129,7 @@ pub struct Frame {
 
 /// Replays `samples` (mono, `sample_rate` Hz) through `algorithm` using the
 /// same [`CHUNK_SIZE`]/50%-overlap ([`HOP_SIZE`]) chunking the live mic
-/// pipeline uses (`audio_system::audio_input::push_chunks`), so an offline
+/// pipeline uses (`harmonicon_audio::audio_input`'s chunk writer), so an offline
 /// benchmark run sees exactly what the real-time detector would have seen
 /// — same window, same hop, same algorithm dispatch (`pitch_detect::
 /// analyze`). `range` should normally be narrowed to the harp actually
@@ -161,7 +161,7 @@ pub fn run_algorithm(
 }
 
 /// Re-filters each of `frames`' detected pitch sets through
-/// `song::harmonica_constraints::plausible_notes` — the "Harmonica
+/// `harmonicon_core::harmonica_constraints::plausible_notes` — the "Harmonica
 /// Constraint Solver" roadmap stage, applied here as an offline
 /// post-process so its effect on `compare`'s hit/miss/phantom counts can be
 /// measured directly against a detector's raw output, on the same
@@ -225,10 +225,6 @@ pub fn compare(
 
     for frame in frames {
         let want = expected_at(expected, frame.time_secs, tolerance_secs);
-        *confusion
-            .entry((want.clone(), frame.detected.clone()))
-            .or_insert(0) += 1;
-
         for &m in &want {
             if frame.detected.contains(&m) {
                 report.true_positive += 1;
@@ -247,11 +243,13 @@ pub fn compare(
                 report.false_positive += 1;
             }
         }
+        *confusion.entry((want, frame.detected.clone())).or_insert(0) += 1;
     }
 
+    // Ties are ordered by pitch set, so repeated runs print the same table.
     let mut confusion: Vec<(Vec<u8>, Vec<u8>, u32)> =
         confusion.into_iter().map(|((e, d), c)| (e, d, c)).collect();
-    confusion.sort_by_key(|entry| std::cmp::Reverse(entry.2));
+    confusion.sort_unstable_by(|a, b| b.2.cmp(&a.2).then_with(|| (&a.0, &a.1).cmp(&(&b.0, &b.1))));
     report.confusion = confusion;
     report
 }
@@ -506,5 +504,14 @@ mod tests {
         // (want=[60], got=[60]) occurred twice; (want=[60], got=[62]) once.
         assert_eq!(report.confusion[0], (vec![60], vec![60], 2));
         assert_eq!(report.confusion[1], (vec![60], vec![62], 1));
+    }
+
+    #[test]
+    fn tied_confusion_pairs_are_ordered_by_pitch_set() {
+        let expected = vec![expected(60)];
+        let frames = vec![frame(0.1, &[64]), frame(0.2, &[62]), frame(0.3, &[])];
+        let report = compare(&expected, &frames, 0.0);
+        let detected: Vec<&[u8]> = report.confusion.iter().map(|c| c.1.as_slice()).collect();
+        assert_eq!(detected, vec![&[][..], &[62], &[64]]);
     }
 }
