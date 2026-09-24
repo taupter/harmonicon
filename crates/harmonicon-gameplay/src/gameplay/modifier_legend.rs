@@ -217,23 +217,28 @@ fn toggle_technique_legend(_: On<Activate>, mut collapsed: ResMut<TechniqueLegen
 }
 
 /// Mirrors [`TechniqueLegendCollapsed`] onto the body's visibility and the
-/// header's arrow, written every frame (like `update_mute_label`) so a
-/// freshly spawned legend — a new one is spawned per song — isn't stale.
+/// header's arrow when the setting or locale changes, and onto a freshly
+/// spawned legend (a new one is spawned per song) so it isn't stale.
 fn update_technique_legend_visibility(
     collapsed: Res<TechniqueLegendCollapsed>,
     loc: Res<Localization>,
-    mut bodies: Query<&mut Node, With<TechniqueLegendBody>>,
-    mut labels: Query<&mut Text, With<TechniqueLegendToggleLabel>>,
+    mut bodies: Query<(&mut Node, Ref<TechniqueLegendBody>)>,
+    mut labels: Query<(&mut Text, Ref<TechniqueLegendToggleLabel>)>,
 ) {
-    for mut node in &mut bodies {
-        node.display = if collapsed.0 {
-            Display::None
-        } else {
-            Display::Flex
-        };
+    let all = collapsed.is_changed() || loc.is_changed();
+    for (mut node, marker) in &mut bodies {
+        if all || marker.is_added() {
+            node.display = if collapsed.0 {
+                Display::None
+            } else {
+                Display::Flex
+            };
+        }
     }
-    for mut text in &mut labels {
-        *text = Text::new(technique_legend_toggle_text(&loc, collapsed.0));
+    for (mut text, marker) in &mut labels {
+        if all || marker.is_added() {
+            *text = Text::new(technique_legend_toggle_text(&loc, collapsed.0));
+        }
     }
 }
 

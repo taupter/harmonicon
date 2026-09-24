@@ -438,13 +438,16 @@ fn set_tempo_from_song(
     }
 }
 
-/// Keep the "♩ = NN" readout in step with the live tempo.
+/// Keep the "♩ = NN" readout in step with the live tempo — on a tempo
+/// change, or for a label spawned since.
 fn update_tempo_label(
     tempo: Res<MetronomeTempo>,
-    mut labels: Query<&mut Text, With<MetronomeTempoLabel>>,
+    mut labels: Query<(&mut Text, Ref<MetronomeTempoLabel>)>,
 ) {
-    for mut text in &mut labels {
-        *text = Text::new(format!("\u{2669} = {}", tempo.bpm as u32));
+    for (mut text, marker) in &mut labels {
+        if tempo.is_changed() || marker.is_added() {
+            *text = Text::new(format!("\u{2669} = {}", tempo.bpm as u32));
+        }
     }
 }
 
@@ -457,28 +460,33 @@ fn feel_label_key(feel: MetronomeFeel) -> &'static str {
     }
 }
 
-/// Mirror the current feel onto its button label (written every frame, like
-/// `update_mute_label`, so a freshly spawned label isn't stale across songs).
+/// Mirror the current feel onto its button label — on a change, or for a
+/// label spawned since, since the feel outlives the label across songs.
 fn update_feel_label(
     feel: Res<MetronomeFeel>,
     loc: Res<Localization>,
-    mut labels: Query<&mut Text, With<MetronomeFeelLabel>>,
+    mut labels: Query<(&mut Text, Ref<MetronomeFeelLabel>)>,
 ) {
-    let text = String::from(loc.msg(feel_label_key(*feel)));
-    for mut label in &mut labels {
-        *label = Text::new(text.clone());
+    let all = feel.is_changed() || loc.is_changed();
+    for (mut label, marker) in &mut labels {
+        if all || marker.is_added() {
+            *label = Text::new(String::from(loc.msg(feel_label_key(*feel))));
+        }
     }
 }
 
 fn update_mute_label(
     muted: Res<MetronomeMuted>,
     loc: Res<Localization>,
-    mut labels: Query<(&mut Text, &mut TextColor), With<MetronomeMuteLabel>>,
+    mut labels: Query<(&mut Text, &mut TextColor, Ref<MetronomeMuteLabel>)>,
 ) {
-    // Written every frame: the mute state outlives the label (it survives
-    // across songs), so a change guard would leave a freshly spawned label
-    // stale.
-    for (mut text, mut color) in &mut labels {
+    // The mute state outlives the label (it survives across songs), so a
+    // freshly spawned label is written too, not only a changed setting.
+    let all = muted.is_changed() || loc.is_changed();
+    for (mut text, mut color, marker) in &mut labels {
+        if !all && !marker.is_added() {
+            continue;
+        }
         if muted.0 {
             *text = Text::new(String::from(loc.msg("metronome-click-off")));
             *color = TextColor(Color::srgb(0.40, 0.40, 0.45));
@@ -529,6 +537,36 @@ impl Plugin for MetronomePlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mute_label_fills_new_labels_and_leaves_idle_ones_alone() {
+        let mut world = World::new();
+        world.insert_resource(MetronomeMuted(true));
+        world.insert_resource(Localization::default());
+        let mut schedule = Schedule::default();
+        schedule.add_systems(update_mute_label);
+        let label = |world: &mut World| {
+            world
+                .spawn((Text::new(""), TextColor(Color::WHITE), MetronomeMuteLabel))
+                .id()
+        };
+
+        let first = label(&mut world);
+        schedule.run(&mut world);
+        // With no bundle loaded the key stands in for the text.
+        assert_eq!(world.get::<Text>(first).unwrap().0, "metronome-click-off");
+
+        // An idle frame must not touch it.
+        world.get_mut::<Text>(first).unwrap().0 = "untouched".into();
+        schedule.run(&mut world);
+        assert_eq!(world.get::<Text>(first).unwrap().0, "untouched");
+
+        // A label spawned later — the next song's — still starts correct.
+        let second = label(&mut world);
+        schedule.run(&mut world);
+        assert_eq!(world.get::<Text>(second).unwrap().0, "metronome-click-off");
+        assert_eq!(world.get::<Text>(first).unwrap().0, "untouched");
+    }
 
     #[test]
     fn feel_from_chart_maps_each_declared_feel() {
