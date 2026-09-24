@@ -132,14 +132,13 @@ pub(crate) fn on_position_called(
     let Ok((slot_entity, slot)) = slots.single() else {
         return;
     };
-    let harp_key = slot.0.clone();
     let position = scale_as_position(scale).unwrap_or(Position::First);
     commands.entity(slot_entity).despawn_related::<Children>();
     commands.entity(slot_entity).with_children(|col| {
         spawn_position_caption(
             col,
             &loc,
-            &harp_key,
+            &slot.0,
             position,
             theme.circle_of_fifths_colors(),
         );
