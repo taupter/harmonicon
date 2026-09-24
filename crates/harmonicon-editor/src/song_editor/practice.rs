@@ -4,7 +4,7 @@ use bevy::audio::AudioSource;
 use bevy::prelude::*;
 
 use harmonicon_audio::AudioSettings;
-use harmonicon_audio::pitch_detect::PitchEvent;
+use harmonicon_audio::pitch_detect::{PitchEvent, PitchInfo};
 use harmonicon_core::midi::{freq_to_midi, midi_to_note};
 use harmonicon_core::scoring::{
     AttackGate, HitQuality, NoteOutcome, classify_note, compute_points, sustain_points,
@@ -216,9 +216,9 @@ pub(super) fn practice_tick(
 
     // Collect the freshest detected pitches; last event wins (pitch events arrive
     // at the audio pipeline's chunk rate, ~10 Hz, not at the frame rate).
-    let mut detected: Vec<f32> = Vec::new();
+    let mut detected: &[PitchInfo] = &[];
     for ev in pitch_events.read() {
-        detected = ev.0.iter().map(|p| p.frequency).collect();
+        detected = &ev.0;
     }
 
     // Latency compensation: a pitch detected now was actually played
@@ -232,10 +232,11 @@ pub(super) fn practice_tick(
     // re-articulate to score the next occurrence of the same pitch.
     let mut consumed = std::mem::take(&mut practice.consumed);
     consumed.release_absent(|idx| {
-        practice
-            .notes
-            .get(idx)
-            .is_some_and(|n| detected.iter().any(|&f| freq_matches(f, n.expected_freq)))
+        practice.notes.get(idx).is_some_and(|n| {
+            detected
+                .iter()
+                .any(|p| freq_matches(p.frequency, n.expected_freq))
+        })
     });
 
     // Score all notes, collecting mutations for application after the loop.
@@ -260,7 +261,7 @@ pub(super) fn practice_tick(
             if judged < note.end_secs {
                 if detected
                     .iter()
-                    .any(|&f| freq_matches(f, note.expected_freq))
+                    .any(|p| freq_matches(p.frequency, note.expected_freq))
                 {
                     note.held += dt;
                 }
@@ -276,7 +277,7 @@ pub(super) fn practice_tick(
         // not already consumed by an earlier note in this continuous breath.
         let is_playing = detected
             .iter()
-            .any(|&f| freq_matches(f, note.expected_freq));
+            .any(|p| freq_matches(p.frequency, note.expected_freq));
         let playing_expected = consumed.is_fresh(i, is_playing);
 
         match classify_note(
@@ -289,20 +290,20 @@ pub(super) fn practice_tick(
             NoteOutcome::Missed => {
                 note.missed = true;
                 misses_delta += 1;
-                let name = note.expected_name.clone();
                 if new_msg.is_none() {
-                    new_msg = Some(loc.msg_args("practice-missed", &[("note", name)]));
+                    new_msg = Some(
+                        loc.msg_args("practice-missed", &[("note", note.expected_name.clone())]),
+                    );
                     is_result_msg = true;
                 }
             }
             NoteOutcome::Waiting => {
-                let got = detected
-                    .first()
-                    .copied()
-                    .map(freq_to_name)
-                    .unwrap_or_default();
-                let expected = note.expected_name.clone();
                 new_msg.get_or_insert_with(|| {
+                    let got = detected
+                        .first()
+                        .map(|p| freq_to_name(p.frequency))
+                        .unwrap_or_default();
+                    let expected = note.expected_name.clone();
                     if got.is_empty() {
                         loc.msg_args("practice-prompt", &[("note", expected)])
                     } else {
