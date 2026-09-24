@@ -239,6 +239,30 @@ fn spawn_training_row(
 /// One plain text line appended directly to `root` (no card/box around
 /// it) — the shared shape the lesson reader's goal-progress line and its
 /// "Passed" badge both use, differing only in text/color.
+/// The circle-of-fifths widget's previous/next key buttons: move the harp
+/// key by `semitones` and replace the drawn circle with one for the new key.
+fn step_circle_key(
+    circle: &mut LessonCircle,
+    semitones: i32,
+    commands: &mut Commands,
+    theme: &LoadedTheme,
+    loc: &Localization,
+) {
+    commands.entity(circle.diagram).despawn();
+    circle.harp_key = semitone(&circle.harp_key, semitones);
+    let mut diagram = Entity::PLACEHOLDER;
+    commands.entity(circle.host).with_children(|parent| {
+        diagram = spawn_circle_of_fifths(
+            parent,
+            &circle.harp_key,
+            &circle.positions,
+            theme.circle_of_fifths_colors(),
+            &loc.msg("circle-of-fifths-harp-label"),
+        );
+    });
+    circle.diagram = diagram;
+}
+
 fn spawn_reader_line(commands: &mut Commands, root: Entity, text: String, color: Color) {
     let line = commands
         .spawn((
@@ -349,62 +373,32 @@ pub(crate) fn setup_lesson_reader(
                     })
                     .id();
                 commands.entity(root).add_child(state);
-                let target = state;
-                spawn_button(
-                    &mut commands,
-                    root,
-                    &loc.msg("lesson-widget-key-previous"),
-                    move |_: On<Activate>,
-                          mut commands: Commands,
-                          theme: Res<LoadedTheme>,
-                          loc: Res<Localization>,
-                          mut q: Query<&mut LessonCircle>| {
-                        let Ok(mut circle) = q.get_mut(target) else {
-                            return;
-                        };
-                        commands.entity(circle.diagram).despawn();
-                        circle.harp_key = semitone(&circle.harp_key, -1);
-                        let mut diagram = Entity::PLACEHOLDER;
-                        commands.entity(circle.host).with_children(|parent| {
-                            diagram = spawn_circle_of_fifths(
-                                parent,
-                                &circle.harp_key,
-                                &circle.positions,
-                                theme.circle_of_fifths_colors(),
-                                &loc.msg("circle-of-fifths-harp-label"),
-                            );
-                        });
-                        circle.diagram = diagram;
-                    },
-                );
-                let target = state;
-                spawn_button(
-                    &mut commands,
-                    root,
-                    &loc.msg("lesson-widget-key-next"),
-                    move |_: On<Activate>,
-                          mut commands: Commands,
-                          theme: Res<LoadedTheme>,
-                          loc: Res<Localization>,
-                          mut q: Query<&mut LessonCircle>| {
-                        let Ok(mut circle) = q.get_mut(target) else {
-                            return;
-                        };
-                        commands.entity(circle.diagram).despawn();
-                        circle.harp_key = semitone(&circle.harp_key, 1);
-                        let mut diagram = Entity::PLACEHOLDER;
-                        commands.entity(circle.host).with_children(|parent| {
-                            diagram = spawn_circle_of_fifths(
-                                parent,
-                                &circle.harp_key,
-                                &circle.positions,
-                                theme.circle_of_fifths_colors(),
-                                &loc.msg("circle-of-fifths-harp-label"),
-                            );
-                        });
-                        circle.diagram = diagram;
-                    },
-                );
+                for (message, semitones) in [
+                    ("lesson-widget-key-previous", -1),
+                    ("lesson-widget-key-next", 1),
+                ] {
+                    let target = state;
+                    spawn_button(
+                        &mut commands,
+                        root,
+                        &loc.msg(message),
+                        move |_: On<Activate>,
+                              mut commands: Commands,
+                              theme: Res<LoadedTheme>,
+                              loc: Res<Localization>,
+                              mut q: Query<&mut LessonCircle>| {
+                            if let Ok(mut circle) = q.get_mut(target) {
+                                step_circle_key(
+                                    &mut circle,
+                                    semitones,
+                                    &mut commands,
+                                    &theme,
+                                    &loc,
+                                );
+                            }
+                        },
+                    );
+                }
             }
             LessonWidget::TwelveBarGrid {
                 key,
@@ -437,69 +431,37 @@ pub(crate) fn setup_lesson_reader(
                     })
                     .id();
                 commands.entity(root).add_child(marker);
-                let target = marker;
-                spawn_button(
-                    &mut commands,
-                    root,
-                    &loc.msg("lesson-widget-bar-previous"),
-                    move |_: On<Activate>,
-                          theme: Res<LoadedTheme>,
-                          mut grids: Query<&mut LessonGrid>,
-                          mut backgrounds: Query<&mut BackgroundColor>| {
-                        let Ok(mut grid) = grids.get_mut(target) else {
-                            return;
-                        };
-                        grid.current_bar = stepped_bar(grid.current_bar, -1);
-                        highlight_lesson_grid(
-                            &grid,
-                            grid.current_bar,
-                            theme.twelve_bar_colors(),
-                            &mut backgrounds,
-                        );
-                    },
-                );
-                let target = marker;
-                spawn_button(
-                    &mut commands,
-                    root,
-                    &loc.msg("lesson-widget-bar-next"),
-                    move |_: On<Activate>,
-                          theme: Res<LoadedTheme>,
-                          mut grids: Query<&mut LessonGrid>,
-                          mut backgrounds: Query<&mut BackgroundColor>| {
-                        let Ok(mut grid) = grids.get_mut(target) else {
-                            return;
-                        };
-                        grid.current_bar = stepped_bar(grid.current_bar, 1);
-                        highlight_lesson_grid(
-                            &grid,
-                            grid.current_bar,
-                            theme.twelve_bar_colors(),
-                            &mut backgrounds,
-                        );
-                    },
-                );
-                let target = marker;
-                spawn_button(
-                    &mut commands,
-                    root,
-                    &loc.msg("lesson-widget-bar-reset"),
-                    move |_: On<Activate>,
-                          theme: Res<LoadedTheme>,
-                          mut grids: Query<&mut LessonGrid>,
-                          mut backgrounds: Query<&mut BackgroundColor>| {
-                        let Ok(mut grid) = grids.get_mut(target) else {
-                            return;
-                        };
-                        grid.current_bar = 0;
-                        highlight_lesson_grid(
-                            &grid,
-                            0,
-                            theme.twelve_bar_colors(),
-                            &mut backgrounds,
-                        );
-                    },
-                );
+                for (message, delta) in [
+                    ("lesson-widget-bar-previous", -1),
+                    ("lesson-widget-bar-next", 1),
+                    ("lesson-widget-bar-reset", 0),
+                ] {
+                    let target = marker;
+                    spawn_button(
+                        &mut commands,
+                        root,
+                        &loc.msg(message),
+                        move |_: On<Activate>,
+                              theme: Res<LoadedTheme>,
+                              mut grids: Query<&mut LessonGrid>,
+                              mut backgrounds: Query<&mut BackgroundColor>| {
+                            let Ok(mut grid) = grids.get_mut(target) else {
+                                return;
+                            };
+                            grid.current_bar = if delta == 0 {
+                                0
+                            } else {
+                                stepped_bar(grid.current_bar, delta)
+                            };
+                            highlight_lesson_grid(
+                                &grid,
+                                grid.current_bar,
+                                theme.twelve_bar_colors(),
+                                &mut backgrounds,
+                            );
+                        },
+                    );
+                }
             }
             LessonWidget::FormMap { sections } => {
                 let mut cells = Vec::new();
@@ -760,28 +722,22 @@ pub(crate) fn setup_lesson_reader(
                         }
                     },
                 );
-                let target = metronome;
-                spawn_button(
-                    &mut commands,
-                    metronome,
-                    &loc.msg("lesson-widget-tempo-decrease"),
-                    move |_: On<Activate>, mut q: Query<&mut LessonMetronome>| {
-                        if let Ok(mut metronome) = q.get_mut(target) {
-                            metronome.bpm = (metronome.bpm - 5.0).max(30.0);
-                        }
-                    },
-                );
-                let target = metronome;
-                spawn_button(
-                    &mut commands,
-                    metronome,
-                    &loc.msg("lesson-widget-tempo-increase"),
-                    move |_: On<Activate>, mut q: Query<&mut LessonMetronome>| {
-                        if let Ok(mut metronome) = q.get_mut(target) {
-                            metronome.bpm = (metronome.bpm + 5.0).min(300.0);
-                        }
-                    },
-                );
+                for (message, delta) in [
+                    ("lesson-widget-tempo-decrease", -5.0_f32),
+                    ("lesson-widget-tempo-increase", 5.0_f32),
+                ] {
+                    let target = metronome;
+                    spawn_button(
+                        &mut commands,
+                        metronome,
+                        &loc.msg(message),
+                        move |_: On<Activate>, mut q: Query<&mut LessonMetronome>| {
+                            if let Ok(mut metronome) = q.get_mut(target) {
+                                metronome.bpm = (metronome.bpm + delta).clamp(30.0, 300.0);
+                            }
+                        },
+                    );
+                }
                 let target = metronome;
                 spawn_button(
                     &mut commands,
