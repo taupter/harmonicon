@@ -128,6 +128,10 @@ pub(super) fn process_external_folder_events(
     mut changed: MessageWriter<ExternalFolderChanged>,
 ) {
     let Some(events) = events else { return };
+    // Nearly every frame has nothing queued; skip resolving the root then.
+    if events.0.is_empty() {
+        return;
+    }
     let Some(root) = dirs::home_dir().map(|h| h.join("Harmonicon")) else {
         return;
     };

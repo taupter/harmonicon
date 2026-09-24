@@ -173,6 +173,11 @@ fn build_localization(
     handles: Option<Res<LocaleBundles>>,
     mut ready: ResMut<LocalizationReady>,
 ) {
+    // Built and nothing asked for a different locale: the common case every
+    // frame after startup, so answer it before asking the asset server.
+    if ready.0 && !locale.is_changed() {
+        return;
+    }
     let Some(handles) = handles else { return };
     // Wait for every bundle *and* the `.ftl` resource each references.
     if !handles
@@ -180,9 +185,6 @@ fn build_localization(
         .iter()
         .all(|handle| asset_server.is_loaded_with_dependencies(handle))
     {
-        return;
-    }
-    if ready.0 && !locale.is_changed() {
         return;
     }
     ready.0 = true;

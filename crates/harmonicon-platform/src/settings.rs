@@ -507,6 +507,10 @@ fn tick_pending_save(
     action_button_style: Res<ActionButtonStyle>,
     bending_trainer: Res<BendingTrainerSettings>,
 ) {
+    // Nothing pending is the usual state; don't rewrite it every frame.
+    if pending.0.is_none() {
+        return;
+    }
     let (should_save, remaining) = tick_debounce(pending.0, time.delta_secs());
     pending.0 = remaining;
     if should_save {
