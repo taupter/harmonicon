@@ -74,7 +74,7 @@ pub struct PlayableNote {
 /// left out on purpose: a call must never ask for a note the player can't
 /// simply reach.
 pub fn playable_notes(harp: &Harmonica) -> Vec<PlayableNote> {
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(harp.hole_count() as usize * 2);
     for hole in 1..=harp.hole_count() {
         for (action, blow) in [(Action::Blow, true), (Action::Draw, false)] {
             if let Some(midi) = harp.wind_direction_midi(hole, &action) {
@@ -198,16 +198,16 @@ impl Rng {
     }
 
     /// Picks an index with probability proportional to its weight.
-    fn weighted(&mut self, weights: &[u32]) -> usize {
-        let total: u32 = weights.iter().sum();
+    fn weighted<T>(&mut self, candidates: &[(T, u32)]) -> usize {
+        let total: u32 = candidates.iter().map(|(_, weight)| weight).sum();
         let mut roll = self.below(total.max(1) as usize) as u32;
-        for (i, &w) in weights.iter().enumerate() {
-            if roll < w {
+        for (i, (_, weight)) in candidates.iter().enumerate() {
+            if roll < *weight {
                 return i;
             }
-            roll -= w;
+            roll -= *weight;
         }
-        weights.len() - 1
+        candidates.len() - 1
     }
 }
 
@@ -368,8 +368,7 @@ fn step(
     if candidates.is_empty() {
         return None;
     }
-    let weights: Vec<u32> = candidates.iter().map(|(_, w)| *w).collect();
-    Some(candidates[rng.weighted(&weights)].0)
+    Some(candidates[rng.weighted(&candidates)].0)
 }
 
 /// The opening bar's pitches: a motif of two to four notes walked out from

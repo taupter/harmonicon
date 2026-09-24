@@ -98,6 +98,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - `crates/harmonicon-jam/src/jam/rhythm_guide.rs` — guard unchanged pulse-row background and border writes, particularly the seven idle slots on each frame. The active slot still animates every frame; no temporary vector is built. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/position_guide.rs` — borrow the compass slot's harp key while rebuilding its caption instead of cloning the string on each position call. Scale-class recomputation remains necessary when a lesson changes position. All 122 Jam tests passed.
 - `crates/harmonicon-jam/src/jam/call_response.rs` — reuse ghost-hole vector capacity for each new call, and guard unchanged banner, toggle, and density text/visibility writes. The owned `PhraseNote` list is required by the synth rendering API, and calls happen only at bar boundaries. All 122 Jam tests passed.
+- `crates/harmonicon-jam/src/jam/call_response/phrase.rs` — reserve the playable-note vector from the harp's hole count and choose weighted motif candidates directly from their `(note, weight)` pairs, removing the extra weight vector. Kept the `lay_out` vector return shape used by focused tests. All 122 Jam tests passed.
 
 ## Findings and follow-up
 
@@ -106,4 +107,4 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 - The calibration page still has hard-coded English status and button labels despite its localized setup text. Localization is a separate user-visible follow-up.
 - Undo history's byte budget currently counts only note and tempo vector capacities; meter changes, annotations, expression intensities, and custom harp layouts are undercounted. A complete retained-size estimate needs their nested allocations included before relying on the 32 MiB cap as a strict limit.
 - Lesson chart loading parses JSON directly before `load_harpchart`, unlike normal song loading, which runs `validated_harpchart`; a focused validation fix should reject unsupported chart features consistently without changing lesson save behavior.
-- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: `harmonicon-jam/src/jam/call_response/phrase.rs`, then its feature modules.
+- `harmonicon-editor` file list reconciled: every Rust source under `src/` has a completed review entry. Next review: `harmonicon-jam/src/jam/backing.rs`, then its feature modules.
