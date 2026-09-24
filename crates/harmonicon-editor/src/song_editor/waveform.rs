@@ -2,7 +2,7 @@
 
 //! Displays the chart's referenced music file (`EditorState::music`) as a
 //! peak-amplitude waveform in the grid header, aiding alignment of notes
-//! and tempo to the actual audio. Reuses `audio_system::waveform`'s
+//! and tempo to the actual audio. Reuses `harmonicon_audio::waveform`'s
 //! existing decoders — the same ones a shipped song's music is analyzed
 //! with at asset-load time — rather than duplicating decode logic.
 //!
@@ -38,18 +38,20 @@ pub(super) struct MusicWaveform {
 /// file or unsupported extension, same convention as `analyze_ogg_
 /// waveform`/`analyze_wav_waveform` themselves.
 fn decode_music_waveform(path: &std::path::Path) -> (Vec<f32>, f64) {
+    let extension = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default();
+    if !extension.eq_ignore_ascii_case("ogg") && !extension.eq_ignore_ascii_case("wav") {
+        return (vec![0.0; WAVEFORM_BUCKETS], 0.0);
+    }
     let Ok(bytes) = std::fs::read(path) else {
         return (vec![0.0; WAVEFORM_BUCKETS], 0.0);
     };
-    match path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("ogg") => analyze_ogg_waveform(&bytes, WAVEFORM_BUCKETS),
-        Some("wav") => analyze_wav_waveform(&bytes, WAVEFORM_BUCKETS),
-        _ => (vec![0.0; WAVEFORM_BUCKETS], 0.0),
+    if extension.eq_ignore_ascii_case("ogg") {
+        analyze_ogg_waveform(&bytes, WAVEFORM_BUCKETS)
+    } else {
+        analyze_wav_waveform(&bytes, WAVEFORM_BUCKETS)
     }
 }
 
