@@ -157,7 +157,7 @@ pub fn unlocked_flags(
     learned: &[f32],
     enabled: bool,
 ) -> Vec<(bool, usize)> {
-    let mut flags = Vec::new();
+    let mut flags = Vec::with_capacity(items.iter().map(|item| item.2).sum());
     let mut section_idx = 0usize;
     let mut ordinal = 0usize;
     let mut first = true;
@@ -206,20 +206,16 @@ pub fn bump_learned_sections(
     if learned.len() < section_count {
         learned.resize(section_count, 0.0);
     }
-    let mut seen = vec![false; section_count];
-    let mut all_hit = vec![true; section_count];
+    let mut clear = vec![None; section_count];
     for note in notes {
         let idx = note.phrase_section;
         if idx >= section_count {
             continue;
         }
-        seen[idx] = true;
-        if !note.hit || note.missed {
-            all_hit[idx] = false;
-        }
+        clear[idx] = Some(clear[idx].unwrap_or(true) && note.hit && !note.missed);
     }
     for i in 0..section_count {
-        if seen[i] && all_hit[i] {
+        if clear[i] == Some(true) {
             learned[i] = (learned[i] + PHRASE_LEARN_STEP).min(1.0);
         }
     }
