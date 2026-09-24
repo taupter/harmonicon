@@ -19,7 +19,7 @@ use harmonicon_platform::localization::{Localization, LocalizationExt};
 use super::ActivePitches;
 
 pub(super) const CELL_DEFAULT: Color = Color::srgba(0.12, 0.12, 0.16, 0.92);
-const CELL_LIT: Color = Color::srgb(0.95, 0.85, 0.30);
+pub(super) const CELL_LIT: Color = Color::srgb(0.95, 0.85, 0.30);
 /// Every row — including bends and over-blow/draw — is colored by which
 /// breath direction actually produces it, not by technique. Overblow reads
 /// as blue (you *blow* it, even though its pitch sits above the draw note)
@@ -410,9 +410,13 @@ fn spawn_empty(row: &mut ChildSpawnerCommands) {
 
 /// Light every cell whose note is currently sounding (from the mic), reusing the
 /// same [`ActivePitches`] the scored modes detect.
+///
+/// A selectable diagram's cells ([`DiagramCellTarget`]) are skipped: the
+/// Bending Trainer paints those itself, lit state included, so each cell has
+/// one writer instead of two overwriting each other every frame.
 pub fn update_harmonica_overlay(
     active: Res<ActivePitches>,
-    mut cells: Query<(&HarpOverlayCell, &mut BackgroundColor)>,
+    mut cells: Query<(&HarpOverlayCell, &mut BackgroundColor), Without<DiagramCellTarget>>,
 ) {
     // A handful of sounding pitches at most, so a scan beats building a set.
     for (cell, mut bg) in &mut cells {

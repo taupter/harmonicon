@@ -317,26 +317,30 @@ pub(super) fn progress_tint(accuracy: Option<f32>) -> Color {
     )
 }
 
-/// Tints every idle diagram cell by its drill accuracy (see [`progress_tint`]),
-/// layered on top of [`harmonica_overlay::update_harmonica_overlay`]'s live
-/// mic highlight — both write `BackgroundColor`, so this must run `.after`
-/// it (enforced in `GameplayPlugin::build`) and skips any cell currently lit
-/// by a sounding pitch, letting the live highlight win.
+/// Paints every selectable diagram cell: the live mic highlight while its
+/// pitch sounds, else its drill accuracy (see [`progress_tint`]). The sole
+/// writer of these cells' `BackgroundColor` —
+/// [`harmonica_overlay::update_harmonica_overlay`] skips them — so it writes
+/// only when a cell's colour actually changes.
 pub fn update_drill_progress_tint(
     active: Res<ActivePitches>,
     drill: Res<DrillState>,
     mut cells: Query<(&HarpOverlayCell, &DiagramCellTarget, &mut BackgroundColor)>,
 ) {
-    let played: HashSet<u8> = active.0.iter().map(|p| p.midi).collect();
     for (cell, target, mut bg) in &mut cells {
-        if cell.midi.is_some_and(|m| played.contains(&m)) {
-            continue;
-        }
-        let Some(technique) = row_to_technique(target.row) else {
-            continue;
+        let lit = cell
+            .midi
+            .is_some_and(|m| active.0.iter().any(|p| p.midi == m));
+        let color = if lit {
+            CELL_LIT
+        } else {
+            let accuracy = row_to_technique(target.row)
+                .and_then(|technique| drill.stats.get(&(target.hole, technique)));
+            progress_tint(drill_accuracy(accuracy))
         };
-        let accuracy = drill_accuracy(drill.stats.get(&(target.hole, technique)));
-        *bg = BackgroundColor(progress_tint(accuracy));
+        if bg.0 != color {
+            bg.0 = color;
+        }
     }
 }
 

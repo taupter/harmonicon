@@ -44,7 +44,8 @@ use harmonicon_ui::dialogs::tooltip::Tooltip;
 use std::collections::HashSet;
 
 use super::harmonica_overlay::{
-    CELL_DEFAULT, DiagramCellTarget, HarpOverlayCell, Row, spawn_harmonica_overlay_selectable,
+    CELL_DEFAULT, CELL_LIT, DiagramCellTarget, HarpOverlayCell, Row,
+    spawn_harmonica_overlay_selectable,
 };
 use super::metronome_overlay::{MetronomeTempo, spawn_metronome};
 use super::{ActivePitches, GameplayClock, GameplayRoot};
