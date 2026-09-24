@@ -31,11 +31,14 @@ pub(super) fn update_editor_scrollbar_visibility(
         return;
     };
     let needed = area.content_size().y > area.size().y + 1.0;
-    *vis = if needed {
+    let next = if needed {
         Visibility::Visible
     } else {
         Visibility::Hidden
     };
+    if *vis != next {
+        *vis = next;
+    }
 }
 
 /// A visible vertical scrollbar for `target` (the editor's [`ScrollArea`]),
