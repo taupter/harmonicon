@@ -1197,6 +1197,38 @@ fn choosing_a_cell_twice_under_custom_adds_then_removes_it() {
 }
 
 #[test]
+fn a_running_drill_advances_its_timers_without_marking_its_state_changed() {
+    // Every drill label, the Skip/intro drawers and the progress line gate
+    // on `DrillState::is_changed()`; per-frame timer ticks must not trip it.
+    let mut world = World::new();
+    world.insert_resource(TrainerKey::default());
+    world.insert_resource(TrainerTarget::default());
+    world.insert_resource(ActivePitches::default());
+    world.insert_resource(BendTrace::default());
+    world.insert_resource(GesturePractice::default());
+    world.insert_resource(BendingTrainerSettings::default());
+    world.insert_resource(DrillState {
+        enabled: true,
+        ..default()
+    });
+    world.insert_resource(Time::<()>::default());
+    let mut schedule = Schedule::default();
+    schedule.add_systems(drill_update);
+
+    world.clear_trackers();
+    world
+        .resource_mut::<Time>()
+        .advance_by(std::time::Duration::from_millis(100));
+    schedule.run(&mut world);
+
+    assert!(
+        world.resource::<DrillState>().elapsed_secs > 0.0,
+        "the drill ran and timed the attempt"
+    );
+    assert!(!world.is_resource_changed::<DrillState>());
+}
+
+#[test]
 fn a_skip_moves_on_without_recording_an_attempt() {
     let harp = richter_harp("C");
     let mut drill = DrillState {

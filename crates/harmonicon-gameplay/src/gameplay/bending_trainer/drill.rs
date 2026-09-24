@@ -562,19 +562,25 @@ pub fn drill_update(
         return;
     }
     let dt = time.delta_secs();
-    drill.elapsed_secs += dt;
+    // The per-attempt timers move every frame but nothing displays them, so
+    // they bypass change detection: every drill label, the Skip/intro
+    // drawers and the progress line gate on `DrillState::is_changed()` to
+    // mean "the drill's visible state moved", which `finish_attempt` below
+    // still triggers through an ordinary mutable borrow.
+    let timers = drill.bypass_change_detection();
+    timers.elapsed_secs += dt;
 
     let shift = reference_shift_cents(&settings, &key.0, target.hole);
     let observation = tuner_observation(&harp, *target, &active, shift);
     if matches!(observation, Some(TunerObservation::TargetFamily(_))) {
-        drill.attempted = true;
+        timers.attempted = true;
     }
     let in_tune = !trace.unstable
         && matches!(
             observation,
             Some(TunerObservation::TargetFamily(cents)) if cents.abs() <= settings.tolerance_cents
         );
-    drill.hold_secs = if in_tune { drill.hold_secs + dt } else { 0.0 };
+    timers.hold_secs = if in_tune { timers.hold_secs + dt } else { 0.0 };
 
     let Some(outcome) = drill_outcome(
         practice.shape,
