@@ -58,13 +58,16 @@ pub(super) fn varied_slot(
     variation: PerformanceVariation,
 ) -> Vec<f32> {
     let total = (slot_secs * SAMPLE_RATE as f32).max(1.0) as usize;
-    let delay = (variation.delay_secs * SAMPLE_RATE as f32) as usize;
+    let delay = ((variation.delay_secs * SAMPLE_RATE as f32) as usize).min(total);
     sound.truncate(total.saturating_sub(delay));
-    let mut out = Vec::with_capacity(total);
-    out.extend(std::iter::repeat_n(0.0, delay));
-    out.extend(sound.into_iter().map(|sample| sample * variation.gain));
-    out.resize(total, 0.0);
-    out
+    let len = sound.len();
+    sound.resize(total, 0.0);
+    sound.copy_within(0..len, delay);
+    sound[..delay].fill(0.0);
+    for sample in &mut sound[delay..delay + len] {
+        *sample *= variation.gain;
+    }
+    sound
 }
 
 #[cfg(test)]
