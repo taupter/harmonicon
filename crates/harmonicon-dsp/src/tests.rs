@@ -48,18 +48,35 @@ fn sine_440hz_detected_as_a4() {
 #[test]
 fn harmonic_is_suppressed() {
     // 880 Hz is 2× 440 Hz and should be removed as a harmonic.
-    let peaks = vec![(440.0f32, 1.0f32), (880.0, 0.5)];
-    let result = suppress_harmonics(&peaks);
-    assert_eq!(result.len(), 1);
-    assert!((result[0].0 - 440.0).abs() < 1.0);
+    let mut peaks = vec![(440.0f32, 1.0f32), (880.0, 0.5)];
+    let retained = suppress_harmonics(&mut peaks);
+    assert_eq!(retained, 1);
+    assert!((peaks[0].0 - 440.0).abs() < 1.0);
 }
 
 #[test]
 fn non_harmonic_peaks_both_kept() {
     // 440 Hz (A4) and 659 Hz (E5) are not harmonically related.
-    let peaks = vec![(440.0f32, 1.0f32), (659.0, 0.8)];
-    let result = suppress_harmonics(&peaks);
-    assert_eq!(result.len(), 2);
+    let mut peaks = vec![(440.0f32, 1.0f32), (659.0, 0.8)];
+    assert_eq!(suppress_harmonics(&mut peaks), 2);
+}
+
+#[test]
+fn fft_peak_buffer_reuses_capacity_across_chunks() {
+    let sr = 44_100;
+    let tone = |hz: f32| {
+        (0..4096)
+            .map(|i| (2.0 * PI * hz * i as f32 / sr as f32).sin())
+            .collect::<Vec<_>>()
+    };
+    let mut state = FftState::default();
+    let range = PitchRange::default();
+    let first = analyze(&tone(440.0), sr, &mut state, PitchAlgorithm::Fft, range);
+    assert!(first.pitches.iter().any(|p| p.midi == 69));
+    let capacity = state.raw_peaks.capacity();
+    let second = analyze(&tone(660.0), sr, &mut state, PitchAlgorithm::Fft, range);
+    assert!(second.pitches.iter().any(|p| p.midi == 76));
+    assert_eq!(state.raw_peaks.capacity(), capacity);
 }
 
 #[test]

@@ -221,6 +221,8 @@ pub struct FftState {
     yin_cmnd: Vec<f32>,
     pyin_prob: Vec<f32>,
     mpm_nsdf: Vec<f32>,
+    /// Candidate FFT peaks, reused before in-place harmonic suppression.
+    raw_peaks: Vec<(f32, f32)>,
     /// The windowed chunk the transform runs over, kept between calls: it is
     /// one allocation per analysed chunk otherwise, and chunks arrive at
     /// twice the rate of the 4096-sample window thanks to the 50% overlap.
@@ -241,6 +243,7 @@ impl Default for FftState {
             yin_cmnd: Vec::new(),
             pyin_prob: Vec::new(),
             mpm_nsdf: Vec::new(),
+            raw_peaks: Vec::new(),
             windowed: Vec::new(),
             scratch: Vec::new(),
         }
@@ -325,7 +328,9 @@ pub fn analyze(
     // NMF's dictionary matching), hence one span per branch rather than a
     // single span with an `algorithm` field.
     let pitches = match algorithm {
-        PitchAlgorithm::Fft => pitches_from_magnitudes(&magnitudes, freq_res, range),
+        PitchAlgorithm::Fft => {
+            pitches_from_magnitudes(&magnitudes, freq_res, range, &mut state.raw_peaks)
+        }
         PitchAlgorithm::Yin => {
             mono_pitch(yin_pitch(samples, sample_rate, range, &mut state.yin_cmnd))
         }
@@ -379,7 +384,13 @@ fn mono_pitch(freq: Option<f32>) -> Vec<PitchInfo> {
 }
 
 /// Peak-picks fundamentals from a precomputed magnitude spectrum.
-fn pitches_from_magnitudes(magnitudes: &[f32], freq_res: f32, range: PitchRange) -> Vec<PitchInfo> {
+fn pitches_from_magnitudes(
+    magnitudes: &[f32],
+    freq_res: f32,
+    range: PitchRange,
+    raw_peaks: &mut Vec<(f32, f32)>,
+) -> Vec<PitchInfo> {
+    raw_peaks.clear();
     let n_bins = magnitudes.len();
     let max_mag = magnitudes.iter().cloned().fold(0.0f32, f32::max);
     if max_mag < 1e-9 || freq_res <= 0.0 {
@@ -391,7 +402,6 @@ fn pitches_from_magnitudes(magnitudes: &[f32], freq_res: f32, range: PitchRange)
     let max_bin = ((range.max_freq / freq_res) as usize).min(n_bins.saturating_sub(2));
 
     // Collect local maxima — use parabolic interpolation for sub-bin accuracy.
-    let mut raw_peaks: Vec<(f32, f32)> = Vec::new();
     for i in min_bin.max(1)..=max_bin {
         if magnitudes[i] > magnitudes[i - 1]
             && magnitudes[i] > magnitudes[i + 1]
@@ -405,9 +415,10 @@ fn pitches_from_magnitudes(magnitudes: &[f32], freq_res: f32, range: PitchRange)
     // Sort by magnitude descending so fundamental candidates come first.
     raw_peaks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-    suppress_harmonics(&raw_peaks)
-        .into_iter()
-        .filter_map(|(freq, _)| {
+    let retained = suppress_harmonics(raw_peaks);
+    raw_peaks[..retained]
+        .iter()
+        .filter_map(|&(freq, _)| {
             freq_to_note(freq).map(|(midi, note, octave)| PitchInfo {
                 midi,
                 note,
@@ -430,19 +441,22 @@ fn parabolic_peak(mags: &[f32], bin: usize, freq_res: f32) -> f32 {
 }
 
 // Remove peaks that are integer multiples (harmonics) of a stronger peak.
-// The input slice must already be sorted by magnitude descending.
-fn suppress_harmonics(peaks: &[(f32, f32)]) -> Vec<(f32, f32)> {
-    let mut fundamentals: Vec<(f32, f32)> = Vec::with_capacity(peaks.len());
-    for &peak in peaks {
-        let is_harmonic = fundamentals.iter().any(|&(freq, _)| {
+// The input slice must already be sorted by magnitude descending. Return the
+// length of the accepted prefix so the caller can reuse the allocation.
+fn suppress_harmonics(peaks: &mut [(f32, f32)]) -> usize {
+    let mut retained = 0;
+    for i in 0..peaks.len() {
+        let peak = peaks[i];
+        let is_harmonic = peaks[..retained].iter().any(|&(freq, _)| {
             let ratio = peak.0 / freq;
             (2..=8u32).any(|h| (ratio - h as f32).abs() < 0.05 * h as f32)
         });
         if !is_harmonic {
-            fundamentals.push(peak);
+            peaks[retained] = peak;
+            retained += 1;
         }
     }
-    fundamentals
+    retained
 }
 
 // ── YIN ─────────────────────────────────────────────────────────────────────
