@@ -3751,6 +3751,7 @@ name = "harmonicon-jam"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "criterion",
  "dirs",
  "harmonicon-app",
  "harmonicon-audio",
