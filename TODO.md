@@ -68,16 +68,6 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
   jazz-standard repertoire needs the same rights judgment as the item
   above.
 
-## Performance
-
-Found by the Criterion benches (`contributing/src/benchmarks.md`); figures
-in `CODE_ANALYSIS.md`.
-
-- [ ] **Jam generator's Start freezes the menu for 115–226 ms** while
-  `build_generated_manifest` renders every chorus of the backing
-  synchronously. Render on `AsyncComputeTaskPool` behind a loading state,
-  as Song Editor Play now does.
-
 ## Known open items (design detail)
 
 Moved out of `CLAUDE.md`: these are status, not load-bearing

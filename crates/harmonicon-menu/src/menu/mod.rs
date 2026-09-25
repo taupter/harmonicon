@@ -119,7 +119,14 @@ impl Plugin for MenuPlugin {
                 OnEnter(MenuPage::JamGenerate),
                 pages::jam_generate::setup_jam_generate_menu,
             )
-            .add_systems(OnExit(MenuPage::JamGenerate), scene::cleanup_menu)
+            .add_systems(
+                OnExit(MenuPage::JamGenerate),
+                (scene::cleanup_menu, pages::jam_generate::cancel_pending_jam),
+            )
+            .add_systems(
+                Update,
+                pages::jam_generate::finish_pending_jam.run_if(in_state(MenuPage::JamGenerate)),
+            )
             .add_systems(
                 OnEnter(MenuPage::HelpAbout),
                 pages::help_about::setup_help_about_menu,

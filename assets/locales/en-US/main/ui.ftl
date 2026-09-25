@@ -41,6 +41,7 @@ play-3d = Play 3D
 # Generate Jam (synthesized backing, no song required)
 jam-generate-title = Generate a Jam Backing
 jam-generate-start = Start Jam
+jam-generate-preparing = Getting the band ready…
 progression-standard = Standard
 progression-quick-change = Quick Change
 progression-minor-blues = Minor Blues

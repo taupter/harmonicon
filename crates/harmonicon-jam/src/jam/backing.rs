@@ -944,13 +944,47 @@ pub fn generated_chart(
     }
 }
 
-/// Builds the full generated-jam `SongManifest`: synthesizes independently
-/// mutable bass, drum and comping stems, registers each as an `AudioSource`,
-/// and assembles the chart
-/// around it. `background`/`elements` are the caller's choice of
-/// placeholder art — Jam Session never reads `elements` at all; `background`
-/// paints behind the hole map/12-bar grid (see `jam::session::setup`), so a
-/// theme's generic `default_background` is the natural choice.
+/// A generated jam's backing with all the expensive work done: the three
+/// stems synthesized and WAV-encoded, and their mix reduced to the progress
+/// bar's waveform. It touches no ECS state, so [`render_generated_backing`]
+/// can run on a worker thread; the render takes 100–250 ms.
+pub struct RenderedBacking {
+    stems: Vec<(String, Vec<u8>)>,
+    waveform: Vec<f32>,
+    music_duration_secs: f64,
+}
+
+/// Synthesizes independently mutable bass, drum and comping stems for
+/// [`assemble_generated_manifest`].
+pub fn render_generated_backing(
+    key: &str,
+    bpm: f32,
+    progression: Progression,
+    genre: Genre,
+    energy: BandEnergy,
+    seed: u64,
+) -> RenderedBacking {
+    let stems = generate_backing_stems(key, bpm, progression, genre, energy, seed);
+    let music_duration_secs = stems[0].1.len() as f64 / SAMPLE_RATE as f64;
+    let mut mix = vec![0.0; stems[0].1.len()];
+    for (_, pcm) in &stems {
+        for (mixed, sample) in mix.iter_mut().zip(pcm) {
+            *mixed += *sample;
+        }
+    }
+    RenderedBacking {
+        waveform: bucket_peaks(&mix, WAVEFORM_BUCKETS),
+        stems: stems
+            .into_iter()
+            .map(|(name, pcm)| (name, encode_wav(&pcm, SAMPLE_RATE)))
+            .collect(),
+        music_duration_secs,
+    }
+}
+
+/// Builds the full generated-jam `SongManifest` in one call:
+/// [`render_generated_backing`] then [`assemble_generated_manifest`]. For
+/// callers that can afford the render on the current thread.
 pub fn build_generated_manifest(
     key: &str,
     bpm: f32,
@@ -963,22 +997,48 @@ pub fn build_generated_manifest(
     elements: Handle<Image>,
     sources: &mut Assets<AudioSource>,
 ) -> SongManifest {
-    let stems = generate_backing_stems(key, bpm, progression, genre, energy, seed);
-    let music_duration_secs = stems[0].1.len() as f64 / SAMPLE_RATE as f64;
-    let mut mix = vec![0.0; stems[0].1.len()];
-    for (_, pcm) in &stems {
-        for (mixed, sample) in mix.iter_mut().zip(pcm) {
-            *mixed += *sample;
-        }
-    }
-    let waveform = bucket_peaks(&mix, WAVEFORM_BUCKETS);
+    let rendered = render_generated_backing(key, bpm, progression, genre, energy, seed);
+    assemble_generated_manifest(
+        rendered,
+        key,
+        bpm,
+        progression,
+        position,
+        genre,
+        background,
+        elements,
+        sources,
+    )
+}
+
+/// Registers each rendered stem as an `AudioSource` and assembles the chart
+/// around them. `key`/`bpm`/`progression`/`genre` must be the values the
+/// backing was rendered with. `background`/`elements` are the caller's
+/// choice of placeholder art — Jam Session never reads `elements` at all;
+/// `background` paints behind the hole map/12-bar grid (see
+/// `jam::session::setup`), so a theme's generic `default_background` is the
+/// natural choice.
+pub fn assemble_generated_manifest(
+    rendered: RenderedBacking,
+    key: &str,
+    bpm: f32,
+    progression: Progression,
+    position: Position,
+    genre: Genre,
+    background: Handle<Image>,
+    elements: Handle<Image>,
+    sources: &mut Assets<AudioSource>,
+) -> SongManifest {
+    let RenderedBacking {
+        stems,
+        waveform,
+        music_duration_secs,
+    } = rendered;
     let backing_stems = stems
         .into_iter()
-        .map(|(name, pcm)| BackingStemAudio {
+        .map(|(name, wav)| BackingStemAudio {
             name,
-            source: sources.add(AudioSource {
-                bytes: encode_wav(&pcm, SAMPLE_RATE).into(),
-            }),
+            source: sources.add(AudioSource { bytes: wav.into() }),
         })
         .collect();
 

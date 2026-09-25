@@ -20,8 +20,10 @@ load-bearing about *this* crate.
   manifest has no tracked `LoadState`, so `menu::routing::check_loading`'s
   `asset_server.is_loaded_with_dependencies` would never return true for
   it — both the initial launch and Restart route around `SongLoading`
-  entirely (the `jam_generate` Start button sets `AppState::Playing`
-  directly; `pause_menu::on_restart` targets `Playing` instead of
+  entirely (`jam_generate`'s Start button renders the backing on a worker
+  thread — `render_generated_backing`, 100–250 ms — and
+  `finish_pending_jam` assembles the manifest and sets `AppState::Playing`
+  directly once it lands; `pause_menu::on_restart` targets `Playing` instead of
   `SongLoading` when `jam::backing::GeneratedJamSession` is present, safe
   because `NextState::set` always re-fires `OnExit`/`OnEnter` even for a
   same-state transition, per `bevy_state`). `GeneratedJamSession`'s

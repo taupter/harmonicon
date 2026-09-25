@@ -39,6 +39,7 @@ play-3d = Tocar em 3D
 # Gerar Jam (base sintetizada, sem precisar de uma música)
 jam-generate-title = Gerar uma Base de Jam
 jam-generate-start = Começar a Jam
+jam-generate-preparing = Preparando a banda…
 progression-standard = Padrão
 progression-quick-change = Quick Change
 progression-minor-blues = Blues menor

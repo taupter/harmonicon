@@ -7,13 +7,17 @@
 
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures_lite::future};
 use bevy::ui_widgets::Activate;
 
 use harmonicon_app::app::{GeneratedJamSession, GeneratedSong};
 use harmonicon_core::chart::Scale;
 use harmonicon_core::harmonica::{Position, Progression};
 use harmonicon_core::midi::NOTE_NAMES;
-use harmonicon_jam::jam::backing::{BandEnergy, Genre, JamGenre, build_generated_manifest};
+use harmonicon_jam::jam::backing::{
+    BandEnergy, Genre, JamGenre, RenderedBacking, assemble_generated_manifest,
+    render_generated_backing,
+};
 use harmonicon_platform::localization::{Localization, LocalizationExt, enum_label_key};
 use harmonicon_platform::theme::LoadedTheme;
 use harmonicon_song::song::SongManifest;
@@ -30,7 +34,7 @@ const MAX_BPM: f32 = 160.0;
 /// The key/tempo currently selected on this page. Persists across visits
 /// (like `bending_trainer::TrainerKey`/`TrainerTarget`), so re-opening the
 /// page keeps your last choice instead of resetting to the default.
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub(crate) struct JamGenerateConfig {
     pub key: String,
     pub bpm: f32,
@@ -266,50 +270,43 @@ pub(crate) fn setup_jam_generate_menu(
         &loc.msg("jam-generate-start"),
         |_: On<Activate>,
          config: Res<JamGenerateConfig>,
-         theme: Res<LoadedTheme>,
-         mut manifests: ResMut<Assets<SongManifest>>,
-         mut sources: ResMut<Assets<AudioSource>>,
-         mut mode: ResMut<GameplayMode>,
-         mut progression: ResMut<JamProgression>,
-         mut scale: ResMut<JamScale>,
-         mut genre_res: ResMut<JamGenre>,
-         mut commands: Commands,
-         mut state: ResMut<NextState<AppState>>| {
+         pending: Option<Res<PendingJam>>,
+         mut label: Query<&mut Visibility, With<PreparingLabel>>,
+         mut commands: Commands| {
+            if pending.is_some() {
+                return;
+            }
+            let config = config.clone();
             let seed = rand::random();
-            let background = theme.default_background.clone().unwrap_or_default();
-            let manifest = build_generated_manifest(
-                &config.key,
+            let (key, bpm, progression, genre, energy) = (
+                config.key.clone(),
                 config.bpm,
                 config.progression,
-                config.position,
                 config.genre,
                 config.energy,
-                seed,
-                background,
-                Handle::default(),
-                &mut sources,
             );
-            let handle = manifests.add(manifest);
-            commands.insert_resource(SelectedSong(handle));
-            // Both: `GeneratedSong` says the handle came from `Assets::add`
-            // and has no `LoadState`; `GeneratedJamSession` says it is a jam
-            // and picks the page to return to.
-            commands.insert_resource(GeneratedSong);
-            commands.insert_resource(GeneratedJamSession { seed });
-            *mode = GameplayMode::JamSession;
-            progression.0 = config.progression;
-            scale.0 = config.scale;
-            genre_res.0 = config.genre;
-            // Synthesized synchronously above (no async asset load to wait
-            // on), so this skips `AppState::SongLoading` entirely and goes
-            // straight to `Playing` — `check_loading`'s only job is waiting
-            // on `asset_server.is_loaded_with_dependencies`, which a
-            // manifest built by `Assets::add` (not `AssetServer::load`)
-            // never needs (and, per `GeneratedJamSession`'s doc comment,
-            // never gets — `on_restart` skips `SongLoading` the same way).
-            state.set(AppState::Playing);
+            let task = AsyncComputeTaskPool::get().spawn(async move {
+                render_generated_backing(&key, bpm, progression, genre, energy, seed)
+            });
+            commands.insert_resource(PendingJam { task, config, seed });
+            for mut visibility in &mut label {
+                *visibility = Visibility::Inherited;
+            }
         },
     );
+
+    commands.entity(root).with_children(|page| {
+        page.spawn((
+            PreparingLabel,
+            Text::new(String::from(loc.msg("jam-generate-preparing"))),
+            TextFont {
+                font_size: FontSize::Px(20.0),
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Visibility::Hidden,
+        ));
+    });
 
     spawn_back_button(
         &mut commands,
@@ -319,9 +316,177 @@ pub(crate) fn setup_jam_generate_menu(
     );
 }
 
+/// A Start press whose backing is still rendering on a worker thread. The
+/// render takes 100–250 ms, long enough to freeze the menu if it ran inside
+/// the click. Holds the settings as they were at the press, so changing a
+/// combobox meanwhile can't mix two configurations.
+#[derive(Resource)]
+pub(crate) struct PendingJam {
+    task: Task<RenderedBacking>,
+    config: JamGenerateConfig,
+    seed: u64,
+}
+
+/// "Getting the band ready…", shown while a [`PendingJam`] renders.
+#[derive(Component)]
+pub(crate) struct PreparingLabel;
+
+/// Enters Jam Session once the backing render lands.
+pub(crate) fn finish_pending_jam(
+    mut pending: Option<ResMut<PendingJam>>,
+    theme: Res<LoadedTheme>,
+    mut manifests: ResMut<Assets<SongManifest>>,
+    mut sources: ResMut<Assets<AudioSource>>,
+    mut mode: ResMut<GameplayMode>,
+    mut progression: ResMut<JamProgression>,
+    mut scale: ResMut<JamScale>,
+    mut genre_res: ResMut<JamGenre>,
+    mut commands: Commands,
+    mut state: ResMut<NextState<AppState>>,
+) {
+    let Some(rendered) = pending
+        .as_mut()
+        .and_then(|p| future::block_on(future::poll_once(&mut p.task)))
+    else {
+        return;
+    };
+    let Some(PendingJam { config, seed, .. }) = pending.as_deref() else {
+        return;
+    };
+    let (config, seed) = (config.clone(), *seed);
+    commands.remove_resource::<PendingJam>();
+
+    let background = theme.default_background.clone().unwrap_or_default();
+    let manifest = assemble_generated_manifest(
+        rendered,
+        &config.key,
+        config.bpm,
+        config.progression,
+        config.position,
+        config.genre,
+        background,
+        Handle::default(),
+        &mut sources,
+    );
+    let handle = manifests.add(manifest);
+    commands.insert_resource(SelectedSong(handle));
+    // Both: `GeneratedSong` says the handle came from `Assets::add` and has
+    // no `LoadState`; `GeneratedJamSession` says it is a jam and picks the
+    // page to return to.
+    commands.insert_resource(GeneratedSong);
+    commands.insert_resource(GeneratedJamSession { seed });
+    *mode = GameplayMode::JamSession;
+    progression.0 = config.progression;
+    scale.0 = config.scale;
+    genre_res.0 = config.genre;
+    // The manifest was built here, not loaded, so this skips
+    // `AppState::SongLoading` and goes straight to `Playing`:
+    // `check_loading` only waits on `asset_server.is_loaded_with_
+    // dependencies`, which a manifest built by `Assets::add` never needs
+    // (and, per `GeneratedJamSession`'s doc comment, never gets —
+    // `on_restart` skips `SongLoading` the same way).
+    state.set(AppState::Playing);
+}
+
+/// Leaving the page drops a render still in flight, which cancels it.
+pub(crate) fn cancel_pending_jam(mut commands: Commands) {
+    commands.remove_resource::<PendingJam>();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::asset::AssetPlugin;
+    use bevy::state::app::StatesPlugin;
+
+    /// The resources Start and its render hand-off touch.
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), StatesPlugin))
+            .init_state::<AppState>()
+            .add_sub_state::<MenuPage>()
+            .init_asset::<AudioSource>()
+            .init_asset::<SongManifest>()
+            .init_resource::<LoadedTheme>()
+            .init_resource::<GameplayMode>()
+            .init_resource::<JamProgression>()
+            .init_resource::<JamScale>()
+            .init_resource::<JamGenre>();
+        app
+    }
+
+    fn pending(config: JamGenerateConfig, seed: u64) -> PendingJam {
+        let (key, bpm, progression, genre, energy) = (
+            config.key.clone(),
+            config.bpm,
+            config.progression,
+            config.genre,
+            config.energy,
+        );
+        PendingJam {
+            task: AsyncComputeTaskPool::get().spawn(async move {
+                render_generated_backing(&key, bpm, progression, genre, energy, seed)
+            }),
+            config,
+            seed,
+        }
+    }
+
+    #[test]
+    fn a_finished_render_enters_the_jam_with_the_pressed_settings() {
+        let mut app = app();
+        app.add_systems(Update, finish_pending_jam);
+        let config = JamGenerateConfig {
+            bpm: 160.0,
+            genre: Genre::Rock,
+            ..JamGenerateConfig::default()
+        };
+        app.insert_resource(pending(config, 7));
+
+        for _ in 0..300 {
+            app.update();
+            if !app.world().contains_resource::<PendingJam>() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        app.update();
+
+        let world = app.world();
+        assert!(
+            !world.contains_resource::<PendingJam>(),
+            "render never landed"
+        );
+        assert_eq!(*world.resource::<GameplayMode>(), GameplayMode::JamSession);
+        assert_eq!(world.resource::<GeneratedJamSession>().seed, 7);
+        assert_eq!(world.resource::<JamGenre>().0, Genre::Rock);
+        let song = &world.resource::<SelectedSong>().0;
+        let manifest = world.resource::<Assets<SongManifest>>().get(song).unwrap();
+        assert_eq!(manifest.backing_stems.as_ref().map(Vec::len), Some(3));
+        assert_eq!(*world.resource::<State<AppState>>(), AppState::Playing);
+    }
+
+    #[test]
+    fn leaving_the_page_cancels_a_render_in_flight() {
+        let mut app = app();
+        app.add_systems(OnExit(MenuPage::JamGenerate), cancel_pending_jam);
+        app.world_mut()
+            .resource_mut::<NextState<AppState>>()
+            .set(AppState::Menu);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<MenuPage>>()
+            .set(MenuPage::JamGenerate);
+        app.update();
+        app.insert_resource(pending(JamGenerateConfig::default(), 1));
+
+        app.world_mut()
+            .resource_mut::<NextState<MenuPage>>()
+            .set(MenuPage::JamSessionMenu);
+        app.update();
+
+        assert!(!app.world().contains_resource::<PendingJam>());
+    }
 
     /// Every key the comboboxes will ask for, so a variant added to one of
     /// the enums without a locale line fails here rather than showing its
