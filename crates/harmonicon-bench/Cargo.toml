@@ -26,5 +26,9 @@ criterion = { workspace = true }
 name = "detectors"
 harness = false
 
+[[bench]]
+name = "core_hot_paths"
+harness = false
+
 [lints]
 workspace = true
