@@ -122,6 +122,12 @@ fn mpm_rejects_silence() {
 }
 
 #[test]
+fn mpm_peak_scan_skips_zero_lag_and_out_of_range_humps() {
+    let nsdf = [1.0, 0.5, -0.1, 0.4, 0.5, -0.2, 0.7, 0.6, -0.1, 0.9, 0.8];
+    assert_eq!(mpm_key_maxima(&nsdf, 5).collect::<Vec<_>>(), vec![6, 9]);
+}
+
+#[test]
 fn mpm_rejects_unpitched_noise() {
     // Deterministic white-ish noise (LCG), loud enough that only the
     // absolute clarity floor — not the RMS silence gate — can reject it.

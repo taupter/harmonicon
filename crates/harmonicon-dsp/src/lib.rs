@@ -610,42 +610,52 @@ fn mpm_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32
         nsdf[tau] = if norm > 0.0 { 2.0 * acf / norm } else { 0.0 };
     }
 
-    // Key maxima: skip the τ=0 lobe, then take the peak of each positive hump.
-    let mut maxima: Vec<usize> = Vec::new();
-    let mut tau = 1;
-    while tau <= tau_max && nsdf[tau] > 0.0 {
-        tau += 1; // descend off the τ=0 lobe to the first negative
-    }
-    while tau <= tau_max {
-        while tau <= tau_max && nsdf[tau] <= 0.0 {
-            tau += 1; // skip to the next positive zero crossing
-        }
-        let mut best = tau;
-        while tau <= tau_max && nsdf[tau] > 0.0 {
-            if nsdf[tau] > nsdf[best] {
-                best = tau;
-            }
-            tau += 1;
-        }
-        if best >= tau_min && best <= tau_max {
-            maxima.push(best);
-        }
-    }
-
     // Pick the first key maximum within MPM_CLARITY of the strongest one —
-    // but only if the frame is periodic enough to be voiced at all.
-    let strongest = maxima.iter().map(|&t| nsdf[t]).fold(f32::MIN, f32::max);
+    // but only if the frame is periodic enough to be voiced at all. A second
+    // short pass avoids allocating a candidate list for each audio chunk.
+    let mut strongest = f32::MIN;
+    for tau in mpm_key_maxima(&nsdf, tau_min) {
+        strongest = strongest.max(nsdf[tau]);
+    }
     if strongest < MPM_MIN_CLARITY {
         return None;
     }
     let threshold = MPM_CLARITY * strongest;
-    let chosen = *maxima.iter().find(|&&t| nsdf[t] >= threshold)?;
+    let chosen = mpm_key_maxima(&nsdf, tau_min).find(|&tau| nsdf[tau] >= threshold)?;
 
     let refined = parabolic_vertex(&nsdf, chosen);
     let f0 = sr / refined;
     (range.min_freq..=range.max_freq)
         .contains(&f0)
         .then_some(f0)
+}
+
+/// Peaks of positive NSDF humps after the zero-lag lobe, in lag order.
+fn mpm_key_maxima(nsdf: &[f32], tau_min: usize) -> impl Iterator<Item = usize> + '_ {
+    let mut tau = 1;
+    while tau < nsdf.len() && nsdf[tau] > 0.0 {
+        tau += 1;
+    }
+    std::iter::from_fn(move || {
+        loop {
+            while tau < nsdf.len() && (nsdf[tau] <= 0.0 || nsdf[tau].is_nan()) {
+                tau += 1;
+            }
+            if tau >= nsdf.len() {
+                return None;
+            }
+            let mut best = tau;
+            while tau < nsdf.len() && nsdf[tau] > 0.0 {
+                if nsdf[tau] > nsdf[best] {
+                    best = tau;
+                }
+                tau += 1;
+            }
+            if best >= tau_min {
+                return Some(best);
+            }
+        }
+    })
 }
 
 // ── Template NMF (polyphonic) ─────────────────────────────────────────────────
