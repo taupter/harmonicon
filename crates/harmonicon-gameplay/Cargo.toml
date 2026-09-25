@@ -24,6 +24,10 @@ criterion = { workspace = true }
 name = "note_tails"
 harness = false
 
+[[bench]]
+name = "judge"
+harness = false
+
 [features]
 dev = ["bevy/dev", "bevy/debug", "harmonicon-ui/dev", "harmonicon-song/dev"]
 dynamic_linking = ["bevy/dynamic_linking", "harmonicon-ui/dynamic_linking", "harmonicon-song/dynamic_linking"]

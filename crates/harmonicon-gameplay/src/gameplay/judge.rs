@@ -255,12 +255,13 @@ pub(super) fn heard_tab(pitch: u8, harp: &PlayedHarp) -> Option<HoleTab> {
 /// Per-frame working storage for [`score_notes`], kept between frames so
 /// judging allocates only when a frame needs more room than any before it.
 #[derive(Default)]
-pub(crate) struct JudgeScratch {
+pub struct JudgeScratch {
     harp_pitches: HashSet<u8>,
     pending: Vec<usize>,
 }
 
-pub(crate) fn score_notes(
+/// Public for `benches/judge.rs`; the plugin is its only scheduler.
+pub fn score_notes(
     mut scratch: Local<JudgeScratch>,
     clock: Res<GameplayClock>,
     time: Res<Time>,

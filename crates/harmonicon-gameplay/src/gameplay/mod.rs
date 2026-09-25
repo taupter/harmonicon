@@ -50,6 +50,7 @@ pub use harmonicon_core::scoring::{
     HitQuality, NoteOutcome, classify_note, compute_points, sustain_points,
 };
 
+pub use adaptive_difficulty::AdaptiveDifficulty;
 pub use bars::*;
 pub use clock::*;
 pub use gameplay_2d::HIT_H_PCT;
