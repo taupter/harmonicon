@@ -828,7 +828,7 @@ fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict, scratch: &mut NmfScratch) -> 
     // Dᵀy: correlation of each template with the observed spectrum.
     scratch.dty.resize(n, 0.0);
     for (value, column) in scratch.dty.iter_mut().zip(&dict.columns) {
-        *value = column.iter().zip(magnitudes).map(|(x, y)| x * y).sum();
+        *value = f32::dot(column, magnitudes).expect("NMF template matches spectrum") as f32;
     }
 
     // a ← a · (Dᵀy) / (DᵀD·a). Start uniform-positive so every note can grow.
@@ -840,11 +840,7 @@ fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict, scratch: &mut NmfScratch) -> 
     let dtda = &mut scratch.dtda;
     for _ in 0..NMF_ITERS {
         for (value, row) in dtda.iter_mut().zip(&dict.dtd) {
-            *value = row
-                .iter()
-                .zip(a.iter())
-                .map(|(weight, activation)| weight * activation)
-                .sum();
+            *value = f32::dot(row, a).expect("NMF row matches activations") as f32;
         }
         for k in 0..n {
             a[k] *= dty[k] / (dtda[k] + 1e-9);
