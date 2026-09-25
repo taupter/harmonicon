@@ -3683,6 +3683,7 @@ dependencies = [
 name = "harmonicon-bench"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "harmonicon-core",
  "harmonicon-dsp",
  "serde_json",

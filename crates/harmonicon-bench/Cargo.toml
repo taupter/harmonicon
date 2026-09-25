@@ -17,5 +17,14 @@ harmonicon-core = { path = "../harmonicon-core" }
 harmonicon-dsp = { path = "../harmonicon-dsp" }
 serde_json = { workspace = true }
 
+# Timing benchmarks for the Bevy-free hot paths live here rather than in
+# harmonicon-core/-dsp, so Criterion never enters those crates' test builds.
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "detectors"
+harness = false
+
 [lints]
 workspace = true
