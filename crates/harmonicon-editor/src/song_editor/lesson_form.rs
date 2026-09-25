@@ -485,7 +485,8 @@ fn load_lesson(
             let chart_path = parent.join(chart_rel);
             let text = std::fs::read_to_string(&chart_path)
                 .map_err(|e| format!("{}: {e}", chart_path.display()))?;
-            let v: serde_json::Value = serde_json::from_str(&text)
+            // Validate before changing editor state, as for a song load.
+            let v = super::harpchart::validated_harpchart(&text)
                 .map_err(|e| format!("{}: {e}", chart_path.display()))?;
             super::harpchart::load_harpchart(&v, state, scroll);
         }
