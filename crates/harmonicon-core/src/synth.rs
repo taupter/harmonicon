@@ -105,29 +105,40 @@ pub enum Expr {
     Vibrato(f32),
 }
 
-/// Full harmonic content — sounds bright/open, like uncupped hands.
-/// `phase_mod` is an additional phase offset applied to all harmonics; use it
-/// for vibrato so the modulation is expressed as bounded phase deviation rather
-/// than a drifting frequency × time product.
-fn harmonica_wave(freq: f32, t: f32, phase_mod: f32) -> f32 {
-    let mut s = 0.0f32;
-    for (k, amp) in [
-        (1.0f32, P1),
-        (2.0, P2),
-        (3.0, P3),
-        (4.0, P4),
-        (5.0, P5),
-        (6.0, P6),
-    ] {
-        s += amp * (TAU * freq * k * t + k * phase_mod).sin();
-    }
-    s / PARTIALS_SUM
+/// The phase [`harmonica_wave`] takes for `freq` at `t` seconds into a note,
+/// plus vibrato's `phase_mod`. Whole cycles are dropped in `f64` first:
+/// `TAU·freq·t` reaches tens of thousands of radians in a long note, where
+/// an `f32` phase can only step in thousandths of a radian, and every
+/// partial multiplies that error by its harmonic number.
+fn voice_phase(freq: f32, t: f64, phase_mod: f32) -> f32 {
+    TAU * (f64::from(freq) * t).fract() as f32 + phase_mod
 }
 
-/// Muffled version — fundamental only, as if hands fully cup the harmonica.
-/// Used as the dark extreme of the hand-wah crossfade.
-fn harmonica_wave_muffled(freq: f32, t: f32, phase_mod: f32) -> f32 {
-    (TAU * freq * t + phase_mod).sin()
+/// The voice at phase `x = TAU·freq·t + phase_mod`: `(bright, muffled)`.
+///
+/// `bright` is the full harmonic stack — sounds open, like uncupped hands —
+/// and `muffled` the fundamental alone, as if hands fully cup the harmonica
+/// (the dark extreme of the hand-wah crossfade). `phase_mod` belongs inside
+/// `x` so vibrato is a bounded phase deviation shared by every partial,
+/// rather than a drifting frequency × time product.
+///
+/// Every partial is `sin(k·x)`, so they come from one `sin_cos` by the
+/// Chebyshev recurrence `sin((k+1)x) = 2·cos(x)·sin(kx) − sin((k−1)x)`
+/// instead of six `sin` calls — this runs per sample for every note the
+/// synth renders, including a whole song when the Song Editor plays.
+fn harmonica_wave(x: f32) -> (f32, f32) {
+    const AMPS: [f32; 6] = [P1, P2, P3, P4, P5, P6];
+    let (sin_x, cos_x) = x.sin_cos();
+    let two_cos = 2.0 * cos_x;
+    let (mut previous, mut current) = (0.0f32, sin_x);
+    let mut sum = AMPS[0] * sin_x;
+    for amp in &AMPS[1..] {
+        let next = two_cos * current - previous;
+        previous = current;
+        current = next;
+        sum += amp * next;
+    }
+    (sum / PARTIALS_SUM, sin_x)
 }
 
 pub fn envelope(i: usize, dur: usize) -> f32 {
@@ -235,15 +246,18 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
             // Amplitude dips toward WAH_AMP_CLOSED when cupped.
             // Tone color is crossfaded from muffled (fundamental only) to the
             // full bright harmonic stack as the hands open.
+            let (bright, muffled) = harmonica_wave(voice_phase(
+                freq,
+                i as f64 / f64::from(SAMPLE_RATE),
+                phase_mod,
+            ));
             let (tone, amp_mod) = if let Expr::Wah(rate) = n.expr {
                 let wah_open = ((TAU * rate * t).sin() + 1.0) * 0.5;
-                let bright = harmonica_wave(freq, t, 0.0);
-                let muffled = harmonica_wave_muffled(freq, t, 0.0);
                 let blended = muffled + wah_open * (bright - muffled);
                 let amp = WAH_AMP_CLOSED + (1.0 - WAH_AMP_CLOSED) * wah_open;
                 (blended, amp)
             } else {
-                (harmonica_wave(freq, t, phase_mod), 1.0)
+                (bright, 1.0)
             };
 
             // ── Breath noise ─────────────────────────────────────────────────
@@ -309,6 +323,70 @@ mod tests {
             let t = cycle as f32 / rate;
             assert!(vibrato_phase_mod(freq, rate, t).abs() < 1e-3);
         }
+    }
+
+    /// The six-`sin` form the recurrence replaced: each partial evaluated
+    /// directly.
+    fn reference_wave(freq: f32, t: f32, phase_mod: f32) -> (f32, f32) {
+        let mut s = 0.0f32;
+        for (k, amp) in [
+            (1.0f32, P1),
+            (2.0, P2),
+            (3.0, P3),
+            (4.0, P4),
+            (5.0, P5),
+            (6.0, P6),
+        ] {
+            s += amp * (TAU * freq * k * t + k * phase_mod).sin();
+        }
+        (s / PARTIALS_SUM, (TAU * freq * t + phase_mod).sin())
+    }
+
+    #[test]
+    fn the_recurrence_is_at_least_as_accurate_as_evaluating_every_partial() {
+        // Both f32 forms round their large phase arguments, so neither is
+        // exact over a long note; judge each against a double-precision
+        // rendering of the same partials instead of against each other.
+        // Across the harmonica's range, well past any charted note length,
+        // with and without vibrato's phase deviation.
+        let truth = |freq: f32, t: f64, phase_mod: f32| {
+            let x = std::f64::consts::TAU * f64::from(freq) * t + f64::from(phase_mod);
+            let amps = [P1, P2, P3, P4, P5, P6];
+            let sum: f64 = (1..=6)
+                .map(|k| f64::from(amps[k - 1]) * (k as f64 * x).sin())
+                .sum();
+            (sum / f64::from(PARTIALS_SUM), x.sin())
+        };
+        let (mut new_worst, mut old_worst) = (0.0f64, 0.0f64);
+        for freq in [130.0f32, 262.0, 523.0, 1047.0, 2093.0] {
+            for i in (0..4 * SAMPLE_RATE as usize).step_by(7) {
+                // What `render_pcm` does: f64 time for the phase, f32 for the
+                // rest. The old form only ever had the f32 time.
+                let t64 = i as f64 / f64::from(SAMPLE_RATE);
+                let t = i as f32 / SAMPLE_RATE as f32;
+                for phase_mod in [0.0, vibrato_phase_mod(freq, 5.5, t)] {
+                    let error = |(bright, muffled): (f32, f32), (want_b, want_m): (f64, f64)| {
+                        (f64::from(bright) - want_b)
+                            .abs()
+                            .max((f64::from(muffled) - want_m).abs())
+                    };
+                    new_worst = new_worst.max(error(
+                        harmonica_wave(voice_phase(freq, t64, phase_mod)),
+                        truth(freq, t64, phase_mod),
+                    ));
+                    old_worst = old_worst.max(error(
+                        reference_wave(freq, t, phase_mod),
+                        truth(freq, f64::from(t), phase_mod),
+                    ));
+                }
+            }
+        }
+        assert!(
+            new_worst <= old_worst,
+            "recurrence error {new_worst} exceeds the direct form's {old_worst}"
+        );
+        // And far better than it, now that the phase is reduced first.
+        assert!(new_worst < 1e-4, "recurrence error {new_worst}");
     }
 
     #[test]
