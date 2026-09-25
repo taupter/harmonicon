@@ -1238,6 +1238,8 @@ lesson-tree-track-mastery = {$track} — {$percent}%
 # The warm-up review queue above the skill tree: its label, and one due training as "lesson · tier".
 lesson-tree-warmup = Warm-up:
 lesson-tree-warmup-item = {$lesson} · {$tier}
+# The practice streak above the skill tree, shown from two days up.
+lesson-tree-streak = {$days}-day practice streak
 lesson-tree-needs = Needs: {$lessons}
 lesson-tree-optional = Elective
 lesson-track-tone = Tone

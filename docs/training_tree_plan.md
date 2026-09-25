@@ -346,7 +346,11 @@ bolt a currency onto playing music are the ones most likely to backfire.
    only wall-clock read, which works on wasm too.
 3. **A practice streak with forgiveness.** Count practice days, never frame
    it as loss, auto-forgive a missed day. Habit support without the
-   anxiety that streak mechanics are fairly criticised for.
+   anxiety that streak mechanics are fairly criticised for. **Done:**
+   `profile::PracticeStreak` counts any day a run reaches the results
+   screen; the day after or the one after that continues it, and a longer
+   gap quietly starts again at one. The tree shows it from two days up and
+   never shows a lapsed one.
 4. **An explicit goal on every training.** "80% of the bends at 90 BPM" —
    specific and moderately hard, per Locke & Latham. **Done:** the reader's
    tier picker names each tier and states its goal, threshold, tempo and

@@ -75,6 +75,32 @@ pub(crate) fn due_warmups(
     due
 }
 
+/// The practice streak, as one line under the page header — only from two
+/// days up. A single day is not a streak yet, and a lapsed one reads as 0
+/// (`PracticeStreak::current`), so nothing is ever shown as lost.
+pub(crate) fn spawn_streak(commands: &mut Commands, parent: Entity, days: u32, loc: &Localization) {
+    if days < 2 {
+        return;
+    }
+    let line = commands
+        .spawn((
+            Text::new(String::from(
+                loc.msg_args("lesson-tree-streak", &[("days", days.to_string())]),
+            )),
+            TextFont {
+                font_size: FontSize::Px(15.0),
+                ..default()
+            },
+            TextColor(Color::srgb(0.95, 0.82, 0.45)),
+            Node {
+                margin: UiRect::bottom(Val::Px(6.0)),
+                ..default()
+            },
+        ))
+        .id();
+    commands.entity(parent).add_child(line);
+}
+
 /// The queue as a row of buttons under the page header, each starting its
 /// review directly. Nothing at all when nothing is due — an empty queue is
 /// the reward for keeping up, not a gap to fill.

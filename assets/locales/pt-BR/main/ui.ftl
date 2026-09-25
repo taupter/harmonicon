@@ -1235,6 +1235,8 @@ lesson-tree-track-mastery = {$track} — {$percent}%
 # A fila de revisão de aquecimento acima da árvore: o rótulo e um treino pendente como "lição · nível".
 lesson-tree-warmup = Aquecimento:
 lesson-tree-warmup-item = {$lesson} · {$tier}
+# A sequência de prática acima da árvore, mostrada a partir de dois dias.
+lesson-tree-streak = {$days} dias seguidos de prática
 lesson-tree-needs = Precisa de: {$lessons}
 lesson-tree-optional = Eletiva
 lesson-track-tone = Tom

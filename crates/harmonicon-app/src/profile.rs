@@ -170,6 +170,49 @@ impl TrainingRecord {
     }
 }
 
+/// How many days in a row the player has practised, where a single missed
+/// day doesn't break the run (`docs/training_tree_plan.md` §4).
+///
+/// **Never framed as loss.** A gap longer than the forgiveness quietly
+/// starts a new run at one day; nothing announces what was lost, and
+/// [`current`](Self::current) simply reports no streak until there is one
+/// again. The anxiety streaks are rightly criticised for comes from the
+/// threat of losing one, so this has no threat to make.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct PracticeStreak {
+    /// The last day practised, in `harmonicon_platform::calendar` days.
+    pub last_day: Option<u32>,
+    /// Practice days in the current run.
+    pub days: u32,
+}
+
+/// Days after the last practice a new one still continues the run: the
+/// next day, or the one after — a single missed day is forgiven.
+pub const STREAK_FORGIVEN_GAP_DAYS: u32 = 2;
+
+impl PracticeStreak {
+    /// Counts `today` as a practice day. A second practice the same day
+    /// changes nothing.
+    pub fn record(&mut self, today: u32) {
+        self.days = match self.last_day {
+            Some(last) if today == last => return,
+            Some(last) if today > last && today - last <= STREAK_FORGIVEN_GAP_DAYS => self.days + 1,
+            _ => 1,
+        };
+        self.last_day = Some(today);
+    }
+
+    /// The run as of `today`: its length while it can still be continued,
+    /// otherwise 0 — a run that has lapsed is not reported at all.
+    pub fn current(&self, today: u32) -> u32 {
+        match self.last_day {
+            Some(last) if today >= last && today - last <= STREAK_FORGIVEN_GAP_DAYS => self.days,
+            _ => 0,
+        }
+    }
+}
+
 /// The [`PlayerProfile::trainings`] key for one tier of one lesson.
 pub fn training_key(lesson_id: &str, tier: u8) -> String {
     format!("{lesson_id}:{tier}")
@@ -185,6 +228,8 @@ pub struct PlayerProfile {
     pub drills: HashMap<String, DrillRecord>,
     pub lessons: HashMap<String, LessonRecord>,
     pub trainings: HashMap<String, TrainingRecord>,
+    /// Practice days in a row; see [`PracticeStreak`].
+    pub practice: PracticeStreak,
 }
 
 impl PlayerProfile {
@@ -653,6 +698,45 @@ mod training_tests {
             serde_json::from_str(r#"{"passed": true, "best_accuracy": 0.9, "attempts": 3}"#)
                 .unwrap();
         assert_eq!(old.review_due_day(), Some(0));
+    }
+
+    #[test]
+    fn a_streak_grows_daily_and_forgives_one_missed_day() {
+        let mut streak = PracticeStreak::default();
+        assert_eq!(streak.current(100), 0);
+        streak.record(100);
+        streak.record(100); // twice in a day is still one day
+        streak.record(101);
+        assert_eq!(streak.current(101), 2);
+        streak.record(103); // 102 missed: forgiven
+        assert_eq!(streak.current(103), 3);
+        assert_eq!(
+            streak.current(105),
+            3,
+            "still continuable after one missed day"
+        );
+    }
+
+    #[test]
+    fn a_lapsed_streak_is_not_reported_and_quietly_restarts() {
+        let mut streak = PracticeStreak::default();
+        for day in 100..105 {
+            streak.record(day);
+        }
+        assert_eq!(streak.current(104), 5);
+        assert_eq!(streak.current(107), 0, "two missed days lapse it");
+        streak.record(107);
+        assert_eq!(streak.current(107), 1);
+    }
+
+    #[test]
+    fn a_clock_set_back_neither_extends_nor_reports_a_streak() {
+        let mut streak = PracticeStreak::default();
+        streak.record(100);
+        streak.record(101);
+        assert_eq!(streak.current(99), 0);
+        streak.record(99);
+        assert_eq!(streak.current(99), 1);
     }
 
     #[test]

@@ -1237,6 +1237,8 @@ lesson-tree-track-mastery = {$track} — {$percent}%
 # La cola de repaso de calentamiento sobre el árbol: la etiqueta y un entrenamiento pendiente como "lección · nivel".
 lesson-tree-warmup = Calentamiento:
 lesson-tree-warmup-item = {$lesson} · {$tier}
+# La racha de práctica sobre el árbol, mostrada a partir de dos días.
+lesson-tree-streak = {$days} días seguidos de práctica
 lesson-tree-needs = Necesita: {$lessons}
 lesson-tree-optional = Optativa
 lesson-track-tone = Tono

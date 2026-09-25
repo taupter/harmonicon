@@ -33,7 +33,13 @@ and so on, up to about two months. When some are due, a **Warm-up** row
 appears above the tree with up to three of them — each lesson at the
 hardest tier you've passed — and clicking one starts it straight away.
 Missing a review never costs you the tier; it just brings it round again
-sooner. A passed lesson stays replayable any time, and your progress is
+sooner.
+
+Every day you finish a song, lesson or training counts as a practice day,
+and once you've practised two days running the tree shows your **practice
+streak** ("5-day practice streak"). Missing a single day doesn't break it.
+Missing more simply starts a new one next time — nothing is taken away,
+and there's no reminder nagging you about it. A passed lesson stays replayable any time, and your progress is
 saved (`profile.json`) and survives restarting the game.
 
 Clicking a lesson — locked or not — opens its **reader page**: instructional

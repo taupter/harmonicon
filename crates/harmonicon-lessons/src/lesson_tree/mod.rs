@@ -80,7 +80,7 @@ use placement::{
     EdgeLayer, LessonTreeCanvas, PartKind, build_layout, laid_out_collapsed, spawn_edges,
     tree_canvas_size, unit_positions,
 };
-use review::{WARMUP_LIMIT, due_warmups, spawn_warmups};
+use review::{WARMUP_LIMIT, due_warmups, spawn_streak, spawn_warmups};
 pub(crate) use transition::*;
 
 use std::collections::HashSet;
@@ -375,11 +375,13 @@ pub(crate) fn setup_lesson_tree(
 
     // Above the canvas rather than on it, so the warm-ups and meters stay
     // in view however far the tree is scrolled.
+    let today = calendar::today();
+    spawn_streak(&mut commands, root, profile.practice.current(today), &loc);
     spawn_warmups(
         &mut commands,
         root,
         &lessons.0,
-        &due_warmups(&lessons.0, &profile, calendar::today(), WARMUP_LIMIT),
+        &due_warmups(&lessons.0, &profile, today, WARMUP_LIMIT),
         &loc,
     );
     spawn_track_meters(

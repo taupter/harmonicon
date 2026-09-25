@@ -182,6 +182,10 @@ pub(super) fn setup(
 ) {
     let acc = accuracy(&stats);
     let g = grade(acc);
+    // Any finished run is a practice day, pass or fail; saved with the
+    // run's own record below.
+    let today = harmonicon_platform::calendar::today();
+    profile.practice.record(today);
     let technique_accuracy: Vec<(&str, f32)> = technique_buckets(&stats)
         .into_iter()
         .filter_map(|(name, s)| s.accuracy().map(|a| (name, a)))
@@ -203,7 +207,7 @@ pub(super) fn setup(
             Some(tier) => {
                 let key = training_key(&ctx.lesson_id, tier);
                 let record = profile.trainings.entry(key).or_default();
-                record_training(record, passed, acc, harmonicon_platform::calendar::today());
+                record_training(record, passed, acc, today);
             }
             None => {
                 let record = profile.lessons.entry(ctx.lesson_id.clone()).or_default();
