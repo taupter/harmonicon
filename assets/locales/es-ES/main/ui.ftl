@@ -1212,6 +1212,20 @@ harp-check-track-unnamed = Pista {$index}
 # Encabezado sobre los cinco niveles de entrenamiento de una lección, con
 # cuánto de la escalera se ha completado (el medidor de dominio).
 lesson-training-heading = Entrenamiento — {$percent}% dominado
+# Los cinco niveles de entrenamiento: el nombre de cada uno y lo que pide al jugador.
+lesson-training-tier-isolate = Aislar
+lesson-training-tier-isolate-about = La técnica sola, despacio, en un solo agujero.
+lesson-training-tier-consolidate = Consolidar
+lesson-training-tier-consolidate-about = El mismo ejercicio, un poco más rápido.
+lesson-training-tier-vary = Variar
+lesson-training-tier-vary-about = Todos los agujeros de la lección, en todas las profundidades que alcanzan.
+lesson-training-tier-in-context = En Contexto
+lesson-training-tier-in-context-about = La técnica dentro de una frase musical, en corcheas.
+lesson-training-tier-interleave = Intercalar
+lesson-training-tier-interleave-about = Un orden impredecible, para que no se pueda tocar de memoria.
+# La meta de un nivel de entrenamiento: la línea de meta de la lección, luego el tempo y la duración del nivel.
+lesson-training-goal = {$goal}, a {$bpm} BPM durante {$bars} compases
+lesson-training-start = Empezar Entrenamiento
 
 # The skill-tree view of the curriculum: one row per track.
 lesson-tree-title = Árbol de Habilidades

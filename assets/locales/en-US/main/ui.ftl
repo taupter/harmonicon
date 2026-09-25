@@ -1213,6 +1213,20 @@ harp-check-track-unnamed = Track {$index}
 # Heading above a lesson's five training tiers, with how much of the ladder
 # is done (the mastery meter).
 lesson-training-heading = Training — {$percent}% mastered
+# The five training tiers: each one's name, and what it asks of the player.
+lesson-training-tier-isolate = Isolate
+lesson-training-tier-isolate-about = The technique on its own, slowly, on one hole.
+lesson-training-tier-consolidate = Consolidate
+lesson-training-tier-consolidate-about = The same exercise, a little faster.
+lesson-training-tier-vary = Vary
+lesson-training-tier-vary-about = Every hole the lesson covers, at every depth they reach.
+lesson-training-tier-in-context = In Context
+lesson-training-tier-in-context-about = The technique inside a musical phrase, in eighth notes.
+lesson-training-tier-interleave = Interleave
+lesson-training-tier-interleave-about = An unpredictable order, so it can't be played from memory.
+# A training tier's goal: the lesson goal line, then the tier's tempo and length.
+lesson-training-goal = {$goal}, at {$bpm} BPM for {$bars} bars
+lesson-training-start = Start Training
 
 # The skill-tree view of the curriculum: one row per track.
 lesson-tree-title = Skill Tree

@@ -29,6 +29,13 @@ Clicking a lesson — locked or not — opens its **reader page**: instructional
 text explaining the technique, a goal line (e.g. "Goal: 70% overall accuracy"),
 a **Start Lesson** button, and the ladder's tiers if it has any.
 
+The tiers sit in a row under their names — Isolate, Consolidate, Vary, In
+Context, Interleave — with a ✓ on the ones you've passed. Picking one shows
+what it asks of you and exactly what counts as passing it, such as
+"Goal: 70% accuracy on bend notes, at 96 BPM for 4 bars", before you press
+**Start Training**. The row opens on the first tier you haven't passed yet,
+but none of them is locked: practise them in any order.
+
 About twenty lessons show **Mark as Done** instead. Those are pure
 instruction with nothing to score — tongue blocking, for instance, which
 the microphone genuinely can't tell apart from puckering, or the

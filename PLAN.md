@@ -46,10 +46,6 @@ Nothing below can be approved by a test.
 
 ## Code work, unblocked
 
-- **Training tiers state their goal.** A tier button reads only `1`–`5`.
-  Show the tier's name (Isolate … Interleave) and its concrete goal before
-  it starts; `training_criteria` already computes it
-  (`docs/training_tree_plan.md` §4).
 - **Practice motivation**, in this order: a per-track mastery meter (only
   the per-node ring exists), a spaced "Warm-up" review queue from
   last-passed dates, then a practice streak that forgives a missed day and

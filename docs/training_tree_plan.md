@@ -340,8 +340,9 @@ bolt a currency onto playing music are the ones most likely to backfire.
    it as loss, auto-forgive a missed day. Habit support without the
    anxiety that streak mechanics are fairly criticised for.
 4. **An explicit goal on every training.** "80% of the bends at 90 BPM" —
-   specific and moderately hard, per Locke & Latham. Already expressible
-   with existing `pass_criteria`; it needs *stating* in the UI.
+   specific and moderately hard, per Locke & Latham. **Done:** the reader's
+   tier picker names each tier and states its goal, threshold, tempo and
+   length included, before it starts (`lesson_reader::training`).
 5. **Tier 5 is interleaved by design**, so desirable difficulty is built
    into the ladder rather than added later.
 6. **Never a single forced next step.** Keep ≥2 nodes available at all
