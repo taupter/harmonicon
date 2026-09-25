@@ -54,6 +54,9 @@ pulldown-cmark = { version = "0.12", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
 jsonschema = { version = "0.49", default-features = false }
 criterion = { version = "0.8.2", features = ["html_reports"]}
+# `std::time::SystemTime` on native, the browser's clock on wasm, where
+# `SystemTime::now()` panics. Already in the lock through Bevy.
+web-time = "1.1"
 
 # Shared by every member, so binaries and integration tests are held to the
 # same set as each library.

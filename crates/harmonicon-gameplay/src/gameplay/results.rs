@@ -203,7 +203,7 @@ pub(super) fn setup(
             Some(tier) => {
                 let key = training_key(&ctx.lesson_id, tier);
                 let record = profile.trainings.entry(key).or_default();
-                record_training(record, passed, acc);
+                record_training(record, passed, acc, harmonicon_platform::calendar::today());
             }
             None => {
                 let record = profile.lessons.entry(ctx.lesson_id.clone()).or_default();

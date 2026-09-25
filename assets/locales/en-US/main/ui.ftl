@@ -1235,6 +1235,9 @@ lesson-tree-broken = This curriculum cannot be drawn: {$error}
 lesson-tree-unit-progress = {$done}/{$needed}
 # One track's mastery meter above the skill tree: how much of its training ladders is cleared.
 lesson-tree-track-mastery = {$track} — {$percent}%
+# The warm-up review queue above the skill tree: its label, and one due training as "lesson · tier".
+lesson-tree-warmup = Warm-up:
+lesson-tree-warmup-item = {$lesson} · {$tier}
 lesson-tree-needs = Needs: {$lessons}
 lesson-tree-optional = Elective
 lesson-track-tone = Tone

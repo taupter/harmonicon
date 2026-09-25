@@ -143,6 +143,31 @@ pub struct TrainingRecord {
     pub passed: bool,
     pub best_accuracy: f32,
     pub attempts: u32,
+    /// The day this tier is next due for review, in
+    /// `harmonicon_platform::calendar` days. `None` until it is first
+    /// passed — and for a tier passed before reviews existed, which
+    /// [`TrainingRecord::review_due_day`] therefore treats as due now.
+    pub review_due: Option<u32>,
+    /// Days between reviews: see [`record_training`] for how it grows.
+    pub review_interval: u32,
+}
+
+/// Longest gap between reviews, in days. Doubling without a ceiling would
+/// push a well-known tier out for years; a skill left alone that long is
+/// worth checking again.
+pub const MAX_REVIEW_INTERVAL_DAYS: u32 = 64;
+
+impl TrainingRecord {
+    /// The day this tier is due for review, or `None` if it has never been
+    /// passed and so has nothing to review. A tier passed before reviews
+    /// were recorded is due from day 0 — its last pass date is unknown, so
+    /// it is overdue rather than forgotten.
+    pub fn review_due_day(&self) -> Option<u32> {
+        if !self.passed {
+            return None;
+        }
+        Some(self.review_due.unwrap_or(0))
+    }
 }
 
 /// The [`PlayerProfile::trainings`] key for one tier of one lesson.
@@ -224,12 +249,38 @@ pub fn record_play(
     improved
 }
 
-/// Updates `record` with a just-finished training attempt. Same
-/// once-passed-always-passed rule as [`record_lesson`], for the same reason.
-pub fn record_training(record: &mut TrainingRecord, passed: bool, accuracy: f32) {
+/// Updates `record` with a just-finished training attempt on day `today`.
+/// Same once-passed-always-passed rule as [`record_lesson`], for the same
+/// reason.
+///
+/// Also moves the tier's review schedule, a doubling interval:
+/// - **First pass**: due again tomorrow.
+/// - **Passing a review on or after its due day**: the gap doubles, up to
+///   [`MAX_REVIEW_INTERVAL_DAYS`] — the skill held, so check it less often.
+/// - **Passing before it was due**: the gap stays, counted from today.
+///   Early practice is welcome but isn't evidence the skill lasts.
+/// - **Failing a tier already passed**: back to tomorrow. The tier stays
+///   passed; only how soon it comes round again changes.
+pub fn record_training(record: &mut TrainingRecord, passed: bool, accuracy: f32, today: u32) {
     record.attempts += 1;
-    record.passed |= passed;
     record.best_accuracy = record.best_accuracy.max(accuracy);
+    let was_passed = record.passed;
+    record.passed |= passed;
+
+    let interval = if !was_passed {
+        if !passed {
+            return;
+        }
+        1
+    } else if !passed {
+        1
+    } else if record.review_due_day().is_some_and(|due| today >= due) {
+        (record.review_interval.max(1) * 2).min(MAX_REVIEW_INTERVAL_DAYS)
+    } else {
+        record.review_interval.max(1)
+    };
+    record.review_interval = interval;
+    record.review_due = Some(today + interval);
 }
 
 /// Updates `record` with a just-finished lesson attempt. Like
@@ -507,8 +558,8 @@ mod training_tests {
     fn a_passed_training_stays_passed_after_a_failed_retry() {
         // Same rule as a lesson: a worse retry must not take a tier away.
         let mut r = TrainingRecord::default();
-        record_training(&mut r, true, 0.9);
-        record_training(&mut r, false, 0.1);
+        record_training(&mut r, true, 0.9, 100);
+        record_training(&mut r, false, 0.1, 100);
         assert!(r.passed);
         assert_eq!(r.attempts, 2);
         assert_eq!(r.best_accuracy, 0.9);
@@ -523,7 +574,7 @@ mod training_tests {
                 .trainings
                 .entry(training_key("first-bend", tier))
                 .or_default();
-            record_training(r, true, 0.8);
+            record_training(r, true, 0.8, 100);
         }
         assert_eq!(p.mastery("first-bend", 5), 0.4);
     }
@@ -532,7 +583,7 @@ mod training_tests {
     fn an_attempted_but_failed_tier_does_not_count_toward_mastery() {
         let mut p = PlayerProfile::default();
         let r = p.trainings.entry(training_key("x", 1)).or_default();
-        record_training(r, false, 0.5);
+        record_training(r, false, 0.5, 100);
         assert_eq!(p.mastery("x", 5), 0.0);
     }
 
@@ -552,8 +603,56 @@ mod training_tests {
             .trainings
             .entry(training_key("first-bend", 5))
             .or_default();
-        record_training(r, true, 1.0);
+        record_training(r, true, 1.0, 100);
         assert!(p.passed_lesson_ids().is_empty());
+    }
+
+    #[test]
+    fn a_first_pass_is_due_again_tomorrow_and_a_failure_schedules_nothing() {
+        let mut r = TrainingRecord::default();
+        record_training(&mut r, false, 0.3, 100);
+        assert_eq!(
+            r.review_due_day(),
+            None,
+            "nothing passed, nothing to review"
+        );
+        record_training(&mut r, true, 0.8, 100);
+        assert_eq!(r.review_due_day(), Some(101));
+    }
+
+    #[test]
+    fn on_time_reviews_double_the_gap_up_to_the_ceiling() {
+        let mut r = TrainingRecord::default();
+        record_training(&mut r, true, 0.8, 100);
+        let mut expected_gap = 1;
+        for _ in 0..10 {
+            let due = r.review_due_day().unwrap();
+            record_training(&mut r, true, 0.8, due);
+            expected_gap = (expected_gap * 2).min(MAX_REVIEW_INTERVAL_DAYS);
+            assert_eq!(r.review_due_day(), Some(due + expected_gap));
+        }
+        assert_eq!(r.review_interval, MAX_REVIEW_INTERVAL_DAYS);
+    }
+
+    #[test]
+    fn an_early_pass_keeps_the_gap_and_a_failed_review_resets_it() {
+        let mut r = TrainingRecord::default();
+        record_training(&mut r, true, 0.8, 100);
+        record_training(&mut r, true, 0.8, 101); // on time: gap 2, due 103
+        record_training(&mut r, true, 0.8, 102); // early: gap stays 2
+        assert_eq!((r.review_interval, r.review_due_day()), (2, Some(104)));
+
+        record_training(&mut r, false, 0.2, 104);
+        assert!(r.passed, "a failed review never takes the tier away");
+        assert_eq!((r.review_interval, r.review_due_day()), (1, Some(105)));
+    }
+
+    #[test]
+    fn a_tier_passed_before_reviews_existed_is_due_now() {
+        let old: TrainingRecord =
+            serde_json::from_str(r#"{"passed": true, "best_accuracy": 0.9, "attempts": 3}"#)
+                .unwrap();
+        assert_eq!(old.review_due_day(), Some(0));
     }
 
     #[test]

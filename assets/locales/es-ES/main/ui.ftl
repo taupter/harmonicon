@@ -1234,6 +1234,9 @@ lesson-tree-broken = Este plan de estudios no se puede dibujar: {$error}
 lesson-tree-unit-progress = {$done}/{$needed}
 # El medidor de dominio de una pista sobre el árbol: cuánto de las escaleras de entrenamiento se ha completado.
 lesson-tree-track-mastery = {$track} — {$percent}%
+# La cola de repaso de calentamiento sobre el árbol: la etiqueta y un entrenamiento pendiente como "lección · nivel".
+lesson-tree-warmup = Calentamiento:
+lesson-tree-warmup-item = {$lesson} · {$tier}
 lesson-tree-needs = Necesita: {$lessons}
 lesson-tree-optional = Optativa
 lesson-track-tone = Tono

@@ -184,7 +184,7 @@ fn a_passed_lesson_is_mastered_only_once_every_tier_is_too() {
 
     for tier in 1..=Tier::ALL.len() as u8 {
         let r = p.trainings.entry(training_key("bend", tier)).or_default();
-        record_training(r, true, 1.0);
+        record_training(r, true, 1.0, 100);
     }
     assert_eq!(
         build(&e, &p).node("bend").unwrap().state,
@@ -212,7 +212,7 @@ fn mastery_is_the_fraction_of_tiers_passed() {
     let mut p = PlayerProfile::default();
     for tier in [1, 2] {
         let r = p.trainings.entry(training_key("bend", tier)).or_default();
-        record_training(r, true, 1.0);
+        record_training(r, true, 1.0, 100);
     }
     assert_eq!(build(&e, &p).node("bend").unwrap().mastery, 0.4);
 }
@@ -227,7 +227,7 @@ fn a_locked_lesson_still_shows_what_it_has_practised() {
     ];
     let mut p = PlayerProfile::default();
     let r = p.trainings.entry(training_key("bend", 1)).or_default();
-    record_training(r, true, 1.0);
+    record_training(r, true, 1.0, 100);
     let l = build(&e, &p);
     assert_eq!(l.node("bend").unwrap().state, NodeState::Locked);
     assert!(l.node("bend").unwrap().mastery > 0.0);

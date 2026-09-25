@@ -43,7 +43,7 @@ use harmonicon_menu::menu::scene::{spawn_back_button, spawn_button, spawn_menu_r
 
 #[cfg(test)]
 mod tests;
-mod training;
+pub(crate) mod training;
 mod widgets;
 
 use training::spawn_training_panel;
@@ -144,9 +144,6 @@ pub(crate) fn parse_scale(s: Option<&str>) -> Scale {
     }
 }
 
-/// One plain text line appended directly to `root` (no card/box around
-/// it) — the shared shape the lesson reader's goal-progress line and its
-/// "Passed" badge both use, differing only in text/color.
 /// The circle-of-fifths widget's previous/next key buttons: move the harp
 /// key by `semitones` and replace the drawn circle with one for the new key.
 fn step_circle_key(
@@ -171,6 +168,9 @@ fn step_circle_key(
     circle.diagram = diagram;
 }
 
+/// One plain text line appended directly to `root` (no card/box around
+/// it) — the shared shape the lesson reader's goal-progress line and its
+/// "Passed" badge both use, differing only in text/color.
 fn spawn_reader_line(commands: &mut Commands, root: Entity, text: String, color: Color) {
     let line = commands
         .spawn((

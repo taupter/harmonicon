@@ -23,3 +23,10 @@ load-bearing about *this* crate.
   (infrequent) points where a record changes, plus a flush on `AppExit` for
   play time — deliberately no debounce machinery; keep new fields on that
   pattern.
+
+- **Training reviews are dated in whole days**, from
+  `harmonicon_platform::calendar::today()` — the game's only wall-clock
+  read, through `web_time` because `std::time::SystemTime::now()` panics
+  on wasm. Keep any new date on that function rather than calling
+  `SystemTime` directly. `record_training` takes the day as an argument so
+  the schedule stays pure and testable.

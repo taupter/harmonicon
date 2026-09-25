@@ -28,6 +28,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 crossbeam-channel = { workspace = true }
 notify-debouncer-full = { workspace = true }
+web-time = { workspace = true }
 
 # The build script generates the bundled-asset manifest, and has to mirror
 # `assets_management`'s discovery rules exactly — including *which* score

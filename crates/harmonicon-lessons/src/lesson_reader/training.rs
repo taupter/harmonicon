@@ -23,7 +23,7 @@ use harmonicon_core::pitch_map::{HarpKind, harp_for_key};
 use harmonicon_core::training::{Tier, drill_chart};
 use harmonicon_menu::menu::scene::spawn_button;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
-use harmonicon_song::lessons::{LessonContext, LessonEntry, training_criteria};
+use harmonicon_song::lessons::{LessonContext, LessonEntry, LessonManifest, training_criteria};
 use harmonicon_song::song::{SongManifest, training_manifest};
 use harmonicon_ui::dialogs::tab_bar::{TabBarSelected, TabSelect, spawn_tab_bar};
 
@@ -40,7 +40,7 @@ struct TierAbout;
 struct TierGoal;
 
 /// Locale key of a tier's name.
-pub(super) fn tier_name_key(tier: Tier) -> &'static str {
+pub(crate) fn tier_name_key(tier: Tier) -> &'static str {
     match tier {
         Tier::Isolate => "lesson-training-tier-isolate",
         Tier::Consolidate => "lesson-training-tier-consolidate",
@@ -195,31 +195,52 @@ pub(super) fn spawn_training_panel(
             else {
                 return;
             };
-            let Some(spec) = manifest.drill_spec(tier) else {
-                return;
-            };
-            let harp = harp_for_key("C", HarpKind::Diatonic);
-            let Some(chart) = drill_chart(&spec, &harp, &manifest.id, "") else {
-                // No hole in the lesson can do the technique on this harp.
-                // Nothing to play, so stay put rather than open a drill of
-                // plain notes that trains nothing.
-                return;
-            };
-            commands.insert_resource(SelectedSong(manifests.add(training_manifest(chart))));
-            commands.insert_resource(LessonContext {
-                lesson_id: manifest.id.clone(),
-                pass_criteria: Some(training_criteria(manifest.pass_criteria.as_ref(), tier)),
-                aural: false,
-                tier: Some(tier.number()),
-            });
-            // Built by `Assets::add`, so it has no `LoadState` and
-            // `SongLoading` would wait on it forever — see
-            // `app::GeneratedSong`.
-            commands.insert_resource(GeneratedSong);
-            *mode = GameplayMode::Play2D;
-            state.set(AppState::Playing);
+            start_training(
+                &manifest,
+                tier,
+                &mut manifests,
+                &mut mode,
+                &mut state,
+                &mut commands,
+            );
         },
     );
+}
+
+/// Starts one tier of `manifest`'s training ladder: generates the drill and
+/// enters scored play with the tier's criteria in the `LessonContext`.
+/// Shared by the reader's Start Training button and the skill tree's
+/// warm-up reviews, so both run the same drill against the same goal.
+pub(crate) fn start_training(
+    manifest: &LessonManifest,
+    tier: Tier,
+    manifests: &mut Assets<SongManifest>,
+    mode: &mut GameplayMode,
+    state: &mut NextState<AppState>,
+    commands: &mut Commands,
+) {
+    let Some(spec) = manifest.drill_spec(tier) else {
+        return;
+    };
+    let harp = harp_for_key("C", HarpKind::Diatonic);
+    let Some(chart) = drill_chart(&spec, &harp, &manifest.id, "") else {
+        // No hole in the lesson can do the technique on this harp. Nothing
+        // to play, so stay put rather than open a drill of plain notes that
+        // trains nothing.
+        return;
+    };
+    commands.insert_resource(SelectedSong(manifests.add(training_manifest(chart))));
+    commands.insert_resource(LessonContext {
+        lesson_id: manifest.id.clone(),
+        pass_criteria: Some(training_criteria(manifest.pass_criteria.as_ref(), tier)),
+        aural: false,
+        tier: Some(tier.number()),
+    });
+    // Built by `Assets::add`, so it has no `LoadState` and `SongLoading`
+    // would wait on it forever — see `app::GeneratedSong`.
+    commands.insert_resource(GeneratedSong);
+    *mode = GameplayMode::Play2D;
+    state.set(AppState::Playing);
 }
 
 #[cfg(test)]

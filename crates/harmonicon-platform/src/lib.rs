@@ -10,6 +10,7 @@
 //! knows what a song, a note or a screen is.
 
 pub mod assets_management;
+pub mod calendar;
 pub mod localization;
 pub mod paths;
 pub mod responsive;

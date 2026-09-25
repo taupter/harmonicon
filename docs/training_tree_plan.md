@@ -338,7 +338,12 @@ bolt a currency onto playing music are the ones most likely to backfire.
 2. **A spaced review queue — "Warm-up".** Record when each technique was
    last passed; surface two or three due for review at the top of the tree.
    This is the highest-value item on the list and it is a *feature*, not a
-   reward. It needs one new field per record and a due-date function.
+   reward. **Done:** each training tier keeps a due day and an interval
+   (`profile::record_training`: first pass → tomorrow, an on-time review
+   doubles the gap up to 64 days, a failed review → tomorrow). The tree
+   shows up to three due, one per lesson at its highest passed tier
+   (`lesson_tree::review`). Days come from `platform::calendar`, the game's
+   only wall-clock read, which works on wasm too.
 3. **A practice streak with forgiveness.** Count practice days, never frame
    it as loss, auto-forgive a missed day. Habit support without the
    anxiety that streak mechanics are fairly criticised for.

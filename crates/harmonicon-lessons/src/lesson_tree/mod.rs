@@ -46,6 +46,7 @@ mod edges;
 mod layout;
 mod mastery;
 mod placement;
+mod review;
 mod transition;
 
 use accesskit::{Node as AccessibilityKitNode, Role};
@@ -71,6 +72,7 @@ pub(crate) use edges::LessonEdgeMaterialPlugin;
 pub(crate) use edges::set_edge_geometry;
 use edges::{Endpoint, LessonEdgeMaterial};
 use harmonicon_core::training::Tier;
+use harmonicon_platform::calendar;
 use layout::{NodeState, PlacedNode, PlacedUnit};
 use mastery::{spawn_track_meters, track_mastery};
 pub(crate) use placement::relayout_tree;
@@ -78,6 +80,7 @@ use placement::{
     EdgeLayer, LessonTreeCanvas, PartKind, build_layout, laid_out_collapsed, spawn_edges,
     tree_canvas_size, unit_positions,
 };
+use review::{WARMUP_LIMIT, due_warmups, spawn_warmups};
 pub(crate) use transition::*;
 
 use std::collections::HashSet;
@@ -370,8 +373,15 @@ pub(crate) fn setup_lesson_tree(
         ..default()
     });
 
-    // Above the canvas rather than on it, so the meters stay in view
-    // however far the tree is scrolled.
+    // Above the canvas rather than on it, so the warm-ups and meters stay
+    // in view however far the tree is scrolled.
+    spawn_warmups(
+        &mut commands,
+        root,
+        &lessons.0,
+        &due_warmups(&lessons.0, &profile, calendar::today(), WARMUP_LIMIT),
+        &loc,
+    );
     spawn_track_meters(
         &mut commands,
         root,

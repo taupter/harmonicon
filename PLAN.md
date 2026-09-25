@@ -46,11 +46,11 @@ Nothing below can be approved by a test.
 
 ## Code work, unblocked
 
-- **Practice motivation**, in this order: a spaced "Warm-up" review queue
-  from last-passed dates, then a practice streak that forgives a missed day
-  and is never framed as loss (`docs/training_tree_plan.md` §4). Once
-  last-passed dates exist, fold recency into the per-track mastery meter,
-  which today counts cleared tiers only.
+- **Practice motivation**: a practice streak that forgives a missed day and
+  is never framed as loss (`docs/training_tree_plan.md` §4). Reviews now
+  carry due dates (`TrainingRecord::review_due`), so the per-track mastery
+  meter could also discount tiers long overdue; today it counts cleared
+  tiers only.
 - **Measure the curriculum's chokepoints.** `lessons::graph::min_choices`
   has only ever run on synthetic graphs; the chokepoints were measured on
   the old 41-lesson curriculum. Run it on the shipped 100 lessons, and where

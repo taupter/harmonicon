@@ -25,7 +25,15 @@ bend lessons are the ones that have them; a lesson with no ring has no
 ladder. Above the tree, each skill with ladders gets a **mastery meter**
 ("Bending — 40%"): how many of its ladders' tiers you've cleared. It only
 grows when you pass a tier, never just for time spent, and a failed retry
-never takes anything away. A passed lesson stays replayable any time, and your progress is
+never takes anything away.
+
+Passed tiers come back for review at widening intervals: the day after you
+first pass one, then two days after a successful review, then four, eight
+and so on, up to about two months. When some are due, a **Warm-up** row
+appears above the tree with up to three of them — each lesson at the
+hardest tier you've passed — and clicking one starts it straight away.
+Missing a review never costs you the tier; it just brings it round again
+sooner. A passed lesson stays replayable any time, and your progress is
 saved (`profile.json`) and survives restarting the game.
 
 Clicking a lesson — locked or not — opens its **reader page**: instructional

@@ -194,7 +194,7 @@ mod tests {
             .trainings
             .entry(training_key(lesson, tier))
             .or_default();
-        record_training(record, true, 0.9);
+        record_training(record, true, 0.9, 100);
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
             .trainings
             .entry(training_key("first-bend", 1))
             .or_default();
-        record_training(record, false, 0.1);
+        record_training(record, false, 0.1, 100);
 
         assert_eq!(track_mastery(&entries, &profile, 5)[0].mastery, before);
     }
