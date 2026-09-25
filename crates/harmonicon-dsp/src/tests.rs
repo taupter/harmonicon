@@ -156,14 +156,25 @@ fn mpm_detects_440hz() {
     let samples: Vec<f32> = (0..n)
         .map(|i| 0.5 * (2.0 * PI * 440.0 * i as f32 / sample_rate as f32).sin())
         .collect();
-    let f0 = mpm_pitch(&samples, sample_rate, PitchRange::default()).expect("expected a pitch");
+    let f0 = mpm_pitch(
+        &samples,
+        sample_rate,
+        PitchRange::default(),
+        &mut Vec::new(),
+    )
+    .expect("expected a pitch");
     assert!((f0 - 440.0).abs() < 5.0, "expected ~440 Hz, got {f0}");
 }
 
 #[test]
 fn mpm_rejects_silence() {
     assert_eq!(
-        mpm_pitch(&vec![0.0f32; 4096], 44100, PitchRange::default()),
+        mpm_pitch(
+            &vec![0.0f32; 4096],
+            44100,
+            PitchRange::default(),
+            &mut Vec::new(),
+        ),
         None
     );
 }
@@ -186,7 +197,30 @@ fn mpm_rejects_unpitched_noise() {
             (seed >> 8) as f32 / (1 << 24) as f32 - 0.5
         })
         .collect();
-    assert_eq!(mpm_pitch(&samples, 44100, PitchRange::default()), None);
+    assert_eq!(
+        mpm_pitch(&samples, 44100, PitchRange::default(), &mut Vec::new()),
+        None
+    );
+}
+
+#[test]
+fn mpm_reuses_lag_buffer_across_pitches() {
+    let sr = 44_100;
+    let tone = |hz: f32| {
+        (0..4096)
+            .map(|i| (2.0 * PI * hz * i as f32 / sr as f32).sin())
+            .collect::<Vec<_>>()
+    };
+    let mut nsdf = Vec::new();
+    let range = PitchRange::default();
+    let first = mpm_pitch(&tone(440.0), sr, range, &mut nsdf).unwrap();
+    let capacity = nsdf.capacity();
+    let second = mpm_pitch(&tone(660.0), sr, range, &mut nsdf).unwrap();
+    let again = mpm_pitch(&tone(440.0), sr, range, &mut nsdf).unwrap();
+    assert!((first - 440.0).abs() < 5.0);
+    assert!((second - 660.0).abs() < 5.0);
+    assert_eq!(again, first);
+    assert_eq!(nsdf.capacity(), capacity);
 }
 
 // Render the FFT magnitude spectrum of a sum of sine tones, the way

@@ -220,6 +220,7 @@ pub struct FftState {
     /// Reused lag and threshold-score buffers for YIN and pYIN.
     yin_cmnd: Vec<f32>,
     pyin_prob: Vec<f32>,
+    mpm_nsdf: Vec<f32>,
     /// The windowed chunk the transform runs over, kept between calls: it is
     /// one allocation per analysed chunk otherwise, and chunks arrive at
     /// twice the rate of the 4096-sample window thanks to the 50% overlap.
@@ -239,6 +240,7 @@ impl Default for FftState {
             nmf_scratch: NmfScratch::default(),
             yin_cmnd: Vec::new(),
             pyin_prob: Vec::new(),
+            mpm_nsdf: Vec::new(),
             windowed: Vec::new(),
             scratch: Vec::new(),
         }
@@ -334,7 +336,9 @@ pub fn analyze(
             &mut state.yin_cmnd,
             &mut state.pyin_prob,
         )),
-        PitchAlgorithm::Mcleod => mono_pitch(mpm_pitch(samples, sample_rate, range)),
+        PitchAlgorithm::Mcleod => {
+            mono_pitch(mpm_pitch(samples, sample_rate, range, &mut state.mpm_nsdf))
+        }
         PitchAlgorithm::Nmf => {
             let n_bins = magnitudes.len();
             let stale = match &state.nmf_dict {
@@ -615,7 +619,12 @@ const MPM_MIN_CLARITY: f32 = 0.6;
 
 /// Estimate f0 with MPM, or `None` if the block is too short or no key maximum
 /// lands a clear pitch within `range`.
-fn mpm_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32> {
+fn mpm_pitch(
+    samples: &[f32],
+    sample_rate: u32,
+    range: PitchRange,
+    nsdf: &mut Vec<f32>,
+) -> Option<f32> {
     let sr = sample_rate as f32;
     let tau_min = ((sr / range.max_freq).floor() as usize).max(2);
     let tau_max = (sr / range.min_freq).ceil() as usize;
@@ -625,7 +634,7 @@ fn mpm_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32
     }
 
     // Normalized square difference function over the τ range.
-    let mut nsdf = vec![0.0f32; tau_max + 1];
+    nsdf.resize(tau_max + 1, 0.0);
     for tau in 0..=tau_max {
         let mut acf = 0.0f32; // Σ x[j]·x[j+τ]
         let mut norm = 0.0f32; // Σ x[j]² + x[j+τ]²
@@ -641,16 +650,16 @@ fn mpm_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32
     // but only if the frame is periodic enough to be voiced at all. A second
     // short pass avoids allocating a candidate list for each audio chunk.
     let mut strongest = f32::MIN;
-    for tau in mpm_key_maxima(&nsdf, tau_min) {
+    for tau in mpm_key_maxima(nsdf, tau_min) {
         strongest = strongest.max(nsdf[tau]);
     }
     if strongest < MPM_MIN_CLARITY {
         return None;
     }
     let threshold = MPM_CLARITY * strongest;
-    let chosen = mpm_key_maxima(&nsdf, tau_min).find(|&tau| nsdf[tau] >= threshold)?;
+    let chosen = mpm_key_maxima(nsdf, tau_min).find(|&tau| nsdf[tau] >= threshold)?;
 
-    let refined = parabolic_vertex(&nsdf, chosen);
+    let refined = parabolic_vertex(nsdf, chosen);
     let f0 = sr / refined;
     (range.min_freq..=range.max_freq)
         .contains(&f0)
