@@ -20,5 +20,6 @@
 - [Module Boundaries and Dependency Rules](module-dependency-rules.md)
 - [Testing Strategy](testing-strategy.md)
 - [Profiling with Tracy](profiling.md)
+- [Criterion benchmarks](benchmarks.md)
 - [Driving a Running Game from Outside](remote-control.md)
 - [Glossary](glossary.md)
