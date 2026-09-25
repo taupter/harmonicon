@@ -332,6 +332,9 @@ bolt a currency onto playing music are the ones most likely to backfire.
 1. **A mastery meter per track, not XP.** 0–100% from tier progress and
    recent accuracy, and the per-node pip strip in §3 is its node-level
    form. Makes competence visible (SDT) without inventing a currency.
+   **Built from tier progress** (`lesson_tree::mastery`, one meter per
+   track with trainings, above the tree); recent accuracy joins once the
+   review queue records when each tier was last passed.
 2. **A spaced review queue — "Warm-up".** Record when each technique was
    last passed; surface two or three due for review at the top of the tree.
    This is the highest-value item on the list and it is a *feature*, not a

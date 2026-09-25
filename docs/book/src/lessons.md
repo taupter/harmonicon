@@ -22,7 +22,10 @@ is five drills on the same technique, each harder than the last —
 isolated and slow, then faster, then across every hole the lesson covers,
 then inside a phrase, then shuffled so you can't run it from memory. The
 bend lessons are the ones that have them; a lesson with no ring has no
-ladder. A passed lesson stays replayable any time, and your progress is
+ladder. Above the tree, each skill with ladders gets a **mastery meter**
+("Bending — 40%"): how many of its ladders' tiers you've cleared. It only
+grows when you pass a tier, never just for time spent, and a failed retry
+never takes anything away. A passed lesson stays replayable any time, and your progress is
 saved (`profile.json`) and survives restarting the game.
 
 Clicking a lesson — locked or not — opens its **reader page**: instructional

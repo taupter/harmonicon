@@ -44,6 +44,7 @@
 
 mod edges;
 mod layout;
+mod mastery;
 mod placement;
 mod transition;
 
@@ -69,7 +70,9 @@ use harmonicon_ui::dialogs::scroll_area::spawn_scroll_area_xy;
 pub(crate) use edges::LessonEdgeMaterialPlugin;
 pub(crate) use edges::set_edge_geometry;
 use edges::{Endpoint, LessonEdgeMaterial};
+use harmonicon_core::training::Tier;
 use layout::{NodeState, PlacedNode, PlacedUnit};
+use mastery::{spawn_track_meters, track_mastery};
 pub(crate) use placement::relayout_tree;
 use placement::{
     EdgeLayer, LessonTreeCanvas, PartKind, build_layout, laid_out_collapsed, spawn_edges,
@@ -366,6 +369,15 @@ pub(crate) fn setup_lesson_tree(
         flex_grow: 1.0,
         ..default()
     });
+
+    // Above the canvas rather than on it, so the meters stay in view
+    // however far the tree is scrolled.
+    spawn_track_meters(
+        &mut commands,
+        root,
+        &track_mastery(&lessons.0, &profile, Tier::ALL.len()),
+        &loc,
+    );
 
     let mut scroller = Entity::PLACEHOLDER;
     commands.entity(root).with_children(|parent| {

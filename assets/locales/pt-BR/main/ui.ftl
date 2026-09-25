@@ -1230,6 +1230,8 @@ lesson-tree-title = Árvore de Habilidades
 lesson-tree-find-next = Encontrar próxima lição
 lesson-tree-broken = Este currículo não pode ser desenhado: {$error}
 lesson-tree-unit-progress = {$done}/{$needed}
+# O medidor de domínio de uma trilha acima da árvore: quanto das escadas de treino foi concluído.
+lesson-tree-track-mastery = {$track} — {$percent}%
 lesson-tree-needs = Precisa de: {$lessons}
 lesson-tree-optional = Eletiva
 lesson-track-tone = Tom
