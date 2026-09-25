@@ -3,8 +3,8 @@
 //! Offline pitch-detection benchmark: replays every "debug recording"
 //! (`song_editor::debug_record`, the Song Editor's dev-only "Debug
 //! Recording" checkbox) under `assets/debug_songs/<song>/` through each of
-//! the five selectable algorithms and prints a per-algorithm hit/miss/
-//! phantom summary plus the most common confusion pairs. Compares against
+//! the five selectable algorithms and prints per-algorithm hit/miss/phantom
+//! counts, analysis time per chunk, and common confusion pairs. Compares against
 //! `expected.harpchart` — hand-annotated ground truth, placed via the Song
 //! Editor's "Draw correct notes" mode (`song_editor::expected_notes`), not
 //! `recorded.harpchart` (whatever the live detector produced when the take
@@ -136,14 +136,17 @@ fn run_one(song_dir: &Path, chart_path: &Path, wav_path: &Path, tolerance_secs: 
         .unwrap_or_default();
 
     for &algorithm in PitchAlgorithm::all() {
+        let started = std::time::Instant::now();
         let frames = run_algorithm(&samples, sample_rate, algorithm, range);
+        let micros_per_chunk = started.elapsed().as_secs_f64() * 1e6 / frames.len().max(1) as f64;
         let report = compare(&expected, &frames, tolerance_secs);
         println!(
-            "  {:>5}: hit {:>5}  miss {:>5}  phantom {:>5}",
+            "  {:>5}: hit {:>5}  miss {:>5}  phantom {:>5}  {:>7.1} µs/chunk",
             algorithm.label(),
             report.true_positive,
             report.false_negative,
             report.false_positive,
+            micros_per_chunk,
         );
         for (want, got, count) in report.confusion.iter().filter(|(w, d, _)| w != d).take(5) {
             println!("        {count:>4}x  played {want:?} -> detected {got:?}");
