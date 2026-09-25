@@ -53,6 +53,7 @@ rand = "0.10"
 pulldown-cmark = { version = "0.12", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
 jsonschema = { version = "0.49", default-features = false }
+criterion = { version = "0.8.2", features = ["html_reports"]}
 
 # Shared by every member, so binaries and integration tests are held to the
 # same set as each library.

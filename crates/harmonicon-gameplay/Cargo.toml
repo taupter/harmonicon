@@ -17,6 +17,13 @@ rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "note_tails"
+harness = false
+
 [features]
 dev = ["bevy/dev", "bevy/debug", "harmonicon-ui/dev", "harmonicon-song/dev"]
 dynamic_linking = ["bevy/dynamic_linking", "harmonicon-ui/dynamic_linking", "harmonicon-song/dynamic_linking"]
