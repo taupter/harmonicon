@@ -21,7 +21,8 @@ impl Plugin for LessonsUiPlugin {
             .init_resource::<lesson_tree::CollapsedUnits>()
             .init_resource::<lesson_tree::UnitExpansions>()
             .init_resource::<lesson_tree::PendingCompaction>()
-            .init_resource::<lesson_tree::PendingViewportAnchor>()
+            .init_resource::<lesson_tree::RelayoutRequest>()
+            .init_resource::<lesson_tree::CanvasSize>()
             .init_resource::<lesson_tree::PreviousUnitPositions>()
             .init_resource::<lesson_tree::UnitSlides>()
             .init_resource::<lesson_tree::LessonTreeViewport>()
@@ -35,9 +36,11 @@ impl Plugin for LessonsUiPlugin {
                 Update,
                 (
                     lesson_tree::rebuild_on_lessons_rescanned,
+                    // First, so a cluster a relayout opens is already
+                    // scaled to zero by the expansion pass on the same frame.
+                    lesson_tree::relayout_tree,
                     lesson_tree::animate_unit_expansion,
                     lesson_tree::compact_finished_units,
-                    lesson_tree::restore_viewport_anchor,
                     lesson_tree::focus_pending_lesson,
                     lesson_tree::animate_unit_slides,
                     lesson_tree::remember_viewport,

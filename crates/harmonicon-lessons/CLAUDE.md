@@ -14,5 +14,13 @@ collapse inputs, and edge ports should be testable without spawning Bevy UI.
 `lesson_tree/mod.rs` converts that output into entities and owns interaction and
 animation. `lesson_reader.rs` owns lesson launch configuration and reader UI.
 
+**A unit toggle repositions the tree, it never rebuilds the page.** The layout
+keeps a collapsed unit's lessons, so a toggle changes positions only. Every
+unit and lesson part carries a `placement::TreePart` and is placed by
+`PartKind::top_left`; `placement::relayout_tree` moves them on a
+`RelayoutRequest`. A new part must be tagged and given a `PartKind`, or it
+stays behind when its unit moves. Only edges are recreated, inside the
+`EdgeLayer` so they stay beneath the nodes.
+
 Update `docs/lesson_tree_layout_plan.md` as its phases land, pruning completed
 steps rather than keeping an implementation diary.

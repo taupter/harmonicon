@@ -10,7 +10,6 @@ use bevy::prelude::*;
 use bevy::ui::{ComputedNode, InteractionDisabled, ScrollPosition, UiTransform, Val2};
 use bevy::ui_widgets::Button as WidgetButton;
 
-use harmonicon_menu::menu::MenuPage;
 use harmonicon_platform::settings::ReducedMotion;
 
 use super::{
@@ -39,22 +38,30 @@ pub(crate) struct UnitExpansions(pub(super) HashMap<String, f32>);
 #[derive(Resource, Default)]
 pub(crate) struct PendingCompaction(pub(super) HashSet<String>);
 
-/// Keeps a toggled unit at the same screen position across the rebuild its
-/// toggle causes. `canvas_x` is filled in by the rebuild, and cleared once
-/// [`restore_viewport_anchor`] has scrolled to it.
+/// A request to lay the tree out again in place (`relayout_tree`): set by
+/// expanding a unit, by a collapse once its close animation has finished
+/// ([`compact_finished_units`]), and by the header locator.
+///
+/// `anchor_unit` is the unit that keeps its screen position while
+/// everything else makes room around it. A collapse records it at the
+/// click, before the relayout is `pending`.
 #[derive(Resource, Default)]
-pub(crate) struct PendingViewportAnchor {
-    pub(super) unit_id: Option<String>,
-    pub(super) screen_x: f32,
-    pub(super) canvas_x: Option<f32>,
-    /// The horizontal scroll the rebuild started from. Slides are set up in
-    /// canvas coordinates against it, so moving the scroll has to move them
-    /// by the same amount (see [`shift_slides`]).
-    pub(super) scroll_x_before: f32,
+pub(crate) struct RelayoutRequest {
+    pub(super) pending: bool,
+    pub(super) anchor_unit: Option<String>,
 }
 
+/// Each unit's canvas x in the layout currently on screen, which a relayout
+/// slides every unit away from.
 #[derive(Resource, Default)]
 pub(crate) struct PreviousUnitPositions(pub(super) HashMap<String, f32>);
+
+/// The canvas's own size in logical pixels, as the current layout set it.
+///
+/// Read instead of the scroll area's measured content size, which lags a
+/// frame behind a relayout: layout only runs after the frame's systems.
+#[derive(Resource, Default)]
+pub(crate) struct CanvasSize(pub(super) Vec2);
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct UnitSlide {
@@ -84,6 +91,7 @@ pub(crate) struct PendingLessonFocus {
 
 pub(crate) fn focus_pending_lesson(
     mut pending: ResMut<PendingLessonFocus>,
+    canvas: Res<CanvasSize>,
     mut scroller: Query<(&mut ScrollPosition, &ComputedNode), With<LessonTreeScroller>>,
 ) {
     let Some(target) = pending.canvas_position else {
@@ -92,14 +100,12 @@ pub(crate) fn focus_pending_lesson(
     let Some((mut position, computed)) = scroller.iter_mut().next() else {
         return;
     };
-    let scale = computed.inverse_scale_factor;
-    let viewport = computed.size() * scale;
-    let content = computed.content_size() * scale;
-    if viewport.min_element() <= 0.0 || content.min_element() <= 0.0 {
+    let viewport = computed.size() * computed.inverse_scale_factor;
+    if viewport.min_element() <= 0.0 || canvas.0.min_element() <= 0.0 {
         return;
     }
 
-    position.0 = centred_scroll(target, viewport, content);
+    position.0 = centred_scroll(target, viewport, canvas.0);
     pending.lesson_id = None;
     pending.canvas_position = None;
 }
@@ -120,64 +126,61 @@ pub(crate) fn remember_viewport(
     }
 }
 
-pub(crate) fn restore_viewport_anchor(
-    mut anchor: ResMut<PendingViewportAnchor>,
-    mut slides: ResMut<UnitSlides>,
-    units: Res<PreviousUnitPositions>,
-    mut scroller: Query<(&mut ScrollPosition, &ComputedNode), With<LessonTreeScroller>>,
-) {
-    let Some(canvas_x) = anchor.canvas_x else {
-        return;
-    };
-    let Some((mut position, computed)) = scroller.iter_mut().next() else {
-        return;
-    };
-    if computed.size().x <= 0.0 || computed.content_size().x <= 0.0 {
-        return;
-    }
-
-    position.x = anchored_scroll(
-        canvas_x,
-        anchor.screen_x,
-        computed.size().x,
-        computed.content_size().x,
-    );
-    shift_slides(
-        &mut slides.0,
-        units.0.keys(),
-        position.x - anchor.scroll_x_before,
-    );
-    anchor.unit_id = None;
-    anchor.canvas_x = None;
-}
-
-/// Moves every unit's slide by `scroll_shift`, the distance the viewport
-/// just scrolled, so the scroll change itself moves nothing on screen and
-/// each unit glides from where it was drawn.
+/// The slides that carry every unit from where it is drawn now to its new
+/// layout position, in screen space: each unit starts exactly where it was
+/// on screen, whatever the relayout did to both its canvas x and the scroll.
 ///
-/// A rebuild sets slides up in canvas coordinates, which is only right
-/// while the scroll is unchanged. A unit whose canvas position did not
-/// change has no slide at all, yet the anchor's scroll still moves it on
-/// screen, so it gets one here. The anchored unit's own shift cancels its
-/// canvas move, and a slide that ends up negligible is dropped.
-pub(super) fn shift_slides<'a>(
-    slides: &mut HashMap<String, UnitSlide>,
-    units: impl IntoIterator<Item = &'a String>,
-    scroll_shift: f32,
-) {
-    if scroll_shift == 0.0 {
-        return;
-    }
-    for id in units {
-        let slide = slides.entry(id.clone()).or_insert(UnitSlide {
-            from_px: 0.0,
-            amount: 0.0,
-        });
-        slide.from_px += scroll_shift;
-    }
-    slides.retain(|_, slide| slide.from_px.abs() > 0.5);
+/// A unit still mid-slide starts from its current drawn offset, so a rapid
+/// second toggle continues from where the first left things. A unit that
+/// would not move on screen gets no slide.
+pub(super) fn screen_space_slides(
+    old: &HashMap<String, f32>,
+    old_slides: &HashMap<String, UnitSlide>,
+    old_scroll: f32,
+    new: &HashMap<String, f32>,
+    new_scroll: f32,
+) -> HashMap<String, UnitSlide> {
+    new.iter()
+        .filter_map(|(id, &new_x)| {
+            let old_x = *old.get(id)?;
+            let drawn = old_x + old_slides.get(id).map_or(0.0, slide_offset) - old_scroll;
+            let from_px = drawn - (new_x - new_scroll);
+            (from_px.abs() > 0.5).then(|| {
+                (
+                    id.clone(),
+                    UnitSlide {
+                        from_px,
+                        amount: 0.0,
+                    },
+                )
+            })
+        })
+        .collect()
 }
 
+/// The horizontal scroll after a relayout: the one that keeps `anchor` where
+/// it is drawn now, or failing an anchor, the current scroll clamped to the
+/// new content width. `viewport_width` and `content_width` are logical
+/// pixels, like the scroll itself.
+pub(super) fn relayout_scroll(
+    anchor: Option<&str>,
+    old: &HashMap<String, f32>,
+    old_slides: &HashMap<String, UnitSlide>,
+    old_scroll: f32,
+    new: &HashMap<String, f32>,
+    viewport_width: f32,
+    content_width: f32,
+) -> f32 {
+    let placed = anchor.and_then(|id| Some((id, *old.get(id)?, *new.get(id)?)));
+    let Some((id, old_x, new_x)) = placed else {
+        return old_scroll.clamp(0.0, (content_width - viewport_width).max(0.0));
+    };
+    let drawn = old_x + old_slides.get(id).map_or(0.0, slide_offset) - old_scroll;
+    anchored_scroll(new_x, drawn, viewport_width, content_width)
+}
+
+/// The scroll that keeps a unit at `screen_x` once it sits at `canvas_x`,
+/// clamped to what the content can scroll.
 pub(super) fn anchored_scroll(
     canvas_x: f32,
     screen_x: f32,
@@ -281,23 +284,17 @@ pub(super) fn slide_offset(slide: &UnitSlide) -> f32 {
 pub(crate) fn animate_unit_slides(
     time: Res<Time>,
     reduced_motion: Res<ReducedMotion>,
-    anchor: Res<PendingViewportAnchor>,
     mut slides: ResMut<UnitSlides>,
     mut owned: Query<(&LayoutOwner, &mut UiTransform), Without<MovingEdge>>,
     mut edges: Query<(&MovingEdge, &mut Node)>,
 ) {
-    if slides.0.is_empty() {
+    // A relayout replaces the slides, possibly with none — a unit left
+    // mid-slide may already be where the new layout wants it. One pass on
+    // that frame still resets every offset and places fresh edges.
+    if slides.0.is_empty() && !slides.is_changed() {
         return;
     }
-    // Hold every slide at its start until the anchor's scroll is applied:
-    // `restore_viewport_anchor` re-bases them onto the new scroll, which is
-    // only seamless while none has advanced. The offsets are still drawn,
-    // so the rebuilt tree sits exactly where the old one was meanwhile.
-    let step = if anchor.canvas_x.is_some() {
-        0.0
-    } else {
-        transition_step(time.delta_secs(), reduced_motion.0)
-    };
+    let step = transition_step(time.delta_secs(), reduced_motion.0);
     for slide in slides.0.values_mut() {
         slide.amount = (slide.amount + step).min(1.0);
     }
@@ -322,10 +319,12 @@ pub(crate) fn animate_unit_slides(
     slides.0.retain(|_, slide| slide.amount < 1.0);
 }
 
+/// Once every closing unit has finished its close animation, lays the tree
+/// out again so the collapsed clusters give their columns back.
 pub(crate) fn compact_finished_units(
     expansions: Res<UnitExpansions>,
     mut pending: ResMut<PendingCompaction>,
-    mut page: ResMut<NextState<MenuPage>>,
+    mut relayout: ResMut<RelayoutRequest>,
 ) {
     if pending.0.is_empty() {
         return;
@@ -336,7 +335,7 @@ pub(crate) fn compact_finished_units(
         .all(|id| expansions.0.get(id).is_none_or(|amount| *amount <= 0.0));
     if all_closed {
         pending.0.clear();
-        page.set(MenuPage::LessonTree);
+        relayout.pending = true;
     }
 }
 
@@ -361,7 +360,6 @@ mod motion_tests {
     fn one_frame(reduced_motion: bool) -> App {
         let mut app = App::new();
         app.init_resource::<Time>()
-            .init_resource::<PendingViewportAnchor>()
             .insert_resource(ReducedMotion(reduced_motion))
             .insert_resource(CollapsedUnits(HashSet::from(["closing".to_string()])))
             .insert_resource(UnitExpansions(HashMap::from([(
@@ -391,29 +389,28 @@ mod motion_tests {
     }
 
     #[test]
-    fn slides_wait_for_the_anchor_scroll_before_advancing() {
-        // Reduced Motion would finish a slide in one frame, so it makes the
-        // hold visible: with the anchor still pending, nothing advances.
+    fn an_emptied_slide_set_still_clears_stale_offsets() {
+        // A relayout can leave a unit exactly where it was drawn mid-slide,
+        // so it gets no new slide; its old offset must not linger.
         let mut app = App::new();
         app.init_resource::<Time>()
-            .insert_resource(ReducedMotion(true))
-            .insert_resource(PendingViewportAnchor {
-                unit_id: Some("toggled".to_string()),
-                canvas_x: Some(600.0),
-                ..default()
-            })
-            .insert_resource(UnitSlides(HashMap::from([(
-                "sliding".to_string(),
-                UnitSlide {
-                    from_px: 120.0,
-                    amount: 0.0,
-                },
-            )])))
+            .insert_resource(ReducedMotion(false))
+            .init_resource::<UnitSlides>()
             .add_systems(Update, animate_unit_slides);
+        let node = app
+            .world_mut()
+            .spawn((
+                LayoutOwner("unit".to_string()),
+                UiTransform {
+                    translation: Val2::px(50.0, 0.0),
+                    ..default()
+                },
+            ))
+            .id();
         app.update();
         assert_eq!(
-            app.world().resource::<UnitSlides>().0["sliding"].amount,
-            0.0
+            app.world().get::<UiTransform>(node).unwrap().translation,
+            Val2::px(0.0, 0.0)
         );
     }
 
@@ -423,46 +420,71 @@ mod motion_tests {
         canvas_x + slide.map_or(0.0, slide_offset) - scroll
     }
 
+    fn positions(units: &[(&str, f32)]) -> HashMap<String, f32> {
+        units.iter().map(|(id, x)| (id.to_string(), *x)).collect()
+    }
+
     #[test]
-    fn re_basing_slides_onto_the_new_scroll_moves_nothing_on_screen() {
+    fn a_relayout_starts_every_unit_where_it_was_drawn() {
         // Expanding `toggled` widens its cluster: it moves 100 px right in
-        // canvas coordinates, `right` 200 px, and `left` not at all. The
-        // anchor then scrolls 100 px so `toggled` keeps its screen spot.
-        let old = [("left", 200.0), ("toggled", 500.0), ("right", 900.0)];
-        let new = [("left", 200.0), ("toggled", 600.0), ("right", 1_100.0)];
+        // canvas coordinates, `right` 200 px, and `left` not at all, and the
+        // anchor scrolls 100 px so `toggled` keeps its screen spot.
+        let old = positions(&[("left", 200.0), ("toggled", 500.0), ("right", 900.0)]);
+        let new = positions(&[("left", 200.0), ("toggled", 600.0), ("right", 1_100.0)]);
         let (old_scroll, new_scroll) = (300.0, 400.0);
 
-        let mut slides: HashMap<String, UnitSlide> = old
-            .iter()
-            .zip(&new)
-            .filter(|((_, from), (_, to))| from != to)
-            .map(|((id, from), (_, to))| {
-                (
-                    id.to_string(),
-                    UnitSlide {
-                        from_px: from - to,
-                        amount: 0.0,
-                    },
-                )
-            })
-            .collect();
-        let ids: Vec<String> = new.iter().map(|(id, _)| id.to_string()).collect();
-        shift_slides(&mut slides, &ids, new_scroll - old_scroll);
+        let slides = screen_space_slides(&old, &HashMap::new(), old_scroll, &new, new_scroll);
 
-        for ((id, before), (_, after)) in old.iter().zip(&new) {
+        for (id, &after) in &new {
             assert_eq!(
-                screen_x(*after, slides.get(*id), new_scroll),
-                screen_x(*before, None, old_scroll),
+                screen_x(after, slides.get(id), new_scroll),
+                screen_x(old[id], None, old_scroll),
                 "{id} must start its slide where it was drawn"
             );
         }
-        assert!(
-            !slides.contains_key("toggled"),
-            "the anchored unit does not move at all"
-        );
+        assert!(!slides.contains_key("toggled"), "the anchor does not move");
         assert!(
             slides.contains_key("left"),
-            "an unmoved unit still needs a slide to absorb the scroll"
+            "a unit whose canvas x is unchanged still moves on screen"
+        );
+    }
+
+    #[test]
+    fn the_anchor_keeps_its_screen_spot_and_the_rest_clamps() {
+        let old = positions(&[("toggled", 500.0)]);
+        let new = positions(&[("toggled", 600.0)]);
+        let none = HashMap::new();
+        // Drawn at 200 on screen before; scroll 400 keeps it there.
+        assert_eq!(
+            relayout_scroll(Some("toggled"), &old, &none, 300.0, &new, 800.0, 2_000.0),
+            400.0,
+        );
+        // No anchor: the scroll stays put, within the narrower content.
+        assert_eq!(
+            relayout_scroll(None, &old, &none, 900.0, &new, 800.0, 1_200.0),
+            400.0,
+        );
+    }
+
+    #[test]
+    fn a_relayout_mid_slide_continues_from_the_drawn_position() {
+        // A second toggle lands while `unit` is halfway through sliding in
+        // from 200 px to the right: it must start from there, not snap.
+        let old = positions(&[("unit", 500.0)]);
+        let halfway = HashMap::from([(
+            "unit".to_string(),
+            UnitSlide {
+                from_px: 200.0,
+                amount: 0.5,
+            },
+        )]);
+        let new = positions(&[("unit", 700.0)]);
+
+        let slides = screen_space_slides(&old, &halfway, 0.0, &new, 0.0);
+
+        assert_eq!(
+            screen_x(700.0, slides.get("unit"), 0.0),
+            screen_x(500.0, halfway.get("unit"), 0.0),
         );
     }
 

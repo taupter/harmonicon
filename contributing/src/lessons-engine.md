@@ -334,20 +334,38 @@ diagonal shares one material handle instead of one per edge.
 
 `transition.rs` owns everything that moves. Units collapse and expand
 (`CollapsedUnits`, `UnitExpansions`), finished units compact themselves
-(`PendingCompaction`), neighbouring units slide to take up the freed
-space (`UnitSlides`, `PreviousUnitPositions`), and the scroll position is
-preserved across all of it (`PendingViewportAnchor`, `LessonTreeViewport`)
-so returning from a lesson lands you where you left rather than back at
-Unit 1. `PendingLessonFocus` is the other half of that: it scrolls a
-specific lesson into view, which is what makes "take me to the next
-thing I can do" land somewhere useful on a tree far wider than the
-window.
+(`PendingCompaction`), and neighbouring units slide to take up the freed
+space (`UnitSlides`, `PreviousUnitPositions`). `LessonTreeViewport` keeps
+the scroll position while the reader has the screen, so returning from a
+lesson lands you where you left rather than back at Unit 1.
+`PendingLessonFocus` scrolls a specific lesson into view, which is what
+makes "take me to the next thing I can do" land somewhere useful on a
+tree far wider than the window.
+
+**A toggle repositions the tree; it never rebuilds the page.** The layout
+keeps a collapsed unit's lessons (stacked on the unit's spot), so a
+toggle changes where things sit, not which things exist. Every unit and
+lesson part is spawned once, tagged with a `placement::TreePart`, and
+placed by `PartKind::top_left` — the one definition of where each part
+goes. A toggle raises a `RelayoutRequest`, and `placement::relayout_tree`
+lays the tree out again and moves the tagged entities. Only the edges are
+recreated, in an `EdgeLayer` that sits beneath every node, since a
+collapsed cluster has no edges at all. Keeping the page alive is what
+keeps the scroll area, its scrollbars and keyboard focus steady; a
+rebuild blinked the scrollbars and had to re-anchor the scroll a frame
+late, which made units jump sideways.
+
+The same system settles the scroll and the slides together, in screen
+space: the toggled unit keeps its screen position (`relayout_scroll`),
+and every other unit starts its slide exactly where it is drawn
+(`screen_space_slides`), including one caught mid-slide by a rapid second
+toggle. A full rebuild still happens on entering the page and when a
+lesson rescan changes the graph itself.
 
 These systems are `.chain()`ed in `LessonsUiPlugin` and run only under
-`MenuPage::LessonTree`. The order matters — an animation frame that
-compacted before it restored the anchor would restore the wrong
-position — which is why they're a chain rather than seven independent
-systems.
+`MenuPage::LessonTree`. The order matters: `relayout_tree` runs first, so
+a cluster it opens is scaled to zero by the expansion pass on the same
+frame instead of flashing at full size.
 
 Panning is not tree-specific: `dialogs::scroll_area`'s `drag_to_pan`
 gives *every* scroll area in the game drag panning, because touch has no

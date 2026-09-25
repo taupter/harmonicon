@@ -44,6 +44,7 @@
 
 mod edges;
 mod layout;
+mod placement;
 mod transition;
 
 use accesskit::{Node as AccessibilityKitNode, Role};
@@ -56,9 +57,7 @@ use bevy::ui_widgets::{Activate, Button as WidgetButton};
 use harmonicon_app::profile::PlayerProfile;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::LoadedTheme;
-use harmonicon_song::lessons::graph::LessonGraph;
-use harmonicon_song::lessons::units::UnitChain;
-use harmonicon_song::lessons::{AvailableLessons, LessonManifest, LessonsRescanned};
+use harmonicon_song::lessons::{AvailableLessons, LessonsRescanned};
 use harmonicon_ui::dialogs::tooltip::Tooltip;
 
 use crate::lesson_reader::SelectedLesson;
@@ -69,11 +68,16 @@ use harmonicon_ui::dialogs::scroll_area::spawn_scroll_area_xy;
 
 pub(crate) use edges::LessonEdgeMaterialPlugin;
 pub(crate) use edges::set_edge_geometry;
-use edges::{EdgeStyle, Endpoint, LessonEdgeMaterial, spawn_edge};
-use layout::{EdgeKind, NodeState, PlacedNode, PlacedUnit, layout_with_collapsed};
+use edges::{Endpoint, LessonEdgeMaterial};
+use layout::{NodeState, PlacedNode, PlacedUnit};
+pub(crate) use placement::relayout_tree;
+use placement::{
+    EdgeLayer, LessonTreeCanvas, PartKind, build_layout, laid_out_collapsed, spawn_edges,
+    tree_canvas_size, unit_positions,
+};
 pub(crate) use transition::*;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Node diameter.
 const NODE_PX: f32 = 64.0;
@@ -238,10 +242,11 @@ pub(crate) fn setup_lesson_tree(
     mut collapsed: ResMut<CollapsedUnits>,
     mut expansions: ResMut<UnitExpansions>,
     mut pending: ResMut<PendingCompaction>,
-    mut anchor: ResMut<PendingViewportAnchor>,
+    mut request: ResMut<RelayoutRequest>,
     mut previous_positions: ResMut<PreviousUnitPositions>,
     mut slides: ResMut<UnitSlides>,
     mut lesson_focus: ResMut<PendingLessonFocus>,
+    mut canvas_size: ResMut<CanvasSize>,
     theme: Res<LoadedTheme>,
     loc: Res<Localization>,
     asset_server: Res<AssetServer>,
@@ -260,18 +265,22 @@ pub(crate) fn setup_lesson_tree(
         "LessonTree",
     );
 
-    let manifests: Vec<&LessonManifest> = lessons.0.iter().map(|e| &e.manifest).collect();
-    let chain = UnitChain::build(&manifests);
-    let tree = match LessonGraph::build(&manifests) {
-        Ok(graph) => layout_with_collapsed(&lessons.0, &graph, &chain, &profile, &collapsed.0),
+    // A fresh build already reflects every toggle made so far.
+    request.pending = false;
+    let tree = match build_layout(
+        &lessons,
+        &profile,
+        &laid_out_collapsed(&collapsed, &pending),
+    ) {
+        Ok(tree) => tree,
         // A cycle or a dangling prerequisite. `tests/asset_layout.rs` fails
         // the build over either, so this only fires for a lesson dropped
         // into `~/Harmonicon/lessons` — say so rather than draw nothing.
-        Err(e) => {
+        Err(error) => {
             let line = commands
                 .spawn((
                     Text::new(String::from(
-                        loc.msg_args("lesson-tree-broken", &[("error", e.to_string())]),
+                        loc.msg_args("lesson-tree-broken", &[("error", error)]),
                     )),
                     TextFont {
                         font_size: FontSize::Px(16.0),
@@ -308,50 +317,26 @@ pub(crate) fn setup_lesson_tree(
         .retain(|id, _| live_units.contains(id.as_str()));
     pending.0.retain(|id| live_units.contains(id.as_str()));
     slides.0.retain(|id, _| live_units.contains(id.as_str()));
-    if anchor
-        .unit_id
+    if request
+        .anchor_unit
         .as_deref()
         .is_some_and(|id| !live_units.contains(id))
     {
-        *anchor = PendingViewportAnchor::default();
+        request.anchor_unit = None;
     }
 
-    if let Some(unit_id) = anchor.unit_id.as_deref() {
-        anchor.canvas_x = tree
-            .units
-            .iter()
-            .find(|unit| unit.id == unit_id)
-            .map(|unit| node_centre(unit.column, unit.row).x);
-        anchor.scroll_x_before = viewport.0.x;
-    }
-
-    // In canvas coordinates, so correct only until the anchor scrolls;
-    // `restore_viewport_anchor` then re-bases every slide onto the new
-    // scroll, the anchored unit's included.
-    let current_positions: HashMap<String, f32> = tree
-        .units
-        .iter()
-        .map(|unit| (unit.id.clone(), node_centre(unit.column, unit.row).x))
-        .collect();
-    let mut next_slides = HashMap::new();
-    for (id, &new_x) in &current_positions {
-        let Some(&old_x) = previous_positions.0.get(id) else {
-            continue;
-        };
-        let old_offset = slides.0.get(id).map_or(0.0, slide_offset);
-        let from_px = old_x + old_offset - new_x;
-        if from_px.abs() > 0.5 {
-            next_slides.insert(
-                id.clone(),
-                UnitSlide {
-                    from_px,
-                    amount: 0.0,
-                },
-            );
-        }
-    }
+    // A rebuild keeps the scroll, so units a rescan moved slide from where
+    // they were; returning from the reader moves nothing.
+    let current_positions = unit_positions(&tree);
+    slides.0 = screen_space_slides(
+        &previous_positions.0,
+        &slides.0,
+        viewport.0.x,
+        &current_positions,
+        viewport.0.x,
+    );
     previous_positions.0 = current_positions;
-    slides.0 = next_slides;
+    canvas_size.0 = tree_canvas_size(&tree);
 
     let placeholder: Handle<Image> = asset_server.load("icons/lesson_placeholder.png");
 
@@ -391,80 +376,44 @@ pub(crate) fn setup_lesson_tree(
         .insert((LessonTreeScroller, ScrollPosition(viewport.0)));
 
     let canvas = commands
-        .spawn(Node {
-            position_type: PositionType::Relative,
-            width: Val::Px(MARGIN_PX * 2.0 + tree.columns() * COL_PX),
-            height: Val::Px(MARGIN_PX * 2.0 + SPINE_LABEL_PX + tree.rows() * ROW_PX),
-            // Every node is positioned absolutely inside this box, so it
-            // has to keep the height it asks for. Left to shrink — the
-            // flexbox default inside the scroll column — the box collapses
-            // to the viewport while its children keep their pixel offsets,
-            // and the scroll extent is computed from the collapsed box: the
-            // tree spills past both ends and neither can be scrolled to.
-            flex_shrink: 0.0,
-            ..default()
-        })
+        .spawn((
+            Node {
+                position_type: PositionType::Relative,
+                width: Val::Px(canvas_size.0.x),
+                height: Val::Px(canvas_size.0.y),
+                // Every node is positioned absolutely inside this box, so it
+                // has to keep the height it asks for. Left to shrink — the
+                // flexbox default inside the scroll column — the box
+                // collapses to the viewport while its children keep their
+                // pixel offsets, and the scroll extent is computed from the
+                // collapsed box: the tree spills past both ends and neither
+                // can be scrolled to.
+                flex_shrink: 0.0,
+                ..default()
+            },
+            LessonTreeCanvas,
+        ))
         .id();
     commands.entity(scroller).add_child(canvas);
 
-    // Edges first, so node art always sits on top of its connectors.
-    let mut edge_materials = Vec::new();
-    commands.entity(canvas).with_children(|parent| {
-        for edge in &tree.edges {
-            // `EdgeKind` names which sort of node sits at each end, which is
-            // what decides where the line has to stop — a unit's ring is
-            // `UNIT_PX` across, a lesson's `NODE_PX`.
-            let (from_radius, to_radius, thickness, color) = match edge.kind {
-                EdgeKind::Spine => (UNIT_PX / 2.0, UNIT_PX / 2.0, UNIT_EDGE_PX, SPINE_COLOR),
-                EdgeKind::UnitBranch => (UNIT_PX / 2.0, NODE_PX / 2.0, EDGE_PX, EDGE_COLOR),
-                EdgeKind::Branch => (NODE_PX / 2.0, NODE_PX / 2.0, EDGE_PX, EDGE_COLOR),
-            };
-            // An elective branch is dotted and takes the badge's own
-            // colour, so the line peeling off and the node it arrives at
-            // say the same thing. Hue rather than dimming: dim already
-            // means locked, and an elective is perfectly playable.
-            let style = EdgeStyle {
-                thickness,
-                color: if edge.optional {
-                    OPTIONAL_COLOR.with_alpha(EDGE_COLOR.alpha())
-                } else {
-                    color
-                },
-                dotted: edge.optional,
-            };
-            let owners = match edge.kind {
-                EdgeKind::Spine => tree
-                    .units
-                    .iter()
-                    .find(|unit| (unit.column, unit.row) == edge.from)
-                    .zip(
-                        tree.units
-                            .iter()
-                            .find(|unit| (unit.column, unit.row) == edge.to),
-                    )
-                    .map(|(from, to)| (from.id.as_str(), to.id.as_str())),
-                EdgeKind::UnitBranch | EdgeKind::Branch => {
-                    edge.unit_id.as_deref().map(|unit| (unit, unit))
-                }
-            };
-            spawn_edge(
-                parent,
-                Endpoint {
-                    centre: node_centre(edge.from.0, edge.from.1),
-                    radius: from_radius,
-                },
-                Endpoint {
-                    centre: node_centre(edge.to.0, edge.to.1),
-                    radius: to_radius,
-                },
-                style,
-                edge.unit_id.as_deref(),
-                owners,
-                &mut materials,
-                &mut edge_materials,
-            );
-        }
-    });
+    // The edge layer is the canvas's first child, so node art always sits
+    // on top of its connectors, including edges a relayout recreates.
+    let edge_layer = commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            Pickable::IGNORE,
+            EdgeLayer,
+        ))
+        .id();
+    commands.entity(canvas).add_child(edge_layer);
+    spawn_edges(&mut commands, edge_layer, &tree, &mut materials);
 
     for unit in &tree.units {
         spawn_unit(
@@ -482,22 +431,22 @@ pub(crate) fn setup_lesson_tree(
     if let Some(next) = next_available_lesson(&tree.nodes) {
         let lesson_id = next.id.clone();
         let unit_id = next.unit_id.clone();
-        let centre = node_centre(next.column, next.row);
         let locator = commands
             .spawn_scene(button::icon(
                 "⌖",
                 move |_: On<Activate>,
                       mut collapsed: ResMut<CollapsedUnits>,
+                      mut compacting: ResMut<PendingCompaction>,
                       mut focus: ResMut<PendingLessonFocus>,
-                      mut page: ResMut<NextState<MenuPage>>| {
+                      mut relayout: ResMut<RelayoutRequest>| {
+                    // Positions move with every toggle, so the relayout
+                    // looks the lesson up in the layout it produces rather
+                    // than trusting one captured when this page was built.
                     focus.lesson_id = Some(lesson_id.clone());
-                    focus.canvas_position = Some(centre);
-                    if collapsed.0.remove(&unit_id) {
-                        // Rebuild first because expansion changes this lesson's
-                        // canvas position when compacted units make room again.
-                        focus.canvas_position = None;
-                        page.set(MenuPage::LessonTree);
-                    }
+                    focus.canvas_position = None;
+                    collapsed.0.remove(&unit_id);
+                    compacting.0.remove(&unit_id);
+                    relayout.pending = true;
                 },
             ))
             .insert(Tooltip(String::from(loc.msg("lesson-tree-find-next"))))
@@ -564,13 +513,14 @@ fn spawn_unit(
     accessibility.set_label(String::from(loc.msg(&unit.title_key)));
     accessibility.set_expanded(expanded);
 
+    let button_at = PartKind::UnitButton.top_left(centre);
     // not-a-widget-button: a unit is a label and a gate, not an action.
     let node = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(centre.x - UNIT_PX / 2.0),
-                top: Val::Px(centre.y - UNIT_PX / 2.0),
+                left: Val::Px(button_at.x),
+                top: Val::Px(button_at.y),
                 width: Val::Px(UNIT_PX),
                 height: Val::Px(UNIT_PX),
                 border: UiRect::all(Val::Px(5.0)),
@@ -586,24 +536,22 @@ fn spawn_unit(
             AccessibilityNode(accessibility),
             UnitButton(unit.id.clone()),
             LayoutOwner(unit.id.clone()),
+            PartKind::UnitButton.part(&unit.id),
         ))
         .observe(
             move |_: On<Activate>,
                   mut collapsed: ResMut<CollapsedUnits>,
                   mut pending: ResMut<PendingCompaction>,
-                  mut anchor: ResMut<PendingViewportAnchor>,
-                  scroller: Query<&ScrollPosition, With<LessonTreeScroller>>,
-                  mut page: ResMut<NextState<MenuPage>>| {
-                let scroll_x = scroller.iter().next().map_or(0.0, |position| position.x);
-                anchor.unit_id = Some(unit_id.clone());
-                anchor.screen_x = centre.x - scroll_x;
-                anchor.canvas_x = None;
+                  mut relayout: ResMut<RelayoutRequest>| {
+                // This unit stays put on screen while the others make room.
+                relayout.anchor_unit = Some(unit_id.clone());
                 if collapsed.0.remove(&unit_id) {
                     pending.0.remove(&unit_id);
-                    // Expand from the compact layout first; the existing zero
-                    // expansion amount then animates the newly placed cluster.
-                    page.set(MenuPage::LessonTree);
+                    // Lay the cluster out first; its expansion amount is still
+                    // zero, so it then grows in place at its new positions.
+                    relayout.pending = true;
                 } else {
+                    // Compacted by a relayout once the close animation ends.
                     collapsed.0.insert(unit_id.clone());
                     pending.0.insert(unit_id.clone());
                 }
@@ -643,15 +591,17 @@ fn spawn_unit(
         .id();
     commands.entity(node).add_child(chevron);
 
+    let label_at = PartKind::UnitLabel.top_left(centre);
     let label = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(centre.x - UNIT_LABEL_PX / 2.0),
-                top: Val::Px(centre.y - UNIT_PX / 2.0 - 34.0),
+                left: Val::Px(label_at.x),
+                top: Val::Px(label_at.y),
                 width: Val::Px(UNIT_LABEL_PX),
                 ..default()
             },
+            PartKind::UnitLabel.part(&unit.id),
             Text::new(String::from(loc.msg(&unit.title_key))),
             TextFont {
                 font_size: FontSize::Px(UNIT_FONT_PX),
@@ -716,12 +666,13 @@ fn spawn_node(
         NodeState::Passed | NodeState::Mastered => base.lighter(0.15),
     };
 
+    let button_at = PartKind::LessonButton.top_left(centre);
     let button = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(centre.x - NODE_PX / 2.0),
-                top: Val::Px(centre.y - NODE_PX / 2.0),
+                left: Val::Px(button_at.x),
+                top: Val::Px(button_at.y),
                 width: Val::Px(NODE_PX),
                 height: Val::Px(NODE_PX),
                 border: UiRect::all(Val::Px(if node.state == NodeState::Mastered {
@@ -763,6 +714,7 @@ fn spawn_node(
     commands.entity(button).insert((
         ClusterMember(node.unit_id.clone()),
         LayoutOwner(node.unit_id.clone()),
+        PartKind::LessonButton.part(&node.id),
     ));
 
     // The title, under the node. Small and wrapped to the column's own
@@ -773,18 +725,20 @@ fn spawn_node(
     // title stays centred under its lesson, while the inner shrinks to the
     // text so the backdrop hugs the words. One node carrying both would
     // paint a full-width slab behind every title, however short.
+    let label_at = PartKind::LessonLabel.top_left(centre);
     let label = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(centre.x - LABEL_PX / 2.0),
-                top: Val::Px(centre.y + NODE_PX / 2.0 + 6.0),
+                left: Val::Px(label_at.x),
+                top: Val::Px(label_at.y),
                 width: Val::Px(LABEL_PX),
                 justify_content: JustifyContent::Center,
                 ..default()
             },
             ClusterMember(node.unit_id.clone()),
             LayoutOwner(node.unit_id.clone()),
+            PartKind::LessonLabel.part(&node.id),
         ))
         .id();
     commands.entity(canvas).add_child(label);
@@ -824,14 +778,16 @@ fn spawn_node(
         // the mastery pips arc from 42° to 138°, so the whole upper corner
         // belongs to them, and the title owns everything below. Clearing
         // the button's own bounds also keeps it off the click target.
+        let badge_at = PartKind::Badge.top_left(centre);
         let badge = commands
             .spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Px(centre.x + NODE_PX / 2.0 + BADGE_GAP_PX),
-                    top: Val::Px(centre.y - BADGE_PX / 2.0),
+                    left: Val::Px(badge_at.x),
+                    top: Val::Px(badge_at.y),
                     ..default()
                 },
+                PartKind::Badge.part(&node.id),
                 Text::new("◇"),
                 TextFont {
                     font_size: FontSize::Px(BADGE_PX),
@@ -858,18 +814,15 @@ fn spawn_node(
 fn spawn_mastery_ring(commands: &mut Commands, canvas: Entity, node: &PlacedNode, centre: Vec2) {
     let tiers = harmonicon_core::training::Tier::ALL.len();
     let filled = (node.mastery * tiers as f32).round() as usize;
-    let radius = NODE_PX / 2.0 + 1.0;
 
     for tier in 0..tiers {
-        let t = tier as f32 / (tiers - 1) as f32;
-        // Negative sweeps the arc upward: screen y grows downward.
-        let angle = -(42.0 + t * 96.0_f32).to_radians();
+        let at = PartKind::Pip(tier).top_left(centre);
         commands.entity(canvas).with_children(|parent| {
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Px(centre.x + radius * angle.cos() - PIP_PX / 2.0),
-                    top: Val::Px(centre.y + radius * angle.sin() - PIP_PX / 2.0),
+                    left: Val::Px(at.x),
+                    top: Val::Px(at.y),
                     width: Val::Px(PIP_PX),
                     height: Val::Px(PIP_PX),
                     border_radius: BorderRadius::MAX,
@@ -878,6 +831,7 @@ fn spawn_mastery_ring(commands: &mut Commands, canvas: Entity, node: &PlacedNode
                 BackgroundColor(if tier < filled { PIP_FILLED } else { PIP_EMPTY }),
                 ClusterMember(node.unit_id.clone()),
                 LayoutOwner(node.unit_id.clone()),
+                PartKind::Pip(tier).part(&node.id),
             ));
         });
     }
