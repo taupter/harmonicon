@@ -14,6 +14,7 @@
 //! one is active, collapsing the whole take into one undo step.
 
 use bevy::prelude::*;
+use harmonicon_core::harmonica::Harmonica;
 use std::collections::VecDeque;
 
 use super::record::RecordState;
@@ -43,6 +44,31 @@ impl Snapshot {
     fn bytes(&self) -> usize {
         self.notes.capacity() * std::mem::size_of::<GridNote>()
             + self.tempo_changes.capacity() * std::mem::size_of::<(usize, f32)>()
+            + self.meter_changes.capacity() * std::mem::size_of::<(usize, String)>()
+            + self
+                .meter_changes
+                .iter()
+                .map(|(_, meter)| meter.capacity())
+                .sum::<usize>()
+            + self.phrase_annotations.len() * std::mem::size_of::<(usize, PhraseAnnotation)>()
+            + self
+                .phrase_annotations
+                .values()
+                .flat_map(|a| [&a.section, &a.chord, &a.groove])
+                .filter_map(Option::as_ref)
+                .map(String::capacity)
+                .sum::<usize>()
+            + self.expression_intensities.len() * std::mem::size_of::<(u32, String)>()
+            + self
+                .expression_intensities
+                .values()
+                .map(String::capacity)
+                .sum::<usize>()
+            + self.loaded_harmonica.as_ref().map_or(0, |loaded| {
+                std::mem::size_of::<LoadedHarmonica>()
+                    + loaded.key.capacity()
+                    + harp_allocated_bytes(&loaded.harp)
+            })
     }
 
     fn matches(&self, state: &EditorState) -> bool {
@@ -76,6 +102,43 @@ impl Snapshot {
         state.phrase_annotations = self.phrase_annotations;
         state.expression_intensities = self.expression_intensities;
         state.prune_selection();
+    }
+}
+
+fn harp_allocated_bytes(harp: &Harmonica) -> usize {
+    fn layout_bytes<const N: usize>(parts: [Option<&Vec<String>>; N]) -> usize {
+        parts
+            .into_iter()
+            .flatten()
+            .map(|notes| {
+                notes.capacity() * std::mem::size_of::<String>()
+                    + notes.iter().map(String::capacity).sum::<usize>()
+            })
+            .sum()
+    }
+
+    match harp {
+        Harmonica::Diatonic {
+            position, layout, ..
+        } => {
+            position.as_ref().map_or(0, String::capacity)
+                + layout
+                    .as_ref()
+                    .map_or(0, |l| layout_bytes([l.blow.as_ref(), l.draw.as_ref()]))
+        }
+        Harmonica::Chromatic {
+            position, layout, ..
+        } => {
+            position.as_ref().map_or(0, String::capacity)
+                + layout.as_ref().map_or(0, |l| {
+                    layout_bytes([
+                        l.blow.as_ref(),
+                        l.draw.as_ref(),
+                        l.blow_slide.as_ref(),
+                        l.draw_slide.as_ref(),
+                    ])
+                })
+        }
     }
 }
 
@@ -228,6 +291,37 @@ mod tests {
         state.tempo_changes.push((10, 90.0));
         history.record_if_changed(&state);
         assert!(history.can_undo());
+    }
+
+    #[test]
+    fn memory_budget_counts_nested_chart_content() {
+        let mut state = EditorState::default();
+        state.meter_changes.push((4, "4/4".repeat(100)));
+        state.phrase_annotations.insert(
+            8,
+            PhraseAnnotation {
+                section: Some("verse".repeat(100)),
+                ..Default::default()
+            },
+        );
+        state.expression_intensities.insert(1, "0.5".repeat(100));
+
+        let snapshot = Snapshot::capture(&state);
+        let nested_bytes = state.meter_changes[0].1.capacity()
+            + state.phrase_annotations[&8]
+                .section
+                .as_ref()
+                .unwrap()
+                .capacity()
+            + state.expression_intensities[&1].capacity();
+        assert!(snapshot.bytes() >= nested_bytes);
+
+        let mut history = UndoHistory::default();
+        history.record_if_changed(&state);
+        state.meter_changes.push((12, "3/4".to_owned()));
+        history.record_if_changed(&state);
+        history.trim_to(snapshot.bytes());
+        assert!(!history.can_undo());
     }
 
     #[test]
