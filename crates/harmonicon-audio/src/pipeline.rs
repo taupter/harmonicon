@@ -158,10 +158,14 @@ pub fn process_audio(
 
 const CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
 
-fn clear_detection(frame: &mut AudioFrame, writer: &mut MessageWriter<PitchEvent>) {
-    frame.samples.clear();
-    frame.magnitudes.clear();
-    frame.freq_res = 0.0;
+fn clear_detection(frame: &mut ResMut<AudioFrame>, writer: &mut MessageWriter<PitchEvent>) {
+    // Runs every frame while there's no audio; clearing an already-clear
+    // frame would still mark it changed and wake every consumer gated on it.
+    if !frame.samples.is_empty() || !frame.magnitudes.is_empty() || frame.freq_res != 0.0 {
+        frame.samples.clear();
+        frame.magnitudes.clear();
+        frame.freq_res = 0.0;
+    }
     // Publish silence even while disconnected so a consumer resuming after
     // a pause cannot retain an old pitch whose clear message has expired.
     writer.write(PitchEvent(Vec::new()));
@@ -347,6 +351,30 @@ mod tests {
             assert_silent(&mut app);
         }
     }
+    #[test]
+    fn an_already_silent_frame_is_not_marked_changed_each_update() {
+        // Read from a system: `App::update` clears change trackers on the
+        // way out, so asking the world afterwards would always say "no".
+        #[derive(Resource, Default)]
+        struct FrameChanged(bool);
+        let (mut app, _) = app();
+        app.init_resource::<FrameChanged>().add_systems(
+            Update,
+            (|frame: Res<AudioFrame>, mut seen: ResMut<FrameChanged>| {
+                seen.0 = frame.is_changed();
+            })
+            .after(process_audio),
+        );
+        app.world_mut()
+            .remove_resource::<audio_input::AudioCapture>();
+        app.update();
+        for _ in 0..3 {
+            app.update();
+            assert!(!app.world().resource::<FrameChanged>().0);
+            assert_silent(&mut app);
+        }
+    }
+
     #[test]
     fn backlog_analyzes_only_latest_and_rejects_stale_chunks() {
         let (mut app, tx) = app();
