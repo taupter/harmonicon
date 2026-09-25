@@ -274,6 +274,30 @@ fn mpm_reuses_lag_buffer_across_pitches() {
     assert_eq!(nsdf.capacity(), capacity);
 }
 
+#[test]
+fn simd_mpm_difference_matches_scalar_reference() {
+    let sr = 44_100;
+    let samples: Vec<f32> = (0..4096)
+        .map(|i| {
+            let t = i as f32 / sr as f32;
+            0.7 * (2.0 * PI * 440.0 * t).sin() + 0.1 * (2.0 * PI * 660.0 * t).sin()
+        })
+        .collect();
+    let mut nsdf = Vec::new();
+    mpm_pitch(&samples, sr, PitchRange::default(), &mut nsdf);
+    for tau in 0..nsdf.len() {
+        let mut acf = 0.0f32;
+        let mut norm = 0.0f32;
+        for j in 0..samples.len() - tau {
+            let (a, b) = (samples[j], samples[j + tau]);
+            acf += a * b;
+            norm += a * a + b * b;
+        }
+        let scalar = if norm > 0.0 { 2.0 * acf / norm } else { 0.0 };
+        assert!((nsdf[tau] - scalar).abs() < 1e-4, "lag {tau}");
+    }
+}
+
 // Render the FFT magnitude spectrum of a sum of sine tones, the way
 // `analyze` would, so the NMF detector can be tested directly.
 fn magnitudes_of(freqs: &[f32], sample_rate: u32, n: usize) -> Vec<f32> {

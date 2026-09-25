@@ -648,14 +648,15 @@ fn mpm_pitch(
     // Normalized square difference function over the τ range.
     nsdf.resize(tau_max + 1, 0.0);
     for tau in 0..=tau_max {
-        let mut acf = 0.0f32; // Σ x[j]·x[j+τ]
-        let mut norm = 0.0f32; // Σ x[j]² + x[j+τ]²
-        for j in 0..(n - tau) {
-            let (a, b) = (samples[j], samples[j + tau]);
-            acf += a * b;
-            norm += a * a + b * b;
-        }
-        nsdf[tau] = if norm > 0.0 { 2.0 * acf / norm } else { 0.0 };
+        let a = &samples[..n - tau];
+        let b = &samples[tau..];
+        let acf = f32::dot(a, b).expect("MPM compares equal-length sample windows");
+        let norm = f32::dot(a, a).unwrap() + f32::dot(b, b).unwrap();
+        nsdf[tau] = if norm > 0.0 {
+            (2.0 * acf / norm) as f32
+        } else {
+            0.0
+        };
     }
 
     // Pick the first key maximum within MPM_CLARITY of the strongest one —
