@@ -798,15 +798,23 @@ fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict, scratch: &mut NmfScratch) -> 
     }
     let threshold = max_a * NMF_ACTIVATION_RATIO;
 
-    let mut active: Vec<(f32, f32)> = (0..n)
-        .filter(|&k| a[k] >= threshold)
-        .map(|k| (dict.freqs[k], a[k]))
-        .collect();
-    active.sort_by(|x, y| y.1.partial_cmp(&x.1).unwrap_or(std::cmp::Ordering::Equal));
-    active.truncate(NMF_MAX_NOTES);
+    let mut strongest = [None; NMF_MAX_NOTES];
+    for (frequency, &activation) in dict.freqs.iter().zip(a.iter()) {
+        if activation.is_nan() || activation < threshold {
+            continue;
+        }
+        let rank = strongest
+            .iter()
+            .position(|entry| entry.is_none_or(|(_, value)| activation > value));
+        if let Some(rank) = rank {
+            strongest[rank..].rotate_right(1);
+            strongest[rank] = Some((*frequency, activation));
+        }
+    }
 
-    active
+    strongest
         .into_iter()
+        .flatten()
         .filter_map(|(f, _)| {
             freq_to_note(f).map(|(midi, note, octave)| PitchInfo {
                 midi,
