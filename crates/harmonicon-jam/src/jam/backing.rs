@@ -525,7 +525,7 @@ fn bass_tone(freq_hz: f32, duration_secs: f32) -> Vec<f32> {
 /// A two-beat tonic hit for all three generated-band roles. Keeping the
 /// ending as separate stems preserves the live mixer state: a role muted
 /// during the jam stays muted for the final chord as well.
-pub(crate) fn generate_ending_stems(
+pub fn generate_ending_stems(
     key: &str,
     quality: harmonicon_core::harmonica::ChordQuality,
     bpm: f32,
@@ -799,7 +799,7 @@ pub enum BandAnswer {
 /// accents rise toward it, so the answer points at the next downbeat rather
 /// than covering it. Same synthesis as the stems (`drum_slot`/
 /// `comping_slot`), so it sounds like the same band.
-pub(crate) fn render_band_answer(
+pub fn render_band_answer(
     answer: BandAnswer,
     genre: Genre,
     root: &str,
@@ -843,7 +843,7 @@ pub(crate) fn render_band_answer(
 /// Bass, drums and chordal comping rendered as sample-aligned stems. The bass
 /// renderer remains the duration authority; the other pure renderers are
 /// trimmed/padded to its length so independently spawned sinks cannot drift.
-fn generate_backing_stems(
+pub fn generate_backing_stems(
     key: &str,
     bpm: f32,
     progression: Progression,

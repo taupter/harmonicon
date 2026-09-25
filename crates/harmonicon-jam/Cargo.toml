@@ -21,6 +21,13 @@ midly = { workspace = true }
 jsonschema = { workspace = true }
 dirs = { workspace = true }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "backing"
+harness = false
+
 [features]
 dev = ["bevy/dev", "bevy/debug", "harmonicon-gameplay/dev"]
 dynamic_linking = ["bevy/dynamic_linking", "harmonicon-gameplay/dynamic_linking"]
