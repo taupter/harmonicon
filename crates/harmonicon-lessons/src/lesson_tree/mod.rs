@@ -322,9 +322,12 @@ pub(crate) fn setup_lesson_tree(
             .iter()
             .find(|unit| unit.id == unit_id)
             .map(|unit| node_centre(unit.column, unit.row).x);
+        anchor.scroll_x_before = viewport.0.x;
     }
 
-    let anchor_id = anchor.unit_id.as_deref();
+    // In canvas coordinates, so correct only until the anchor scrolls;
+    // `restore_viewport_anchor` then re-bases every slide onto the new
+    // scroll, the anchored unit's included.
     let current_positions: HashMap<String, f32> = tree
         .units
         .iter()
@@ -336,11 +339,7 @@ pub(crate) fn setup_lesson_tree(
             continue;
         };
         let old_offset = slides.0.get(id).map_or(0.0, slide_offset);
-        let from_px = if anchor_id == Some(id.as_str()) {
-            0.0
-        } else {
-            old_x + old_offset - new_x
-        };
+        let from_px = old_x + old_offset - new_x;
         if from_px.abs() > 0.5 {
             next_slides.insert(
                 id.clone(),
