@@ -17,7 +17,7 @@
 //! Song Editor recording, and the offline benchmark supply the selected harp
 //! and share the state tracker below.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::harmonica::{Harmonica, hole_notes};
 use crate::midi::note_to_midi;
@@ -68,6 +68,51 @@ pub fn reachable_directions(harp: &Harmonica, midi: u8) -> (bool, bool) {
     (blow, draw)
 }
 
+/// [`reachable_directions`] for every MIDI pitch at once, from a single pass
+/// over the harp's holes — for a caller that asks about many pitches on the
+/// same harp (the note tracker asks several times per detector hop), where
+/// re-deriving every hole's notes per question would dominate the cost.
+fn direction_table(harp: &Harmonica) -> [(bool, bool); 128] {
+    fn mark(table: &mut [(bool, bool); 128], note: Option<&str>, blow: bool) {
+        if let Some(entry) = note
+            .and_then(to_midi_u8)
+            .and_then(|midi| table.get_mut(usize::from(midi)))
+        {
+            if blow {
+                entry.0 = true;
+            } else {
+                entry.1 = true;
+            }
+        }
+    }
+    let mut table = [(false, false); 128];
+    for hole in 1..=harp.hole_count() {
+        let notes = hole_notes(harp, hole);
+        mark(&mut table, notes.blow.as_deref(), true);
+        mark(&mut table, notes.draw.as_deref(), false);
+        // Same families as `reachable_directions`: bends are draw-family on
+        // holes 1-6 and blow-family above; overblows (1/4/5/6) are blown.
+        for bend in &notes.bends {
+            mark(&mut table, Some(bend), hole > 6);
+        }
+        mark(
+            &mut table,
+            notes.over.as_deref(),
+            matches!(hole, 1 | 4 | 5 | 6),
+        );
+    }
+    table
+}
+
+/// A pitch's `(blow, draw)` reachability from a [`direction_table`]; a
+/// pitch outside the MIDI range is reachable neither way.
+fn table_directions(table: &[(bool, bool); 128], midi: u8) -> (bool, bool) {
+    table
+        .get(usize::from(midi))
+        .copied()
+        .unwrap_or((false, false))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BreathDirection {
     Blow,
@@ -116,6 +161,12 @@ impl BreathDirectionTracker {
     }
 
     pub fn filter(&mut self, harp: &Harmonica, candidates: &[u8]) -> Vec<u8> {
+        self.filter_by(|midi| reachable_directions(harp, midi), candidates)
+    }
+
+    /// [`filter`](Self::filter) with the reachability question supplied, so
+    /// a caller holding a precomputed table needn't re-derive the harp.
+    fn filter_by(&mut self, reach: impl Fn(u8) -> (bool, bool), candidates: &[u8]) -> Vec<u8> {
         if candidates.is_empty() {
             self.silent_frames += 1;
             self.pending = None;
@@ -127,13 +178,11 @@ impl BreathDirectionTracker {
         }
         self.silent_frames = 0;
 
-        let evidence = candidates
-            .iter()
-            .find_map(|&midi| match reachable_directions(harp, midi) {
-                (true, false) => Some(BreathDirection::Blow),
-                (false, true) => Some(BreathDirection::Draw),
-                _ => None,
-            });
+        let evidence = candidates.iter().find_map(|&midi| match reach(midi) {
+            (true, false) => Some(BreathDirection::Blow),
+            (false, true) => Some(BreathDirection::Draw),
+            _ => None,
+        });
 
         match (self.current, evidence) {
             (None, Some(direction)) => self.current = Some(direction),
@@ -161,7 +210,7 @@ impl BreathDirectionTracker {
             .iter()
             .copied()
             .filter(|&midi| {
-                let (blow, draw) = reachable_directions(harp, midi);
+                let (blow, draw) = reach(midi);
                 match self.current {
                     Some(BreathDirection::Blow) => blow,
                     Some(BreathDirection::Draw) => draw,
@@ -226,7 +275,10 @@ pub struct TrackedNotes {
 
 /// Pure harmonica-state tracker shared by gameplay, recording, and benchmarks.
 pub struct HarmonicaNoteTracker {
-    harp: Harmonica,
+    /// Which breath reaches each pitch on the tracked harp, computed once:
+    /// the harp never changes for a tracker's lifetime, and this is asked
+    /// several times per detector hop.
+    reach: [(bool, bool); 128],
     onset_frames: u8,
     release_frames: u8,
     direction: BreathDirectionTracker,
@@ -237,7 +289,7 @@ pub struct HarmonicaNoteTracker {
 impl HarmonicaNoteTracker {
     pub fn new(harp: Harmonica, config: NoteTrackerConfig) -> Self {
         Self {
-            harp,
+            reach: direction_table(&harp),
             // Every threshold is a count of frames to wait, so zero would
             // mean "decide before observing anything" — floor them all at
             // one. `direction_change_frames` is floored by
@@ -268,12 +320,17 @@ impl HarmonicaNoteTracker {
     pub fn update(&mut self, candidates: &[u8]) -> TrackedNotes {
         // One wind direction first: a pitch the current breath cannot produce
         // is not a candidate for onset counting at all.
-        let allowed = self.direction.filter(&self.harp, candidates);
-        let allowed_set: HashSet<u8> = allowed.iter().copied().collect();
-        self.pending.retain(|midi, _| allowed_set.contains(midi));
+        let reach = &self.reach;
+        let allowed = self
+            .direction
+            .filter_by(|midi| table_directions(reach, midi), candidates);
+        // `allowed` is sorted and deduplicated, so membership is a binary
+        // search — no per-hop set.
+        let is_allowed = |midi: &u8| allowed.binary_search(midi).is_ok();
+        self.pending.retain(|midi, _| is_allowed(midi));
 
         let mut confirmed = Vec::new();
-        for midi in allowed {
+        for &midi in &allowed {
             if let Some(missed) = self.active.get_mut(&midi) {
                 *missed = 0;
                 continue;
@@ -288,7 +345,7 @@ impl HarmonicaNoteTracker {
         self.pending
             .retain(|midi, _| !self.active.contains_key(midi));
         self.active.retain(|midi, missed| {
-            if allowed_set.contains(midi) {
+            if is_allowed(midi) {
                 true
             } else {
                 *missed += 1;
@@ -346,6 +403,35 @@ pub fn plausible_notes(harp: &Harmonica, candidates: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::harmonica::richter_harp;
+
+    #[test]
+    fn the_direction_table_agrees_with_reachable_directions_everywhere() {
+        use crate::harmonica::{
+            chromatic_16_harp, chromatic_harp, country_tuned_harp, natural_minor_harp,
+            paddy_richter_harp,
+        };
+        let harps = [
+            richter_harp("C"),
+            richter_harp("G"),
+            richter_harp("F#"),
+            country_tuned_harp("A"),
+            paddy_richter_harp("D"),
+            natural_minor_harp("E"),
+            chromatic_harp("C"),
+            chromatic_16_harp("C"),
+        ];
+        for harp in &harps {
+            let table = direction_table(harp);
+            for midi in 0..=u8::MAX {
+                assert_eq!(
+                    table_directions(&table, midi),
+                    reachable_directions(harp, midi),
+                    "MIDI {midi} on {:?}",
+                    harp.summary().profile
+                );
+            }
+        }
+    }
 
     // Richter C harp reference (see song::harmonica::{C_BLOW, C_DRAW}):
     // hole 1: blow C4=60, draw D4=62, bend C#4=61 (draw-family), overblow D#4=63 (blow-family)
