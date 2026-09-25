@@ -3686,6 +3686,7 @@ dependencies = [
  "criterion",
  "harmonicon-core",
  "harmonicon-dsp",
+ "harmonicon-score",
  "serde_json",
 ]
 

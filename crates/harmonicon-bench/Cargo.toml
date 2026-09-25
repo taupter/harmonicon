@@ -21,6 +21,8 @@ serde_json = { workspace = true }
 # harmonicon-core/-dsp, so Criterion never enters those crates' test builds.
 [dev-dependencies]
 criterion = { workspace = true }
+# Only the score_import bench reads score files.
+harmonicon-score = { path = "../harmonicon-score" }
 
 [[bench]]
 name = "detectors"
@@ -28,6 +30,10 @@ harness = false
 
 [[bench]]
 name = "core_hot_paths"
+harness = false
+
+[[bench]]
+name = "score_import"
 harness = false
 
 [lints]
