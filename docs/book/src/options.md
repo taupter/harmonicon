@@ -36,7 +36,8 @@
   harmonica's sway to the beat. Notes
   keep scrolling as usual (that *is* the game), a missed note still
   shrinks — just immediately, without the movement into it — and the hit
-  line never moves either way.
+  line never moves either way. On the skill tree, opening or closing a
+  unit snaps straight to the new layout instead of animating.
 - **Zoom** — scales the whole interface.
 - **Theme** — opens the [theme picker](themes.md).
 - **Calibrate input lag** — opens [input-lag calibration](calibration.md).

@@ -11,12 +11,24 @@ use bevy::ui::{ComputedNode, InteractionDisabled, ScrollPosition, UiTransform, V
 use bevy::ui_widgets::Button as WidgetButton;
 
 use harmonicon_menu::menu::MenuPage;
+use harmonicon_platform::settings::ReducedMotion;
 
 use super::{
     ClusterMember, Endpoint, LayoutOwner, MovingEdge, UnitButton, UnitChevron, set_edge_geometry,
 };
 
 const TRANSITION_SECONDS: f32 = 0.22;
+
+/// How far a collapse or slide transition advances this frame, as a fraction
+/// of the whole. Under Reduced Motion it is the whole transition, so every
+/// unit jumps to its end state on the first frame.
+pub(super) fn transition_step(delta_secs: f32, reduced_motion: bool) -> f32 {
+    if reduced_motion {
+        1.0
+    } else {
+        delta_secs / TRANSITION_SECONDS
+    }
+}
 
 #[derive(Resource, Default)]
 pub(crate) struct CollapsedUnits(pub(super) HashSet<String>);
@@ -138,6 +150,7 @@ pub(super) fn anchored_scroll(
 pub(crate) fn animate_unit_expansion(
     mut commands: Commands,
     time: Res<Time>,
+    reduced_motion: Res<ReducedMotion>,
     collapsed: Res<CollapsedUnits>,
     mut expansions: ResMut<UnitExpansions>,
     mut members: Query<(&ClusterMember, &mut UiTransform, &mut Visibility)>,
@@ -156,7 +169,7 @@ pub(crate) fn animate_unit_expansion(
     // Runs every frame on the tree, so every write below is guarded: once
     // no unit is mid-transition, an idle tree touches nothing (unguarded, it
     // re-ran transform and visibility propagation over every node).
-    let step = time.delta_secs() / TRANSITION_SECONDS;
+    let step = transition_step(time.delta_secs(), reduced_motion.0);
     let moving = expansions
         .0
         .iter()
@@ -226,6 +239,7 @@ pub(super) fn slide_offset(slide: &UnitSlide) -> f32 {
 
 pub(crate) fn animate_unit_slides(
     time: Res<Time>,
+    reduced_motion: Res<ReducedMotion>,
     mut slides: ResMut<UnitSlides>,
     mut owned: Query<(&LayoutOwner, &mut UiTransform), Without<MovingEdge>>,
     mut edges: Query<(&MovingEdge, &mut Node)>,
@@ -233,7 +247,7 @@ pub(crate) fn animate_unit_slides(
     if slides.0.is_empty() {
         return;
     }
-    let step = time.delta_secs() / TRANSITION_SECONDS;
+    let step = transition_step(time.delta_secs(), reduced_motion.0);
     for slide in slides.0.values_mut() {
         slide.amount = (slide.amount + step).min(1.0);
     }
@@ -284,6 +298,55 @@ pub(super) fn expansion_after(current: f32, collapsed: bool, step: f32) -> f32 {
         (current - step).max(target)
     } else {
         current
+    }
+}
+
+#[cfg(test)]
+mod motion_tests {
+    use super::*;
+
+    /// One frame of the two transition systems, with a unit collapsing and
+    /// another sliding. `Time`'s default delta is zero, so only Reduced
+    /// Motion can move anything.
+    fn one_frame(reduced_motion: bool) -> App {
+        let mut app = App::new();
+        app.init_resource::<Time>()
+            .insert_resource(ReducedMotion(reduced_motion))
+            .insert_resource(CollapsedUnits(HashSet::from(["closing".to_string()])))
+            .insert_resource(UnitExpansions(HashMap::from([(
+                "closing".to_string(),
+                1.0,
+            )])))
+            .insert_resource(UnitSlides(HashMap::from([(
+                "sliding".to_string(),
+                UnitSlide {
+                    from_px: 120.0,
+                    amount: 0.0,
+                },
+            )])))
+            .add_systems(Update, (animate_unit_expansion, animate_unit_slides));
+        app.update();
+        app
+    }
+
+    #[test]
+    fn reduced_motion_jumps_every_transition_to_its_end_on_the_first_frame() {
+        let app = one_frame(true);
+        assert_eq!(app.world().resource::<UnitExpansions>().0["closing"], 0.0);
+        assert!(
+            app.world().resource::<UnitSlides>().0.is_empty(),
+            "a finished slide is dropped"
+        );
+    }
+
+    #[test]
+    fn without_reduced_motion_transitions_advance_with_time() {
+        let app = one_frame(false);
+        assert_eq!(app.world().resource::<UnitExpansions>().0["closing"], 1.0);
+        assert_eq!(
+            app.world().resource::<UnitSlides>().0["sliding"].amount,
+            0.0
+        );
     }
 }
 

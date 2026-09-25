@@ -46,10 +46,6 @@ Nothing below can be approved by a test.
 
 ## Code work, unblocked
 
-- **Lesson tree honours Reduced Motion.** Its plan waited for a
-  shared setting; `settings::ReducedMotion` now exists, and the collapse
-  and neighbour-slide transitions should jump to their end state under it
-  (`docs/lesson_tree_layout_plan.md`).
 - **Training tiers state their goal.** A tier button reads only `1`–`5`.
   Show the tier's name (Isolate … Interleave) and its concrete goal before
   it starts; `training_criteria` already computes it

@@ -55,7 +55,8 @@ horizontal screen position across that rebuild, clamped at the new scroll
 bounds. Lesson buttons leave pointer and keyboard interaction as soon as their
 unit starts closing. Neighboring units slide to their recomputed columns over
 220 ms, with each straight edge recalculated from its moving endpoints.
-Reduced-motion behavior remains open until that application setting exists.
+Under the shared Reduced Motion setting both transitions jump to their end
+state on the first frame.
 
 Make every unit node an accessible button with expanded/collapsed state. Keep
 the current unit, the first available unit, and units containing available
@@ -67,7 +68,7 @@ Animate a per-unit `expansion` value from 0 to 1 over 180–240 ms with an
 ease-out curve. Use it to interpolate cluster opacity and vertical scale from
 the unit's lower anchor while neighboring units slide horizontally. Disable
 lesson hit testing as collapse starts and restore it once expansion is
-readable. A future reduced-motion setting should jump to the final state.
+readable. Reduced Motion jumps to the final state.
 
 Collapse must change the layout input instead of only applying
 `Display::None`: recompute canvas width, scroll bounds, spine positions,
@@ -134,7 +135,7 @@ bounds, ports, control points, and tessellation segments.
    including safe rapid toggles, recomputed canvas bounds, and viewport
    anchoring. Live lesson rescans also remove transition state for units that
    disappeared. Neighboring units and their edge endpoints animate into the
-   new layout. Add reduced-motion behavior once that setting exists.
+   new layout, or jump there under Reduced Motion.
 4. **Done:** replace sampled curves with continuous straight paths. Each edge
    is one UI rectangle, so there are no tessellation joins whose appearance
    changes with scale. Keep multi-scale captures and a mesh renderer as
@@ -146,11 +147,6 @@ bounds, ports, control points, and tessellation segments.
    available required lesson. Once required work is complete it locates an
    available elective instead. A minimap remains conditional on further
    usability evidence.
-
-Reduced-motion behavior remains a shared-settings follow-up. The repository
-does not currently expose such a preference; when it does, both cluster and
-neighbor transitions should use it rather than introducing a lesson-only
-setting.
 
 ## Curriculum gaps
 
