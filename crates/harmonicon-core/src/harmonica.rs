@@ -764,13 +764,10 @@ impl Harmonica {
         }
     }
 
-    // Returns the blow/draw label for the given hole, or a dash if not available.
-    pub fn wind_direction_label(&self, hole: u8, action: &Action) -> String {
-        let default_return = "\u{2014}".into();
-        let Some(idx) = hole.checked_sub(1) else {
-            return default_return;
-        };
-
+    /// The layout's note name for `hole`'s `action`, borrowed, or `None`
+    /// when the harp has no layout or the hole is out of range.
+    fn wind_direction_note(&self, hole: u8, action: &Action) -> Option<&str> {
+        let idx = hole.checked_sub(1)?;
         let notes = match self {
             Harmonica::Diatonic {
                 layout: Some(l), ..
@@ -784,17 +781,16 @@ impl Harmonica {
                 Action::Blow => &l.blow,
                 Action::Draw => &l.draw,
             },
-            _ => return default_return,
+            _ => return None,
         };
+        notes.as_ref()?.get(usize::from(idx)).map(String::as_str)
+    }
 
-        let Some(notes) = notes else {
-            return default_return;
-        };
-        let Some(n) = notes.get(idx as usize) else {
-            return default_return;
-        };
-
-        n.clone()
+    // Returns the blow/draw label for the given hole, or a dash if not available.
+    pub fn wind_direction_label(&self, hole: u8, action: &Action) -> String {
+        self.wind_direction_note(hole, action)
+            .unwrap_or("\u{2014}")
+            .to_string()
     }
 
     /// The MIDI note number for `hole`'s `action` (blow/draw), or `None` for
@@ -806,7 +802,8 @@ impl Harmonica {
     ///
     /// [`wind_direction_label`]: Self::wind_direction_label
     pub fn wind_direction_midi(&self, hole: u8, action: &Action) -> Option<u8> {
-        let m = note_to_midi(&self.wind_direction_label(hole, action))?;
+        // Parses the borrowed name: this runs per hole per frame (hole glow).
+        let m = note_to_midi(self.wind_direction_note(hole, action)?)?;
         u8::try_from(m).ok()
     }
 
