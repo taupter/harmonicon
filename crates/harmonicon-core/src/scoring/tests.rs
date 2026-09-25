@@ -291,6 +291,74 @@ fn format_multiplier_drops_trailing_zeros() {
 
 // ── measured_oscillation_hz / measured_relative_oscillation_hz ──────────────
 
+/// The original multi-vector formulation — every reversal time collected,
+/// then the mean of consecutive gaps — kept as a reference for the one-pass
+/// version the scorer now uses.
+fn reference_oscillation_hz(samples: &[(f64, f32)], min_swing: f32) -> Option<f32> {
+    if samples.len() < 6 {
+        return None;
+    }
+    let values: Vec<f32> = samples.iter().map(|&(_, v)| v).collect();
+    let max = values.iter().cloned().fold(f32::MIN, f32::max);
+    let min = values.iter().cloned().fold(f32::MAX, f32::min);
+    if max - min < min_swing {
+        return None;
+    }
+    let noise_floor = min_swing * 0.15;
+    let mut direction = 0i32;
+    let mut flips = Vec::new();
+    for i in 1..values.len() {
+        let d = values[i] - values[i - 1];
+        if d.abs() < noise_floor {
+            continue;
+        }
+        let sign = if d > 0.0 { 1 } else { -1 };
+        if direction != 0 && sign != direction {
+            flips.push(samples[i].0);
+        }
+        direction = sign;
+    }
+    if flips.len() < 2 {
+        return None;
+    }
+    let gaps: Vec<f64> = flips.windows(2).map(|w| w[1] - w[0]).collect();
+    let mean = gaps.iter().sum::<f64>() / gaps.len() as f64;
+    (mean > 0.0).then(|| (1.0 / (2.0 * mean)) as f32)
+}
+
+#[test]
+fn the_one_pass_rate_matches_the_reference_formulation() {
+    for (freq, amplitude, n, dt) in [
+        (5.0, 40.0, 120, 1.0 / 60.0),
+        (6.5, 25.0, 300, 1.0 / 144.0),
+        (3.0, 10.0, 90, 1.0 / 30.0),
+        (5.0, 8.0, 120, 1.0 / 60.0), // below the swing floor: both None
+        (4.0, 30.0, 5, 1.0 / 60.0),  // too few samples: both None
+    ] {
+        // Uneven frame timing, as real frames have.
+        let samples: Vec<(f64, f32)> = timestamped_sine(freq, amplitude, n, dt)
+            .into_iter()
+            .enumerate()
+            .map(|(i, (t, v))| (t + (i % 3) as f64 * 0.001, v))
+            .collect();
+        let got = measured_oscillation_hz(&samples, VIBRATO_MIN_SWING_CENTS);
+        let want = reference_oscillation_hz(&samples, VIBRATO_MIN_SWING_CENTS);
+        match (got, want) {
+            (Some(a), Some(b)) => assert!((a - b).abs() < 1e-4, "{freq} Hz: {a} vs {b}"),
+            (a, b) => assert_eq!(a, b, "{freq} Hz"),
+        }
+
+        // The relative form is the same maths on mean-normalised values.
+        let level: Vec<(f64, f32)> = samples.iter().map(|&(t, v)| (t, 100.0 + v)).collect();
+        let mean = level.iter().map(|&(_, v)| v).sum::<f32>() / level.len() as f32;
+        let normalized: Vec<(f64, f32)> = level.iter().map(|&(t, v)| (t, v / mean)).collect();
+        assert_eq!(
+            measured_relative_oscillation_hz(&level, WAH_MIN_SWING_FRAC).is_some(),
+            reference_oscillation_hz(&normalized, WAH_MIN_SWING_FRAC).is_some(),
+        );
+    }
+}
+
 // Timestamped sine samples at `freq_hz`, `n` samples spaced `dt` seconds apart.
 fn timestamped_sine(freq_hz: f32, amplitude: f32, n: usize, dt: f64) -> Vec<(f64, f32)> {
     (0..n)

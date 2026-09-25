@@ -132,36 +132,54 @@ pub const VIBRATO_MIN_SWING_CENTS: f32 = 15.0;
 /// note's mean input level, since raw mic gain varies per player/setup.
 pub const WAH_MIN_SWING_FRAC: f32 = 0.12;
 
-/// Timestamps of `min_swing`-qualifying direction reversals in `values`
-/// (paired 1:1 with `times`), or `None` if there aren't enough samples or the
-/// swing never reaches `min_swing` peak-to-trough. Shared by the rate-matching
-/// checks below. Deltas below 15% of `min_swing` are treated as
-/// frame-to-frame jitter and ignored so they don't get counted as spurious
-/// direction changes.
-fn wobble_flip_times(values: &[f32], times: &[f64], min_swing: f32) -> Option<Vec<f64>> {
-    if values.len() < 6 {
+/// Oscillation rate (Hz) of `samples`' values divided by `divisor`, or
+/// `None` if there are too few samples, the peak-to-trough swing never
+/// reaches `min_swing`, or it reverses direction fewer than twice. Deltas
+/// below 15% of `min_swing` are treated as frame-to-frame jitter and
+/// ignored so they don't count as spurious direction changes.
+///
+/// One pass and no allocation: it runs every frame for every held vibrato or
+/// wah note (the highway's live technique status), over a history that grows
+/// by a sample a frame. Consecutive reversals are half a cycle apart, and the
+/// mean of the gaps between them telescopes to `(last − first) / (count − 1)`,
+/// so only the first and last reversal times and the count are kept.
+fn oscillation_hz(samples: &[(f64, f32)], divisor: f32, min_swing: f32) -> Option<f32> {
+    if samples.len() < 6 {
         return None;
     }
-    let max = values.iter().cloned().fold(f32::MIN, f32::max);
-    let min = values.iter().cloned().fold(f32::MAX, f32::min);
+    let (min, max) = samples
+        .iter()
+        .map(|&(_, v)| v / divisor)
+        .fold((f32::MAX, f32::MIN), |(lo, hi), v| (lo.min(v), hi.max(v)));
     if max - min < min_swing {
         return None;
     }
     let noise_floor = min_swing * 0.15;
     let mut direction = 0i32;
-    let mut flip_times = Vec::new();
-    for i in 1..values.len() {
-        let d = values[i] - values[i - 1];
+    let (mut flips, mut first, mut last) = (0usize, 0.0f64, 0.0f64);
+    for pair in samples.windows(2) {
+        let d = pair[1].1 / divisor - pair[0].1 / divisor;
         if d.abs() < noise_floor {
             continue;
         }
         let sign = if d > 0.0 { 1 } else { -1 };
         if direction != 0 && sign != direction {
-            flip_times.push(times[i]);
+            if flips == 0 {
+                first = pair[1].0;
+            }
+            last = pair[1].0;
+            flips += 1;
         }
         direction = sign;
     }
-    Some(flip_times)
+    if flips < 2 {
+        return None;
+    }
+    let mean_half_period = (last - first) / (flips - 1) as f64;
+    if mean_half_period <= 0.0 {
+        return None;
+    }
+    Some((1.0 / (2.0 * mean_half_period)) as f32)
 }
 
 /// Estimated oscillation rate (Hz) from the real elapsed time between
@@ -170,20 +188,7 @@ fn wobble_flip_times(values: &[f32], times: &[f64], min_swing: f32) -> Option<Ve
 /// never wobbles enough to qualify as oscillation at all (fewer than two
 /// reversals, or peak-to-trough swing under `min_swing`).
 pub fn measured_oscillation_hz(samples: &[(f64, f32)], min_swing: f32) -> Option<f32> {
-    let times: Vec<f64> = samples.iter().map(|&(t, _)| t).collect();
-    let values: Vec<f32> = samples.iter().map(|&(_, v)| v).collect();
-    let flips = wobble_flip_times(&values, &times, min_swing)?;
-    if flips.len() < 2 {
-        return None;
-    }
-    // Consecutive reversals are half a cycle apart; average them then double
-    // the period to get a full-cycle rate.
-    let half_periods: Vec<f64> = flips.windows(2).map(|w| w[1] - w[0]).collect();
-    let mean_half_period = half_periods.iter().sum::<f64>() / half_periods.len() as f64;
-    if mean_half_period <= 0.0 {
-        return None;
-    }
-    Some((1.0 / (2.0 * mean_half_period)) as f32)
+    oscillation_hz(samples, 1.0, min_swing)
 }
 
 /// Like [`measured_oscillation_hz`], but for a signal whose absolute scale is
@@ -197,8 +202,7 @@ pub fn measured_relative_oscillation_hz(samples: &[(f64, f32)], min_frac: f32) -
     if mean <= 0.0001 {
         return None;
     }
-    let normalized: Vec<(f64, f32)> = samples.iter().map(|&(t, v)| (t, v / mean)).collect();
-    measured_oscillation_hz(&normalized, min_frac)
+    oscillation_hz(samples, mean, min_frac)
 }
 
 /// True when `measured_hz` is within `tolerance_frac` of `target_hz` (e.g.
