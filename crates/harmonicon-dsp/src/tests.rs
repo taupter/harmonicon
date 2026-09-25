@@ -165,7 +165,7 @@ fn nmf_detects_a_two_note_chord() {
     // A4 (440) + C#5 (554.37): a major third.
     let mags = magnitudes_of(&[440.0, 554.37], sample_rate, n);
     let dict = build_nmf_dict(sample_rate, mags.len(), PitchRange::default());
-    let pitches = nmf_pitches(&mags, &dict);
+    let pitches = nmf_pitches(&mags, &dict, &mut NmfScratch::default());
     assert!(
         pitches.iter().any(|p| p.note == "A" && p.octave == 4),
         "expected A4, got {pitches:?}"
@@ -181,7 +181,7 @@ fn nmf_single_tone_is_one_note() {
     let sample_rate = 44100u32;
     let mags = magnitudes_of(&[440.0], sample_rate, 4096);
     let dict = build_nmf_dict(sample_rate, mags.len(), PitchRange::default());
-    let pitches = nmf_pitches(&mags, &dict);
+    let pitches = nmf_pitches(&mags, &dict, &mut NmfScratch::default());
     assert!(
         pitches.iter().any(|p| p.note == "A" && p.octave == 4),
         "expected A4 among {pitches:?}"

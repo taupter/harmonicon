@@ -216,6 +216,7 @@ pub struct FftState {
     last_size: usize,
     /// Cached NMF note dictionary, rebuilt when the spectrum size / rate change.
     nmf_dict: Option<NmfDict>,
+    nmf_scratch: NmfScratch,
     /// The windowed chunk the transform runs over, kept between calls: it is
     /// one allocation per analysed chunk otherwise, and chunks arrive at
     /// twice the rate of the 4096-sample window thanks to the 50% overlap.
@@ -232,6 +233,7 @@ impl Default for FftState {
             plan: None,
             last_size: 0,
             nmf_dict: None,
+            nmf_scratch: NmfScratch::default(),
             windowed: Vec::new(),
             scratch: Vec::new(),
         }
@@ -329,7 +331,11 @@ pub fn analyze(
             if stale {
                 state.nmf_dict = Some(build_nmf_dict(sample_rate, n_bins, range));
             }
-            nmf_pitches(&magnitudes, state.nmf_dict.as_ref().unwrap())
+            nmf_pitches(
+                &magnitudes,
+                state.nmf_dict.as_ref().unwrap(),
+                &mut state.nmf_scratch,
+            )
         }
     };
 
@@ -678,6 +684,13 @@ struct NmfDict {
     dtd: Vec<Vec<f32>>,
 }
 
+#[derive(Default)]
+struct NmfScratch {
+    dty: Vec<f32>,
+    activations: Vec<f32>,
+    dtda: Vec<f32>,
+}
+
 /// Build the harmonic-template dictionary for a given spectrum size / rate /
 /// pitch range.
 fn build_nmf_dict(sample_rate: u32, n_bins: usize, range: PitchRange) -> NmfDict {
@@ -747,29 +760,30 @@ fn build_nmf_dict(sample_rate: u32, n_bins: usize, range: PitchRange) -> NmfDict
 
 /// Solve `y ≈ D·a` (a ≥ 0) with multiplicative updates and report the notes
 /// whose activation clears the threshold, strongest first.
-fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict) -> Vec<PitchInfo> {
+fn nmf_pitches(magnitudes: &[f32], dict: &NmfDict, scratch: &mut NmfScratch) -> Vec<PitchInfo> {
     let n = dict.n_notes;
     if n == 0 || dict.n_bins == 0 {
         return vec![];
     }
 
     // Dᵀy: correlation of each template with the observed spectrum.
-    let dty: Vec<f32> = (0..n)
-        .map(|k| {
-            (0..dict.n_bins)
-                .map(|b| dict.columns[k][b] * magnitudes[b])
-                .sum()
-        })
-        .collect();
+    scratch.dty.resize(n, 0.0);
+    for (value, column) in scratch.dty.iter_mut().zip(&dict.columns) {
+        *value = column.iter().zip(magnitudes).map(|(x, y)| x * y).sum();
+    }
 
     // a ← a · (Dᵀy) / (DᵀD·a). Start uniform-positive so every note can grow.
-    let mut a = vec![1.0f32; n];
-    let mut dtda = vec![0.0f32; n];
+    scratch.activations.resize(n, 1.0);
+    scratch.activations.fill(1.0);
+    scratch.dtda.resize(n, 0.0);
+    let a = &mut scratch.activations;
+    let dty = &scratch.dty;
+    let dtda = &mut scratch.dtda;
     for _ in 0..NMF_ITERS {
         for (value, row) in dtda.iter_mut().zip(&dict.dtd) {
             *value = row
                 .iter()
-                .zip(&a)
+                .zip(a.iter())
                 .map(|(weight, activation)| weight * activation)
                 .sum();
         }
