@@ -114,7 +114,8 @@ fn voice_phase(freq: f32, t: f64, phase_mod: f32) -> f32 {
     TAU * (f64::from(freq) * t).fract() as f32 + phase_mod
 }
 
-/// The voice at phase `x = TAU·freq·t + phase_mod`: `(bright, muffled)`.
+/// The voice at phase `x = TAU·freq·t + phase_mod`, given `sin x` and
+/// `cos x`: `(bright, muffled)`.
 ///
 /// `bright` is the full harmonic stack — sounds open, like uncupped hands —
 /// and `muffled` the fundamental alone, as if hands fully cup the harmonica
@@ -122,13 +123,14 @@ fn voice_phase(freq: f32, t: f64, phase_mod: f32) -> f32 {
 /// `x` so vibrato is a bounded phase deviation shared by every partial,
 /// rather than a drifting frequency × time product.
 ///
-/// Every partial is `sin(k·x)`, so they come from one `sin_cos` by the
-/// Chebyshev recurrence `sin((k+1)x) = 2·cos(x)·sin(kx) − sin((k−1)x)`
-/// instead of six `sin` calls — this runs per sample for every note the
-/// synth renders, including a whole song when the Song Editor plays.
-fn harmonica_wave(x: f32) -> (f32, f32) {
+/// Every partial is `sin(k·x)`, so they come from the one sine/cosine pair
+/// by the Chebyshev recurrence `sin((k+1)x) = 2·cos(x)·sin(kx) −
+/// sin((k−1)x)` instead of six `sin` calls — this runs per sample for every
+/// note the synth renders, including a whole song when the Song Editor
+/// plays. The pair comes from an [`Oscillator`] for a steady note and from
+/// `voice_phase(..).sin_cos()` under vibrato.
+fn harmonica_wave(sin_x: f32, cos_x: f32) -> (f32, f32) {
     const AMPS: [f32; 6] = [P1, P2, P3, P4, P5, P6];
-    let (sin_x, cos_x) = x.sin_cos();
     let two_cos = 2.0 * cos_x;
     let (mut previous, mut current) = (0.0f32, sin_x);
     let mut sum = AMPS[0] * sin_x;
@@ -139,6 +141,52 @@ fn harmonica_wave(x: f32) -> (f32, f32) {
         sum += amp * next;
     }
     (sum / PARTIALS_SUM, sin_x)
+}
+
+/// Samples between exact re-seeds of an [`Oscillator`]. Rotation rounding
+/// grows by about one `f32` epsilon per step, so 1024 steps stay near 1e-4,
+/// about −80 dB below the signal.
+const OSCILLATOR_RESEED_SAMPLES: usize = 1024;
+
+/// `sin`/`cos` of a steady tone's phase, sample by sample, by rotating the
+/// previous pair through one sample's phase step: two multiply-adds instead
+/// of a `sin_cos` per sample. Re-seeded from [`voice_phase`] every
+/// [`OSCILLATOR_RESEED_SAMPLES`] so rounding cannot accumulate over a long
+/// note. Only for a constant frequency; vibrato's phase is not a fixed step.
+struct Oscillator {
+    freq: f32,
+    step_sin: f32,
+    step_cos: f32,
+    sin: f32,
+    cos: f32,
+}
+
+impl Oscillator {
+    fn new(freq: f32) -> Self {
+        let (step_sin, step_cos) = (TAU * freq / SAMPLE_RATE as f32).sin_cos();
+        Self {
+            freq,
+            step_sin,
+            step_cos,
+            sin: 0.0,
+            cos: 1.0,
+        }
+    }
+
+    /// `(sin, cos)` of the phase at sample `i` of the note. Must be called
+    /// for `i = 0, 1, 2, …` in order.
+    fn next(&mut self, i: usize) -> (f32, f32) {
+        if i.is_multiple_of(OSCILLATOR_RESEED_SAMPLES) {
+            (self.sin, self.cos) =
+                voice_phase(self.freq, i as f64 / f64::from(SAMPLE_RATE), 0.0).sin_cos();
+        }
+        let current = (self.sin, self.cos);
+        (self.sin, self.cos) = (
+            self.sin * self.step_cos + self.cos * self.step_sin,
+            self.cos * self.step_cos - self.sin * self.step_sin,
+        );
+        current
+    }
 }
 
 pub fn envelope(i: usize, dur: usize) -> f32 {
@@ -199,6 +247,9 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
     let mut buf = vec![0.0f32; total.max(1)];
 
     let attack_samples = (SAMPLE_RATE as f32 * ATTACK_SECS) as usize;
+    // One sample's worth of the breath noise's exponential decay. Multiplying
+    // by it each sample replaces an `exp` per sample.
+    let noise_decay_step = (BREATH_NOISE_DECAY / SAMPLE_RATE as f32).exp();
 
     for (idx, n) in notes.iter().enumerate() {
         let Some(freq) = n.freq else {
@@ -214,6 +265,8 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
         let mut rng: u32 = LCG_SEED
             .wrapping_add((idx as u32).wrapping_mul(LCG_HOLE_MIX))
             .wrapping_add((n.tick as u32).wrapping_mul(LCG_TICK_MIX));
+        let mut noise_env = 1.0f32;
+        let mut oscillator = Oscillator::new(freq);
 
         for i in 0..dur {
             let s = start + i;
@@ -235,9 +288,14 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
             // The second term is the bounded phase deviation Δφ(t); it
             // oscillates symmetrically between 0 and 2*freq*depth/rate, so the
             // pitch wobbles evenly above and below the base frequency.
-            let phase_mod = match n.expr {
-                Expr::Vibrato(rate) => vibrato_phase_mod(freq, rate, t),
-                _ => 0.0,
+            let (sin_x, cos_x) = match n.expr {
+                Expr::Vibrato(rate) => voice_phase(
+                    freq,
+                    i as f64 / f64::from(SAMPLE_RATE),
+                    vibrato_phase_mod(freq, rate, t),
+                )
+                .sin_cos(),
+                _ => oscillator.next(i),
             };
 
             // ── Hand Wah: amplitude + tone-color modulation ──────────────────
@@ -246,11 +304,7 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
             // Amplitude dips toward WAH_AMP_CLOSED when cupped.
             // Tone color is crossfaded from muffled (fundamental only) to the
             // full bright harmonic stack as the hands open.
-            let (bright, muffled) = harmonica_wave(voice_phase(
-                freq,
-                i as f64 / f64::from(SAMPLE_RATE),
-                phase_mod,
-            ));
+            let (bright, muffled) = harmonica_wave(sin_x, cos_x);
             let (tone, amp_mod) = if let Expr::Wah(rate) = n.expr {
                 let wah_open = ((TAU * rate * t).sin() + 1.0) * 0.5;
                 let blended = muffled + wah_open * (bright - muffled);
@@ -263,12 +317,11 @@ pub fn render_pcm(notes: &[PhraseNote], secs_per_tick: f32) -> Vec<f32> {
             // ── Breath noise ─────────────────────────────────────────────────
             rng = rng.wrapping_mul(LCG_MUL).wrapping_add(LCG_INC);
             let noise_sample = (rng as i32) as f32 / i32::MAX as f32;
-            let noise_env = if i < attack_samples {
-                1.0
-            } else {
-                (BREATH_NOISE_DECAY * (i - attack_samples) as f32 / SAMPLE_RATE as f32).exp()
-            };
+            // Full level through the attack, then e^(DECAY·t) from its end.
             let breath = noise_sample * BREATH_NOISE_AMP * noise_env;
+            if i >= attack_samples {
+                noise_env *= noise_decay_step;
+            }
 
             buf[s] += NOTE_LEVEL * env * amp_mod * (tone + breath);
         }
@@ -370,8 +423,9 @@ mod tests {
                             .abs()
                             .max((f64::from(muffled) - want_m).abs())
                     };
+                    let (sin_x, cos_x) = voice_phase(freq, t64, phase_mod).sin_cos();
                     new_worst = new_worst.max(error(
-                        harmonica_wave(voice_phase(freq, t64, phase_mod)),
+                        harmonica_wave(sin_x, cos_x),
                         truth(freq, t64, phase_mod),
                     ));
                     old_worst = old_worst.max(error(
@@ -387,6 +441,27 @@ mod tests {
         );
         // And far better than it, now that the phase is reduced first.
         assert!(new_worst < 1e-4, "recurrence error {new_worst}");
+    }
+
+    #[test]
+    fn the_oscillator_tracks_the_exact_phase_over_a_long_note() {
+        // Rotation rounding must stay bounded however long the note, and the
+        // re-seed is what bounds it: without one, a minute of samples drifts
+        // far past this tolerance. Judged against a double-precision phase,
+        // like the recurrence test above.
+        let mut worst = 0.0f64;
+        for freq in [130.0f32, 262.0, 523.0, 1047.0, 2093.0] {
+            let mut oscillator = Oscillator::new(freq);
+            for i in 0..60 * SAMPLE_RATE as usize {
+                let (sin, cos) = oscillator.next(i);
+                let x =
+                    std::f64::consts::TAU * f64::from(freq) * (i as f64 / f64::from(SAMPLE_RATE));
+                worst = worst
+                    .max((f64::from(sin) - x.sin()).abs())
+                    .max((f64::from(cos) - x.cos()).abs());
+            }
+        }
+        assert!(worst < 1e-4, "oscillator error {worst}");
     }
 
     #[test]
