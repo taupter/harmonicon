@@ -63,5 +63,8 @@ the function.
 - **Not timed in CI.** Shared runners are too noisy for results to mean
   anything. `cargo clippy --all-targets` already compiles every bench, so
   a bench cannot silently stop building.
-- Numbers are specific to the machine they ran on. Compare baselines from
-  the same machine, not figures copied from `CODE_ANALYSIS.md`.
+- Numbers are specific to the machine they ran on, and to its power
+  state: a laptop on battery in power-save mode ran the synth bench about
+  1.7× slower with the same code. Compare baselines taken on the same
+  machine in the same power state, not figures copied from
+  `CODE_ANALYSIS.md`.
