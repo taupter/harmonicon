@@ -217,6 +217,9 @@ pub struct FftState {
     /// Cached NMF note dictionary, rebuilt when the spectrum size / rate change.
     nmf_dict: Option<NmfDict>,
     nmf_scratch: NmfScratch,
+    /// Reused lag and threshold-score buffers for YIN and pYIN.
+    yin_cmnd: Vec<f32>,
+    pyin_prob: Vec<f32>,
     /// The windowed chunk the transform runs over, kept between calls: it is
     /// one allocation per analysed chunk otherwise, and chunks arrive at
     /// twice the rate of the 4096-sample window thanks to the 50% overlap.
@@ -234,6 +237,8 @@ impl Default for FftState {
             last_size: 0,
             nmf_dict: None,
             nmf_scratch: NmfScratch::default(),
+            yin_cmnd: Vec::new(),
+            pyin_prob: Vec::new(),
             windowed: Vec::new(),
             scratch: Vec::new(),
         }
@@ -319,8 +324,16 @@ pub fn analyze(
     // single span with an `algorithm` field.
     let pitches = match algorithm {
         PitchAlgorithm::Fft => pitches_from_magnitudes(&magnitudes, freq_res, range),
-        PitchAlgorithm::Yin => mono_pitch(yin_pitch(samples, sample_rate, range)),
-        PitchAlgorithm::Pyin => mono_pitch(pyin_pitch(samples, sample_rate, range)),
+        PitchAlgorithm::Yin => {
+            mono_pitch(yin_pitch(samples, sample_rate, range, &mut state.yin_cmnd))
+        }
+        PitchAlgorithm::Pyin => mono_pitch(pyin_pitch(
+            samples,
+            sample_rate,
+            range,
+            &mut state.yin_cmnd,
+            &mut state.pyin_prob,
+        )),
         PitchAlgorithm::Mcleod => mono_pitch(mpm_pitch(samples, sample_rate, range)),
         PitchAlgorithm::Nmf => {
             let n_bins = magnitudes.len();
@@ -440,21 +453,27 @@ const YIN_THRESHOLD: f32 = 0.15;
 
 /// Estimate the fundamental frequency of `samples` with YIN, or `None` if the
 /// block is too short or has no clear pitch within `range`.
-fn yin_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32> {
-    let (cmnd, tau_min, tau_max) = yin_cmnd(samples, sample_rate, range)?;
+fn yin_pitch(
+    samples: &[f32],
+    sample_rate: u32,
+    range: PitchRange,
+    cmnd: &mut Vec<f32>,
+) -> Option<f32> {
+    let (tau_min, tau_max) = yin_cmnd(samples, sample_rate, range, cmnd)?;
     // First τ whose d' dips below the absolute threshold (no dip → unvoiced).
-    let tau = first_dip_below(&cmnd, tau_min, tau_max, YIN_THRESHOLD)?;
-    cmnd_to_freq(&cmnd, tau, sample_rate, range)
+    let tau = first_dip_below(cmnd, tau_min, tau_max, YIN_THRESHOLD)?;
+    cmnd_to_freq(cmnd, tau, sample_rate, range)
 }
 
 /// Build YIN's cumulative-mean-normalized difference function d'(τ) over
-/// `range`'s τ span. Returns `(d', tau_min, tau_max)`, or `None` if the
-/// block is too short. Shared by YIN and pYIN.
+/// `range`'s τ span. Reuses `cmnd` and returns its valid lag bounds, or
+/// `None` if the block is too short. Shared by YIN and pYIN.
 fn yin_cmnd(
     samples: &[f32],
     sample_rate: u32,
     range: PitchRange,
-) -> Option<(Vec<f32>, usize, usize)> {
+    cmnd: &mut Vec<f32>,
+) -> Option<(usize, usize)> {
     let sr = sample_rate as f32;
     let tau_min = ((sr / range.max_freq).floor() as usize).max(2);
     let tau_max = (sr / range.min_freq).ceil() as usize;
@@ -466,7 +485,8 @@ fn yin_cmnd(
     let w = n - tau_max;
 
     // d'(τ) = d(τ) · τ / Σ_{j=1..τ} d(j); d'(0) ≡ 1.
-    let mut cmnd = vec![1.0f32; tau_max + 1];
+    cmnd.resize(tau_max + 1, 1.0);
+    cmnd[0] = 1.0;
     let mut running = 0.0f32;
     for tau in 1..=tau_max {
         let mut sum = 0.0f32;
@@ -481,7 +501,7 @@ fn yin_cmnd(
             1.0
         };
     }
-    Some((cmnd, tau_min, tau_max))
+    Some((tau_min, tau_max))
 }
 
 /// First τ in `[tau_min, tau_max]` whose d' dips below `threshold`, descended to
@@ -523,14 +543,21 @@ const PYIN_THRESHOLDS: usize = 100;
 
 /// Estimate f0 with the per-frame pYIN threshold sweep, or `None` if no
 /// candidate accumulates any probability.
-fn pyin_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f32> {
-    let (cmnd, tau_min, tau_max) = yin_cmnd(samples, sample_rate, range)?;
+fn pyin_pitch(
+    samples: &[f32],
+    sample_rate: u32,
+    range: PitchRange,
+    cmnd: &mut Vec<f32>,
+    prob: &mut Vec<f32>,
+) -> Option<f32> {
+    let (tau_min, tau_max) = yin_cmnd(samples, sample_rate, range, cmnd)?;
 
     // Accumulate prior probability onto whichever τ each threshold selects.
-    let mut prob = vec![0.0f32; tau_max + 1];
+    prob.resize(tau_max + 1, 0.0);
+    prob.fill(0.0);
     for k in 0..PYIN_THRESHOLDS {
         let threshold = (k as f32 + 0.5) / PYIN_THRESHOLDS as f32;
-        if let Some(tau) = first_dip_below(&cmnd, tau_min, tau_max, threshold) {
+        if let Some(tau) = first_dip_below(cmnd, tau_min, tau_max, threshold) {
             prob[tau] += beta_weight(threshold);
         }
     }
@@ -543,7 +570,7 @@ fn pyin_pitch(samples: &[f32], sample_rate: u32, range: PitchRange) -> Option<f3
     if prob[best] <= 0.0 {
         return None;
     }
-    cmnd_to_freq(&cmnd, best, sample_rate, range)
+    cmnd_to_freq(cmnd, best, sample_rate, range)
 }
 
 /// Unnormalized Beta(2, 18) density — pYIN's default prior over the YIN

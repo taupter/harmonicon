@@ -69,7 +69,13 @@ fn yin_detects_440hz() {
     let samples: Vec<f32> = (0..n)
         .map(|i| 0.5 * (2.0 * PI * 440.0 * i as f32 / sample_rate as f32).sin())
         .collect();
-    let f0 = yin_pitch(&samples, sample_rate, PitchRange::default()).expect("expected a pitch");
+    let f0 = yin_pitch(
+        &samples,
+        sample_rate,
+        PitchRange::default(),
+        &mut Vec::new(),
+    )
+    .expect("expected a pitch");
     assert!((f0 - 440.0).abs() < 5.0, "expected ~440 Hz, got {f0}");
     assert_eq!(freq_to_note(f0), Some((69, "A".to_string(), 4)));
 }
@@ -78,7 +84,12 @@ fn yin_detects_440hz() {
 fn yin_rejects_silence_and_noise() {
     // Flat silence: no period.
     assert_eq!(
-        yin_pitch(&vec![0.0f32; 4096], 44100, PitchRange::default()),
+        yin_pitch(
+            &vec![0.0f32; 4096],
+            44100,
+            PitchRange::default(),
+            &mut Vec::new(),
+        ),
         None
     );
 }
@@ -90,16 +101,52 @@ fn pyin_detects_440hz() {
     let samples: Vec<f32> = (0..n)
         .map(|i| 0.5 * (2.0 * PI * 440.0 * i as f32 / sample_rate as f32).sin())
         .collect();
-    let f0 = pyin_pitch(&samples, sample_rate, PitchRange::default()).expect("expected a pitch");
+    let f0 = pyin_pitch(
+        &samples,
+        sample_rate,
+        PitchRange::default(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
+    .expect("expected a pitch");
     assert!((f0 - 440.0).abs() < 5.0, "expected ~440 Hz, got {f0}");
 }
 
 #[test]
 fn pyin_rejects_silence() {
     assert_eq!(
-        pyin_pitch(&vec![0.0f32; 4096], 44100, PitchRange::default()),
+        pyin_pitch(
+            &vec![0.0f32; 4096],
+            44100,
+            PitchRange::default(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        ),
         None
     );
+}
+
+#[test]
+fn pyin_reuses_buffers_without_retaining_previous_probabilities() {
+    let sr = 44_100;
+    let tone = |hz: f32| {
+        (0..4096)
+            .map(|i| (2.0 * PI * hz * i as f32 / sr as f32).sin())
+            .collect::<Vec<_>>()
+    };
+    let a = tone(440.0);
+    let b = tone(660.0);
+    let mut cmnd = Vec::new();
+    let mut prob = Vec::new();
+    let range = PitchRange::default();
+    let first = pyin_pitch(&a, sr, range, &mut cmnd, &mut prob).unwrap();
+    let capacity = (cmnd.capacity(), prob.capacity());
+    let second = pyin_pitch(&b, sr, range, &mut cmnd, &mut prob).unwrap();
+    let again = pyin_pitch(&a, sr, range, &mut cmnd, &mut prob).unwrap();
+    assert!((first - 440.0).abs() < 5.0);
+    assert!((second - 660.0).abs() < 5.0);
+    assert_eq!(again, first);
+    assert_eq!((cmnd.capacity(), prob.capacity()), capacity);
 }
 
 #[test]
