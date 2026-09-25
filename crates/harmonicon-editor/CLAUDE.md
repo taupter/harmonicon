@@ -243,6 +243,14 @@ load-bearing about *this* crate.
   call site (a fresh placement, clicking an existing note, Ctrl+click,
   paste) already funnels through the same `selected_note`, so none of
   them need touching.
+- **Play renders its preview on a worker thread**
+  (`playback::start_playback` → `PendingPlayback` →
+  `finish_pending_playback`). A whole song takes tens of milliseconds to
+  synthesize, so the render runs on `AsyncComputeTaskPool`. The synth
+  track, the playhead and the background music all start on the frame it
+  lands, so they stay aligned. The pending render is itself an
+  `EditorAudio` entity, so every stop path that despawns editor audio
+  also cancels it; a new stop path needs nothing extra.
 - **Save/Load outcomes show up in the status bar, not just the log**
   (`song_editor::save_feedback`). `harpchart::handle_save_chosen`/
   `handle_load_chosen` and `lesson_form::handle_save_lesson_chosen`/

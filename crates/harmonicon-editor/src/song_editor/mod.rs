@@ -161,6 +161,7 @@ impl Plugin for SongEditor2Plugin {
                 Update,
                 (
                     (
+                        playback::finish_pending_playback,
                         playback::advance_playhead,
                         view_scroll::auto_scroll,
                         view_scroll::pan_keys,

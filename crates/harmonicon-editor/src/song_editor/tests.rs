@@ -9,7 +9,10 @@ use super::interaction::{
     apply_modifier, delete_selected, resize_grip_position, select_or_add, select_or_add_ctrl,
 };
 use super::lesson_form::{populate_from_lesson_manifest, serialize_lesson};
-use super::playback::{build_harp, note_freq, playhead_for, secs_per_tick};
+use super::playback::{
+    EditorAudio, PendingPlayback, Playhead, build_harp, finish_pending_playback, note_freq,
+    playhead_for, secs_per_tick, start_playback,
+};
 use super::ranges::{
     erase_range, normalize_range, remove_range, silence_gaps, song_end_tick, split_side_range,
 };
@@ -77,6 +80,108 @@ fn playhead_for_starts_playing_from_zero_with_the_right_total() {
     assert_eq!(ph.elapsed, 0.0);
     assert_eq!(ph.secs_per_tick, 0.25);
     assert_eq!(ph.total, 2.0);
+}
+
+// ── playback: rendering off the main thread ──────────────────────────────
+
+/// An app with the task pools and audio assets Play needs, holding a
+/// one-note chart, with Play already pressed.
+fn app_after_play() -> bevy::app::App {
+    use bevy::asset::AssetPlugin;
+    use bevy::audio::AudioSource;
+    use bevy::ecs::system::RunSystemOnce;
+    use bevy::prelude::*;
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(EditorState {
+            notes: vec![grid_note(0, TICKS_PER_BEAT)],
+            ..EditorState::default()
+        })
+        .insert_resource(harmonicon_audio::AudioSettings::default())
+        .init_resource::<Playhead>()
+        .add_systems(Update, finish_pending_playback);
+    app.world_mut()
+        .run_system_once(
+            |state: Res<EditorState>,
+             mut sources: ResMut<Assets<AudioSource>>,
+             settings: Res<harmonicon_audio::AudioSettings>,
+             playing: Query<Entity, With<EditorAudio>>,
+             mut playhead: ResMut<Playhead>,
+             mut commands: Commands| {
+                start_playback(
+                    &state,
+                    &mut sources,
+                    &settings,
+                    &playing,
+                    &mut playhead,
+                    &mut commands,
+                );
+            },
+        )
+        .unwrap();
+    app
+}
+
+/// Runs frames until no render is pending, or gives up after two seconds.
+fn update_until_rendered(app: &mut bevy::app::App) {
+    for _ in 0..200 {
+        app.update();
+        let mut pending = app
+            .world_mut()
+            .query_filtered::<(), bevy::prelude::With<PendingPlayback>>();
+        if pending.iter(app.world()).next().is_none() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the Play render never finished");
+}
+
+#[test]
+fn play_starts_the_playhead_only_once_the_render_lands() {
+    use bevy::audio::{AudioPlayer, AudioSource};
+
+    let mut app = app_after_play();
+    assert!(
+        !app.world().resource::<Playhead>().playing,
+        "the playhead must wait for the audio it tracks"
+    );
+
+    update_until_rendered(&mut app);
+
+    let mut players = app.world_mut().query_filtered::<(), (
+        bevy::prelude::With<EditorAudio>,
+        bevy::prelude::With<AudioPlayer<AudioSource>>,
+    )>();
+    assert_eq!(players.iter(app.world()).count(), 1);
+    let playhead = app.world().resource::<Playhead>();
+    assert!(playhead.playing);
+    let spt = secs_per_tick(&EditorState::default());
+    assert!((playhead.total - TICKS_PER_BEAT as f32 * spt).abs() < 1e-6);
+}
+
+#[test]
+fn stopping_before_the_render_lands_cancels_it() {
+    use bevy::prelude::*;
+
+    let mut app = app_after_play();
+    // What every stop path does: despawn all editor audio.
+    let audio: Vec<Entity> = app
+        .world_mut()
+        .query_filtered::<Entity, With<EditorAudio>>()
+        .iter(app.world())
+        .collect();
+    assert_eq!(audio.len(), 1, "the pending render is editor audio");
+    for entity in audio {
+        app.world_mut().despawn(entity);
+    }
+    for _ in 0..20 {
+        app.update();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!app.world().resource::<Playhead>().playing);
 }
 
 // ── lesson_form ──────────────────────────────────────────────────────────

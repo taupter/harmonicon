@@ -73,13 +73,10 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
 Found by the Criterion benches (`contributing/src/benchmarks.md`); figures
 in `CODE_ANALYSIS.md`.
 
-- [ ] **Song Editor Play freezes on a long chart.** `playback::
-  start_playback` renders the whole song with `synth::render_pcm` on the
-  main thread: 63 ms for 200 notes. Render on `AsyncComputeTaskPool` and
-  start the sink when it finishes.
 - [ ] **Jam generator's Start freezes the menu for 115–226 ms** while
   `build_generated_manifest` renders every chorus of the backing
-  synchronously. Same fix, behind a loading state.
+  synchronously. Render on `AsyncComputeTaskPool` behind a loading state,
+  as Song Editor Play now does.
 
 ## Known open items (design detail)
 

@@ -2,8 +2,9 @@
 
 use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures_lite::future};
 
-use super::state::{Dir, GridNote, HarmonicaKind, Pitch};
+use super::state::{Dir, EditorState, GridNote, HarmonicaKind, Pitch};
 use super::{TICK_W, TICKS_PER_BEAT};
 use harmonicon_audio::AudioSettings;
 use harmonicon_core::harmonica::{
@@ -12,6 +13,7 @@ use harmonicon_core::harmonica::{
 };
 use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::synth::{PhraseNote, SAMPLE_RATE, render_pcm};
+use harmonicon_core::wav::encode_wav;
 
 // ── Components / Resources ───────────────────────────────────────────────────
 
@@ -133,7 +135,7 @@ pub(super) fn note_midi(note: &GridNote, harp: &Harmonica) -> Option<u8> {
 /// time. Deliberately not the real multi-point tempo map (`state::
 /// EditorState::tempo_map`/`song::chart::tick_to_seconds`) — audio synthesis
 /// stays on one constant tempo (see `CLAUDE.md`).
-pub(super) fn secs_per_tick(state: &super::state::EditorState) -> f32 {
+pub(super) fn secs_per_tick(state: &EditorState) -> f32 {
     let bpm = state.tempo.trim().parse::<f32>().unwrap_or(120.0).max(1.0);
     60.0 / bpm / TICKS_PER_BEAT as f32
 }
@@ -161,7 +163,7 @@ pub(super) fn playhead_for(total_ticks: usize, secs_per_tick: f32) -> Playhead {
 /// `false` for both an empty path and a read failure (`warn!`-logged) so a
 /// caller can show a "no background music" fallback either way.
 pub(super) fn spawn_background_music(
-    state: &super::state::EditorState,
+    state: &EditorState,
     sources: &mut Assets<AudioSource>,
     settings: &AudioSettings,
     commands: &mut Commands,
@@ -189,8 +191,20 @@ pub(super) fn spawn_background_music(
     }
 }
 
+/// A Play preview still being synthesized on a worker thread. Rendering a
+/// whole song takes tens of milliseconds, too long for the main thread.
+/// The entity also carries [`EditorAudio`], so every path that stops
+/// playback by despawning editor audio drops the task too, which cancels
+/// the render.
+#[derive(Component)]
+pub(super) struct PendingPlayback {
+    task: Task<Vec<u8>>,
+    end_tick: usize,
+    secs_per_tick: f32,
+}
+
 pub(super) fn start_playback(
-    state: &super::state::EditorState,
+    state: &EditorState,
     sources: &mut Assets<AudioSource>,
     settings: &AudioSettings,
     playing: &Query<Entity, With<EditorAudio>>,
@@ -202,36 +216,63 @@ pub(super) fn start_playback(
     }
     *playhead = Playhead::default();
 
+    if state.notes.is_empty() {
+        spawn_background_music(state, sources, settings, commands);
+        return;
+    }
     let spt = secs_per_tick(state);
-    if !state.notes.is_empty() {
-        let harp = state.effective_harp();
-        let phrase: Vec<PhraseNote> = state
-            .notes
-            .iter()
-            .map(|n| PhraseNote {
-                tick: n.tick,
-                len: n.len,
-                freq: note_freq(n, &harp),
-                expr: n.expr,
-            })
-            .collect();
-        let wav = harmonicon_core::wav::encode_wav(&render_pcm(&phrase, spt), SAMPLE_RATE);
+    let harp = state.effective_harp();
+    let phrase: Vec<PhraseNote> = state
+        .notes
+        .iter()
+        .map(|n| PhraseNote {
+            tick: n.tick,
+            len: n.len,
+            freq: note_freq(n, &harp),
+            expr: n.expr,
+        })
+        .collect();
+    let end_tick = state
+        .notes
+        .iter()
+        .map(|n| n.tick + n.len)
+        .max()
+        .unwrap_or(0);
+    let task = AsyncComputeTaskPool::get()
+        .spawn(async move { encode_wav(&render_pcm(&phrase, spt), SAMPLE_RATE) });
+    commands.spawn((
+        EditorAudio,
+        PendingPlayback {
+            task,
+            end_tick,
+            secs_per_tick: spt,
+        },
+    ));
+}
+
+/// Starts a Play preview once its render lands. The synth track, the
+/// playhead and the background music start on the same frame, so the music
+/// stays aligned with the notes.
+pub(super) fn finish_pending_playback(
+    mut pending: Query<(Entity, &mut PendingPlayback)>,
+    state: Res<EditorState>,
+    mut sources: ResMut<Assets<AudioSource>>,
+    settings: Res<AudioSettings>,
+    mut playhead: ResMut<Playhead>,
+    mut commands: Commands,
+) {
+    for (entity, mut render) in &mut pending {
+        let Some(wav) = future::block_on(future::poll_once(&mut render.task)) else {
+            continue;
+        };
         let handle = sources.add(AudioSource { bytes: wav.into() });
-        commands.spawn((
-            EditorAudio,
+        commands.entity(entity).remove::<PendingPlayback>().insert((
             AudioPlayer::<AudioSource>(handle),
             PlaybackSettings::DESPAWN,
         ));
-        let end_tick = state
-            .notes
-            .iter()
-            .map(|n| n.tick + n.len)
-            .max()
-            .unwrap_or(0);
-        *playhead = playhead_for(end_tick, spt);
+        *playhead = playhead_for(render.end_tick, render.secs_per_tick);
+        spawn_background_music(&state, &mut sources, &settings, &mut commands);
     }
-
-    spawn_background_music(state, sources, settings, commands);
 }
 
 // ── Systems ──────────────────────────────────────────────────────────────────
