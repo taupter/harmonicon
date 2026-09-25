@@ -51,6 +51,14 @@ pub enum SongLoadError {
 pub fn validate_and_migrate_chart(
     chart_value: &mut serde_json::Value,
 ) -> Result<bool, SongLoadError> {
+    validate_and_parse_chart(chart_value).map(|(migrated, _)| migrated)
+}
+
+/// [`validate_and_migrate_chart`], also handing back the typed chart it had
+/// to deserialize anyway — so the asset loader doesn't parse it twice.
+fn validate_and_parse_chart(
+    chart_value: &mut serde_json::Value,
+) -> Result<(bool, HarpChart), SongLoadError> {
     let migrated = migrate_chart_json(chart_value);
     let errors: Vec<String> = chart_validator()
         .iter_errors(chart_value)
@@ -60,7 +68,8 @@ pub fn validate_and_migrate_chart(
         return Err(SongLoadError::Validation(errors.join("\n")));
     }
 
-    let chart: HarpChart = serde_json::from_value(chart_value.clone())?;
+    // Deserializes from a borrow: no copy of the whole JSON tree.
+    let chart = <HarpChart as serde::Deserialize>::deserialize(&*chart_value)?;
     let declared_version = chart
         .metadata
         .as_ref()
@@ -73,7 +82,7 @@ pub fn validate_and_migrate_chart(
             declared = declared_version.unwrap_or("<missing>"),
         )));
     }
-    Ok(migrated)
+    Ok((migrated, chart))
 }
 
 #[derive(Default, TypePath)]
@@ -121,9 +130,9 @@ impl SongChartLoader {
         // Parse to a generic JSON value first so we can validate before deserializing.
         let mut chart_value: serde_json::Value = serde_json::from_slice(&bytes)?;
 
-        let migrated = {
+        let (migrated, chart) = {
             let _span = info_span!("validate_and_parse_chart").entered();
-            validate_and_migrate_chart(&mut chart_value)?
+            validate_and_parse_chart(&mut chart_value)?
         };
         if migrated {
             info!(
@@ -131,8 +140,6 @@ impl SongChartLoader {
                 load_context.path()
             );
         }
-
-        let chart: HarpChart = serde_json::from_value(chart_value)?;
 
         assemble_manifest(chart, Vec::new(), None, load_context).await
     }
