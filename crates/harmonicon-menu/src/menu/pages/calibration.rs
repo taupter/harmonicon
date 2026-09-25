@@ -408,23 +408,26 @@ fn update_offset_summary(
     }
 }
 
-fn update_status(cal: Res<CalState>, mut texts: Query<&mut Text, With<CalStatusText>>) {
-    if !cal.is_changed() {
+fn update_status(
+    cal: Res<CalState>,
+    loc: Res<Localization>,
+    mut texts: Query<&mut Text, With<CalStatusText>>,
+) {
+    if !cal.is_changed() && !loc.is_changed() {
         return;
     }
-    let msg: String = match cal.phase {
-        CalPhase::Waiting => "Play any note on each beat — the game measures how late \
-                               your mic detects sound."
-            .into(),
-        CalPhase::Recording => {
-            if cal.beat_count <= WARMUP_BEATS {
-                "Get ready…".into()
-            } else {
-                format!("{} / {} hits recorded", cal.offsets.len(), BEATS_NEEDED)
-            }
-        }
-        CalPhase::Done => "Calibration complete!".into(),
-    };
+    let msg = String::from(match cal.phase {
+        CalPhase::Waiting => loc.msg("calibration-instructions"),
+        CalPhase::Recording if cal.beat_count <= WARMUP_BEATS => loc.msg("calibration-get-ready"),
+        CalPhase::Recording => loc.msg_args(
+            "calibration-hits-recorded",
+            &[
+                ("hits", cal.offsets.len().to_string()),
+                ("total", BEATS_NEEDED.to_string()),
+            ],
+        ),
+        CalPhase::Done => loc.msg("calibration-complete"),
+    });
     for mut t in &mut texts {
         if t.0 != msg {
             t.0.clone_from(&msg);
@@ -772,7 +775,7 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
             ShowWaiting,
         ))
         .with_children(|row| {
-            spawn_cal_button(row, "Start", begin_recording);
+            spawn_cal_button(row, &loc.msg("calibration-start"), begin_recording);
         });
 
         // Done-only row
@@ -786,13 +789,13 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
             ShowDone,
         ))
         .with_children(|row| {
-            spawn_cal_button(row, "Apply", apply_calibration);
-            spawn_cal_button(row, "Try Again", begin_recording);
+            spawn_cal_button(row, &loc.msg("calibration-apply"), apply_calibration);
+            spawn_cal_button(row, &loc.msg("calibration-try-again"), begin_recording);
         });
 
         // Cancel — always visible regardless of phase
         p.spawn(Node::default()).with_children(|row| {
-            spawn_cal_button(row, "\u{2190} Cancel", cancel_calibration);
+            spawn_cal_button(row, &loc.msg("calibration-cancel"), cancel_calibration);
         });
     });
 }

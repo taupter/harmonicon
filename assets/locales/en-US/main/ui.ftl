@@ -1108,6 +1108,13 @@ calibration-mean-offset-placeholder = Mean offset: —
 calibration-mean-offset = Mean offset: {$sign}{$ms}ms
 calibration-suggested-placeholder = Current: —   →   Suggested: —
 calibration-suggested = Current: {$current}ms   →   Suggested: {$suggested}ms
+calibration-get-ready = Get ready…
+calibration-hits-recorded = {$hits} / {$total} hits recorded
+calibration-complete = Calibration complete!
+calibration-start = Start
+calibration-apply = Apply
+calibration-try-again = Try Again
+calibration-cancel = ← Cancel
 
 # Options
 options-input-lag = Input lag

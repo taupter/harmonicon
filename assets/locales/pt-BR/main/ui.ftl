@@ -1106,6 +1106,13 @@ calibration-mean-offset-placeholder = Deslocamento médio: —
 calibration-mean-offset = Deslocamento médio: {$sign}{$ms}ms
 calibration-suggested-placeholder = Atual: —   →   Sugerido: —
 calibration-suggested = Atual: {$current}ms   →   Sugerido: {$suggested}ms
+calibration-get-ready = Prepare-se…
+calibration-hits-recorded = {$hits} / {$total} toques registrados
+calibration-complete = Calibração concluída!
+calibration-start = Começar
+calibration-apply = Aplicar
+calibration-try-again = Tentar de novo
+calibration-cancel = ← Cancelar
 
 # Opções
 options-input-lag = Atraso de entrada
