@@ -112,6 +112,40 @@ fn yin_rejects_silence_and_noise() {
 }
 
 #[test]
+fn simd_yin_difference_matches_scalar_reference() {
+    let sr = 44_100;
+    let range = PitchRange::default();
+    let samples: Vec<f32> = (0..4096)
+        .map(|i| {
+            let t = i as f32 / sr as f32;
+            0.6 * (2.0 * PI * 440.0 * t).sin()
+                + 0.2 * (2.0 * PI * 880.0 * t).sin()
+                + 0.01 * ((i * 73 % 101) as f32 / 50.0 - 1.0)
+        })
+        .collect();
+    let mut simd = Vec::new();
+    let (tau_min, tau_max) = yin_cmnd(&samples, sr, range, &mut simd).unwrap();
+    let window = samples.len() - tau_max;
+    let mut running = 0.0f32;
+    for tau in 1..=tau_max {
+        let sum = (0..window)
+            .map(|j| {
+                let diff = samples[j] - samples[j + tau];
+                diff * diff
+            })
+            .sum::<f32>();
+        running += sum;
+        let scalar = if running > 0.0 {
+            sum * tau as f32 / running
+        } else {
+            1.0
+        };
+        assert!((simd[tau] - scalar).abs() < 1e-4, "lag {tau}");
+    }
+    assert!(first_dip_below(&simd, tau_min, tau_max, YIN_THRESHOLD).is_some());
+}
+
+#[test]
 fn pyin_detects_440hz() {
     let sample_rate = 44100u32;
     let n = 4096;

@@ -30,6 +30,7 @@ midly = "0.5"
 bevy = { git = "https://github.com/bevyengine/bevy", tag = "v0.20.0-rc.1", features = ["wav"] }
 cpal = "0.17"
 rustfft = "6.4"
+simsimd = "6.5.16"
 crossbeam-channel = "0.5"
 rodio = { version = "0.22", default-features = false, features = ["vorbis"] }
 # The Fluent stack, used directly: `harmonicon-platform`'s `localization`

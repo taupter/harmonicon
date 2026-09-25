@@ -23,6 +23,7 @@ pub const HOP_SIZE: usize = CHUNK_SIZE / 2;
 
 use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use serde::{Deserialize, Serialize};
+use simsimd::SpatialSimilarity;
 use std::sync::Arc;
 
 use harmonicon_core::midi::NOTE_NAMES;
@@ -507,11 +508,8 @@ fn yin_cmnd(
     cmnd[0] = 1.0;
     let mut running = 0.0f32;
     for tau in 1..=tau_max {
-        let mut sum = 0.0f32;
-        for j in 0..w {
-            let diff = samples[j] - samples[j + tau];
-            sum += diff * diff;
-        }
+        let sum = f32::sqeuclidean(&samples[..w], &samples[tau..tau + w])
+            .expect("YIN compares equal-length sample windows") as f32;
         running += sum;
         cmnd[tau] = if running > 0.0 {
             sum * tau as f32 / running
