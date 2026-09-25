@@ -360,9 +360,13 @@ impl ChunkWriter {
         if channels == 0 {
             return;
         }
+        let channel_gain = 1.0 / channels as f32;
         for frame in data.chunks_exact(channels) {
-            self.samples[self.len] =
-                frame.iter().map(|&s| s.to_sample::<f32>()).sum::<f32>() / channels as f32;
+            self.samples[self.len] = if channels == 1 {
+                frame[0].to_sample::<f32>()
+            } else {
+                frame.iter().map(|&s| s.to_sample::<f32>()).sum::<f32>() * channel_gain
+            };
             self.len += 1;
             self.end_sample += 1;
             if self.len != CHUNK_SIZE {
@@ -508,6 +512,20 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert!(rx.is_empty());
+    }
+
+    #[test]
+    fn mono_callback_preserves_samples_without_allocating() {
+        let (tx, rx) = bounded(1);
+        let (free_tx, free_rx) = bounded(1);
+        free_tx.send(Vec::with_capacity(CHUNK_SIZE)).unwrap();
+        let mut writer = ChunkWriter::new();
+        let input = vec![0.25f32; CHUNK_SIZE];
+        ALLOCATIONS.with(|counter| counter.set(Some((0, 0))));
+        writer.push(&input, 1, &tx, &free_rx);
+        let counts = ALLOCATIONS.with(|counter| counter.replace(None).unwrap());
+        assert_eq!(counts, (0, 0));
+        assert_eq!(rx.try_recv().unwrap().samples, input);
     }
 
     #[test]
