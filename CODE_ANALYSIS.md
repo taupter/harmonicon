@@ -206,7 +206,7 @@ Started 2026-09-23. Review order: root composition crate, then feature crates, s
 
 ## Findings and follow-up
 
-- `contributing/src/plugin-architecture.md` still contains stale Bevy 0.19 and `main.rs` wiring descriptions. A full rewrite should follow the actual current plugin registration; this is not yet marked complete.
+- `contributing/src/plugin-architecture.md` (follow-up) — corrected the composition root to `src/lib.rs`, the audio pipeline and Jam plugin ownership, current widget registration, and the `MusicVolumeSet` ordering example. Removed stale Bevy 0.19 and `main.rs` wiring claims.
 - DSP already uses `rustfft`, which can select SIMD implementations for FFTs. YIN/MPM difference loops and NMF dot products may benefit from explicit SIMD or `simsimd`, but require representative recordings and benchmarks before changing floating-point reduction order or adding a dependency. NMF also allocates its output spectrum and activation vectors each call; changing that without affecting the public return type needs a careful buffer-reuse design.
 - `crates/harmonicon-editor/src/song_editor/undo.rs` (follow-up) — the retained-size estimate now includes meter strings, annotation and expression maps, and custom harmonica layout strings and vector capacities. The 32 MiB limit remains approximate because `BTreeMap` node allocator overhead is not exposed by its API; current document content is retained even when it alone exceeds the budget.
 - `crates/harmonicon-editor/src/song_editor/lesson_form.rs` (follow-up) — lesson chart loading now uses `validated_harpchart`, the same migration and unsupported-feature gate as song loading. Invalid charts fail before editor state is changed; lesson save behavior is unchanged. Full workspace tests passed.
