@@ -38,7 +38,7 @@ pub struct Metadata {
 /// spec than this build supports up front, with a clear error, instead of
 /// failing on some confusing downstream `additionalProperties` schema
 /// rejection or (worse) silently misreading a field whose meaning changed.
-pub const CURRENT_FORMAT_VERSION: &str = "1.3.0";
+pub const CURRENT_FORMAT_VERSION: &str = "1.4.0";
 
 /// Parses a `"MAJOR.MINOR.PATCH"` version string into a comparable tuple.
 /// `None` for anything that isn't exactly three dot-separated integers.
@@ -295,6 +295,22 @@ pub struct Timing {
     pub tempo_map: Vec<TempoPoint>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time_signature_map: Option<Vec<TimeSigPoint>>,
+    /// Length of a pickup (anacrusis), in ticks: the music starts this far
+    /// before bar 1. `None` or `0` for a chart that starts on a downbeat.
+    ///
+    /// The pickup is the *end* of an implied, unnumbered bar 0, so its beats
+    /// are that bar's last ones — a one-beat pickup in 4/4 is counted "4 |
+    /// 1 2 3 4". Every bar-shaped reading takes it from
+    /// [`Timing::pickup`]. Added in format 1.4.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pickup_ticks: Option<u64>,
+}
+
+impl Timing {
+    /// The pickup's length in ticks, 0 for none.
+    pub fn pickup(&self) -> u64 {
+        self.pickup_ticks.unwrap_or(0)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -624,6 +624,7 @@ fn timing_120bpm() -> Timing {
             bpm: 120.0,
         }],
         time_signature_map: None,
+        pickup_ticks: None,
     }
 }
 

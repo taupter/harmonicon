@@ -514,6 +514,7 @@ mod tests {
                     bpm: 120.0,
                 }],
                 time_signature_map: None,
+                pickup_ticks: None,
             },
             harmonica: richter_harp("C"),
             track,

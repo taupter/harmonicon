@@ -349,6 +349,7 @@ fn render_scenario(
                 bpm: 120.0,
             }],
             time_signature_map: None,
+            pickup_ticks: None,
         },
         harmonica: harp.clone(),
         track,

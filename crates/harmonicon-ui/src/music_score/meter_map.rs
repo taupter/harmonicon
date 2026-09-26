@@ -36,12 +36,35 @@ pub struct MeterSegment {
     pub ticks_per_beat: u64,
     /// Ticks in one bar of `meter`.
     pub ticks_per_bar: u64,
+    /// How far into its bar `start_tick` already is. Zero except for the
+    /// first segment of a piece with a pickup, whose bar 0 began before the
+    /// music did (see [`MeterMap::with_pickup`]).
+    pub phase_ticks: u64,
+}
+
+impl MeterSegment {
+    /// Ticks from the start of this segment's bar grid to `tick` — which
+    /// `tick` must not precede.
+    fn grid_offset(&self, tick: u64) -> u64 {
+        tick - self.start_tick + self.phase_ticks
+    }
+
+    /// The first tick at or after `from` (and not before the segment) on a
+    /// grid of `step` anchored where this segment's bar grid starts.
+    fn first_on_grid(&self, from: u64, step: u64) -> u64 {
+        let from = from.max(self.start_tick);
+        let into = self.grid_offset(from);
+        from + (step - into % step) % step
+    }
 }
 
 /// A chart's meter over time. Always has at least one segment, at tick 0.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeterMap {
     segments: Vec<MeterSegment>,
+    /// Whether bar 0 is a pickup — the unnumbered end of a bar — rather
+    /// than a full first bar.
+    pickup: bool,
 }
 
 /// Where a tick falls: 0-based bar and beat, and the tick offset into
@@ -63,6 +86,23 @@ impl MeterMap {
     /// beat that isn't a whole number of ticks) falls back to 4/4 rather
     /// than producing a zero-length bar the arithmetic would divide by.
     pub fn new<'a>(points: impl IntoIterator<Item = (u64, &'a str)>, quarter_ticks: u32) -> Self {
+        Self::with_pickup(points, quarter_ticks, 0)
+    }
+
+    /// Like [`new`](Self::new), for a piece that starts with a pickup of
+    /// `pickup_ticks`: the music begins that far before bar 1.
+    ///
+    /// The pickup is the *end* of bar 0 — a one-beat pickup in 4/4 is that
+    /// bar's fourth beat — so the first segment's bar grid is anchored
+    /// before tick 0 and bar 1 starts at `pickup_ticks`. Bar 0 is never
+    /// listed as starting (no bar line precedes a pickup) and has no
+    /// number ([`bar_number`](Self::bar_number)). A pickup of a whole bar
+    /// or more is taken modulo the bar; a whole number of bars is none.
+    pub fn with_pickup<'a>(
+        points: impl IntoIterator<Item = (u64, &'a str)>,
+        quarter_ticks: u32,
+        pickup_ticks: u64,
+    ) -> Self {
         let mut points: Vec<(u64, MusicScoreMeter)> = points
             .into_iter()
             .map(|(tick, sig)| (tick, parse_time_signature(sig)))
@@ -82,6 +122,7 @@ impl MeterMap {
 
         let mut segments: Vec<MeterSegment> = Vec::with_capacity(points.len());
         let mut next_bar = 0usize;
+        let mut pickup = false;
         for (i, &(start_tick, meter)) in points.iter().enumerate() {
             let (ticks_per_beat, ticks_per_bar) = match (
                 meter.ticks_per_beat(quarter_ticks),
@@ -96,21 +137,48 @@ impl MeterMap {
                     )
                 }
             };
+            // Only the piece's own start can be part-way into a bar; a
+            // change always begins a fresh one.
+            let into_bar = if i == 0 {
+                pickup_ticks % ticks_per_bar
+            } else {
+                0
+            };
+            let phase_ticks = (ticks_per_bar - into_bar) % ticks_per_bar;
+            pickup |= phase_ticks > 0;
             segments.push(MeterSegment {
                 start_tick,
                 meter,
                 first_bar: next_bar,
                 ticks_per_beat,
                 ticks_per_bar,
+                phase_ticks,
             });
             // Bars this segment contributes before the next change: full
-            // bars, plus one for a change that cuts a bar short.
+            // bars, plus one for a change that cuts a bar short (and, for
+            // a pickup, the bar 0 it ends).
             if let Some(&(next_start, _)) = points.get(i + 1) {
-                let span = next_start - start_tick;
+                let span = next_start - start_tick + phase_ticks;
                 next_bar += span.div_ceil(ticks_per_bar) as usize;
             }
         }
-        Self { segments }
+        Self { segments, pickup }
+    }
+
+    /// Whether the piece opens with a pickup, so bar 0 is its unnumbered
+    /// tail rather than a full first bar.
+    pub fn has_pickup(&self) -> bool {
+        self.pickup
+    }
+
+    /// The bar number a musician reads for 0-based `bar`: 1 for the first
+    /// full bar. `None` for a pickup's bar 0, which is not numbered.
+    pub fn bar_number(&self, bar: usize) -> Option<usize> {
+        if self.pickup {
+            (bar > 0).then_some(bar)
+        } else {
+            Some(bar + 1)
+        }
     }
 
     /// A map with one meter for the whole piece.
@@ -138,7 +206,7 @@ impl MeterMap {
     /// Which bar and beat `tick` is in.
     pub fn position(&self, tick: u64) -> BarPosition {
         let seg = self.segment_at(tick);
-        let offset = tick - seg.start_tick;
+        let offset = seg.grid_offset(tick);
         let bar_in_segment = (offset / seg.ticks_per_bar) as usize;
         let in_bar = offset % seg.ticks_per_bar;
         BarPosition {
@@ -152,7 +220,7 @@ impl MeterMap {
     /// Whether a bar starts exactly at `tick`.
     pub fn is_bar_start(&self, tick: u64) -> bool {
         let seg = self.segment_at(tick);
-        (tick - seg.start_tick).is_multiple_of(seg.ticks_per_bar)
+        seg.grid_offset(tick).is_multiple_of(seg.ticks_per_bar)
     }
 
     /// The tick each *bar* starts on within `[from, to)`, with its 0-based
@@ -166,16 +234,11 @@ impl MeterMap {
             if seg_end <= from || seg.start_tick >= to {
                 continue;
             }
-            // First bar start at or after `from` within this segment.
-            let first = if from <= seg.start_tick {
-                seg.start_tick
-            } else {
-                seg.start_tick
-                    + (from - seg.start_tick).div_ceil(seg.ticks_per_bar) * seg.ticks_per_bar
-            };
-            let mut tick = first;
+            // First bar start at or after `from` within this segment — on a
+            // pickup's grid, never the segment start itself.
+            let mut tick = seg.first_on_grid(from, seg.ticks_per_bar);
             while tick < to && tick < seg_end {
-                let bar = seg.first_bar + ((tick - seg.start_tick) / seg.ticks_per_bar) as usize;
+                let bar = seg.first_bar + (seg.grid_offset(tick) / seg.ticks_per_bar) as usize;
                 out.push((tick, bar));
                 tick += seg.ticks_per_bar;
             }
@@ -194,13 +257,7 @@ impl MeterMap {
             if seg_end <= from || seg.start_tick >= to {
                 continue;
             }
-            let first = if from <= seg.start_tick {
-                seg.start_tick
-            } else {
-                seg.start_tick
-                    + (from - seg.start_tick).div_ceil(seg.ticks_per_beat) * seg.ticks_per_beat
-            };
-            let mut tick = first;
+            let mut tick = seg.first_on_grid(from, seg.ticks_per_beat);
             while tick < to && tick < seg_end {
                 out.push((tick, self.position(tick)));
                 tick += seg.ticks_per_beat;
@@ -331,5 +388,58 @@ mod tests {
         let map = MeterMap::new([(0, "4/32")], Q);
         assert_eq!(map.segment_at(0).ticks_per_bar, 48);
         let _ = map.position(1000);
+    }
+
+    // ── pickups ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn a_one_beat_pickup_is_the_last_beat_of_an_unnumbered_bar_zero() {
+        let map = MeterMap::with_pickup([(0, "4/4")], Q, 12);
+        let p = map.position(0);
+        assert_eq!((p.bar, p.beat), (0, 3), "the pickup is beat 4 of bar 0");
+        assert_eq!(map.position(12).bar, 1, "bar 1 starts where it ends");
+        assert_eq!(map.position(12).beat, 0);
+        assert!(map.is_bar_start(12));
+        assert!(!map.is_bar_start(0));
+        assert_eq!(map.bar_number(0), None, "a pickup bar has no number");
+        assert_eq!(map.bar_number(1), Some(1));
+    }
+
+    #[test]
+    fn no_bar_line_precedes_a_pickup() {
+        let map = MeterMap::with_pickup([(0, "4/4")], Q, 12);
+        assert_eq!(
+            map.bar_starts(0, 120),
+            vec![(12, 1), (60, 2), (108, 3)],
+            "bar lines at the pickup's end and every 48 ticks after"
+        );
+    }
+
+    #[test]
+    fn a_pickup_off_the_beat_shifts_the_beat_grid_with_it() {
+        // An eighth-note pickup in 4/4: the music starts on the "and" of 4.
+        let map = MeterMap::with_pickup([(0, "4/4")], Q, 6);
+        let beats: Vec<u64> = map.beat_starts(0, 30).iter().map(|(t, _)| *t).collect();
+        assert_eq!(beats, vec![6, 18], "beats land on bar 1's grid, not tick 0");
+        let p = map.position(0);
+        assert_eq!((p.bar, p.beat, p.tick_in_beat), (0, 3, 6));
+    }
+
+    #[test]
+    fn a_later_meter_change_still_counts_from_the_pickup() {
+        // One-beat pickup, then two full 4/4 bars (ending at tick 108), then
+        // 3/4.
+        let map = MeterMap::with_pickup([(0, "4/4"), (108, "3/4")], Q, 12);
+        assert_eq!(map.position(107).bar, 2);
+        assert_eq!(map.position(108).bar, 3, "the change starts bar 3");
+        assert_eq!(map.bar_number(3), Some(3));
+    }
+
+    #[test]
+    fn a_whole_bar_of_pickup_is_no_pickup() {
+        let map = MeterMap::with_pickup([(0, "4/4")], Q, 48);
+        assert!(!map.has_pickup());
+        assert_eq!(map, MeterMap::new([(0, "4/4")], Q));
+        assert_eq!(map.bar_number(0), Some(1));
     }
 }

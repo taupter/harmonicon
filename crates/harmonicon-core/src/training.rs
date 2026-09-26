@@ -270,6 +270,7 @@ pub fn drill_chart(
             resolution: crate::synth::TICKS_PER_BEAT as u32,
             tempo_map: vec![TempoPoint { tick: 0, bpm }],
             time_signature_map: None,
+            pickup_ticks: None,
         },
         harmonica: harp.clone(),
         track,

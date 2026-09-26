@@ -135,6 +135,12 @@
               }
             }
           }
+        },
+
+        "pickup_ticks": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Length of a pickup (anacrusis) in ticks: the music starts this far before bar 1. The pickup is the end of an implied, unnumbered bar 0. Added in format 1.4.0."
         }
       }
     },

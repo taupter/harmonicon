@@ -324,6 +324,7 @@ pub fn to_chart(
                 bpm: tempo,
             }],
             time_signature_map: None,
+            pickup_ticks: None,
         },
         harmonica: harp.clone(),
         track: items,
