@@ -20,6 +20,7 @@ struct Snapshot {
     tempo: String,
     key: String,
     time_signature: String,
+    pickup_beats: String,
     harmonica_kind: HarmonicaKind,
     loaded_harmonica: Option<LoadedHarmonica>,
     mode: Mode,
@@ -51,6 +52,7 @@ impl GridCache {
                     && old.tempo == state.tempo
                     && old.key == state.key
                     && old.time_signature == state.time_signature
+                    && old.pickup_beats == state.pickup_beats
                     && old.harmonica_kind == state.harmonica_kind
                     && old.loaded_harmonica == state.loaded_harmonica
                     && old.mode == state.mode
@@ -74,6 +76,7 @@ impl GridCache {
             snapshot.tempo.clone_from(&state.tempo);
             snapshot.key.clone_from(&state.key);
             snapshot.time_signature.clone_from(&state.time_signature);
+            snapshot.pickup_beats.clone_from(&state.pickup_beats);
             snapshot.harmonica_kind = state.harmonica_kind;
             snapshot
                 .loaded_harmonica
@@ -94,6 +97,7 @@ impl GridCache {
                 tempo: state.tempo.clone(),
                 key: state.key.clone(),
                 time_signature: state.time_signature.clone(),
+                pickup_beats: state.pickup_beats.clone(),
                 harmonica_kind: state.harmonica_kind,
                 loaded_harmonica: state.loaded_harmonica.clone(),
                 mode: state.mode,

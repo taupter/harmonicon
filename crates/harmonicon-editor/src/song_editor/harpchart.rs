@@ -343,6 +343,10 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     if !state.meter_changes.is_empty() {
         timing["time_signature_map"] = json!(state.time_signature_map());
     }
+    let pickup = state.pickup_ticks();
+    if pickup > 0 {
+        timing["pickup_ticks"] = json!(pickup);
+    }
     let chart = json!({
         "metadata": metadata,
         "song": song,
@@ -386,6 +390,26 @@ pub(super) fn parse_pitch_expr(modifiers: &[serde_json::Value]) -> (Pitch, Expr)
         }
     }
     (pitch, expr)
+}
+
+/// A pickup of `editor_ticks` as the Details field shows it: beats of
+/// `meter`, whole when it is whole ("1") and otherwise to two places
+/// ("0.5"). Empty for no pickup.
+pub(super) fn pickup_beats_text(
+    editor_ticks: f64,
+    meter: harmonicon_ui::music_score::MusicScoreMeter,
+) -> String {
+    let beat_ticks = meter
+        .ticks_per_beat(TICKS_PER_BEAT as u32)
+        .unwrap_or(TICKS_PER_BEAT as u32);
+    let beats = editor_ticks.round() / f64::from(beat_ticks);
+    if beats <= 0.0 {
+        String::new()
+    } else if beats.fract() == 0.0 {
+        format!("{beats:.0}")
+    } else {
+        format!("{beats:.2}").trim_end_matches('0').to_string()
+    }
 }
 
 pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scroll: &mut Scroll) {
@@ -563,6 +587,11 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         }
         state.meter_changes.sort_by_key(|(tick, _)| *tick);
     }
+    // After the opening meter, which the pickup is counted in.
+    state.pickup_beats = v["timing"]["pickup_ticks"]
+        .as_u64()
+        .map(|file_ticks| pickup_beats_text(file_ticks as f64 * scale, state.meter()))
+        .unwrap_or_default();
     let editor_tempo_map = state.tempo_map();
 
     let mut notes: Vec<GridNote> = Vec::new();

@@ -167,6 +167,7 @@ editor-tool-tempo = Tempo
 
 # Editor de Músicas 2 — rótulos dos campos de metadados
 editor-field-tempo = Andamento da Música
+editor-field-pickup = Anacruse (tempos)
 editor-field-time-signature = Fórmula de Compasso
 editor-field-time-signature-tooltip = Quantos tempos há em um compasso. O número de baixo indica uma duração de nota, por isso é sempre 1, 2, 4, 8 ou 16.
 editor-field-key = Tom do Gaita

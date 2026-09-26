@@ -161,6 +161,10 @@ pub(super) struct EditorState {
     /// Time-signature changes after tick zero. The opening signature remains
     /// in `time_signature`, mirroring the tempo/tempo_changes representation.
     pub(super) meter_changes: Vec<(usize, String)>,
+    /// The pickup's length as typed in Details, in beats of the opening
+    /// meter ("1", or "0.5" for an eighth-note pickup in 4/4). Blank for
+    /// none; read through [`EditorState::pickup_ticks`].
+    pub(super) pickup_beats: String,
     /// Section labels and chord symbols keyed by their phrase onset tick.
     pub(super) phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
@@ -291,6 +295,7 @@ impl Default for EditorState {
             tempo: "120".into(),
             tempo_changes: Vec::new(),
             meter_changes: Vec::new(),
+            pickup_beats: String::new(),
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
             preserved_scoring: None,
@@ -370,6 +375,24 @@ impl EditorState {
     /// from, so none of them can round or reinterpret it their own way.
     pub(super) fn meter(&self) -> harmonicon_ui::music_score::MusicScoreMeter {
         harmonicon_ui::music_score::parse_time_signature(&self.time_signature)
+    }
+
+    /// The pickup in editor ticks, from [`EditorState::pickup_beats`]. Blank,
+    /// unparseable or negative text reads as no pickup, as does anything
+    /// below one tick; the meter map takes a whole bar or more modulo the bar.
+    pub(super) fn pickup_ticks(&self) -> usize {
+        let Ok(beats) = self.pickup_beats.trim().parse::<f64>() else {
+            return 0;
+        };
+        let beat_ticks = self
+            .meter()
+            .ticks_per_beat(TICKS_PER_BEAT as u32)
+            .unwrap_or(TICKS_PER_BEAT as u32);
+        if beats.is_finite() && beats > 0.0 {
+            (beats * f64::from(beat_ticks)).round() as usize
+        } else {
+            0
+        }
     }
 
     #[cfg(test)]
@@ -453,13 +476,14 @@ impl EditorState {
             .collect();
         changes.sort_by_key(|(tick, _)| *tick);
         changes.dedup_by_key(|(tick, _)| *tick);
-        harmonicon_ui::music_score::MeterMap::new(
+        harmonicon_ui::music_score::MeterMap::with_pickup(
             std::iter::once((0, self.time_signature.as_str())).chain(
                 changes
                     .into_iter()
                     .map(|(tick, signature)| (*tick as u64, signature.as_str())),
             ),
             TICKS_PER_BEAT as u32,
+            self.pickup_ticks() as u64,
         )
     }
 
@@ -484,6 +508,7 @@ impl EditorState {
     pub(super) fn field_text(&self, field: Field) -> &str {
         match field {
             Field::Tempo => &self.tempo,
+            Field::Pickup => &self.pickup_beats,
             Field::Key => &self.key,
             Field::Position => &self.position,
             Field::Music => &self.music,
@@ -523,6 +548,7 @@ impl EditorState {
     pub(super) fn field_text_mut(&mut self, field: Field) -> &mut String {
         match field {
             Field::Tempo => &mut self.tempo,
+            Field::Pickup => &mut self.pickup_beats,
             Field::Key => &mut self.key,
             Field::Position => &mut self.position,
             Field::Music => &mut self.music,

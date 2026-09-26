@@ -113,12 +113,14 @@ pub(super) fn begin_count_in(state: &EditorState, playhead_secs: f32, count_in: 
 
 /// Clock and meter local to the active meter segment. Resetting the clock at
 /// a change makes that change's first beat a downbeat even when its tick was
-/// not a bar boundary in the preceding meter.
+/// not a bar boundary in the preceding meter. A pickup starts the first
+/// segment's clock part-way into its bar, so the pickup clicks the bar's
+/// last beats and bar 1 gets the accent.
 fn segment_clock(map: &MeterMap, secs_per_tick: f32, elapsed_secs: f32) -> (f64, MusicScoreMeter) {
     let tick = (elapsed_secs.max(0.0) / secs_per_tick).round() as u64;
     let segment = map.segment_at(tick);
     (
-        (tick - segment.start_tick) as f64 * f64::from(secs_per_tick),
+        (tick - segment.start_tick + segment.phase_ticks) as f64 * f64::from(secs_per_tick),
         segment.meter,
     )
 }
@@ -126,6 +128,7 @@ fn segment_clock(map: &MeterMap, secs_per_tick: f32, elapsed_secs: f32) -> (f64,
 pub(super) struct MeterClockCache {
     opening: String,
     changes: Vec<(usize, String)>,
+    pickup: String,
     map: MeterMap,
 }
 
@@ -134,12 +137,15 @@ impl MeterClockCache {
         Self {
             opening: state.time_signature.clone(),
             changes: state.meter_changes.clone(),
+            pickup: state.pickup_beats.clone(),
             map: state.meter_map(),
         }
     }
 
     fn matches(&self, state: &EditorState) -> bool {
-        self.opening == state.time_signature && self.changes == state.meter_changes
+        self.opening == state.time_signature
+            && self.changes == state.meter_changes
+            && self.pickup == state.pickup_beats
     }
 
     pub(super) fn map_for<'a>(cache: &'a mut Option<Self>, state: &EditorState) -> &'a MeterMap {
@@ -391,6 +397,28 @@ mod tests {
         assert_eq!(changed_meter, meter("3/4"));
         let (one_quarter_later, _) = segment_clock(&map, spt, 4.0);
         assert!((one_quarter_later - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_pickup_clicks_the_last_beat_and_accents_bar_one() {
+        use harmonicon_ui::dialogs::metronome::{MetronomeFeel, is_downbeat, tick_index};
+        // One-beat pickup in 4/4 at 120: bar 1 starts half a second in.
+        let state = EditorState {
+            tempo: "120".into(),
+            pickup_beats: "1".into(),
+            ..Default::default()
+        };
+        let map = state.meter_map();
+        let spt = secs_per_tick(&state);
+        let beat = |elapsed: f32| {
+            let (clock, _) = segment_clock(&map, spt, elapsed);
+            tick_index(clock, 0.5, MetronomeFeel::Straight).unwrap()
+        };
+        assert!(!is_downbeat(beat(0.0), 4.0), "the pickup is beat 4");
+        assert!(
+            is_downbeat(beat(0.5), 4.0),
+            "bar 1's first beat is accented"
+        );
     }
 
     #[test]

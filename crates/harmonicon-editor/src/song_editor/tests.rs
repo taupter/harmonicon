@@ -2910,10 +2910,86 @@ fn visible_beats_never_goes_negative_for_a_narrow_window() {
 // The ruler now reads `EditorState::meter_map()` directly; these pin the
 // answers it draws, through the same `position` the grid asks.
 
-/// "bar.beat" as the ruler numbers it (1-based) for `tick`.
+/// "bar.beat" as the ruler numbers it (1-based) for `tick`; a pickup's bar
+/// reads as 0.
 fn ruler_position(s: &EditorState, tick: usize) -> (usize, usize) {
-    let p = s.meter_map().position(tick as u64);
-    (p.bar + 1, p.beat + 1)
+    let map = s.meter_map();
+    let p = map.position(tick as u64);
+    (map.bar_number(p.bar).unwrap_or(0), p.beat + 1)
+}
+
+// ── pickups ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn a_pickup_is_typed_in_beats_of_the_opening_meter() {
+    let with = |beats: &str, meter: &str| EditorState {
+        pickup_beats: beats.into(),
+        time_signature: meter.into(),
+        ..Default::default()
+    };
+    assert_eq!(with("1", "4/4").pickup_ticks(), TICKS_PER_BEAT);
+    assert_eq!(with("0.5", "4/4").pickup_ticks(), TICKS_PER_BEAT / 2);
+    assert_eq!(
+        with("1", "6/8").pickup_ticks(),
+        TICKS_PER_BEAT / 2,
+        "a 6/8 beat is an eighth"
+    );
+    for blank in ["", "abc", "-1", "0"] {
+        assert_eq!(with(blank, "4/4").pickup_ticks(), 0, "{blank:?}");
+    }
+}
+
+#[test]
+fn the_ruler_numbers_a_pickup_as_the_last_beat_of_bar_zero() {
+    let s = EditorState {
+        pickup_beats: "1".into(),
+        ..Default::default()
+    };
+    assert_eq!(ruler_position(&s, 0), (0, 4));
+    assert_eq!(ruler_position(&s, TICKS_PER_BEAT), (1, 1));
+    assert_eq!(super::timeline::describe_tick(0, &s.meter_map()), "0.4");
+}
+
+#[test]
+fn a_pickup_round_trips_through_save_and_load() {
+    let state = EditorState {
+        pickup_beats: "0.5".into(),
+        ..Default::default()
+    };
+    let value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    assert_eq!(
+        value["timing"]["pickup_ticks"],
+        serde_json::json!(TICKS_PER_BEAT / 2)
+    );
+    let mut loaded = EditorState::default();
+    load_harpchart(&value, &mut loaded, &mut Scroll::default());
+    assert_eq!(loaded.pickup_beats, "0.5");
+
+    let none = EditorState::default();
+    let value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&none)).expect("valid chart JSON");
+    assert!(
+        value["timing"].get("pickup_ticks").is_none(),
+        "no pickup, no field"
+    );
+}
+
+#[test]
+fn a_pickup_at_a_foreign_resolution_is_rescaled_on_load() {
+    let value = serde_json::json!({
+        "song": {"title": "t", "artist": "a", "tempo_bpm": 100, "key": "C"},
+        "timing": {"resolution": 480, "tempo_map": [{"tick": 0, "bpm": 100}], "pickup_ticks": 480},
+        "harmonica": {"type": "diatonic", "holes": 10, "bending_profile": "richter_standard"},
+        "track": [],
+        "scoring": {"perfect_window_ms": 60, "good_window_ms": 120, "miss_window_ms": 220}
+    });
+    let mut loaded = EditorState::default();
+    load_harpchart(&value, &mut loaded, &mut Scroll::default());
+    assert_eq!(
+        loaded.pickup_beats, "1",
+        "480 ticks at 480/quarter is a beat"
+    );
 }
 
 #[test]

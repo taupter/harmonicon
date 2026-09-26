@@ -265,6 +265,9 @@ pub(super) fn apply_imported_track(state: &mut EditorState, imported: ImportedTr
     state.time_signature = imported.time_signature;
     state.meter_changes = imported.meter_changes;
     state.tempo_changes = imported.tempo_changes;
+    // A MIDI file declares no pickup, and the one the previous chart had
+    // would put every imported bar line in the wrong place.
+    state.pickup_beats.clear();
     state.loaded_harmonica = None;
     state.set_key(key.to_string());
 }

@@ -175,14 +175,21 @@ pub(super) fn rebuild_grid(
         // no such progression for the background to be describing. Keyed on
         // the bar containing the cell's *start*, since in a meter whose bar
         // isn't a whole number of columns one cell can straddle two bars.
-        let bar_tint = state.twelve_bar_tint.then(|| {
-            bar_bg(
-                meter_map.position((beat * TICKS_PER_BEAT) as u64).bar % 12,
-                &state.key,
-                harmonicon_core::harmonica::Progression::Standard,
-                bar_colors,
-            )
-        });
+        // A pickup belongs to no bar of the form, so it goes untinted.
+        let bar_tint = state
+            .twelve_bar_tint
+            .then(|| {
+                let bar = meter_map.position((beat * TICKS_PER_BEAT) as u64).bar;
+                meter_map.bar_number(bar).map(|number| {
+                    bar_bg(
+                        (number - 1) % 12,
+                        &state.key,
+                        harmonicon_core::harmonica::Progression::Standard,
+                        bar_colors,
+                    )
+                })
+            })
+            .flatten();
 
         for hole in 1..=hole_count {
             let y = HEADER_H + (hole as f32 - 1.0) * ROW_H;
@@ -340,17 +347,18 @@ pub(super) fn rebuild_grid(
         let is_bar = pos.beat == 0;
         // A bar number on the downbeat, the beat's index otherwise — and,
         // where a meter change starts this bar, the new signature beside
-        // the number, since a change always begins a bar.
+        // the number, since a change always begins a bar. A pickup's beats
+        // are its bar's last ones ("4" before bar 1 in 4/4), and its bar
+        // has no downbeat on the grid to number.
+        let bar_number = meter_map.bar_number(pos.bar).unwrap_or(0);
         let label = match (is_bar, changes.get(&tick)) {
             (true, Some(meter)) => {
                 format!(
                     "{} \u{00B7} {}/{}",
-                    pos.bar + 1,
-                    meter.numerator,
-                    meter.denominator
+                    bar_number, meter.numerator, meter.denominator
                 )
             }
-            (true, None) => format!("{}", pos.bar + 1),
+            (true, None) => format!("{bar_number}"),
             (false, _) => format!("{}", pos.beat + 1),
         };
         items.push(

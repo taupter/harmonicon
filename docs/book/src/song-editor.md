@@ -157,6 +157,20 @@ removes it. The opening meter remains controlled by the Time Signature picker
 in Details. Meter changes begin a new bar and are labeled directly on the
 ruler, so later bar numbers, beat numbers, and the 12-bar tint stay aligned.
 
+### Pickups
+
+A tune that starts before the first full bar — the "and a" before bar 1 —
+has a **pickup**. Type its length into **Pickup (beats)** in Details, in
+beats of the opening time signature: `1` for one beat, `0.5` for a single
+eighth note in 4/4. Leave it blank for a tune that starts on the downbeat.
+
+The grid then counts the opening notes as the *end* of an unnumbered bar:
+a one-beat pickup in 4/4 is labelled beat 4, bar 1 starts right after it,
+and the metronome accents bar 1 rather than the first note. Every later bar
+number, the 12-bar tint and the notation staff follow, and in play the beat
+guides and the metronome count the same way. Importing a MIDI file clears
+the pickup, since MIDI doesn't record one.
+
 ### Scale and note colors
 
 Every note on the grid is tinted by the technique it's played with — plain

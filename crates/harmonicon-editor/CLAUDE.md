@@ -710,6 +710,18 @@ load-bearing about *this* crate.
   segment at the playhead (or the viewport while stopped). MIDI import reads
   time-signature events across every track and converts all their anchors to
   editor ticks, including events stored on a separate conductor track.
+- **A pickup is typed in beats and lives in the meter map.**
+  `EditorState::pickup_beats` holds the Details text (beats of the opening
+  meter, decimals allowed); `pickup_ticks()` converts it, and `meter_map()`
+  builds with `MeterMap::with_pickup`, which makes the pickup the end of an
+  unnumbered bar 0. Everything bar-shaped already asks the map, so the ruler,
+  bar lines, 12-bar tint, staff splitting and `describe_tick` follow for
+  free — but a bar *number* must come from `MeterMap::bar_number`, never
+  `bar + 1`, or bar 1 reads as 2. The metronome's segment clock adds the
+  first segment's `phase_ticks` so the pickup clicks the bar's last beats.
+  Like the tempo field it is not undo-tracked; the grid cache and the
+  metronome's cached map compare it. Saved as `timing.pickup_ticks` (only
+  when non-zero); MIDI import clears it.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

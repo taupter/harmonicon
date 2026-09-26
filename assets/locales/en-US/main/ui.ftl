@@ -169,6 +169,7 @@ editor-tool-tempo = Tempo
 
 # Song Editor 2 — meta-form field labels
 editor-field-tempo = Music Tempo
+editor-field-pickup = Pickup (beats)
 editor-field-time-signature = Time Signature
 editor-field-time-signature-tooltip = How many beats are in a bar. The lower number names a note length, so it is always 1, 2, 4, 8 or 16.
 editor-field-key = Harp Key

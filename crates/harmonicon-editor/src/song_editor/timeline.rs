@@ -121,10 +121,12 @@ pub(super) fn sync_timeline_surface(
 /// the ruler — used in the confirm dialog's message and the phrase
 /// editor's title. Asks the meter *map*, as the ruler does, so the two
 /// agree after a mid-song meter change as well as in a meter whose bar
-/// isn't a whole number of quarter-note columns.
+/// isn't a whole number of quarter-note columns. A pickup's unnumbered bar
+/// reads as bar 0, the name musicians use for it.
 pub(super) fn describe_tick(tick: usize, map: &MeterMap) -> String {
     let pos = map.position(tick as u64);
-    format!("{}.{}", pos.bar + 1, pos.beat + 1)
+    let bar = map.bar_number(pos.bar).unwrap_or(0);
+    format!("{bar}.{}", pos.beat + 1)
 }
 
 pub(super) fn request_confirm(

@@ -7,6 +7,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Field {
     Tempo,
+    Pickup,
     Key,
     Position,
     Music,
@@ -64,8 +65,9 @@ impl Field {
     }
 }
 
-pub(super) const FIELDS: [(Field, &str); 23] = [
+pub(super) const FIELDS: [(Field, &str); 24] = [
     (Field::Tempo, "editor-field-tempo"),
+    (Field::Pickup, "editor-field-pickup"),
     (Field::Key, "editor-field-key"),
     (Field::Position, "editor-field-position"),
     (Field::Music, "editor-field-music"),
