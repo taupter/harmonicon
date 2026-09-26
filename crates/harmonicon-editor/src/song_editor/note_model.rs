@@ -162,6 +162,8 @@ pub(super) struct PhraseAnnotation {
     pub(super) section: Option<String>,
     pub(super) chord: Option<String>,
     pub(super) groove: Option<String>,
+    /// The syllable sung on this phrase's notes (chart `lyric`).
+    pub(super) lyric: Option<String>,
     pub(super) call: bool,
     pub(super) split: bool,
 }

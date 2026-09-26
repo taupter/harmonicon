@@ -26,6 +26,13 @@ A song written with repeat signs plays them out in full. A repeated
 passage comes round again, first- and second-time endings are taken on
 the right pass, and every note of every pass is scored.
 
+## Lyrics
+
+A song with words shows them karaoke-style under the notation staff: the
+current line lights up syllable by syllable as each one's note is played,
+and the next line waits dimmed below it so you can read ahead. Songs
+without lyrics show nothing there.
+
 ## Scoring
 
 As notes reach the hit line, Harmonicon compares the pitch it hears against

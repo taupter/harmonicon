@@ -76,6 +76,9 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
         by_tick_and_len.entry((n.tick, n.len)).or_default().push(n);
     }
 
+    // Notes of different lengths starting together become separate items;
+    // a lyric is sung once, so only the first of them carries it.
+    let mut sung_at = std::collections::HashSet::new();
     let track: Vec<Value> = by_tick_and_len
         .iter()
         .enumerate()
@@ -154,6 +157,11 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
                 }
                 if let Some(groove) = &annotation.groove {
                     phrase["groove"] = json!(groove);
+                }
+                if let Some(lyric) = &annotation.lyric
+                    && sung_at.insert(tick)
+                {
+                    phrase["lyric"] = json!(lyric);
                 }
                 if annotation.call {
                     phrase["call"] = json!(true);
@@ -634,9 +642,16 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
             let section = phrase["phrase"].as_str().map(str::to_owned);
             let chord = phrase["chord"].as_str().map(str::to_owned);
             let groove = phrase["groove"].as_str().map(str::to_owned);
+            let lyric = phrase["lyric"].as_str().map(str::to_owned);
             let call = phrase["call"].as_bool() == Some(true);
             let split = phrase["play_mode"].as_str() == Some("split");
-            if section.is_some() || chord.is_some() || groove.is_some() || call || split {
+            if section.is_some()
+                || chord.is_some()
+                || groove.is_some()
+                || lyric.is_some()
+                || call
+                || split
+            {
                 let annotation = state.phrase_annotations.entry(start_tick).or_default();
                 if section.is_some() {
                     annotation.section = section;
@@ -646,6 +661,9 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
                 }
                 if groove.is_some() {
                     annotation.groove = groove;
+                }
+                if lyric.is_some() {
+                    annotation.lyric = lyric;
                 }
                 annotation.call |= call;
                 annotation.split |= split;

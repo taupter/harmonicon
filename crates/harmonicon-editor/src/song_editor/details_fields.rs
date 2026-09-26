@@ -33,6 +33,7 @@ pub(super) enum Field {
     Section,
     Chord,
     Groove,
+    Lyric,
     LessonId,
     LessonUnit,
     LessonPath,

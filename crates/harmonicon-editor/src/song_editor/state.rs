@@ -535,7 +535,9 @@ impl EditorState {
             Field::LoopRepeat => &self.loop_settings.repeat,
             Field::LoopStart => &self.loop_settings.start,
             Field::LoopEnd => &self.loop_settings.end,
-            Field::Section | Field::Chord | Field::Groove => self.selected_annotation_text(field),
+            Field::Section | Field::Chord | Field::Groove | Field::Lyric => {
+                self.selected_annotation_text(field)
+            }
             Field::LessonId => &self.lesson_id,
             Field::LessonUnit => &self.lesson_unit,
             Field::LessonPath => &self.lesson_path,
@@ -575,7 +577,7 @@ impl EditorState {
             Field::LoopRepeat => &mut self.loop_settings.repeat,
             Field::LoopStart => &mut self.loop_settings.start,
             Field::LoopEnd => &mut self.loop_settings.end,
-            Field::Section | Field::Chord | Field::Groove => {
+            Field::Section | Field::Chord | Field::Groove | Field::Lyric => {
                 unreachable!("phrase fields are written through `set_annotation`")
             }
             Field::LessonId => &mut self.lesson_id,

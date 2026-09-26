@@ -2194,6 +2194,7 @@ fn phrase_annotations_round_trip() {
             section: Some("Verse A".into()),
             chord: Some("G7alt".into()),
             groove: Some("laid-back shuffle".into()),
+            lyric: Some("A-".into()),
             call: true,
             split: true,
         },
@@ -2205,6 +2206,7 @@ fn phrase_annotations_round_trip() {
     assert_eq!(value["track"][0]["phrase"], "Verse A");
     assert_eq!(value["track"][0]["chord"], "G7alt");
     assert_eq!(value["track"][0]["groove"], "laid-back shuffle");
+    assert_eq!(value["track"][0]["lyric"], "A-");
     assert_eq!(value["track"][0]["call"], true);
     assert_eq!(value["track"][0]["play_mode"], "split");
 
@@ -2212,6 +2214,54 @@ fn phrase_annotations_round_trip() {
     let mut scroll = Scroll::default();
     load_harpchart(&value, &mut loaded, &mut scroll);
     assert_eq!(loaded.phrase_annotations, state.phrase_annotations);
+}
+
+#[test]
+fn a_typed_line_of_lyrics_lands_one_syllable_per_onset() {
+    let mut state = EditorState::default();
+    for beat in 0..6 {
+        select_or_add(&mut state, 4, beat * TICKS_PER_BEAT);
+    }
+    // A second note on beat 1's onset: still one onset, one syllable.
+    select_or_add(&mut state, 5, TICKS_PER_BEAT);
+    state.set_annotation(4 * TICKS_PER_BEAT, Field::Lyric, "old".into());
+
+    state.set_lyrics_from(TICKS_PER_BEAT, "A- maz- _ ing");
+    let lyric = |state: &EditorState, beat: usize| {
+        state
+            .annotation_text(beat * TICKS_PER_BEAT, Field::Lyric)
+            .to_string()
+    };
+    assert_eq!(
+        (0..6).map(|beat| lyric(&state, beat)).collect::<Vec<_>>(),
+        vec!["", "A-", "maz-", "", "ing", ""],
+        "the held beat is skipped, and what was there is replaced"
+    );
+
+    state.set_lyrics_from(TICKS_PER_BEAT, "  grace ");
+    assert_eq!(lyric(&state, 1), "grace", "one syllable is just this onset");
+    state.set_lyrics_from(TICKS_PER_BEAT, "");
+    assert_eq!(lyric(&state, 1), "");
+    assert_eq!(lyric(&state, 2), "maz-", "clearing touches only this onset");
+}
+
+#[test]
+fn a_lyric_is_saved_once_when_its_onset_splits_into_several_items() {
+    // Two notes starting together with different lengths save as two chart
+    // items; only one of them may carry the syllable.
+    let mut state = EditorState::default();
+    select_or_add(&mut state, 4, 0);
+    select_or_add(&mut state, 5, 0);
+    state.notes[1].len *= 2;
+    state.set_annotation(0, Field::Lyric, "grace".into());
+    let value: serde_json::Value = serde_json::from_str(&serialize_harpchart(&state)).unwrap();
+    let track = value["track"].as_array().unwrap();
+    assert_eq!(track.len(), 2);
+    let sung: Vec<_> = track
+        .iter()
+        .filter(|item| item.get("lyric").is_some())
+        .collect();
+    assert_eq!(sung.len(), 1);
 }
 
 #[test]
@@ -4494,12 +4544,13 @@ fn phrase_marker_prioritizes_section_chord_and_compact_technique_icons() {
         section: Some("Bridge".into()),
         chord: Some("G7alt".into()),
         groove: Some("laid back".into()),
+        lyric: Some("hal-".into()),
         call: true,
         split: true,
     };
     assert_eq!(
         super::annotation_lane::label(&annotation),
-        "§ Bridge · ♬ G7alt · ↩ · TB · laid back"
+        "§ Bridge · \"hal-\" · ♬ G7alt · ↩ · TB · laid back"
     );
 }
 

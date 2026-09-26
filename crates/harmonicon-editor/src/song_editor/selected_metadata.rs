@@ -5,7 +5,7 @@
 use super::state::{DEFAULT_INTENSITY, EditorState, Expr, Field};
 
 impl EditorState {
-    /// The phrase at `tick`'s section/chord/groove text, or `""`.
+    /// The phrase at `tick`'s section/chord/groove/lyric text, or `""`.
     pub(super) fn annotation_text(&self, tick: usize, field: Field) -> &str {
         let Some(annotation) = self.phrase_annotations.get(&tick) else {
             return "";
@@ -14,6 +14,7 @@ impl EditorState {
             Field::Section => annotation.section.as_deref().unwrap_or(""),
             Field::Chord => annotation.chord.as_deref().unwrap_or(""),
             Field::Groove => annotation.groove.as_deref().unwrap_or(""),
+            Field::Lyric => annotation.lyric.as_deref().unwrap_or(""),
             _ => unreachable!(),
         }
     }
@@ -24,7 +25,10 @@ impl EditorState {
     /// `metadata_sync::drop_orphaned_metadata` exists to remove, so
     /// accepting it would only lose the text at the next prune.
     pub(super) fn set_annotation(&mut self, tick: usize, field: Field, value: String) {
-        if !matches!(field, Field::Section | Field::Chord | Field::Groove) {
+        if !matches!(
+            field,
+            Field::Section | Field::Chord | Field::Groove | Field::Lyric
+        ) {
             return;
         }
         if !self.notes.iter().any(|n| n.tick == tick) {
@@ -36,9 +40,37 @@ impl EditorState {
             Field::Section => annotation.section = value,
             Field::Chord => annotation.chord = value,
             Field::Groove => annotation.groove = value,
+            Field::Lyric => annotation.lyric = value,
             _ => unreachable!(),
         }
         self.remove_empty_annotation(tick);
+    }
+
+    /// The phrase editor's Lyric box. One syllable sets this onset's lyric,
+    /// like any other field; several, separated by spaces, are a line typed
+    /// in one go and land one per onset from `tick` on, with `_` leaving an
+    /// onset without one (a note held across the syllable before). Onsets
+    /// beyond the last syllable are left alone.
+    pub(super) fn set_lyrics_from(&mut self, tick: usize, text: &str) {
+        let syllables: Vec<&str> = text.split_whitespace().collect();
+        if syllables.len() <= 1 {
+            self.set_annotation(tick, Field::Lyric, text.trim().to_string());
+            return;
+        }
+        let onsets: std::collections::BTreeSet<usize> = self
+            .notes
+            .iter()
+            .map(|n| n.tick)
+            .filter(|&t| t >= tick)
+            .collect();
+        for (onset, syllable) in onsets.into_iter().zip(syllables) {
+            let value = if syllable == "_" {
+                String::new()
+            } else {
+                syllable.to_string()
+            };
+            self.set_annotation(onset, Field::Lyric, value);
+        }
     }
 
     pub(super) fn selected_annotation_text(&self, field: Field) -> &str {
@@ -147,6 +179,7 @@ impl EditorState {
                 annotation.section.is_none()
                     && annotation.chord.is_none()
                     && annotation.groove.is_none()
+                    && annotation.lyric.is_none()
                     && !annotation.call
                     && !annotation.split
             })

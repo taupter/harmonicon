@@ -99,9 +99,10 @@ natural-minor 10-hole diatonic; 12-/16-hole chromatic),
 background music file, and song name/author — everything under `song` and
 `harmonica` in the `.harpchart` format.
 
-**Section**, **Chord**, and **Groove** describe the phrase that begins at a
-note. Select a note and press the sidebar's **Phrase** (§) button, and a
-small panel opens above the grid with the three fields — enter a section
+**Section**, **Chord**, **Groove** and **Lyric** describe the phrase that
+begins at a note. Select a note and press the sidebar's **Phrase** (§)
+button, and a small panel opens above the grid with the four fields (see
+[Lyrics](#lyrics) for the last one) — enter a section
 name such as `Verse 2`, a chord symbol such as `G7`, or feel guidance such
 as `laid-back shuffle`. Notes that begin on the same tick share the
 annotation. Clearing every field removes that marker from the chart. These
@@ -115,10 +116,29 @@ Markers stop at the next phrase anchor, so dense annotations do not cover the
 note lanes or resize handles.
 
 **Click a marker to edit it in place.** A small panel opens just below it
-with the Section, Chord and Groove fields for that phrase, and every note
+with the Section, Chord, Groove and Lyric fields for that phrase, and every note
 that starts there is selected — so a drag or Delete right after acts on the
 whole phrase. Press Escape or the panel's ✗ to close it; it also closes by
 itself if the phrase's notes are removed.
+
+### Lyrics
+
+A song's words go in the **Lyric** field of that panel, one syllable per
+onset: the syllable sung when those notes start. In the game they appear
+karaoke-style above the notes, lighting up as each syllable's note is
+played. Two marks shape the lines:
+
+- end a syllable with `-` when the word carries on (`A-` `maz-` `ing`
+  reads "Amazing");
+- start one with `/` to begin a new line (`/I` `once` `was` …). Without
+  one, a long line wraps between words by itself.
+
+To type a whole line at once, enter its syllables separated by spaces:
+they land one per onset from the phrase you opened onwards, replacing what
+was there. Use `_` for an onset that carries no syllable, such as a note
+held over from the word before. A single word just sets that one phrase,
+and an empty box clears it. The marker in the header shows the syllable in
+quotes.
 
 When the selected note has vibrato or wah, the **Depth** button in the note
 column steps its depth ¼ → ½ → ¾ → 1; ½ is the default. The button shows

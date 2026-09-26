@@ -229,6 +229,7 @@ editor-phrase-editor-close = Close the phrase editor
 editor-phrase-editor-section = Section
 editor-phrase-editor-chord = Chord
 editor-phrase-editor-groove = Groove
+editor-phrase-editor-lyric = Lyric
 editor-field-twelve-bar-tint = 12-Bar Blues Tint
 
 # Song Editor 2 — color legend (third meta-form column)

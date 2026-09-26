@@ -64,7 +64,7 @@ impl Snapshot {
             + self
                 .phrase_annotations
                 .values()
-                .flat_map(|a| [&a.section, &a.chord, &a.groove])
+                .flat_map(|a| [&a.section, &a.chord, &a.groove, &a.lyric])
                 .filter_map(Option::as_ref)
                 .map(String::capacity)
                 .sum::<usize>()

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-//! The click-to-edit popover for a phrase's section, chord and groove —
+//! The click-to-edit popover for a phrase's section, chord, groove and lyric —
 //! the text half of the annotation lane (`annotation_lane` draws the
 //! markers; clicking one opens this beneath it).
 //!
 //! Why a popover, and why *this* popover shape:
 //!
-//! - Section/chord/groove are text, so unlike every other per-note or
+//! - Section/chord/groove/lyric are text, so unlike every other per-note or
 //!   per-phrase control they can't live on the toolbar as buttons.
 //! - `bevy_ui_widgets::Popover` positions off its ECS parent, and a lane
 //!   marker is a `GridItem` — despawned and respawned by every
@@ -53,7 +53,7 @@ use super::{ANNOTATION_H, ANNOTATION_TOP, TICK_W};
 #[derive(Component)]
 pub(super) struct PhraseEditor;
 
-/// One of the three text boxes, tagged with the annotation field it edits.
+/// One of the four text boxes, tagged with the annotation field it edits.
 #[derive(Component)]
 pub(super) struct PhraseEditorBox(pub(super) Field);
 
@@ -66,14 +66,15 @@ const LABEL_W: f32 = 58.0;
 const INPUT_W: f32 = 190.0;
 const GAP_BELOW_LANE: f32 = 4.0;
 
-/// The three annotation fields the popover edits, in display order, with
+/// The four annotation fields the popover edits, in display order, with
 /// their own short labels — the Details form's "Section at selected note"
 /// wording is for a form with no other context, and wraps to three lines
 /// in a panel this narrow.
-const FIELDS: [(Field, &str); 3] = [
+const FIELDS: [(Field, &str); 4] = [
     (Field::Section, "editor-phrase-editor-section"),
     (Field::Chord, "editor-phrase-editor-chord"),
     (Field::Groove, "editor-phrase-editor-groove"),
+    (Field::Lyric, "editor-phrase-editor-lyric"),
 ];
 
 /// Spawns the (empty, hidden) root under `grid_area`. Its contents need a
@@ -86,7 +87,7 @@ pub(super) fn spawn_phrase_editor(
 ) {
     grid_area.spawn((
         PhraseEditor,
-        // A modal tab group: Tab cycles the three boxes and the close
+        // A modal tab group: Tab cycles the four boxes and the close
         // button, and can't wander into the grid behind the popover —
         // tab navigation reaches invisible nodes otherwise.
         TabGroup::modal(),
@@ -201,7 +202,11 @@ pub(super) fn populate_phrase_editor(
             colors.accent.with_alpha(0.5),
             move |ev: On<TextInputCommitted>, mut state: ResMut<EditorState>| {
                 if let Some(tick) = state.phrase_editor {
-                    state.set_annotation(tick, field, ev.value.clone());
+                    if field == Field::Lyric {
+                        state.set_lyrics_from(tick, &ev.value);
+                    } else {
+                        state.set_annotation(tick, field, ev.value.clone());
+                    }
                 }
             },
         );

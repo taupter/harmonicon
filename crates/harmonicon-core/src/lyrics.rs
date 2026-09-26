@@ -119,7 +119,9 @@ pub fn lyric_lines(chart: &HarpChart) -> Vec<LyricLine> {
             Some(rest) => (true, rest),
             None => (false, raw),
         };
-        if text.is_empty() {
+        // One voice sings one syllable at a time: a second lyric at the same
+        // instant (a chord written as separate items) is the same word.
+        if text.is_empty() || current.last().is_some_and(|s| s.start == start) {
             continue;
         }
         chars += text.chars().count() + 1;
@@ -277,6 +279,12 @@ mod tests {
         let lines = lyric_lines(&c);
         assert_eq!(lines[0].syllables.len(), 2);
         assert_eq!(lines[0].syllables[1].start, 1.5);
+    }
+
+    #[test]
+    fn a_second_lyric_at_the_same_instant_is_not_sung_twice() {
+        let c = chart(&[(0.0, Some("grace"), None), (0.0, Some("grace"), None)]);
+        assert_eq!(texts(&lyric_lines(&c)), vec!["grace"]);
     }
 
     #[test]

@@ -227,6 +227,7 @@ editor-phrase-editor-close = Cerrar el editor de frase
 editor-phrase-editor-section = Sección
 editor-phrase-editor-chord = Acorde
 editor-phrase-editor-groove = Groove
+editor-phrase-editor-lyric = Letra
 editor-field-twelve-bar-tint = Fondo de Blues de 12 Compases
 
 # Song Editor 2 — leyenda de colores (tercera columna del formulario)

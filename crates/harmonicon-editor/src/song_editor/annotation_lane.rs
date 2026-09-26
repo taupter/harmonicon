@@ -21,6 +21,9 @@ pub(super) fn label(annotation: &PhraseAnnotation) -> String {
     if let Some(section) = annotation.section.as_deref().filter(|s| !s.is_empty()) {
         parts.push(format!("§ {section}"));
     }
+    if let Some(lyric) = annotation.lyric.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(format!("\"{lyric}\""));
+    }
     if let Some(chord) = annotation.chord.as_deref().filter(|s| !s.is_empty()) {
         parts.push(format!("♬ {chord}"));
     }

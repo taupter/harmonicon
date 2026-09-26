@@ -669,7 +669,7 @@ load-bearing about *this* crate.
   the marker is a real `WidgetButton` whose `Activate` calls
   `EditorState::open_phrase_editor(tick)` — which selects every note at
   that onset and sets `phrase_editor: Some(tick)` — and a popover with the
-  Section/Chord/Groove text boxes opens directly beneath it. Three facts
+  Section/Chord/Groove/Lyric text boxes opens directly beneath it. Three facts
   about that popover:
   - **It is persistent, not a marker's child.** `bevy_ui_widgets::Popover`
     positions off its ECS parent, and markers are `GridItem`s respawned on
@@ -722,6 +722,19 @@ load-bearing about *this* crate.
   Like the tempo field it is not undo-tracked; the grid cache and the
   metronome's cached map compare it. Saved as `timing.pickup_ticks` (only
   when non-zero); MIDI import clears it.
+- **Lyrics are a phrase annotation** (`PhraseAnnotation::lyric`, the chart
+  item's `lyric`), since a syllable belongs to the notes starting together.
+  Two rules the plain annotation fields don't have:
+  - **The Lyric box takes a whole line** (`set_lyrics_from`): several
+    space-separated syllables go one per onset from the open phrase on,
+    `_` skipping one. A single syllable behaves like any other field.
+  - **Saved once per onset.** Equal-onset notes of different lengths save
+    as separate chart items; only the first carries the lyric
+    (`serialize_harpchart_notes`), and `harmonicon_core::lyrics` also
+    ignores a second syllable at the same instant, for charts from
+    elsewhere.
+  How lines are built and shown is `harmonicon_core::lyrics` and gameplay's
+  `karaoke`; the editor only stores syllables.
 - **Repeats are authored and kept as written; only the song loader plays
   them out** (`repeat_marks.rs`). `EditorState::repeats` is core's
   `Vec<Repeat>` in editor ticks, round-tripped through `timing.repeats`
