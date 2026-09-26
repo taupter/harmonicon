@@ -214,6 +214,13 @@ pub(super) fn spawn_color_legend(
     spawn_legend_row(
         col,
         colors,
+        super::repeat_marks::REPEAT_COLOR,
+        false,
+        loc.msg("editor-legend-repeat-marker").to_string(),
+    );
+    spawn_legend_row(
+        col,
+        colors,
         colors.triplet_line,
         false,
         loc.msg("editor-legend-triplet-line").to_string(),

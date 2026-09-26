@@ -21,6 +21,7 @@ struct Snapshot {
     key: String,
     time_signature: String,
     pickup_beats: String,
+    repeats: Vec<harmonicon_core::chart::Repeat>,
     harmonica_kind: HarmonicaKind,
     loaded_harmonica: Option<LoadedHarmonica>,
     mode: Mode,
@@ -53,6 +54,7 @@ impl GridCache {
                     && old.key == state.key
                     && old.time_signature == state.time_signature
                     && old.pickup_beats == state.pickup_beats
+                    && old.repeats == state.repeats
                     && old.harmonica_kind == state.harmonica_kind
                     && old.loaded_harmonica == state.loaded_harmonica
                     && old.mode == state.mode
@@ -77,6 +79,7 @@ impl GridCache {
             snapshot.key.clone_from(&state.key);
             snapshot.time_signature.clone_from(&state.time_signature);
             snapshot.pickup_beats.clone_from(&state.pickup_beats);
+            snapshot.repeats.clone_from(&state.repeats);
             snapshot.harmonica_kind = state.harmonica_kind;
             snapshot
                 .loaded_harmonica
@@ -98,6 +101,7 @@ impl GridCache {
                 key: state.key.clone(),
                 time_signature: state.time_signature.clone(),
                 pickup_beats: state.pickup_beats.clone(),
+                repeats: state.repeats.clone(),
                 harmonica_kind: state.harmonica_kind,
                 loaded_harmonica: state.loaded_harmonica.clone(),
                 mode: state.mode,

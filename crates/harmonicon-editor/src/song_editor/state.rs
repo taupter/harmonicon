@@ -165,6 +165,9 @@ pub(super) struct EditorState {
     /// meter ("1", or "0.5" for an eighth-note pickup in 4/4). Blank for
     /// none; read through [`EditorState::pickup_ticks`].
     pub(super) pickup_beats: String,
+    /// Repeat signs and their endings, in editor ticks, as written — the
+    /// editor shows and plays the score unrepeated (`repeat_marks`).
+    pub(super) repeats: Vec<harmonicon_core::chart::Repeat>,
     /// Section labels and chord symbols keyed by their phrase onset tick.
     pub(super) phrase_annotations: std::collections::BTreeMap<usize, PhraseAnnotation>,
     /// Explicit vibrato/wah intensity keyed by stable note id. Missing means
@@ -296,6 +299,7 @@ impl Default for EditorState {
             tempo_changes: Vec::new(),
             meter_changes: Vec::new(),
             pickup_beats: String::new(),
+            repeats: Vec::new(),
             phrase_annotations: Default::default(),
             expression_intensities: Default::default(),
             preserved_scoring: None,

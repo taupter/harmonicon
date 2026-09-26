@@ -171,6 +171,25 @@ number, the 12-bar tint and the notation staff follow, and in play the beat
 guides and the metronome count the same way. Importing a MIDI file clears
 the pickup, since MIDI doesn't record one.
 
+### Repeats and endings
+
+A passage that is played twice only needs writing once. Select its bars
+on the ruler with the **Select** tool, then press **Repeat**: the
+selection snaps to the nearest bar lines, and the ruler marks the start
+with `‖:` and the repeat sign with `:‖ ×2`. Press **Repeat** again on the
+same bars to play them three or four times; once more removes the repeat.
+
+For first- and second-time bars, select the bars that differ and press
+**Ending**. Bars *inside* the repeated passage become the first ending,
+played every time but the last. Bars starting right at the repeat sign
+become the second ending, played only on the last time through. Press
+**Ending** again on the same bars to remove one.
+
+The editor shows and plays the song as written, once through. When the
+song is played in the game the repeats are played out in full: every
+pass is scored, and a backing track should be a recording of the whole
+performance.
+
 ### Scale and note colors
 
 Every note on the grid is tinted by the technique it's played with — plain

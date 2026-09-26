@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-//! The timeline ruler's Select, Erase, Remove, Tempo, Meter, and Record
-//! seek interactions. With Select active
+//! The timeline ruler's Select, Erase, Remove, Tempo, Meter, Repeat,
+//! Ending and Record seek interactions. With Select active
 //! (`EditorState::timeline_tool`), the header strip above the note grid
 //! builds a range selection ([`TimelineSelection`]) two ways:
 //!
@@ -38,10 +38,12 @@
 use bevy::picking::events::{PointerClick, PointerDrag, PointerDragEnd, PointerDragStart};
 use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
+use bevy::ui_widgets::Activate;
 
 use super::playback::{Playhead, secs_per_tick};
 use super::ranges::{normalize_range, split_side_range};
 use super::record::RecordState;
+use super::save_feedback::SaveFeedback;
 use super::state::{
     EditorState, Mode, Scroll, Side, TimelineDrag, TimelineSelection, TimelineTool,
     toggle_tempo_point,
@@ -437,6 +439,57 @@ pub(super) fn on_timeline_drag_end(
                 });
             }
         }
+    }
+}
+
+/// The timeline selection as whole bars, or `None` after telling the player
+/// to make one — what the Repeat and Ending buttons act on.
+fn selected_bars(
+    state: &EditorState,
+    sel: &TimelineSelection,
+    feedback: &mut SaveFeedback,
+    loc: &Localization,
+) -> Option<(u64, u64)> {
+    let Some(TimelineDrag { start, end, .. }) = sel.drag else {
+        feedback.set(loc.msg("editor-repeat-needs-selection"));
+        return None;
+    };
+    let (start, end) = normalize_range(start, end);
+    Some(super::repeat_marks::bar_span(
+        &state.meter_map(),
+        start,
+        end,
+    ))
+}
+
+/// The Repeat button: repeats the selected bars, or adds a pass to a
+/// passage already repeated — see `repeat_marks::toggle_repeat`. The
+/// selection stays, so pressing again keeps counting.
+pub(super) fn on_repeat_button(
+    _: On<Activate>,
+    loc: Res<Localization>,
+    sel: Res<TimelineSelection>,
+    mut state: ResMut<EditorState>,
+    mut feedback: ResMut<SaveFeedback>,
+) {
+    if let Some((start, end)) = selected_bars(&state, &sel, &mut feedback, &loc) {
+        super::repeat_marks::toggle_repeat(&mut state.repeats, start, end);
+    }
+}
+
+/// The Ending button: makes the selected bars a first- or second-time
+/// ending of the passage they belong to — see `repeat_marks::toggle_ending`.
+pub(super) fn on_ending_button(
+    _: On<Activate>,
+    loc: Res<Localization>,
+    sel: Res<TimelineSelection>,
+    mut state: ResMut<EditorState>,
+    mut feedback: ResMut<SaveFeedback>,
+) {
+    if let Some((start, end)) = selected_bars(&state, &sel, &mut feedback, &loc)
+        && !super::repeat_marks::toggle_ending(&mut state.repeats, start, end)
+    {
+        feedback.set(loc.msg("editor-ending-needs-repeat"));
     }
 }
 

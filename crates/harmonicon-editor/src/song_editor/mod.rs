@@ -52,6 +52,7 @@ mod panel_widgets;
 mod phrase_editor;
 mod pitch_map;
 mod ranges;
+mod repeat_marks;
 mod save_feedback;
 mod scoring_settings;
 mod scroll;

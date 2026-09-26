@@ -248,6 +248,7 @@ impl EditorState {
             start,
             end,
         );
+        super::repeat_marks::close_gap(&mut self.repeats, start as u64, end as u64);
         let shifted: BTreeMap<usize, PhraseAnnotation> =
             std::mem::take(&mut self.phrase_annotations)
                 .into_iter()

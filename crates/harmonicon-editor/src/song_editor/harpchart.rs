@@ -347,6 +347,9 @@ pub(super) fn serialize_harpchart_notes(state: &EditorState, notes: &[GridNote])
     if pickup > 0 {
         timing["pickup_ticks"] = json!(pickup);
     }
+    if !state.repeats.is_empty() {
+        timing["repeats"] = json!(state.repeats);
+    }
     let chart = json!({
         "metadata": metadata,
         "song": song,
@@ -592,6 +595,24 @@ pub(super) fn load_harpchart(v: &serde_json::Value, state: &mut EditorState, scr
         .as_u64()
         .map(|file_ticks| pickup_beats_text(file_ticks as f64 * scale, state.meter()))
         .unwrap_or_default();
+    // Validated with the rest of the chart, so a malformed entry is a load
+    // error before here, not a silently dropped sign.
+    let rescale = |file_tick: u64| (file_tick as f64 * scale).round() as u64;
+    state.repeats = serde_json::from_value::<Vec<harmonicon_core::chart::Repeat>>(
+        v["timing"]["repeats"].clone(),
+    )
+    .unwrap_or_default()
+    .into_iter()
+    .map(|mut repeat| {
+        repeat.start_tick = rescale(repeat.start_tick);
+        repeat.end_tick = rescale(repeat.end_tick);
+        for ending in &mut repeat.endings {
+            ending.start_tick = rescale(ending.start_tick);
+            ending.end_tick = rescale(ending.end_tick);
+        }
+        repeat
+    })
+    .collect();
     let editor_tempo_map = state.tempo_map();
 
     let mut notes: Vec<GridNote> = Vec::new();

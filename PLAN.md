@@ -50,9 +50,11 @@ Nothing below can be approved by a test.
   (`TrainingRecord::review_due`), so the per-track mastery meter could
   discount tiers long overdue; today it counts cleared tiers only
   (`docs/training_tree_plan.md` §4).
-- **Song Editor arranging**: repeats and endings, lyrics, and batch editing
-  beyond transposition. Transposition (`song_editor::transpose`), the
-  Record count-in and pickups (`timing.pickup_ticks`) already exist. Each
+- **Song Editor arranging**: lyrics (shown karaoke-style in gameplay), and
+  batch editing beyond transposition (needs a definition first).
+  Transposition (`song_editor::transpose`), the Record count-in, pickups
+  (`timing.pickup_ticks`) and repeats/endings (`timing.repeats`) already
+  exist. Each
   remaining piece is a chart-schema addition — a `format_version` bump and
   a decision about what gameplay does with it — and needs round-trip and
   playability tests plus player and contributor docs as it lands.

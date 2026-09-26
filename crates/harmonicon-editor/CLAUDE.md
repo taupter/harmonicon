@@ -722,6 +722,26 @@ load-bearing about *this* crate.
   Like the tempo field it is not undo-tracked; the grid cache and the
   metronome's cached map compare it. Saved as `timing.pickup_ticks` (only
   when non-zero); MIDI import clears it.
+- **Repeats are authored and kept as written; only the song loader plays
+  them out** (`repeat_marks.rs`). `EditorState::repeats` is core's
+  `Vec<Repeat>` in editor ticks, round-tripped through `timing.repeats`
+  (rescaled on load like every other tick anchor). The Repeat and Ending
+  buttons are *actions on the Select tool's span*, not timeline tools of
+  their own, so the selection survives a press and a second press on the
+  same bars counts another pass. Both snap the span to bar lines first
+  (`bar_span`; tick 0 counts as one, so a tune with a pickup can repeat
+  from the top). Three rules:
+  - **The editor never expands.** Play, Practice, the staff and the
+    metronome all run the written score once; `harmonicon_core::repeats::
+    expand` belongs to the loader. Expanding here would make a save write
+    the performance back as the written score.
+  - **Endings get their passes from where they sit** (`fit_endings`):
+    inside the passage, every pass but the last; starting on its sign, the
+    last. That is re-applied whenever the repeat is edited, so a chart
+    with hand-written passes keeps them only until the author touches it.
+  - **They're undo- and cache-tracked** and follow Remove
+    (`metadata_sync::remove_range_closing_gap` → `close_gap`); MIDI
+    import clears them.
 - **The meter is picked, never typed**
   (`meta_form::spawn_time_signature_combobox`, from
   `music_score::TIME_SIGNATURES`; there is no `Field::TimeSignature`). A

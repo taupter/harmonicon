@@ -2992,6 +2992,58 @@ fn a_pickup_at_a_foreign_resolution_is_rescaled_on_load() {
     );
 }
 
+// ── repeats ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn repeats_round_trip_as_written_and_rescale_from_a_foreign_resolution() {
+    let bar = 4 * TICKS_PER_BEAT as u64;
+    let mut state = EditorState::default();
+    super::repeat_marks::toggle_repeat(&mut state.repeats, 0, 2 * bar);
+    super::repeat_marks::toggle_ending(&mut state.repeats, bar, 2 * bar);
+    super::repeat_marks::toggle_ending(&mut state.repeats, 2 * bar, 3 * bar);
+
+    let mut value: serde_json::Value =
+        serde_json::from_str(&serialize_harpchart(&state)).expect("valid chart JSON");
+    let mut loaded = EditorState::default();
+    load_harpchart(&value, &mut loaded, &mut Scroll::default());
+    assert_eq!(
+        loaded.repeats, state.repeats,
+        "kept as written, not played out"
+    );
+
+    // The same chart at 480 ticks a quarter comes back in editor ticks.
+    let scale = 480 / TICKS_PER_BEAT as u64;
+    value["timing"]["resolution"] = serde_json::json!(480);
+    let repeat = &mut value["timing"]["repeats"][0];
+    repeat["end_tick"] = serde_json::json!(2 * bar * scale);
+    repeat["endings"][0]["start_tick"] = serde_json::json!(bar * scale);
+    repeat["endings"][0]["end_tick"] = serde_json::json!(2 * bar * scale);
+    repeat["endings"][1]["start_tick"] = serde_json::json!(2 * bar * scale);
+    repeat["endings"][1]["end_tick"] = serde_json::json!(3 * bar * scale);
+    let mut rescaled = EditorState::default();
+    load_harpchart(&value, &mut rescaled, &mut Scroll::default());
+    assert_eq!(rescaled.repeats, state.repeats);
+
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&serialize_harpchart(&EditorState::default()))
+            .unwrap()["timing"]
+            .get("repeats")
+            .is_none(),
+        "no repeats, no field"
+    );
+}
+
+#[test]
+fn repeats_undo_like_any_other_edit() {
+    let mut state = EditorState::default();
+    let mut history = super::undo::UndoHistory::default();
+    history.record_if_changed(&state);
+    super::repeat_marks::toggle_repeat(&mut state.repeats, 0, 48);
+    history.record_if_changed(&state);
+    history.undo(&mut state);
+    assert!(state.repeats.is_empty());
+}
+
 #[test]
 fn the_ruler_counts_bars_on_the_downbeat_and_beats_within_one() {
     let s = EditorState::default(); // 4/4

@@ -418,6 +418,15 @@ pub(super) fn rebuild_grid(
         );
     }
 
+    super::repeat_marks::spawn(
+        &mut commands,
+        &mut items,
+        &state.repeats,
+        first_tick,
+        last_tick,
+        grid_height(hole_count),
+    );
+
     // Counting syllables, on the ticks the *active* snap mode can land on —
     // a fixed "&" at half a beat would name an unreachable position in
     // Shuffle and Triplet. Skipped wherever one would collide with a

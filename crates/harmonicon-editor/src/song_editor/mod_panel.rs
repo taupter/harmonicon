@@ -407,6 +407,27 @@ pub(super) fn spawn_mod_panel(
                                             style,
                                             colors,
                                         );
+                                        // Actions on the Select tool's span, not tools
+                                        // of their own: the selection stays, so a
+                                        // second press counts another pass.
+                                        transport_button(
+                                            g,
+                                            loc.msg("editor-tool-repeat"),
+                                            loc.msg("editor-tool-repeat-tooltip"),
+                                            "\u{2016}:",
+                                            style,
+                                            colors.btn_bg,
+                                            super::timeline::on_repeat_button,
+                                        );
+                                        transport_button(
+                                            g,
+                                            loc.msg("editor-tool-ending"),
+                                            loc.msg("editor-tool-ending-tooltip"),
+                                            "1.",
+                                            style,
+                                            colors.btn_bg,
+                                            super::timeline::on_ending_button,
+                                        );
                                     });
 
                                 // The metronome click, shared with gameplay/the Bending
