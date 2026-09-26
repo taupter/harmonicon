@@ -51,6 +51,8 @@ pub(super) struct ContextualPanels {
     /// The blow/draw key inside the side panel rather than under the 2D
     /// hole strip.
     pub blow_draw_in_panel: bool,
+    /// The karaoke strip under the staff (`karaoke`).
+    pub lyrics: bool,
 }
 
 /// The contextual panels for a run on `surface`.
@@ -63,11 +65,15 @@ pub(super) struct ContextualPanels {
 ///   an empty legend is noise.
 /// - **The blow/draw key** goes in the panel only in 3D, which has no hole
 ///   strip to print it under.
+/// - **Lyrics** show whenever the chart has them: two lines are worth their
+///   room even on a compact screen, and words give no note away to an aural
+///   lesson.
 pub(super) fn contextual_panels(
     surface: LaneSurface,
     compact: bool,
     aural: bool,
     uses_techniques: bool,
+    has_lyrics: bool,
 ) -> ContextualPanels {
     let side_panel = !compact;
     ContextualPanels {
@@ -76,6 +82,7 @@ pub(super) fn contextual_panels(
         progress_notes: !aural,
         technique_legend: side_panel && uses_techniques,
         blow_draw_in_panel: side_panel && surface == LaneSurface::Lane3d,
+        lyrics: has_lyrics,
     }
 }
 
@@ -158,7 +165,7 @@ mod tests {
     #[test]
     fn an_ordinary_run_shows_every_panel_its_chart_calls_for() {
         for surface in BOTH {
-            let panels = contextual_panels(surface, false, false, true);
+            let panels = contextual_panels(surface, false, false, true, false);
             assert!(panels.side_panel && panels.notation_staff && panels.progress_notes);
             assert!(panels.technique_legend);
         }
@@ -167,7 +174,7 @@ mod tests {
     #[test]
     fn compact_layout_keeps_the_lane_and_drops_the_supplements() {
         for surface in BOTH {
-            let panels = contextual_panels(surface, true, false, true);
+            let panels = contextual_panels(surface, true, false, true, false);
             assert!(!panels.side_panel, "{surface:?}");
             assert!(!panels.notation_staff);
             assert!(!panels.technique_legend, "the legend lives in the panel");
@@ -182,7 +189,7 @@ mod tests {
     #[test]
     fn an_aural_lesson_hides_everything_that_gives_the_answer_away() {
         for surface in BOTH {
-            let panels = contextual_panels(surface, false, true, true);
+            let panels = contextual_panels(surface, false, true, true, false);
             assert!(!panels.notation_staff, "{surface:?}");
             assert!(!panels.progress_notes);
             assert!(panels.side_panel, "the panel names no notes");
@@ -192,7 +199,19 @@ mod tests {
     #[test]
     fn a_chart_without_techniques_gets_no_legend() {
         for surface in BOTH {
-            assert!(!contextual_panels(surface, false, false, false).technique_legend);
+            assert!(!contextual_panels(surface, false, false, false, false).technique_legend);
+        }
+    }
+
+    #[test]
+    fn lyrics_show_whenever_the_chart_has_them() {
+        for surface in [LaneSurface::Highway2d, LaneSurface::Lane3d] {
+            for compact in [false, true] {
+                for aural in [false, true] {
+                    assert!(contextual_panels(surface, compact, aural, false, true).lyrics);
+                    assert!(!contextual_panels(surface, compact, aural, false, false).lyrics);
+                }
+            }
         }
     }
 
@@ -201,10 +220,15 @@ mod tests {
         for compact in [false, true] {
             for aural in [false, true] {
                 for techniques in [false, true] {
-                    let two_d =
-                        contextual_panels(LaneSurface::Highway2d, compact, aural, techniques);
+                    let two_d = contextual_panels(
+                        LaneSurface::Highway2d,
+                        compact,
+                        aural,
+                        techniques,
+                        false,
+                    );
                     let three_d =
-                        contextual_panels(LaneSurface::Lane3d, compact, aural, techniques);
+                        contextual_panels(LaneSurface::Lane3d, compact, aural, techniques, false);
                     assert!(!two_d.blow_draw_in_panel, "2D prints it under the holes");
                     assert_eq!(three_d.blow_draw_in_panel, three_d.side_panel);
                     assert_eq!(

@@ -120,11 +120,13 @@ pub fn setup(
     let compact = display.compact.0;
     let aural = display.lesson.is_some_and(|lesson| lesson.aural);
     let modifiers = used_modifiers(chart);
+    let lyrics = harmonicon_core::lyrics::lyric_lines(chart);
     let panels = contextual_panels(
         LaneSurface::Highway2d,
         compact,
         aural,
         !modifiers.is_empty(),
+        !lyrics.is_empty(),
     );
 
     // Animated tail previews for the techniques legend (built up front so the UI
@@ -317,10 +319,12 @@ pub fn setup(
         &adaptive.sections,
         &adaptive.learned,
     );
-    if panels.notation_staff
-        && let Some(bravura) = &display.bravura
-    {
+    let staff = panels.notation_staff && display.bravura.is_some();
+    if staff && let Some(bravura) = &display.bravura {
         spawn_gameplay_music_score(&mut commands, bravura);
+    }
+    if panels.lyrics {
+        super::karaoke::spawn_karaoke(&mut commands, lyrics, super::karaoke::strip_top(staff));
     }
     let harp_hint =
         super::song_info::harp_banner_text(played, &effective.song_key_for(chart), &loc);

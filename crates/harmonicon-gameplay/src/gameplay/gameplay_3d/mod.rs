@@ -280,11 +280,13 @@ pub fn setup(
     // reading of the chart's meter gameplay has (`bars::chart_meter`).
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
     let modifiers = used_modifiers(chart);
+    let lyrics = harmonicon_core::lyrics::lyric_lines(chart);
     let panels = contextual_panels(
         LaneSurface::Lane3d,
         compact,
         lesson.is_some_and(|lesson| lesson.aural),
         !modifiers.is_empty(),
+        !lyrics.is_empty(),
     );
     spawn_hud_overlay(
         &mut commands,
@@ -320,10 +322,12 @@ pub fn setup(
         &note_build.adaptive.sections,
         &note_build.adaptive.learned,
     );
-    if panels.notation_staff
-        && let Some(bravura) = &hud.bravura
-    {
+    let staff = panels.notation_staff && hud.bravura.is_some();
+    if staff && let Some(bravura) = &hud.bravura {
         super::gameplay_2d::spawn_gameplay_music_score(&mut commands, bravura);
+    }
+    if panels.lyrics {
+        super::karaoke::spawn_karaoke(&mut commands, lyrics, super::karaoke::strip_top(staff));
     }
     let harp_hint =
         super::song_info::harp_banner_text(played, &effective.song_key_for(chart), &hud.loc);

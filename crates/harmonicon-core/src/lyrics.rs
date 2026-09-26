@@ -9,13 +9,20 @@
 //!
 //! - a trailing `-` joins a syllable to the next one of the same word
 //!   ("A-", "maz-", "ing" reads "Amazing");
-//! - a leading `/` starts a new line. A new phrase tag on an item starts one
-//!   too, since a phrase is already where the tune breathes.
+//! - a leading `/` starts a new line.
+//!
+//! A line with no `/` for a while wraps at the first word boundary past
+//! [`WRAP_CHARS`]. Phrase tags deliberately play no part: they mark
+//! adaptive-difficulty sections, and a section can begin mid-sentence.
 //!
 //! A harmonica part has more notes than a singer has syllables, so an item
 //! without a lyric just extends the syllable before it.
 
 use crate::chart::{HarpChart, TrackItem, tick_to_seconds};
+
+/// A line without a `/` wraps at the first word end past this many
+/// characters — about what reads at a glance across a highway.
+pub const WRAP_CHARS: usize = 36;
 
 /// One sung syllable, as it is drawn.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,18 +50,30 @@ impl LyricLine {
 
     /// The line as one string, words spaced and joined syllables not.
     pub fn text(&self) -> String {
-        self.syllables
-            .iter()
-            .map(|s| {
-                if s.joins_next {
-                    s.text.clone()
-                } else {
-                    format!("{} ", s.text)
-                }
-            })
-            .collect::<String>()
-            .trim_end()
-            .to_string()
+        let (sung, rest) = self.split_at(self.syllables.len());
+        sung + &rest
+    }
+
+    /// The line split after its first `sung` syllables, for drawing the two
+    /// halves in different colours. Concatenated they are [`Self::text`]; the
+    /// space after a finished word stays with the sung half.
+    pub fn split_at(&self, sung: usize) -> (String, String) {
+        let spaced = |s: &Syllable| {
+            if s.joins_next {
+                s.text.clone()
+            } else {
+                format!("{} ", s.text)
+            }
+        };
+        let sung = sung.min(self.syllables.len());
+        let mut first: String = self.syllables[..sung].iter().map(spaced).collect();
+        let mut rest: String = self.syllables[sung..].iter().map(spaced).collect();
+        if rest.is_empty() {
+            first.truncate(first.trim_end().len());
+        } else {
+            rest.truncate(rest.trim_end().len());
+        }
+        (first, rest)
     }
 }
 
@@ -80,20 +99,8 @@ pub fn lyric_lines(chart: &HarpChart) -> Vec<LyricLine> {
 
     let mut lines: Vec<LyricLine> = Vec::new();
     let mut current: Vec<Syllable> = Vec::new();
-    let mut phrase: Option<&str> = None;
+    let mut chars = 0;
     for (start, item) in items {
-        let new_phrase = item
-            .phrase
-            .as_deref()
-            .filter(|p| !p.is_empty() && Some(*p) != phrase);
-        if let Some(p) = new_phrase {
-            phrase = Some(p);
-            if !current.is_empty() {
-                lines.push(LyricLine {
-                    syllables: std::mem::take(&mut current),
-                });
-            }
-        }
         let Some(raw) = item.lyric.as_deref().map(str::trim) else {
             continue;
         };
@@ -101,10 +108,12 @@ pub fn lyric_lines(chart: &HarpChart) -> Vec<LyricLine> {
             Some(rest) => (true, rest.trim_start()),
             None => (false, raw),
         };
-        if breaks && !current.is_empty() {
+        let word_ended = current.last().is_some_and(|s: &Syllable| !s.joins_next);
+        if (breaks || (word_ended && chars > WRAP_CHARS)) && !current.is_empty() {
             lines.push(LyricLine {
                 syllables: std::mem::take(&mut current),
             });
+            chars = 0;
         }
         let (joins_next, text) = match raw.strip_suffix('-') {
             Some(rest) => (true, rest),
@@ -113,6 +122,7 @@ pub fn lyric_lines(chart: &HarpChart) -> Vec<LyricLine> {
         if text.is_empty() {
             continue;
         }
+        chars += text.chars().count() + 1;
         current.push(Syllable {
             text: text.to_string(),
             start,
@@ -207,7 +217,22 @@ mod tests {
     }
 
     #[test]
-    fn a_slash_or_a_new_phrase_starts_a_line() {
+    fn a_line_splits_into_sung_and_unsung_halves() {
+        let c = chart(&[
+            (0.0, Some("A-"), None),
+            (0.5, Some("maz-"), None),
+            (1.0, Some("ing"), None),
+            (1.5, Some("grace"), None),
+        ]);
+        let line = &lyric_lines(&c)[0];
+        assert_eq!(line.split_at(0), (String::new(), "Amazing grace".into()));
+        assert_eq!(line.split_at(2), ("Amaz".into(), "ing grace".into()));
+        assert_eq!(line.split_at(3), ("Amazing ".into(), "grace".into()));
+        assert_eq!(line.split_at(9), ("Amazing grace".into(), String::new()));
+    }
+
+    #[test]
+    fn a_slash_starts_a_line_and_a_phrase_tag_does_not() {
         let c = chart(&[
             (0.0, Some("how"), Some("verse")),
             (0.5, Some("sweet"), None),
@@ -215,10 +240,30 @@ mod tests {
             (1.5, Some("sound"), None),
             (2.0, Some("that"), Some("chorus")),
         ]);
-        assert_eq!(
-            texts(&lyric_lines(&c)),
-            vec!["how sweet", "the sound", "that"]
-        );
+        assert_eq!(texts(&lyric_lines(&c)), vec!["how sweet", "the sound that"]);
+    }
+
+    #[test]
+    fn a_long_line_wraps_between_words_not_inside_one() {
+        let words: Vec<(f64, Option<&str>, Option<&str>)> = (0..30)
+            .map(|i| {
+                (
+                    i as f64,
+                    Some(if i % 3 == 2 { "ing" } else { "sing-" }),
+                    None,
+                )
+            })
+            .collect();
+        let lines = lyric_lines(&chart(&words));
+        assert!(lines.len() > 1);
+        for line in &lines {
+            assert!(!line.syllables.last().unwrap().joins_next);
+            assert!(
+                line.text().chars().count() <= WRAP_CHARS + 20,
+                "{}",
+                line.text()
+            );
+        }
     }
 
     #[test]

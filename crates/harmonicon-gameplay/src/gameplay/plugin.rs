@@ -80,6 +80,7 @@ impl Plugin for GameplayPlugin {
             warning_banner::WarningBannerPlugin,
             wait_freeze_overlay::WaitFreezePlugin,
             music_score_bridge::MusicScoreBridgePlugin,
+            super::karaoke::KaraokePlugin,
         ))
         .init_resource::<GameplayClock>()
         .init_resource::<PitchRange>()

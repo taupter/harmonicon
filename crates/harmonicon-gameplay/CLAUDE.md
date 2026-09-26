@@ -344,6 +344,14 @@ load-bearing about *this* crate.
     the chart uses techniques. Both setups read its answer, and its tests
     pin each rule — including that the modes differ only in the key. A new
     conditional piece belongs there, not in an `if` in either setup.
+  - **The karaoke strip** (`karaoke.rs`) is one of those pieces: shown
+    whenever the chart has lyrics, compact and aural included, under the
+    staff or in its place. It draws `harmonicon_core::lyrics`' answer and
+    decides nothing: lines, word joins and "how far through is the singer"
+    are pure functions there. It reads the *expanded* chart, so a
+    repeated passage sings its words again. The current line is one `Text`
+    with a sung and an unsung `TextSpan`, rewritten only when the
+    `KaraokePosition` changes, which also covers an A–B loop rewinding.
 
 - **Beat guides reuse the note's own time→screen path, not a second one**
   (`gameplay/beat_guides.rs`, 2D only — the 3D lane is world-space geometry

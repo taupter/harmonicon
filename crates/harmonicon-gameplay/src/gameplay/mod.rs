@@ -24,6 +24,7 @@ mod highway_2d;
 mod hud;
 mod hud_panel;
 mod judge;
+mod karaoke;
 pub mod lifecycle;
 pub mod metronome_overlay;
 mod modifier_legend;
