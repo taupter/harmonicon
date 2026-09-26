@@ -326,6 +326,13 @@ load-bearing about *this* crate.
   - Still mode-specific and deliberately so: 3D has no hole map, and the
     beat guides are 2D-only (its lane is world-space geometry with no UI
     node to hang percentages off).
+  - **Which contextual pieces appear is decided in one place**,
+    `hud_panel::contextual_panels`: the side panel, notation staff,
+    progress-bar note markers, technique legend and the in-panel blow/draw
+    key, from the lane surface, compact layout, an aural lesson and whether
+    the chart uses techniques. Both setups read its answer, and its tests
+    pin each rule — including that the modes differ only in the key. A new
+    conditional piece belongs there, not in an `if` in either setup.
 
 - **Beat guides reuse the note's own time→screen path, not a second one**
   (`gameplay/beat_guides.rs`, 2D only — the 3D lane is world-space geometry

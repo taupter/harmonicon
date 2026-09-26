@@ -17,7 +17,9 @@ use harmonicon_ui::music_score::{self, BravuraFont};
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::countdown_overlay::spawn_countdown;
 use super::gameplay_2d::{harp_pitches, note_anim_mode, note_techniques};
-use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::hud_panel::{
+    ContextualPanels, HudPanel, LaneSurface, contextual_panels, spawn_hud_panel, used_modifiers,
+};
 use super::judge::{judged_instant, live_technique_status};
 use super::modifier_legend::build_legend_materials;
 use super::note_feedback::{
@@ -277,18 +279,24 @@ pub fn setup(
     // The meter's own beat count, for the HUD's beat dots — from the one
     // reading of the chart's meter gameplay has (`bars::chart_meter`).
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
+    let modifiers = used_modifiers(chart);
+    let panels = contextual_panels(
+        LaneSurface::Lane3d,
+        compact,
+        lesson.is_some_and(|lesson| lesson.aural),
+        !modifiers.is_empty(),
+    );
     spawn_hud_overlay(
         &mut commands,
-        chart,
+        &modifiers,
         chart.song.tempo_bpm,
         beats_per_bar,
         shape_materials,
         &hud.loc,
         &hud.song_info,
-        compact,
+        panels,
     );
-    let aural = lesson.is_some_and(|lesson| lesson.aural);
-    let note_markers: Vec<NoteMarker> = if aural {
+    let note_markers: Vec<NoteMarker> = if !panels.progress_notes {
         Vec::new()
     } else {
         note_build
@@ -312,8 +320,7 @@ pub fn setup(
         &note_build.adaptive.sections,
         &note_build.adaptive.learned,
     );
-    if !aural
-        && !compact
+    if panels.notation_staff
         && let Some(bravura) = &hud.bravura
     {
         super::gameplay_2d::spawn_gameplay_music_score(&mut commands, bravura);
@@ -330,21 +337,25 @@ pub fn setup(
 
 fn spawn_hud_overlay(
     commands: &mut Commands,
-    chart: &harmonicon_core::chart::HarpChart,
+    modifiers: &[harmonicon_core::chart::Modifier],
     bpm: f32,
     beats_per_bar: usize,
     mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
     loc: &Localization,
     song_info: &SongInfo,
-    compact: bool,
+    panels: ContextualPanels,
 ) {
     // The same panel 2D carries, on the same side of the screen. It used to
     // sit top-left here and right in 2D, with the same contents in a
     // different order — the drift `hud_panel` exists to stop. All of it is
     // supplementary, so compact mode skips the panel outright rather than
-    // trimming it piecemeal.
-    if !compact {
-        let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers(chart));
+    // trimming it piecemeal (`contextual_panels`).
+    if panels.side_panel {
+        let legend_materials = if panels.technique_legend {
+            build_legend_materials(&mut shape_materials, modifiers)
+        } else {
+            Vec::new()
+        };
         commands
             .spawn((
                 Node {
@@ -379,9 +390,9 @@ fn spawn_hud_overlay(
                         beats_per_bar,
                         bpm,
                         legend_materials: &legend_materials,
-                        // No hole strip here to print the key under, unlike
-                        // 2D — so it goes in the panel.
-                        blow_draw_legend: true,
+                        // True here: no hole strip to print the key under,
+                        // unlike 2D — so it goes in the panel.
+                        blow_draw_legend: panels.blow_draw_in_panel,
                     },
                 );
             });

@@ -16,7 +16,7 @@ use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::beat_guides;
 use super::countdown_overlay::spawn_countdown;
 use super::highway_2d::{spawn_harmonica_strip, spawn_highway};
-use super::hud_panel::{HudPanel, spawn_hud_panel, used_modifiers};
+use super::hud_panel::{HudPanel, LaneSurface, contextual_panels, spawn_hud_panel, used_modifiers};
 use super::judge::{judged_instant, live_technique_status};
 use super::modifier_legend::build_legend_materials;
 use super::note_feedback::{
@@ -117,17 +117,29 @@ pub fn setup(
         play_mode_tags,
     };
 
+    let compact = display.compact.0;
+    let aural = display.lesson.is_some_and(|lesson| lesson.aural);
+    let modifiers = used_modifiers(chart);
+    let panels = contextual_panels(
+        LaneSurface::Highway2d,
+        compact,
+        aural,
+        !modifiers.is_empty(),
+    );
+
     // Animated tail previews for the techniques legend (built up front so the UI
     // closures only borrow a ready slice, not the material store).
-    let legend_materials = build_legend_materials(&mut shape_materials, &used_modifiers(chart));
+    let legend_materials = if panels.technique_legend {
+        build_legend_materials(&mut shape_materials, &modifiers)
+    } else {
+        Vec::new()
+    };
 
     let bpm = chart.song.tempo_bpm;
 
     // The meter's own beat count, for the HUD's beat dots — from the one
     // reading of the chart's meter gameplay has (`bars::chart_meter`).
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
-
-    let compact = display.compact.0;
     // Filled in below; the shared score readout hangs off the highway so it
     // can sit a fixed distance above that node's own hit line.
     let mut highway = Entity::PLACEHOLDER;
@@ -240,7 +252,7 @@ pub fn setup(
                 ..default()
             })
             .with_children(|right| {
-                if !compact {
+                if panels.side_panel {
                     spawn_hud_panel(
                         right,
                         HudPanel {
@@ -249,9 +261,9 @@ pub fn setup(
                             beats_per_bar,
                             bpm,
                             legend_materials: &legend_materials,
-                            // 2D's key goes under the hole strip instead,
-                            // beside the colours it explains.
-                            blow_draw_legend: false,
+                            // False here: 2D's key goes under the hole
+                            // strip, beside the colours it explains.
+                            blow_draw_legend: panels.blow_draw_in_panel,
                         },
                     );
                 }
@@ -282,8 +294,7 @@ pub fn setup(
         },
     );
 
-    let aural = display.lesson.is_some_and(|lesson| lesson.aural);
-    let note_markers: Vec<NoteMarker> = if aural {
+    let note_markers: Vec<NoteMarker> = if !panels.progress_notes {
         Vec::new()
     } else {
         song_notes
@@ -306,8 +317,7 @@ pub fn setup(
         &adaptive.sections,
         &adaptive.learned,
     );
-    if !aural
-        && !compact
+    if panels.notation_staff
         && let Some(bravura) = &display.bravura
     {
         spawn_gameplay_music_score(&mut commands, bravura);

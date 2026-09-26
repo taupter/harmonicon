@@ -46,8 +46,9 @@ Two things it does not cover, and why:
   so detected pitches can't be injected over BRP. Hits in a captured run come
   from whatever the microphone actually hears. The judgment vocabulary itself
   is covered headlessly instead (`gameplay::tests::score_notes_blames_*`).
-- **Layout assertions.** Still worth adding for pure decisions such as which
-  contextual panels are visible; rendering quality stays screenshot/manual.
+- **Rendering quality.** Which contextual panels a run shows is a pure
+  decision (`hud_panel::contextual_panels`, shared by 2D and 3D and tested
+  per rule); how they look stays screenshot/manual.
 
 ## Phase 1: make the highway the visual focus
 

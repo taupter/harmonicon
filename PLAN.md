@@ -50,9 +50,6 @@ Nothing below can be approved by a test.
   (`TrainingRecord::review_due`), so the per-track mastery meter could
   discount tiers long overdue; today it counts cleared tiers only
   (`docs/training_tree_plan.md` §4).
-- **Layout assertions** for scored play's pure decisions, such as which
-  contextual panels a chart shows (`docs/gameplay_improvement_plan.md`,
-  Phase 0).
 - **Song Editor arranging**: repeats and endings, pickups/count-in, lyrics,
   transposition and batch editing. Each needs round-trip and playability
   tests plus player and contributor docs as it lands.
