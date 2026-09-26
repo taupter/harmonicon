@@ -413,6 +413,41 @@ fn a_generated_chart_serializes_to_something_the_schema_accepts() {
     }
 }
 
+/// Where the shipped curriculum narrows to a single lesson — a report, not
+/// a check (see `lessons::graph::choice_report`). Run it when changing
+/// prerequisites or units:
+///
+/// ```text
+/// cargo test --features dev --test asset_layout -- --ignored --nocapture curriculum_choice
+/// ```
+#[test]
+#[ignore = "a report to read, not a pass/fail check"]
+fn curriculum_choice_report() {
+    use harmonicon_song::lessons::graph::{LessonGraph, choice_report};
+    use harmonicon_song::lessons::parse_lesson;
+    use harmonicon_song::lessons::units::UnitChain;
+
+    let manifests: Vec<_> = subdirs(Path::new("assets/lessons"))
+        .iter()
+        .flat_map(|unit| subdirs(unit))
+        .filter_map(|lesson| std::fs::read_to_string(lesson.join("lesson.json")).ok())
+        .filter_map(|text| parse_lesson(text.as_bytes()).ok())
+        .collect();
+    let graph = LessonGraph::build(&manifests).expect("a drawable graph");
+    let chain = UnitChain::build(&manifests);
+    let report = choice_report(&graph, &chain, 3000, 4, 0x5eed);
+
+    println!(
+        "{} lessons, 3000 playthroughs, counting while at least 4 remain",
+        manifests.len()
+    );
+    println!("fewest lessons ever on offer: {}", report.fewest);
+    println!("only lesson on offer, by how often:");
+    for (id, count) in &report.sole_options {
+        println!("  {count:>6}  {id}");
+    }
+}
+
 #[test]
 fn the_bundled_curriculum_forms_a_drawable_graph() {
     use harmonicon_song::lessons::graph::LessonGraph;

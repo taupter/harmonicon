@@ -196,11 +196,15 @@ load-bearing about *this* crate.
     it unreachable forever and would hang a renderer walking the edges — so
     `build` refuses to construct rather than returning something that looks
     fine until walked.
-  - `min_choices` **reports** the fewest lessons ever offered at once,
-    rather than asserting a floor. The design wanted "always at least two
-    choices"; the shipped curriculum funnels to one at `deep-bends`,
-    `swing-eighths` and `blues-scale`, so a threshold would either fail or
-    have to be tuned until it only described today's data.
+  - `choice_report` **reports** the fewest lessons ever offered at once,
+    and which lessons were the only one on offer, rather than asserting a
+    floor. The design wanted "always at least two choices"; the shipped
+    curriculum funnels, so a threshold would either fail or have to be
+    tuned until it only described today's data. It applies the *unit* gate
+    as well as prerequisites, as the tree does — prerequisites alone
+    overstate the choice. `tests/asset_layout.rs::curriculum_choice_report`
+    (ignored; run with `--ignored --nocapture`) prints it for the shipped
+    curriculum.
   - The Song Editor's lesson form doesn't write `track` yet, so a lesson
     authored there falls back to its unit until edited by hand.
 

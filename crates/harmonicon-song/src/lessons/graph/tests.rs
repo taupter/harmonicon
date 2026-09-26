@@ -190,44 +190,83 @@ fn a_lesson_with_no_track_falls_back_to_its_unit() {
     assert_eq!(g.get("a").unwrap().track, "test");
 }
 
-// ── min_choices ──────────────────────────────────────────────────────────
+// ── choice_report ────────────────────────────────────────────────────────
 
-#[test]
-fn min_choices_finds_a_funnel() {
-    // A curriculum with a single gateway: after `a`, the only thing to do is
-    // `gate`, and everything else waits behind it.
-    let g = LessonGraph::build(&[
-        lesson("a", "t", &[]),
-        lesson("gate", "t", &["a"]),
-        lesson("x", "t", &["gate"]),
-        lesson("y", "t", &["gate"]),
-        lesson("z", "t", &["gate"]),
-    ])
-    .unwrap();
-    assert_eq!(min_choices(&g, 50, 3, 12345), 1);
+fn report(lessons: &[LessonManifest], trials: u32, while_remaining: usize) -> ChoiceReport {
+    let graph = LessonGraph::build(lessons).unwrap();
+    let chain = UnitChain::build(lessons);
+    choice_report(&graph, &chain, trials, while_remaining, 12345)
+}
+
+fn in_unit(mut lesson: LessonManifest, unit: &str) -> LessonManifest {
+    lesson.unit = unit.to_string();
+    lesson
 }
 
 #[test]
-fn min_choices_sees_a_wide_curriculum_as_wide() {
-    let g = LessonGraph::build(&[
-        lesson("a", "t", &[]),
-        lesson("b", "t", &[]),
-        lesson("c", "t", &[]),
-        lesson("d", "t", &[]),
-    ])
-    .unwrap();
-    assert!(min_choices(&g, 50, 2, 999) >= 2);
+fn a_single_gateway_is_named_as_the_chokepoint() {
+    // After `a`, the only thing to do is `gate`; everything else waits.
+    let r = report(
+        &[
+            lesson("a", "t", &[]),
+            lesson("gate", "t", &["a"]),
+            lesson("x", "t", &["gate"]),
+            lesson("y", "t", &["gate"]),
+            lesson("z", "t", &["gate"]),
+        ],
+        50,
+        3,
+    );
+    assert_eq!(r.fewest, 1);
+    // `a` is the only start as well; each is the sole option once a trial.
+    assert_eq!(
+        r.sole_options,
+        vec![("a".to_string(), 50), ("gate".to_string(), 50)]
+    );
 }
 
 #[test]
-fn min_choices_is_deterministic_for_a_seed() {
-    let g = LessonGraph::build(&[
+fn a_wide_curriculum_has_no_chokepoint() {
+    let r = report(
+        &[
+            lesson("a", "t", &[]),
+            lesson("b", "t", &[]),
+            lesson("c", "t", &[]),
+            lesson("d", "t", &[]),
+        ],
+        50,
+        2,
+    );
+    assert!(r.fewest >= 2);
+    assert!(r.sole_options.is_empty());
+}
+
+#[test]
+fn a_closed_unit_narrows_the_choice_even_with_prerequisites_met() {
+    // No prerequisites at all, so the graph alone offers everything. But
+    // unit `second` only opens once `first` is mostly done, so the second
+    // unit's lessons are not really on offer at the start.
+    let r = report(
+        &[
+            in_unit(lesson("a", "t", &[]), "first"),
+            in_unit(lesson("x", "t", &[]), "second"),
+            in_unit(lesson("y", "t", &[]), "second"),
+            in_unit(lesson("z", "t", &[]), "second"),
+        ],
+        20,
+        4,
+    );
+    assert_eq!(r.fewest, 1, "only `a` is open while unit two is shut");
+    assert_eq!(r.sole_options, vec![("a".to_string(), 20)]);
+}
+
+#[test]
+fn the_report_is_deterministic_for_a_seed() {
+    let lessons = [
         lesson("a", "t", &[]),
         lesson("b", "t", &["a"]),
         lesson("c", "t", &["a"]),
         lesson("d", "t", &["b", "c"]),
-    ])
-    .unwrap();
-    let once = min_choices(&g, 30, 2, 4242);
-    assert_eq!(once, min_choices(&g, 30, 2, 4242));
+    ];
+    assert_eq!(report(&lessons, 30, 2), report(&lessons, 30, 2));
 }

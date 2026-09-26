@@ -118,22 +118,33 @@ order, `available`, `rows` and the checking. What survived contact:
   failure is a prerequisite naming a lesson that does not exist, which is
   its own error (`UnknownPrerequisite`) because the fix is different.
 - *At least two lessons always available* — **false of the shipped
-  curriculum**, so it reports rather than asserts. Sampled over the 41,
-  the graph funnels to a single option at several points:
+  curriculum**, so it reports rather than asserts. `graph::choice_report`
+  counts, over 3000 seeded playthroughs and only while ≥4 lessons remain,
+  how often each lesson was the only one on offer — applying the unit gate
+  as the tree does, not just prerequisites. Over the shipped 100 lessons
+  (`cargo test --features dev --test asset_layout -- --ignored
+  --nocapture curriculum_choice`), the worst after the unavoidable start
+  (`single-note`, every time):
 
-  | Chokepoint | How often it is the only option |
+  | Chokepoint | Only option, of 3000 |
   |---|---|
-  | `deep-bends` | 135 |
-  | `swing-eighths` | 83 |
-  | `blues-scale` | 80 |
-  | `improvisation` | 64 |
-  | `call-response` | 45 |
+  | `hidden-short-phrase` | 2854 |
+  | `melodic-motion` | 2749 |
+  | `match-heard-note` | 2576 |
+  | `third-position-landings` | 2256 |
+  | `landmarks` | 2211 |
+  | `second-position-landings` | 1811 |
+  | `jazz-blues-form` | 1679 |
+  | `sixteenth-articulation` | 1602 |
 
-  (3000 seeded playthroughs, counting only states with ≥4 lessons still to
-  go.) `graph::min_choices` returns the number so it can be watched;
-  widening those gateways is curriculum work, not something a test can
-  force. Asserting a threshold would either fail today or have to be
-  weakened until it only described today's data.
+  Two causes. The unit gate is cumulative, so all seven elective units
+  (11–17) wait behind the last core unit, and Ear Training (Unit 10) is a
+  four-lesson chain: while a player works through it, nothing else is
+  open. Measured with elective units opening on their lessons'
+  prerequisites alone, the Ear Training, Positions and Navigation funnels
+  fall to a few hundred or none; what remains is the Rhythm Lab chain
+  (triplets → straight/shuffle → syncopation → sixteenths → tempo), which
+  only widened prerequisites can open up.
 
 
 ## 2. Five trainings per lesson

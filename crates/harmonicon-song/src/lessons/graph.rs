@@ -27,15 +27,16 @@
 //! A fourth was planned and turned out to be **false of the real
 //! curriculum**: "at least two lessons are always available, so the player
 //! always has a choice". Sampled over the shipped curriculum, the graph funnels to a
-//! single option at several points — `deep-bends` most often, then
-//! `swing-eighths` and `blues-scale`. So [`min_choices`] reports the number
-//! instead of asserting it, and widening those chokepoints is curriculum
-//! work rather than something a test can enforce.
+//! single option at several points. So [`choice_report`] measures it instead
+//! of asserting it, naming the lessons that were the only way forward, and
+//! widening those chokepoints is curriculum work rather than something a
+//! test can enforce.
 
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 
 use super::manifest::LessonManifest;
+use super::units::UnitChain;
 
 /// One lesson, placed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -230,19 +231,41 @@ impl LessonGraph {
     }
 }
 
-/// The fewest lessons a player is ever offered at once, over `trials`
-/// randomly-ordered playthroughs, while at least `while_remaining` lessons
-/// are still unpassed.
+/// How much choice a curriculum offers along the way, measured by
+/// [`choice_report`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoiceReport {
+    /// The fewest lessons ever offered at once.
+    pub fewest: usize,
+    /// Each lesson that was ever the *only* one offered, with how many
+    /// times, most frequent first — the chokepoints to widen.
+    pub sole_options: Vec<(String, u32)>,
+}
+
+/// How much choice a player gets, over `trials` randomly-ordered
+/// playthroughs, counting only moments with at least `while_remaining`
+/// lessons still unpassed (near the end, one lesson left is no funnel).
+///
+/// A lesson is offered when the skill tree would show it as available:
+/// its prerequisites passed **and** its unit open (`units::UnitChain`).
+/// Measuring prerequisites alone overstates the choice, because a unit
+/// gate can hold back lessons whose own prerequisites are long met.
 ///
 /// **A measurement, not a check.** The design goal was that a player should
-/// always have a choice of at least two, but the shipped curriculum funnels
-/// to one at several points, so asserting it would either fail or have to be
-/// weakened until it only described today's data. Reporting the number lets
-/// the curriculum be widened deliberately.
+/// always have a choice of at least two, but the shipped curriculum has
+/// funnelled to one at several points, so asserting it would either fail or
+/// have to be weakened until it only described today's data. Reporting the
+/// numbers lets the curriculum be widened deliberately.
 ///
 /// Deterministic: `seed` drives a small xorshift rather than a dependency,
 /// so the same seed always walks the same orders.
-pub fn min_choices(graph: &LessonGraph, trials: u32, while_remaining: usize, seed: u64) -> usize {
+pub fn choice_report(
+    graph: &LessonGraph,
+    chain: &UnitChain,
+    trials: u32,
+    while_remaining: usize,
+    seed: u64,
+) -> ChoiceReport {
     let mut state = seed | 1;
     let mut next = move || {
         state ^= state << 13;
@@ -253,21 +276,41 @@ pub fn min_choices(graph: &LessonGraph, trials: u32, while_remaining: usize, see
 
     let total = graph.nodes().len();
     let mut fewest = usize::MAX;
+    let mut sole: HashMap<&str, u32> = HashMap::new();
     for _ in 0..trials {
         let mut passed: HashSet<&str> = HashSet::new();
         while passed.len() < total {
-            let options = graph.available(&passed);
+            let options: Vec<&str> = graph
+                .available(&passed)
+                .into_iter()
+                .filter(|id| {
+                    chain
+                        .unit_of(id)
+                        .is_none_or(|unit| chain.is_unlocked(unit, &passed))
+                })
+                .collect();
             if options.is_empty() {
                 break;
             }
             if total - passed.len() >= while_remaining {
                 fewest = fewest.min(options.len());
+                if let [only] = options[..] {
+                    *sole.entry(only).or_default() += 1;
+                }
             }
             let pick = (next() % options.len() as u64) as usize;
             passed.insert(options[pick]);
         }
     }
-    if fewest == usize::MAX { 0 } else { fewest }
+    let mut sole_options: Vec<(String, u32)> = sole
+        .into_iter()
+        .map(|(id, count)| (id.to_string(), count))
+        .collect();
+    sole_options.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    ChoiceReport {
+        fewest: if fewest == usize::MAX { 0 } else { fewest },
+        sole_options,
+    }
 }
 
 #[cfg(test)]
