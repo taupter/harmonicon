@@ -312,6 +312,7 @@ fn render_scenario(
                 PlayMode::Single
             }),
             call: false,
+            lyric: None,
             events,
         });
     }

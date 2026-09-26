@@ -282,6 +282,7 @@ pub fn to_chart(
             chord: None,
             play_mode: None,
             call: false,
+            lyric: None,
             events: vec![NoteEvent {
                 hole: assignment.hole,
                 action: assignment.action,

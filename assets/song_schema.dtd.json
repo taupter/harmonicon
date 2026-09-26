@@ -381,6 +381,11 @@
             "description": "Marks this item as part of a call-and-response phrase. Before a maximal run of consecutive call:true items, the game synthesizes and plays their notes as a one-shot audio demo, then always waits for the player to echo them. Absent = false, an ordinary item."
           },
 
+          "lyric": {
+            "type": "string",
+            "description": "The syllable sung when this item starts, shown karaoke-style in gameplay. A trailing '-' joins it to the next syllable of the same word; a leading '/' starts a new line. Added in format 1.6.0."
+          },
+
           "events": {
             "type": "array",
             "minItems": 1,

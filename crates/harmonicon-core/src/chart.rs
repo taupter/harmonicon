@@ -38,7 +38,7 @@ pub struct Metadata {
 /// spec than this build supports up front, with a clear error, instead of
 /// failing on some confusing downstream `additionalProperties` schema
 /// rejection or (worse) silently misreading a field whose meaning changed.
-pub const CURRENT_FORMAT_VERSION: &str = "1.5.0";
+pub const CURRENT_FORMAT_VERSION: &str = "1.6.0";
 
 /// Parses a `"MAJOR.MINOR.PATCH"` version string into a comparable tuple.
 /// `None` for anything that isn't exactly three dot-separated integers.
@@ -450,6 +450,12 @@ pub struct TrackItem {
     /// "Call and response" entry for the design.
     #[serde(default)]
     pub call: bool,
+    /// The syllable sung on this item, for the karaoke line in gameplay.
+    /// A trailing `-` joins it to the next syllable of the same word, and a
+    /// leading `/` starts a new line — see [`crate::lyrics`]. Added in
+    /// format 1.6.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lyric: Option<String>,
     pub events: Vec<NoteEvent>,
 }
 

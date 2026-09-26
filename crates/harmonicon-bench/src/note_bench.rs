@@ -541,6 +541,7 @@ mod tests {
             chord: None,
             play_mode: Some(PlayMode::Single),
             call: false,
+            lyric: None,
             events: vec![NoteEvent {
                 hole,
                 action,

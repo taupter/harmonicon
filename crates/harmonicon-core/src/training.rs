@@ -240,6 +240,7 @@ pub fn drill_chart(
             chord: None,
             play_mode: None,
             call: false,
+            lyric: None,
             events: vec![NoteEvent {
                 hole: step.hole,
                 action,

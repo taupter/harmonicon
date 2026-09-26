@@ -928,6 +928,7 @@ pub fn generated_chart(
             chord: None,
             play_mode: None,
             call: false,
+            lyric: None,
             events: vec![NoteEvent {
                 hole: 1,
                 action: Action::Blow,

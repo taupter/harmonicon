@@ -210,6 +210,7 @@ mod tests {
             chord: None,
             play_mode: None,
             call,
+            lyric: None,
             events: holes
                 .iter()
                 .map(|(hole, action)| NoteEvent {
