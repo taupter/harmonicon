@@ -50,10 +50,6 @@ Nothing below can be approved by a test.
   (`TrainingRecord::review_due`), so the per-track mastery meter could
   discount tiers long overdue; today it counts cleared tiers only
   (`docs/training_tree_plan.md` §4).
-- **`note_bench` metrics**: exact-set chord precision/recall, per-note
-  precision/recall, direction accuracy, onset and release latency, and
-  per-scenario summaries. Buildable now against the synthetic dataset;
-  meaningful once the corpus exists (`docs/pitch_detection_plan.md`).
 - **Layout assertions** for scored play's pure decisions, such as which
   contextual panels a chart shows (`docs/gameplay_improvement_plan.md`,
   Phase 0).

@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use harmonicon_core::chart::{Action, HarpChart, tick_to_seconds};
 use harmonicon_core::harmonica::Harmonica;
 use harmonicon_core::harmonica_constraints::{
-    HarmonicaNoteTracker, NoteTrackerConfig, plausible_notes,
+    HarmonicaNoteTracker, NoteTrackerConfig, plausible_notes, reachable_directions,
 };
 use harmonicon_core::midi::note_to_midi;
 use harmonicon_dsp::{
@@ -38,6 +38,9 @@ pub struct ExpectedNote {
     pub start_secs: f64,
     pub end_secs: f64,
     pub midi: u8,
+    /// Whether the note is played blowing (`false` for drawing) — what
+    /// [`direction_accuracy`] checks a detection's breath against.
+    pub blow: bool,
     /// Hole/action tab label (e.g. `"-4"` for a hole-4 draw, following the
     /// roadmap's own notation) — display only, never compared against.
     pub label: String,
@@ -81,6 +84,7 @@ pub fn expected_notes_from_chart(chart: &HarpChart) -> Vec<ExpectedNote> {
                 start_secs,
                 end_secs,
                 midi,
+                blow: event.action == Action::Blow,
                 label: format!("{sign}{}", event.hole),
             });
         }
@@ -208,6 +212,52 @@ pub struct AlgorithmReport {
     pub false_negative: u32,
     pub false_positive: u32,
     pub confusion: Vec<(Vec<u8>, Vec<u8>, u32)>,
+    /// Frames where a chord (two or more pitches) was expected.
+    pub chord_frames_expected: u32,
+    /// Frames where two or more pitches were detected.
+    pub chord_frames_detected: u32,
+    /// Frames where a chord was expected and the detected set was exactly
+    /// it — no pitch missing, none extra. A chord is judged whole in play
+    /// (`scoring::chord_is_sounding`), so per-note counts overstate how
+    /// often one would actually score.
+    pub chord_frames_exact: u32,
+}
+
+/// `part / whole`, or `None` when there was nothing to measure.
+fn ratio(part: u32, whole: u32) -> Option<f32> {
+    (whole > 0).then(|| part as f32 / whole as f32)
+}
+
+impl AlgorithmReport {
+    /// Per-note precision: of the pitches detected, the share that were
+    /// expected.
+    pub fn precision(&self) -> Option<f32> {
+        ratio(self.true_positive, self.true_positive + self.false_positive)
+    }
+
+    /// Per-note recall: of the pitches expected, the share detected.
+    ///
+    /// **Frame-level, and diluted by the timing tolerance.** A note counts
+    /// as expected for `tolerance_secs` either side of its written window,
+    /// so for short notes separated by silence this stays far below 100%
+    /// even for a perfect detector (about 55% on the synthetic dataset's
+    /// 0.45 s notes at the default ±0.25 s). Read it for *changes* between
+    /// runs; [`NoteTimings::never_detected`] answers "was each note heard".
+    pub fn recall(&self) -> Option<f32> {
+        ratio(self.true_positive, self.true_positive + self.false_negative)
+    }
+
+    /// Exact-set chord recall: of the frames expecting a chord, the share
+    /// where exactly that chord was detected.
+    pub fn chord_recall(&self) -> Option<f32> {
+        ratio(self.chord_frames_exact, self.chord_frames_expected)
+    }
+
+    /// Exact-set chord precision: of the frames reporting two or more
+    /// pitches, the share that were exactly the chord expected.
+    pub fn chord_precision(&self) -> Option<f32> {
+        ratio(self.chord_frames_exact, self.chord_frames_detected)
+    }
 }
 
 /// Builds an [`AlgorithmReport`] from `frames` (one algorithm's offline run,
@@ -243,6 +293,15 @@ pub fn compare(
                 report.false_positive += 1;
             }
         }
+        if want.len() >= 2 {
+            report.chord_frames_expected += 1;
+            if frame.detected == want {
+                report.chord_frames_exact += 1;
+            }
+        }
+        if frame.detected.len() >= 2 {
+            report.chord_frames_detected += 1;
+        }
         *confusion.entry((want, frame.detected.clone())).or_insert(0) += 1;
     }
 
@@ -252,6 +311,122 @@ pub fn compare(
     confusion.sort_unstable_by(|a, b| b.2.cmp(&a.2).then_with(|| (&a.0, &a.1).cmp(&(&b.0, &b.1))));
     report.confusion = confusion;
     report
+}
+
+// ── Timing and direction ─────────────────────────────────────────────────────
+
+/// How late each expected note was picked up and let go, in seconds, from
+/// [`note_timings`].
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct NoteTimings {
+    /// Per detected note: first detecting frame minus the note's start.
+    /// Includes the analysis window, since that is what a player waits for.
+    pub onset_secs: Vec<f64>,
+    /// Per detected note whose release is unambiguous: first frame no longer
+    /// detecting it minus the note's end. Negative when the detector lost
+    /// the pitch before the note ended — a dropout mid-sustain.
+    pub release_secs: Vec<f64>,
+    /// Expected notes never detected inside their widened window.
+    pub never_detected: u32,
+}
+
+/// Onset and release latency for every expected note in `frames`.
+///
+/// **Onset** is the first frame inside the note's window, widened by
+/// `tolerance_secs` at both ends, that detects its pitch. **Release** walks
+/// on from there to the first frame without the pitch. A release is skipped
+/// when another expected note of the same pitch starts before this one's
+/// widened end, since the pitch continuing is then correct rather than
+/// late, and when the recording ends with the pitch still detected.
+pub fn note_timings(
+    expected: &[ExpectedNote],
+    frames: &[Frame],
+    tolerance_secs: f64,
+) -> NoteTimings {
+    let mut timings = NoteTimings::default();
+    for note in expected {
+        let window = (note.start_secs - tolerance_secs)..(note.end_secs + tolerance_secs);
+        let Some(onset) = frames
+            .iter()
+            .position(|f| window.contains(&f.time_secs) && f.detected.contains(&note.midi))
+        else {
+            timings.never_detected += 1;
+            continue;
+        };
+        timings
+            .onset_secs
+            .push(frames[onset].time_secs - note.start_secs);
+
+        let continued = expected.iter().any(|other| {
+            other.midi == note.midi
+                && other.start_secs > note.start_secs
+                && other.start_secs < note.end_secs + tolerance_secs
+        });
+        if continued {
+            continue;
+        }
+        if let Some(release) = frames[onset..]
+            .iter()
+            .find(|f| !f.detected.contains(&note.midi))
+        {
+            timings.release_secs.push(release.time_secs - note.end_secs);
+        }
+    }
+    timings
+}
+
+/// Of the frames with both an expectation and a detection, the share whose
+/// every detected pitch can be played in the expected breath direction on
+/// `harp` — whether the detector keeps blow and draw apart, whatever it
+/// makes of the exact pitch.
+///
+/// A pitch reachable both ways (a C harp's G4 is blow 3 and draw 2) counts
+/// as matching either. Frames whose expectation mixes directions are
+/// skipped: no single breath is right there. `None` when no frame counted.
+pub fn direction_accuracy(
+    harp: &Harmonica,
+    expected: &[ExpectedNote],
+    frames: &[Frame],
+    tolerance_secs: f64,
+) -> Option<f32> {
+    let (mut counted, mut matched) = (0u32, 0u32);
+    for frame in frames.iter().filter(|f| !f.detected.is_empty()) {
+        let t = frame.time_secs;
+        let mut due = expected
+            .iter()
+            .filter(|n| t >= n.start_secs - tolerance_secs && t < n.end_secs + tolerance_secs)
+            .map(|n| n.blow);
+        let Some(blow) = due.next() else {
+            continue;
+        };
+        if due.any(|other| other != blow) {
+            continue;
+        }
+        counted += 1;
+        let fits = frame.detected.iter().all(|&midi| {
+            let (by_blow, by_draw) = reachable_directions(harp, midi);
+            if blow { by_blow } else { by_draw }
+        });
+        if fits {
+            matched += 1;
+        }
+    }
+    ratio(matched, counted)
+}
+
+/// The middle value, or `None` for no values.
+pub fn median(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let mid = sorted.len() / 2;
+    Some(if sorted.len().is_multiple_of(2) {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    })
 }
 
 #[cfg(test)]
@@ -444,6 +619,7 @@ mod tests {
             start_secs: 0.0,
             end_secs: 1.0,
             midi,
+            blow: true,
             label: String::new(),
         }
     }
@@ -513,5 +689,129 @@ mod tests {
         let report = compare(&expected, &frames, 0.0);
         let detected: Vec<&[u8]> = report.confusion.iter().map(|c| c.1.as_slice()).collect();
         assert_eq!(detected, vec![&[][..], &[62], &[64]]);
+    }
+
+    // ── precision, recall and chords ─────────────────────────────────────────
+
+    #[test]
+    fn precision_and_recall_come_from_the_per_note_counts() {
+        let expected = vec![expected(60), expected(64)];
+        // One of two found, plus one phantom.
+        let report = compare(&expected, &[frame(0.5, &[60, 62])], 0.0);
+        assert_eq!(report.precision(), Some(0.5));
+        assert_eq!(report.recall(), Some(0.5));
+        assert_eq!(compare(&[], &[], 0.0).recall(), None, "nothing to measure");
+    }
+
+    #[test]
+    fn a_chord_counts_only_when_the_detected_set_is_exactly_it() {
+        let chord = vec![expected(60), expected(64), expected(67)];
+        let frames = vec![
+            frame(0.1, &[60, 64, 67]),     // exact
+            frame(0.2, &[60, 64]),         // one missing
+            frame(0.3, &[60, 64, 67, 72]), // one extra
+        ];
+        let report = compare(&chord, &frames, 0.0);
+        assert_eq!(report.chord_frames_expected, 3);
+        assert_eq!(report.chord_frames_detected, 3);
+        assert_eq!(report.chord_frames_exact, 1);
+        // Per-note recall is 8/9 here, far kinder than a chord actually
+        // scoring one frame in three.
+        assert!(report.recall().unwrap() > 0.85);
+        assert!((report.chord_recall().unwrap() - 1.0 / 3.0).abs() < 1e-6);
+    }
+
+    // ── timing ───────────────────────────────────────────────────────────────
+
+    fn note(midi: u8, start: f64, end: f64) -> ExpectedNote {
+        ExpectedNote {
+            start_secs: start,
+            end_secs: end,
+            midi,
+            blow: true,
+            label: String::new(),
+        }
+    }
+
+    /// A 10 ms frame grid where `midi` is detected over `[on, off)`.
+    fn detected_between(midi: u8, on: f64, off: f64, until: f64) -> Vec<Frame> {
+        (0..=(until * 100.0) as usize)
+            .map(|i| {
+                let t = i as f64 / 100.0;
+                let d: &[u8] = if t >= on - 1e-9 && t < off - 1e-9 {
+                    &[midi]
+                } else {
+                    &[]
+                };
+                frame(t, d)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn onset_and_release_latency_are_measured_from_the_note_edges() {
+        let frames = detected_between(60, 1.05, 2.08, 3.0);
+        let timings = note_timings(&[note(60, 1.0, 2.0)], &frames, 0.25);
+        assert_eq!(timings.never_detected, 0);
+        assert!((timings.onset_secs[0] - 0.05).abs() < 1e-9);
+        assert!((timings.release_secs[0] - 0.08).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_dropout_mid_note_reads_as_an_early_release() {
+        let frames = detected_between(60, 1.05, 1.60, 3.0);
+        let timings = note_timings(&[note(60, 1.0, 2.0)], &frames, 0.25);
+        assert!((timings.release_secs[0] + 0.40).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_repeated_pitch_has_no_release_to_measure_between_the_two() {
+        let frames = detected_between(60, 1.05, 3.10, 4.0);
+        let expected = [note(60, 1.0, 2.0), note(60, 2.0, 3.0)];
+        let timings = note_timings(&expected, &frames, 0.25);
+        assert_eq!(timings.onset_secs.len(), 2);
+        assert_eq!(timings.release_secs.len(), 1, "only the second note's");
+    }
+
+    #[test]
+    fn a_missed_note_is_counted_not_timed() {
+        let frames = detected_between(62, 1.0, 2.0, 3.0);
+        let timings = note_timings(&[note(60, 1.0, 2.0)], &frames, 0.25);
+        assert_eq!(timings.never_detected, 1);
+        assert!(timings.onset_secs.is_empty());
+    }
+
+    #[test]
+    fn the_median_takes_the_middle_or_the_mean_of_the_two_middles() {
+        assert_eq!(median(&[]), None);
+        assert_eq!(median(&[3.0, 1.0, 2.0]), Some(2.0));
+        assert_eq!(median(&[4.0, 1.0, 3.0, 2.0]), Some(2.5));
+    }
+
+    // ── direction ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn direction_accuracy_asks_whether_the_breath_is_right_not_the_pitch() {
+        let harp = richter_harp("C");
+        // Hole 4 blow (C5) expected.
+        let blow = vec![note(72, 0.0, 1.0)];
+        let frames = vec![
+            frame(0.1, &[72]), // right
+            frame(0.2, &[76]), // wrong pitch, but hole 5 blow: right breath
+            frame(0.3, &[74]), // hole 4 draw: wrong breath
+            frame(0.4, &[]),   // nothing detected: not counted
+        ];
+        let accuracy = direction_accuracy(&harp, &blow, &frames, 0.0).unwrap();
+        assert!((accuracy - 2.0 / 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_pitch_on_both_breaths_matches_either() {
+        let harp = richter_harp("C");
+        // G4 is hole 3 blow and hole 2 draw on a C harp.
+        let mut draw = note(67, 0.0, 1.0);
+        draw.blow = false;
+        let accuracy = direction_accuracy(&harp, &[draw], &[frame(0.5, &[67])], 0.0);
+        assert_eq!(accuracy, Some(1.0));
     }
 }

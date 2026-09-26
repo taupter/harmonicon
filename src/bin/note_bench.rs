@@ -4,7 +4,11 @@
 //! (`song_editor::debug_record`, the Song Editor's dev-only "Debug
 //! Recording" checkbox) under `assets/debug_songs/<song>/` through each of
 //! the five selectable algorithms and prints per-algorithm hit/miss/phantom
-//! counts, analysis time per chunk, and common confusion pairs. Compares against
+//! counts, analysis time per chunk, and common confusion pairs, then notes
+//! heard, frame precision/recall, exact-set chord precision/recall,
+//! direction accuracy and median onset/release latency — raw and through
+//! the live constraint — ending with one summary row per recording and
+//! detector. Compares against
 //! `expected.harpchart` — hand-annotated ground truth, placed via the Song
 //! Editor's "Draw correct notes" mode (`song_editor::expected_notes`), not
 //! `recorded.harpchart` (whatever the live detector produced when the take
@@ -27,8 +31,8 @@
 //! and this benchmark measures pitch detection, not rhythm).
 
 use harmonicon_bench::note_bench::{
-    DEFAULT_TIMING_TOLERANCE_SECS, apply_live_constraints, compare, expected_notes_from_chart,
-    run_algorithm,
+    AlgorithmReport, DEFAULT_TIMING_TOLERANCE_SECS, ExpectedNote, Frame, apply_live_constraints,
+    compare, direction_accuracy, expected_notes_from_chart, median, note_timings, run_algorithm,
 };
 use harmonicon_core::wav::decode_wav_pcm16;
 use harmonicon_dsp::{PITCH_RANGE_MARGIN_SEMITONES, PitchAlgorithm, PitchRange};
@@ -64,7 +68,7 @@ fn main() {
     };
     song_dirs.sort();
 
-    let mut ran_any = false;
+    let mut summary = Vec::new();
     for song_dir in &song_dirs {
         // `expected.harpchart` (hand-annotated ground truth,
         // `song_editor::expected_notes`) is the comparison target — never
@@ -75,11 +79,18 @@ fn main() {
         if !chart_path.is_file() || !wav_path.is_file() {
             continue;
         }
-        ran_any = true;
-        run_one(song_dir, &chart_path, &wav_path, tolerance_secs);
+        run_one(
+            song_dir,
+            &chart_path,
+            &wav_path,
+            tolerance_secs,
+            &mut summary,
+        );
     }
 
-    if !ran_any {
+    if !summary.is_empty() {
+        print_summary(&summary);
+    } else {
         println!(
             "No annotated debug recordings found under {} yet. In the Song \
              Editor (cargo run --features dev): check \"Debug Recording\", \
@@ -91,7 +102,93 @@ fn main() {
     }
 }
 
-fn run_one(song_dir: &Path, chart_path: &Path, wav_path: &Path, tolerance_secs: f64) {
+/// One row of the closing summary: a recording (scenario) run through one
+/// detector, raw or through the live constraint.
+struct SummaryRow {
+    scenario: String,
+    detector: String,
+    metrics: Metrics,
+}
+
+/// Everything printed for one detector on one recording.
+struct Metrics {
+    report: AlgorithmReport,
+    direction: Option<f32>,
+    onset_ms: Option<f64>,
+    release_ms: Option<f64>,
+    never_detected: u32,
+    notes: usize,
+}
+
+impl Metrics {
+    fn measure(
+        harp: &harmonicon_core::harmonica::Harmonica,
+        expected: &[ExpectedNote],
+        frames: &[Frame],
+        tolerance_secs: f64,
+    ) -> Self {
+        let timings = note_timings(expected, frames, tolerance_secs);
+        Self {
+            report: compare(expected, frames, tolerance_secs),
+            direction: direction_accuracy(harp, expected, frames, tolerance_secs),
+            onset_ms: median(&timings.onset_secs).map(|s| s * 1000.0),
+            release_ms: median(&timings.release_secs).map(|s| s * 1000.0),
+            never_detected: timings.never_detected,
+            notes: expected.len(),
+        }
+    }
+
+    /// The metric columns, shared by the per-recording lines and the summary.
+    /// `P`/`R` are frame-level (see `AlgorithmReport::recall` on why R stays
+    /// low); `notes` is how many expected notes were heard at all.
+    fn columns(&self) -> String {
+        let r = &self.report;
+        format!(
+            "notes {:>3}/{:<3}  frame P {} R {}  chord P/R {}/{}  dir {}  onset {}  release {}",
+            self.notes - self.never_detected as usize,
+            self.notes,
+            share(r.precision()),
+            share(r.recall()),
+            share(r.chord_precision()),
+            share(r.chord_recall()),
+            share(self.direction),
+            millis(self.onset_ms),
+            millis(self.release_ms),
+        )
+    }
+}
+
+/// A 0..1 share as a percentage, or a dash when there was nothing to measure.
+fn share(value: Option<f32>) -> String {
+    value.map_or_else(|| "  —".to_string(), |v| format!("{:>3.0}%", v * 100.0))
+}
+
+/// A median latency in milliseconds, or a dash.
+fn millis(value: Option<f64>) -> String {
+    value.map_or_else(|| "    —".to_string(), |ms| format!("{ms:>4.0}ms"))
+}
+
+fn print_summary(rows: &[SummaryRow]) {
+    println!();
+    println!("== summary: per recording, per detector ==");
+    let width = rows.iter().map(|r| r.scenario.len()).max().unwrap_or(0);
+    for row in rows {
+        println!(
+            "  {:<width$}  {:<7}  {}",
+            row.scenario,
+            row.detector,
+            row.metrics.columns()
+        );
+    }
+}
+
+fn run_one(
+    song_dir: &Path,
+    chart_path: &Path,
+    wav_path: &Path,
+    tolerance_secs: f64,
+    summary: &mut Vec<SummaryRow>,
+) {
     let name = song_dir.file_name().and_then(|n| n.to_str()).unwrap_or("?");
     println!("== {name} == (timing tolerance ±{tolerance_secs:.2}s)");
 
@@ -139,16 +236,23 @@ fn run_one(song_dir: &Path, chart_path: &Path, wav_path: &Path, tolerance_secs: 
         let started = std::time::Instant::now();
         let frames = run_algorithm(&samples, sample_rate, algorithm, range);
         let micros_per_chunk = started.elapsed().as_secs_f64() * 1e6 / frames.len().max(1) as f64;
-        let report = compare(&expected, &frames, tolerance_secs);
+        let raw = Metrics::measure(&chart.harmonica, &expected, &frames, tolerance_secs);
         println!(
             "  {:>5}: hit {:>5}  miss {:>5}  phantom {:>5}  {:>7.1} µs/chunk",
             algorithm.label(),
-            report.true_positive,
-            report.false_negative,
-            report.false_positive,
+            raw.report.true_positive,
+            raw.report.false_negative,
+            raw.report.false_positive,
             micros_per_chunk,
         );
-        for (want, got, count) in report.confusion.iter().filter(|(w, d, _)| w != d).take(5) {
+        println!("         {}", raw.columns());
+        for (want, got, count) in raw
+            .report
+            .confusion
+            .iter()
+            .filter(|(w, d, _)| w != d)
+            .take(5)
+        {
             println!("        {count:>4}x  played {want:?} -> detected {got:?}");
         }
 
@@ -158,13 +262,25 @@ fn run_one(song_dir: &Path, chart_path: &Path, wav_path: &Path, tolerance_secs: 
         // confirmation and release) — printed alongside the raw algorithm so
         // the cost and benefit of that stage are visible side by side.
         let constrained = apply_live_constraints(&chart.harmonica, &frames);
-        let constrained_report = compare(&expected, &constrained, tolerance_secs);
+        let live = Metrics::measure(&chart.harmonica, &expected, &constrained, tolerance_secs);
         println!(
             "  {:>5}+HC: hit {:>5}  miss {:>5}  phantom {:>5}",
             algorithm.label(),
-            constrained_report.true_positive,
-            constrained_report.false_negative,
-            constrained_report.false_positive,
+            live.report.true_positive,
+            live.report.false_negative,
+            live.report.false_positive,
         );
+        println!("         {}", live.columns());
+
+        summary.push(SummaryRow {
+            scenario: name.to_string(),
+            detector: algorithm.label().to_string(),
+            metrics: raw,
+        });
+        summary.push(SummaryRow {
+            scenario: name.to_string(),
+            detector: format!("{}+HC", algorithm.label()),
+            metrics: live,
+        });
     }
 }

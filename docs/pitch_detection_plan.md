@@ -29,9 +29,20 @@ hole chords, octave splits, tongue-block intervals, blow/draw transitions,
 breath-only passages, and room noise. Include several loudnesses, microphone
 distances, and at least two microphones where practical.
 
-Run every take through `note_bench`, retaining raw and live-constrained results. Add
-exact-set chord precision/recall, per-note precision/recall, direction accuracy,
-onset latency, release latency, and per-scenario summaries before tuning.
+Run every take through `note_bench`, retaining raw and live-constrained results.
+It reports, per recording and detector: notes heard, frame precision/recall,
+exact-set chord precision/recall, direction accuracy, and median onset and
+release latency, ending with a summary row per recording (one recording per
+scenario). Frame recall is diluted by the ±0.25 s timing tolerance — about
+55% even for a perfect detector on the synthetic dataset's short notes — so
+compare it between runs rather than reading it absolutely.
+
+On the synthetic dataset every detector hears every single note, bend and
+overblow; the monophonic ones (YIN, pYIN, MPM) hear none or half of the
+chord and octave-split notes, as they must. Onset latency is 25–47 ms raw
+and 72–93 ms through the live constraint, which adds a frame of onset
+confirmation. Synthetic numbers exercise the pipeline, not the detectors:
+the recorded corpus is what tuning is judged against.
 
 ## Recording-dependent work
 
