@@ -675,6 +675,7 @@ fn timing_120bpm() -> Timing {
         }],
         time_signature_map: None,
         pickup_ticks: None,
+        repeats: Vec::new(),
     }
 }
 

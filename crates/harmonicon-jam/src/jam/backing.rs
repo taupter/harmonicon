@@ -915,6 +915,7 @@ pub fn generated_chart(
             tempo_map: vec![TempoPoint { tick: 0, bpm }],
             time_signature_map: None,
             pickup_ticks: None,
+            repeats: Vec::new(),
         },
         harmonica,
         track: vec![TrackItem {

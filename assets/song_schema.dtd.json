@@ -141,6 +141,48 @@
           "type": "integer",
           "minimum": 0,
           "description": "Length of a pickup (anacrusis) in ticks: the music starts this far before bar 1. The pickup is the end of an implied, unnumbered bar 0. Added in format 1.4.0."
+        },
+
+        "repeats": {
+          "type": "array",
+          "description": "Repeat signs. The chart stores the score as written; the loader plays each passage out once per pass, taking endings on the passes they list. Added in format 1.5.0.",
+          "items": {
+            "type": "object",
+            "required": ["start_tick", "end_tick"],
+            "additionalProperties": false,
+            "properties": {
+              "start_tick": { "type": "integer", "minimum": 0 },
+              "end_tick": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The repeat sign: playback jumps back to start_tick from here until the last pass."
+              },
+              "times": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8,
+                "description": "Total passes, the first included. Defaults to 2."
+              },
+              "endings": {
+                "type": "array",
+                "description": "Volta brackets. One inside the passage is skipped on passes it doesn't list; one starting at or after end_tick is only reached after the last pass.",
+                "items": {
+                  "type": "object",
+                  "required": ["start_tick", "end_tick", "passes"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "start_tick": { "type": "integer", "minimum": 0 },
+                    "end_tick": { "type": "integer", "minimum": 0 },
+                    "passes": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": { "type": "integer", "minimum": 1, "maximum": 8 }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

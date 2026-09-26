@@ -25,6 +25,7 @@ pub mod midi;
 pub mod midi_file;
 pub mod note_parser;
 pub mod pitch_map;
+pub mod repeats;
 pub mod scoring;
 pub mod snap;
 pub mod synth;

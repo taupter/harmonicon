@@ -515,6 +515,7 @@ mod tests {
                 }],
                 time_signature_map: None,
                 pickup_ticks: None,
+                repeats: Vec::new(),
             },
             harmonica: richter_harp("C"),
             track,

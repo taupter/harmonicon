@@ -350,6 +350,7 @@ fn render_scenario(
             }],
             time_signature_map: None,
             pickup_ticks: None,
+            repeats: Vec::new(),
         },
         harmonica: harp.clone(),
         track,

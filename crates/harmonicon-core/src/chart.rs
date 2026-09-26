@@ -38,7 +38,7 @@ pub struct Metadata {
 /// spec than this build supports up front, with a clear error, instead of
 /// failing on some confusing downstream `additionalProperties` schema
 /// rejection or (worse) silently misreading a field whose meaning changed.
-pub const CURRENT_FORMAT_VERSION: &str = "1.4.0";
+pub const CURRENT_FORMAT_VERSION: &str = "1.5.0";
 
 /// Parses a `"MAJOR.MINOR.PATCH"` version string into a comparable tuple.
 /// `None` for anything that isn't exactly three dot-separated integers.
@@ -304,6 +304,45 @@ pub struct Timing {
     /// [`Timing::pickup`]. Added in format 1.4.0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pickup_ticks: Option<u64>,
+    /// Repeat signs, with their first/second-time endings. The chart stores
+    /// the score *as written*; the song loader plays it through
+    /// [`crate::repeats::expand`], which lays the passes out one after
+    /// another, so nothing that plays a chart ever sees one. Added in
+    /// format 1.5.0.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeats: Vec<Repeat>,
+}
+
+/// One repeated passage: `start_tick..end_tick` is played `times` times,
+/// the end being the repeat sign.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Repeat {
+    pub start_tick: u64,
+    pub end_tick: u64,
+    /// Total passes, the first included. `None` means the usual 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub times: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub endings: Vec<Ending>,
+}
+
+impl Repeat {
+    /// How many times the passage is played, bounded so a typo can't
+    /// multiply a song by a thousand.
+    pub fn passes(&self) -> u32 {
+        self.times.unwrap_or(2).clamp(1, crate::repeats::MAX_PASSES)
+    }
+}
+
+/// A volta bracket: `start_tick..end_tick` is played only on the listed
+/// passes (1-based). One inside the repeated passage is skipped on every
+/// other pass; one starting at or after the repeat sign is only ever
+/// reached after the last pass.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ending {
+    pub start_tick: u64,
+    pub end_tick: u64,
+    pub passes: Vec<u32>,
 }
 
 impl Timing {

@@ -271,6 +271,7 @@ pub fn drill_chart(
             tempo_map: vec![TempoPoint { tick: 0, bpm }],
             time_signature_map: None,
             pickup_ticks: None,
+            repeats: Vec::new(),
         },
         harmonica: harp.clone(),
         track,

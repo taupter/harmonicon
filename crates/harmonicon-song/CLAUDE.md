@@ -56,6 +56,17 @@ load-bearing about *this* crate.
     above (per-chart, tracking the newest feature that specific chart
     actually uses) — bump `CURRENT_FORMAT_VERSION` too whenever that
     bump introduces something an older loader genuinely can't read.
+  - **Repeats are written in the file and played out at load.**
+    `timing.repeats` (format 1.5.0) keeps the score as written, with
+    repeat signs and first/second-time endings, because that is what the
+    Song Editor edits. `SongChartLoader` passes every chart through
+    `harmonicon_core::repeats::expand` before anything else sees it, so
+    gameplay, Jam Session and lessons only ever get a flat track in
+    performance order and have no notion of jumping back. A backing track
+    is a recording of the performance, so it lines up with the expanded
+    chart. The editor reads the file directly and keeps the repeats; a new
+    reader that goes through `AssetServer` gets the expansion for free, and
+    one that parses the file itself must call `expand`.
   - Chromatic harps are fully supported: `Harmonica::hole_count()` sizes
     lanes/overlays/editor everywhere (never hardcode 10), and
     `Modifier::Slide` is onset-validated like overblow/overdraw. No

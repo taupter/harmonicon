@@ -35,6 +35,8 @@ impl HarpChartScore {
     }
 
     pub fn from_chart(chart: HarpChart) -> Self {
+        // A score file is read in performance order, like any MIDI file.
+        let chart = harmonicon_core::repeats::expand(chart);
         // A chart has exactly one part. The track list exists so callers
         // need no special case, not because there is a choice to make.
         let note_count = chart.track.iter().map(|item| item.events.len()).sum();

@@ -141,6 +141,9 @@ impl SongChartLoader {
             );
         }
 
+        // Everything downstream plays the performance, never the repeat
+        // signs; the Song Editor reads the file itself and keeps them.
+        let chart = harmonicon_core::repeats::expand(chart);
         assemble_manifest(chart, Vec::new(), None, load_context).await
     }
 }
@@ -437,6 +440,45 @@ mod tests {
             (GENERATED_BACKGROUND_SIZE * GENERATED_BACKGROUND_SIZE * 4) as usize
         );
         assert!(data.as_chunks::<4>().0.iter().all(|px| px[3] == 255));
+    }
+
+    #[test]
+    fn a_chart_with_repeats_and_endings_validates() {
+        let mut value = serde_json::json!({
+            "metadata": { "format_version": CURRENT_FORMAT_VERSION },
+            "song": { "title": "T", "artist": "A", "tempo_bpm": 120.0,
+                      "key": "C", "difficulty": "easy" },
+            "timing": {
+                "resolution": 12,
+                "tempo_map": [{ "tick": 0, "bpm": 120.0 }],
+                "repeats": [{
+                    "start_tick": 0, "end_tick": 96, "times": 2,
+                    "endings": [
+                        { "start_tick": 48, "end_tick": 96, "passes": [1] },
+                        { "start_tick": 96, "end_tick": 144, "passes": [2] }
+                    ]
+                }]
+            },
+            "harmonica": {
+                "type": "diatonic", "holes": 10, "bending_profile": "richter_standard",
+                "layout": {
+                    "blow": ["C4","E4","G4","C5","E5","G5","C6","E6","G6","C7"],
+                    "draw": ["D4","G4","B4","D5","F5","A5","B5","D6","F6","A6"]
+                }
+            },
+            "track": [{ "tick": 0, "duration": 0.5,
+                        "events": [{ "hole": 4, "action": "blow" }] }],
+            "scoring": { "perfect_window_ms": 50, "good_window_ms": 100, "miss_window_ms": 130 }
+        });
+        let (_, chart) = validate_and_parse_chart(&mut value).unwrap();
+        assert_eq!(chart.timing.repeats.len(), 1);
+        assert_eq!(chart.timing.repeats[0].endings.len(), 2);
+
+        value["timing"]["repeats"][0]["times"] = serde_json::json!(9);
+        assert!(
+            validate_and_parse_chart(&mut value).is_err(),
+            "more passes than the loader plays is refused, not clamped silently"
+        );
     }
 
     #[test]
