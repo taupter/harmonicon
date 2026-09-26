@@ -15,6 +15,17 @@
 
 ![Mode select screen](images/mode-select.png)
 
+## Pickups and repeats
+
+Some tunes start before the first full bar — the "and a" before bar 1.
+The game counts those opening notes as the end of an extra bar, the way a
+musician would: the metronome accents bar 1's downbeat rather than the
+first note, and the beat guides and notation staff line up with it.
+
+A song written with repeat signs plays them out in full. A repeated
+passage comes round again, first- and second-time endings are taken on
+the right pass, and every note of every pass is scored.
+
 ## Scoring
 
 As notes reach the hit line, Harmonicon compares the pitch it hears against

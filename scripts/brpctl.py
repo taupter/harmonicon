@@ -457,7 +457,9 @@ def enter_editor(artist, song, chart="chart.harpchart"):
     _go("📂", exact=True)
     _go(artist)
     _go(song)
-    _go("song", exact=False)
+    # Exact: a bare "song" also matches the editor's "‹ Record Song ›"
+    # toggle, which switched it to lesson mode and failed the load.
+    _go("📁  song", exact=True)
     _go(chart, settle=3.0)
 
 

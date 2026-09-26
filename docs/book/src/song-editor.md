@@ -12,7 +12,8 @@ The screen has three parts:
 
 - The **tool sidebar** down the left edge, in two columns. The **left
   column** is about the song and the tools: Back, the mode buttons, lock,
-  undo/redo, copy/paste, the Select/Erase/Remove/Tempo tools, metronome,
+  undo/redo, copy/paste, the Select/Erase/Remove/Tempo/Meter tools, the
+  [Repeat and Ending](#repeats-and-endings) buttons, metronome,
   legend, and Save/Load. The **right column** is about *the note* — the
   selected one, or the next one you'll place: Blow/Draw, bend/overblow/
   overdraw (or slide), wah/vibrato and their depth, the phrase's Call and
@@ -261,7 +262,7 @@ Record Lesson to add the curriculum fields on top.
 
 ## Erasing and removing parts of a song
 
-The **Select** tool in the sidebar (next to Delete) turns the ruler above
+The **Select** tool in the sidebar's left column turns the ruler above
 the grid into a range selector for a whole span of time rather than one
 note at a time — handy for a song built from an imported MIDI track that
 starts later than beat 1, or just cutting a section you don't want.
@@ -279,8 +280,9 @@ range before anything happens. **Erase** deletes the notes in that range
 and leaves a gap; **Remove** deletes them *and* shifts every note after the
 range earlier to close the gap, shortening the song. Tempo and meter changes
 move with the later notes, and the timing active at the end of the cut remains
-active at the new join. Escape clears a
-selection or pending split marker.
+active at the new join. A repeat or ending inside the removed range is
+removed with it, and later ones move back with their notes. Escape clears
+a selection or pending split marker.
 
 ## Silence track
 
