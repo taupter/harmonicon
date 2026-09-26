@@ -146,6 +146,14 @@ order, `available`, `rows` and the checking. What survived contact:
   (triplets → straight/shuffle → syncopation → sixteenths → tempo), which
   only widened prerequisites can open up.
 
+  **Both are now done.** Elective-only units are always open
+  (`UnitChain::is_unlocked`), and Rhythm Lab branches after triplets:
+  straight/shuffle, syncopation and sixteenths each need only triplets
+  (sixteenths also `articulation`), and tempo stability joins
+  syncopation and sixteenths. The worst chokepoint after the start is now
+  `swing-eighths`, the only option in 491 of 3000 playthroughs; nothing
+  else exceeds 450.
+
 
 ## 2. Five trainings per lesson
 

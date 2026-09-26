@@ -10,7 +10,8 @@ the rest of it.
 
 There are **two locks**. A lesson shows dark until you've passed whatever it
 leads on from — hover it and the tooltip names what it's still waiting on. A
-whole unit stays shut until you've passed most of the one before it; the
+whole core unit stays shut until you've passed most of the one before it
+(elective units don't — see below); the
 number on a unit node ("3/8") is how many of its lessons you've done and how
 many open the next unit. It's *most*, not all — one lesson you're stuck on
 shouldn't wall off the rest of the course.
@@ -112,9 +113,10 @@ elective is perfectly playable.
 
 Eight units are electives end to end. Their unit nodes take the same
 colour, and their number counts *your* progress through them ("2/6")
-rather than a threshold, because there's nothing to unlock. They still
-sit behind the units before them in the course, and read as locked until
-you get there.
+rather than a threshold, because there's nothing to unlock. They're open
+from the start: each elective lesson unlocks as soon as its own
+prerequisites are passed, wherever you are in the core course, so there's
+almost always something besides the next core lesson to choose.
 
 ## Unit 1 — Blowing the Harmonica
 

@@ -50,12 +50,6 @@ Nothing below can be approved by a test.
   (`TrainingRecord::review_due`), so the per-track mastery meter could
   discount tiers long overdue; today it counts cleared tiers only
   (`docs/training_tree_plan.md` §4).
-- **Widen the curriculum's chokepoints.** Measured on the shipped 100
-  (`graph::choice_report`, table in `docs/training_tree_plan.md` §1):
-  elective units wait behind the cumulative unit gate, and the Ear
-  Training, Positions and Rhythm Lab units are linear chains. Decide
-  whether elective-only units should open on their lessons' prerequisites
-  alone, and which chain prerequisites to loosen.
 - **`note_bench` metrics**: exact-set chord precision/recall, per-note
   precision/recall, direction accuracy, onset and release latency, and
   per-scenario summaries. Buildable now against the synthetic dataset;

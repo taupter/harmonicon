@@ -210,10 +210,15 @@ load-bearing about *this* crate.
 
 - **Units are the curriculum's second, coarser level, and `lessons::units`
   gates on them.** `graph` answers "may I start this lesson"; `UnitChain`
-  answers "is this whole unit open yet" — the five shipped units in
-  discovery order, each opening only once enough of the one before it is
-  passed. This is what the skill tree hangs off, and what keeps forty-one
-  loose lessons legible.
+  answers "is this whole unit open yet" — the seventeen shipped units in
+  discovery order, each core unit opening only once enough of every one
+  before it is passed. This is what the skill tree hangs off, and what
+  keeps a hundred loose lessons legible.
+  - **An elective-only unit is always open**; its lessons' own
+    prerequisites gate them. Chained behind the core units, all seven
+    elective units waited on the last core unit's four-lesson chain, and
+    `choice_report` measured that chain as the only thing to do in most
+    playthroughs.
   - **Nothing is authored for it.** A unit's identity is
     `LessonManifest::unit`, its order is the `01_`/`02_` directory order
     `catalog`'s scan already sorts by, and its name is the

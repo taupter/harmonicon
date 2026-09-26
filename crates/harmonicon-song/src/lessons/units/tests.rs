@@ -89,6 +89,22 @@ fn an_elective_only_unit_never_blocks_the_required_course() {
 }
 
 #[test]
+fn an_elective_only_unit_is_open_before_the_core_units_ahead_of_it() {
+    // Its lessons' prerequisites gate them; the unit chain does not.
+    let lessons = [
+        lesson("core-a", "first", &[]),
+        lesson("core-b", "second", &["core-a"]),
+        optional(lesson("side", "electives", &["core-a"])),
+    ];
+    let chain = UnitChain::build(&lessons);
+    assert!(
+        !chain.is_unlocked(1, &HashSet::new()),
+        "the core chain still gates"
+    );
+    assert!(chain.is_unlocked(2, &HashSet::new()));
+}
+
+#[test]
 fn a_unit_is_elective_only_when_nothing_in_it_counts_toward_a_gate() {
     // The drawing needs this as its own question. `required(..) == 0` is
     // also what an out-of-range index answers, and "there is no such unit"

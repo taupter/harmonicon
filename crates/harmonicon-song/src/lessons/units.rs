@@ -4,8 +4,9 @@
 //!
 //! [`graph`](super::graph) treats the prerequisite edges as a graph, which
 //! is the fine structure — "may I start *this* lesson". This module is the
-//! coarse one: the seventeen shipped units in order, each opening only once
-//! enough of the one before it is done. Drawn, they are the spine a skill
+//! coarse one: the seventeen shipped units in order, each core unit opening
+//! only once enough of the ones before it is done, and every elective-only
+//! unit open from the start. Drawn, they are the spine a skill
 //! tree hangs off; read, they are what turns a hundred loose lessons into
 //! "Unit 1, then Unit 2".
 //!
@@ -188,7 +189,19 @@ impl UnitChain {
     /// with lesson prerequisites also in play the two nearly always agree,
     /// but "everything before this is done" is the claim the drawing makes,
     /// so it is the one worth checking.
+    ///
+    /// **An elective-only unit is always open**; its lessons' own
+    /// prerequisites decide when each can be played. Chained behind every
+    /// core unit, the seven elective units could only open once the last
+    /// core unit was mostly done, so for most of the course the core chain
+    /// was the only thing to do (`graph::choice_report` measured the Ear
+    /// Training lessons as the sole option in over 2500 of 3000
+    /// playthroughs). Electives exist to be a side path, and a side path
+    /// that opens only at the end of the road offers no choice along it.
     pub fn is_unlocked(&self, unit: usize, passed: &HashSet<&str>) -> bool {
+        if self.is_elective_only(unit) {
+            return true;
+        }
         (0..unit.min(self.units.len())).all(|earlier| self.is_satisfied(earlier, passed))
     }
 }
