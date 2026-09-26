@@ -80,7 +80,7 @@ use placement::{
     EdgeLayer, LessonTreeCanvas, PartKind, build_layout, laid_out_collapsed, spawn_edges,
     tree_canvas_size, unit_positions,
 };
-use review::{WARMUP_LIMIT, due_warmups, spawn_streak, spawn_warmups};
+use review::{due_reviews, spawn_due_badge, spawn_streak, spawn_warmups, warmups};
 pub(crate) use transition::*;
 
 use std::collections::HashSet;
@@ -377,13 +377,12 @@ pub(crate) fn setup_lesson_tree(
     // in view however far the tree is scrolled.
     let today = calendar::today();
     spawn_streak(&mut commands, root, profile.practice.current(today), &loc);
-    spawn_warmups(
-        &mut commands,
-        root,
-        &lessons.0,
-        &due_warmups(&lessons.0, &profile, today, WARMUP_LIMIT),
-        &loc,
-    );
+    let due = due_reviews(&lessons.0, &profile, today);
+    spawn_warmups(&mut commands, root, &lessons.0, warmups(&due), &loc);
+    let due: std::collections::HashSet<&str> = due
+        .iter()
+        .map(|warmup| lessons.0[warmup.entry].manifest.id.as_str())
+        .collect();
     spawn_track_meters(
         &mut commands,
         root,
@@ -449,7 +448,8 @@ pub(crate) fn setup_lesson_tree(
         );
     }
     for node in &tree.nodes {
-        spawn_node(&mut commands, canvas, node, &placeholder, &loc);
+        let review_due = due.contains(node.id.as_str());
+        spawn_node(&mut commands, canvas, node, review_due, &placeholder, &loc);
     }
 
     if let Some(next) = next_available_lesson(&tree.nodes) {
@@ -674,6 +674,7 @@ fn spawn_node(
     commands: &mut Commands,
     canvas: Entity,
     node: &PlacedNode,
+    review_due: bool,
     placeholder: &Handle<Image>,
     loc: &Localization,
 ) {
@@ -721,7 +722,15 @@ fn spawn_node(
             // with a click observer — see the root `CLAUDE.md`.
             WidgetButton,
             TabIndex(0),
-            Tooltip(tooltip_for(node, loc)),
+            Tooltip(if review_due {
+                format!(
+                    "{}\n{}",
+                    tooltip_for(node, loc),
+                    loc.msg("lesson-tree-review-due")
+                )
+            } else {
+                tooltip_for(node, loc)
+            }),
         ))
         .observe(
             move |_: On<Activate>,
@@ -827,6 +836,9 @@ fn spawn_node(
 
     if node.has_trainings {
         spawn_mastery_ring(commands, canvas, node, centre);
+    }
+    if review_due {
+        spawn_due_badge(commands, canvas, node, centre);
     }
 }
 

@@ -25,7 +25,13 @@ use harmonicon_song::lessons::LessonEntry;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::dialogs::button;
 
+use super::layout::PlacedNode;
+use super::placement::PartKind;
+use super::{BADGE_PX, ClusterMember, LayoutOwner};
 use crate::lesson_reader::training::{start_training, tier_name_key};
+
+/// The warm-up row's gold, so a marked node reads as one of its reviews.
+const DUE_COLOR: Color = Color::srgb(0.95, 0.82, 0.45);
 
 /// How many reviews the queue shows at once. More than a handful stops
 /// being a warm-up and becomes a to-do list.
@@ -41,14 +47,19 @@ pub(crate) struct Warmup {
     pub due: u32,
 }
 
-/// The reviews due on day `today`: each lesson's highest passed tier whose
-/// review date has come, most overdue first, then in catalogue order, at
-/// most `limit` of them.
-pub(crate) fn due_warmups(
+/// The warm-up queue: the most overdue [`WARMUP_LIMIT`] of the reviews
+/// [`due_reviews`] found.
+pub(crate) fn warmups(due: &[Warmup]) -> &[Warmup] {
+    &due[..due.len().min(WARMUP_LIMIT)]
+}
+
+/// Every review due on day `today`: each lesson's highest passed tier whose
+/// review date has come, most overdue first, then in catalogue order. The
+/// warm-up row shows the first few; every one of them marks its node.
+pub(crate) fn due_reviews(
     entries: &[LessonEntry],
     profile: &PlayerProfile,
     today: u32,
-    limit: usize,
 ) -> Vec<Warmup> {
     let mut due: Vec<Warmup> = entries
         .iter()
@@ -71,8 +82,39 @@ pub(crate) fn due_warmups(
         .collect();
     // Stable, so equally overdue reviews keep catalogue order.
     due.sort_by_key(|warmup| warmup.due);
-    due.truncate(limit);
     due
+}
+
+/// The mark on a node whose review is due. The mastery ring never goes
+/// down — a cleared tier stays cleared — so this is where a lapsed skill
+/// shows, beside the node rather than taken off its meter.
+pub(super) fn spawn_due_badge(
+    commands: &mut Commands,
+    canvas: Entity,
+    node: &PlacedNode,
+    centre: Vec2,
+) {
+    let at = PartKind::DueBadge.top_left(centre);
+    let badge = commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(at.x),
+                top: Val::Px(at.y),
+                ..default()
+            },
+            PartKind::DueBadge.part(&node.id),
+            Text::new("\u{21BB}"),
+            TextFont {
+                font_size: FontSize::Px(BADGE_PX),
+                ..default()
+            },
+            TextColor(DUE_COLOR),
+            ClusterMember(node.unit_id.clone()),
+            LayoutOwner(node.unit_id.clone()),
+        ))
+        .id();
+    commands.entity(canvas).add_child(badge);
 }
 
 /// The practice streak, as one line under the page header — only from two
@@ -218,9 +260,13 @@ mod tests {
         let entries = [lesson("a")];
         let mut profile = PlayerProfile::default();
         pass(&mut profile, "a", 1, 100);
-        assert!(due_warmups(&entries, &profile, 100, 3).is_empty());
+        assert!(
+            warmups(&due_reviews(&entries, &profile, 100))
+                .to_vec()
+                .is_empty()
+        );
         assert_eq!(
-            due_warmups(&entries, &profile, 101, 3),
+            warmups(&due_reviews(&entries, &profile, 101)).to_vec(),
             vec![Warmup {
                 entry: 0,
                 tier: Tier::Isolate,
@@ -235,7 +281,7 @@ mod tests {
         let mut profile = PlayerProfile::default();
         pass(&mut profile, "a", 1, 90);
         pass(&mut profile, "a", 3, 100);
-        let due = due_warmups(&entries, &profile, 120, 3);
+        let due = warmups(&due_reviews(&entries, &profile, 120)).to_vec();
         assert_eq!(due.len(), 1, "one review per lesson");
         assert_eq!(due[0].tier, Tier::Vary);
     }
@@ -248,11 +294,17 @@ mod tests {
         pass(&mut profile, "b", 1, 10);
         pass(&mut profile, "c", 1, 30);
         pass(&mut profile, "d", 1, 40);
-        let order: Vec<usize> = due_warmups(&entries, &profile, 100, 3)
+        let order: Vec<usize> = warmups(&due_reviews(&entries, &profile, 100))
+            .to_vec()
             .iter()
             .map(|warmup| warmup.entry)
             .collect();
         assert_eq!(order, vec![1, 2, 3], "b, c, d; a is least overdue and cut");
+        assert_eq!(
+            due_reviews(&entries, &profile, 100).len(),
+            4,
+            "the cap is the warm-up row's; every due node is still marked"
+        );
     }
 
     #[test]
@@ -263,6 +315,10 @@ mod tests {
         let mut profile = PlayerProfile::default();
         let record = profile.trainings.entry(training_key("a", 1)).or_default();
         record_training(record, false, 0.2, 10);
-        assert!(due_warmups(&entries, &profile, 1_000, 3).is_empty());
+        assert!(
+            warmups(&due_reviews(&entries, &profile, 1_000))
+                .to_vec()
+                .is_empty()
+        );
     }
 }

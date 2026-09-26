@@ -25,9 +25,9 @@ than accumulating history (git log/commit messages are the historical record):
 - `docs/lessons_plan.md` — curriculum design for the Lessons feature
 - `docs/training_tree_plan.md` — the technique DAG, per-lesson training
   ladder, skill-tree view and practice-motivation design. The graph,
-  training records, tree view and per-lesson mastery ring are built;
-  trainings exist only for the `bend` track, and the review queue and
-  practice streak are not built (`PLAN.md` has what's open)
+  training records, tree view, per-lesson mastery ring, the spaced
+  "Warm-up" review queue and the practice streak are built; trainings
+  exist only for the `bend` track (`PLAN.md` has what's open)
 - `docs/gameplay_validation.md` — manual + automated validation checklist;
   update it when changing gameplay/timing behaviour
 - `docs/gameplay_improvement_plan.md` — the phased rework of what scored play

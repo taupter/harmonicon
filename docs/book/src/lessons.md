@@ -33,8 +33,10 @@ first pass one, then two days after a successful review, then four, eight
 and so on, up to about two months. When some are due, a **Warm-up** row
 appears above the tree with up to three of them — each lesson at the
 hardest tier you've passed — and clicking one starts it straight away.
-Missing a review never costs you the tier; it just brings it round again
-sooner.
+Every lesson with a review due also shows a gold **↻** beside its node,
+so you can see them all, not just the three in the row. Missing a review
+never costs you the tier, and the dots and meters never go down; it just
+brings the review round again sooner.
 
 Every day you finish a song, lesson or training counts as a practice day,
 and once you've practised two days running the tree shows your **practice

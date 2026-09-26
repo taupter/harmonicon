@@ -46,6 +46,8 @@ pub(crate) enum PartKind {
     LessonButton,
     LessonLabel,
     Badge,
+    /// The review-due mark, on the side opposite [`PartKind::Badge`].
+    DueBadge,
     /// A mastery pip, by training tier.
     Pip(usize),
 }
@@ -73,6 +75,10 @@ impl PartKind {
             }
             PartKind::Badge => Vec2::new(
                 centre.x + NODE_PX / 2.0 + BADGE_GAP_PX,
+                centre.y - BADGE_PX / 2.0,
+            ),
+            PartKind::DueBadge => Vec2::new(
+                centre.x - NODE_PX / 2.0 - BADGE_GAP_PX - BADGE_PX,
                 centre.y - BADGE_PX / 2.0,
             ),
             PartKind::Pip(tier) => {
