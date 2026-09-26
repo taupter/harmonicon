@@ -282,12 +282,18 @@ load-bearing about *this* crate.
   or out without disturbing the rest (`toggle_selected`,
   `interaction::select_or_add_ctrl` — the Ctrl+click sibling of
   `select_or_add`; Ctrl+clicking empty space still behaves like a plain
-  click, since there's nothing existing yet to extend onto). Mod-panel
-  technique edits (Bend, Overblow, ...) still act on one note — the
-  *primary* selection, `selected.last()` (`EditorState::selected_note`/
-  `_mut`) — since editing several notes' pitch technique at once has no
-  obviously-correct single meaning, but **Delete and Move act on the
-  whole selection**: `interaction::delete_selected` removes every
+  click, since there's nothing existing yet to extend onto). **Technique
+  buttons act on the whole selection, with the primary note deciding the
+  value** (`interaction::apply_modifier`, `cycle_depth`): the *primary*
+  selection, `selected.last()` (`EditorState::selected_note`), steps the
+  button's cycle exactly as it would alone, and every selected note then
+  takes that value where its hole allows it — a bend's cap is the deepest
+  any selected hole allows, and switching a technique off clears it only
+  where it is. Notes that can't take it keep theirs and are counted into
+  `technique_notice`, reported like a transposition
+  (`report_technique_skips`); with one note selected the button still
+  silently does nothing, as it always has. **Delete and Move act on the
+  whole selection** too: `interaction::delete_selected` removes every
   selected note, and dragging any note that's part of a multi-selection
   (more than one selected, the dragged note among them) moves the whole
   group together, preserving relative offsets — `DragState::group`

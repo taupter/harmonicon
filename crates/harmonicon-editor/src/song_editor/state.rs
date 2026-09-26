@@ -178,6 +178,9 @@ pub(super) struct EditorState {
     /// `transpose::report_transpose` to put it in the status bar. Not
     /// content: not undo-tracked, not saved.
     pub(super) transpose_notice: Option<super::transpose::TransposeOutcome>,
+    /// How many selected notes the last technique button skipped, waiting
+    /// for `interaction::report_technique_skips`. Not content either.
+    pub(super) technique_notice: Option<usize>,
     pub(super) loop_settings: LoopSettings,
     pub(super) time_signature: String,
     pub(super) key: String,
@@ -340,6 +343,7 @@ impl Default for EditorState {
             harmonica_kind: HarmonicaKind::default(),
             loaded_harmonica: None,
             transpose_notice: None,
+            technique_notice: None,
             snap_mode: SnapMode::default(),
             twelve_bar_tint: false,
             phrase_editor: None,
@@ -416,19 +420,15 @@ impl EditorState {
     }
 
     /// The "primary" selected note — the most recently added to the
-    /// selection — whose own fields the mod panel reflects/edits. `None`
-    /// with nothing selected.
+    /// selection — whose own fields the mod panel reflects, and whose value
+    /// decides where a technique button's cycle goes next. `None` with
+    /// nothing selected.
     pub(super) fn selected_note(&self) -> Option<&GridNote> {
         self.selected.last().and_then(|&id| self.note_by_id(id))
     }
 
-    pub(super) fn selected_note_mut(&mut self) -> Option<&mut GridNote> {
-        let id = *self.selected.last()?;
-        self.notes.iter_mut().find(|n| n.id == id)
-    }
-
     // `expected_note_by_id`/`expected_selected_note`/`expected_selected_note_mut`
-    // — the expected-notes layer's own siblings of the three methods above —
+    // — the expected-notes layer's own siblings of the methods above —
     // live in `expected_notes.rs` (dev-only) instead of here, in their own
     // `impl EditorState` block: purely a file-size trim (`docs/
     // physical_design_plan.md`'s ~1000-line budget), not a meaningful

@@ -221,6 +221,7 @@ impl Plugin for SongEditor2Plugin {
                             .run_if(resource_exists_and_changed::<state::EditorState>),
                         save_feedback::tick_save_feedback,
                         transpose::report_transpose,
+                        interaction::report_technique_skips,
                     ),
                     // Suspended while the guided tour is showing this
                     // screen — Esc/Delete/Ctrl+C/Ctrl+V shouldn't act on it

@@ -48,10 +48,12 @@ hovering always tells you what it does.
   stepped by clicking, like the rate), or delete it outright.
   **Ctrl+click** adds or removes a note from the selection instead of
   replacing it, so you can select several at once; dragging any one of
-  them moves the whole group together, keeping their relative positions
-  (mod-panel technique edits still only ever act on the last-clicked
-  note — editing several notes' technique at once has no single obvious
-  meaning).
+  them moves the whole group together, keeping their relative positions.
+  The technique buttons act on the whole selection too: the last note you
+  clicked decides the value (the next bend depth, vibrato rate or depth
+  step), and every selected note that can play it takes it. Notes that
+  can't, such as an overblow on hole 2, keep what they had, and the status
+  bar says how many.
   Use **Transpose up** (♯) or **Transpose down** (♭) to move the selection by
   one semitone; with no selection, they transpose the whole chart. Harmonicon
   recomputes the hole, breath, and technique on the current harp and leaves a

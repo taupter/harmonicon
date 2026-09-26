@@ -4563,3 +4563,102 @@ fn dense_phrase_markers_clip_before_the_next_anchor() {
     );
     assert_eq!(super::annotation_lane::width(100, None), 150.0);
 }
+
+// ── technique buttons on a selection ─────────────────────────────────────────
+
+/// Notes on `holes`, one per beat, all selected with the last as primary.
+fn selection_on(holes: &[u8]) -> EditorState {
+    let mut state = EditorState::default();
+    for (beat, &hole) in holes.iter().enumerate() {
+        select_or_add(&mut state, hole, beat * TICKS_PER_BEAT * 2);
+    }
+    state.selected = state.notes.iter().map(|n| n.id).collect();
+    state
+}
+
+fn pitches(state: &EditorState) -> Vec<Pitch> {
+    state.notes.iter().map(|n| n.pitch).collect()
+}
+
+#[test]
+fn a_technique_button_applies_to_every_selected_note() {
+    let mut state = selection_on(&[4, 5, 6]);
+    apply_modifier(&mut state, ModButton::Vibrato);
+    assert!(
+        state
+            .notes
+            .iter()
+            .all(|n| matches!(n.expr, Expr::Vibrato(_))),
+        "{:?}",
+        state.notes
+    );
+    assert_eq!(state.technique_notice, None);
+}
+
+#[test]
+fn notes_that_cannot_take_a_technique_keep_theirs_and_are_counted() {
+    // Richter: hole 2 can't overblow; holes 4 and 5 can.
+    let mut state = selection_on(&[4, 2, 5]);
+    apply_modifier(&mut state, ModButton::Overblow);
+    assert_eq!(
+        pitches(&state),
+        vec![Pitch::Overblow, Pitch::Normal, Pitch::Overblow]
+    );
+    assert_eq!(state.technique_notice, Some(1));
+    assert!(state.notes.iter().all(|n| n.dir == Dir::Blow));
+
+    // Pressed again, the primary is overblown, so it switches them all off.
+    apply_modifier(&mut state, ModButton::Overblow);
+    assert_eq!(pitches(&state), vec![Pitch::Normal; 3]);
+}
+
+#[test]
+fn a_bend_steps_as_deep_as_any_selected_hole_allows() {
+    // Draw 1 bends one semitone, draw 3 three; primary is hole 1.
+    let mut state = selection_on(&[3, 1]);
+    for n in &mut state.notes {
+        n.dir = Dir::Draw;
+    }
+    apply_modifier(&mut state, ModButton::Bend);
+    apply_modifier(&mut state, ModButton::Bend);
+    assert_eq!(pitches(&state), vec![Pitch::Bend(1.0), Pitch::Bend(1.0)]);
+    apply_modifier(&mut state, ModButton::Bend);
+    assert_eq!(
+        pitches(&state),
+        vec![Pitch::Bend(1.5), Pitch::Bend(1.0)],
+        "hole 1 stops at its own depth"
+    );
+    assert_eq!(state.technique_notice, Some(1));
+}
+
+#[test]
+fn one_selected_note_that_cannot_take_it_is_silently_unchanged() {
+    let mut state = selection_on(&[2]);
+    apply_modifier(&mut state, ModButton::Overblow);
+    assert_eq!(pitches(&state), vec![Pitch::Normal]);
+    assert_eq!(state.technique_notice, None);
+}
+
+#[test]
+fn depth_steps_every_selected_note_with_an_expression() {
+    let mut state = selection_on(&[4, 5, 6]);
+    for n in &mut state.notes[..2] {
+        n.expr = Expr::Vibrato(5.0);
+    }
+    // Primary is hole 6, which has no expression: Depth does nothing.
+    apply_modifier(&mut state, ModButton::Depth);
+    assert!(state.expression_intensities.is_empty());
+
+    state.selected.rotate_right(1); // hole 5 is primary now
+    apply_modifier(&mut state, ModButton::Depth);
+    let depth = |i: usize| {
+        state
+            .expression_intensities
+            .get(&state.notes[i].id)
+            .cloned()
+    };
+    assert_eq!(depth(0), depth(1));
+    assert!(depth(0).is_some());
+    assert_eq!(depth(2), None);
+    assert_eq!(state.technique_notice, Some(1));
+}

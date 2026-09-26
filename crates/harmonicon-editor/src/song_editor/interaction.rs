@@ -23,6 +23,7 @@ use super::ui::{
 };
 use super::{AppState, GRIP_D, HEADER_H, NOTE_PAD, ROW_H, TICK_W, TICKS_PER_BEAT};
 use harmonicon_core::harmonica::Harmonica;
+use harmonicon_platform::localization::{Localization, LocalizationExt};
 use harmonicon_platform::theme::{LoadedTheme, SongEditorColors};
 use harmonicon_ui::dialogs::file_dialog::FileDialog;
 
@@ -197,7 +198,7 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
         if pitch_forced_dir(state.sticky_pitch).is_some_and(|d| d != dir) {
             state.sticky_pitch = Pitch::Normal;
         }
-        if let Some(&id) = state.selected.last() {
+        for id in state.selected.clone() {
             if let Some(n) = state.notes.iter_mut().find(|n| n.id == id) {
                 n.dir = dir;
                 if pitch_forced_dir(n.pitch).is_some_and(|d| d != dir) {
@@ -226,110 +227,174 @@ pub(super) fn apply_modifier(state: &mut EditorState, kind: ModButton) {
     };
 
     let harp = state.effective_harp();
-    let Some(note) = state.selected_note_mut() else {
+    let Some(anchor) = state.note_by_id(id).copied() else {
         return;
     };
+    let ids = state.selected.clone();
+    let selected: Vec<GridNote> = ids
+        .iter()
+        .filter_map(|&i| state.note_by_id(i).copied())
+        .collect();
+
+    // The primary note decides where the button's cycle goes next, exactly
+    // as with one note selected; every selected note then takes that value
+    // if it fits its hole, and is counted as skipped if it doesn't.
+    let mut skipped = 0;
     match kind {
-        ModButton::Blow | ModButton::Draw => unreachable!(),
-        ModButton::Bend => {
-            let max = max_bend(&harp, note.hole);
-            if max <= 0.0 {
+        ModButton::Wah | ModButton::Vibrato => {
+            let target = next_expr(kind, anchor.expr);
+            for n in state.notes.iter_mut().filter(|n| ids.contains(&n.id)) {
+                n.expr = target;
+            }
+            state.sticky_expr = target;
+            for &i in &ids {
+                enforce_expr(state, i);
+            }
+        }
+        _ => {
+            let Some(target) = next_pitch(kind, &anchor, &selected, &harp) else {
                 return;
-            }
-            let next = note.bend() + 0.5;
-            note.pitch = if next > max + f32::EPSILON {
-                Pitch::Normal
-            } else {
-                Pitch::Bend(next)
             };
-        }
-        ModButton::Overblow => {
-            if overblow_ok(note.hole) {
-                note.pitch = if note.pitch == Pitch::Overblow {
-                    Pitch::Normal
+            for n in state.notes.iter_mut().filter(|n| ids.contains(&n.id)) {
+                if target == Pitch::Normal {
+                    // Switching a technique off clears it where it is,
+                    // and leaves every other note's technique alone.
+                    if same_technique(kind, n.pitch) {
+                        n.pitch = Pitch::Normal;
+                    }
+                } else if pitch_fits(target, n.hole, &harp) {
+                    n.pitch = target;
+                    if let Some(dir) = pitch_forced_dir(target) {
+                        n.dir = dir;
+                    }
                 } else {
-                    Pitch::Overblow
-                };
-                // Overblow only exists while blowing — force it so the
-                // note can't end up "overblow" while tagged Draw.
-                if note.pitch == Pitch::Overblow {
-                    note.dir = Dir::Blow;
+                    skipped += 1;
+                }
+            }
+            state.sticky_pitch = target;
+            // Overblow/Overdraw force a direction — mirror it into the
+            // sticky direction, and pull simultaneous notes on other holes
+            // into agreement (direction is whole-player, not per-hole).
+            if let Some(dir) = pitch_forced_dir(target) {
+                state.sticky_dir = dir;
+                for &i in &ids {
+                    enforce_direction(state, i);
                 }
             }
         }
-        ModButton::Overdraw => {
-            if overdraw_ok(note.hole) {
-                note.pitch = if note.pitch == Pitch::Overdraw {
-                    Pitch::Normal
-                } else {
-                    Pitch::Overdraw
-                };
-                if note.pitch == Pitch::Overdraw {
-                    note.dir = Dir::Draw;
-                }
-            }
-        }
-        ModButton::Slide => {
-            note.pitch = if note.pitch == Pitch::Slide {
-                Pitch::Normal
-            } else {
-                Pitch::Slide
-            };
-        }
+    }
+    // One note that can't take a technique is the button doing nothing, as
+    // it always has; in a selection it's worth saying which didn't change.
+    if skipped > 0 && ids.len() > 1 {
+        state.technique_notice = Some(skipped);
+    }
+}
+
+/// Where the Wah or Vibrato button's cycle goes from `current`: the next
+/// rate step, or off past the fastest.
+fn next_expr(kind: ModButton, current: Expr) -> Expr {
+    match kind {
         ModButton::Wah => {
-            let next = match note.expr {
+            let next = match current {
                 Expr::Wah(hz) => hz + WAH_HZ_STEP,
                 _ => WAH_HZ_MIN,
             };
-            note.expr = if next > WAH_HZ_MAX + f32::EPSILON {
+            if next > WAH_HZ_MAX + f32::EPSILON {
                 Expr::None
             } else {
                 Expr::Wah(next)
-            };
+            }
         }
-        ModButton::Vibrato => {
-            let next = match note.expr {
+        _ => {
+            let next = match current {
                 Expr::Vibrato(hz) => hz + VIBRATO_HZ_STEP,
                 _ => VIBRATO_HZ_MIN,
             };
-            note.expr = if next > VIBRATO_HZ_MAX + f32::EPSILON {
+            if next > VIBRATO_HZ_MAX + f32::EPSILON {
                 Expr::None
             } else {
                 Expr::Vibrato(next)
-            };
-        }
-        ModButton::Delete
-        | ModButton::Depth
-        | ModButton::Call
-        | ModButton::Split
-        | ModButton::Phrase
-        | ModButton::TransposeUp
-        | ModButton::TransposeDown => unreachable!(),
-    }
-    // Read the note's resulting pitch/expr/dir out before writing to
-    // `state` again below — `note` is still borrowing it at this point.
-    let (new_pitch, new_expr, new_dir) = (note.pitch, note.expr, note.dir);
-
-    // Arm sticky to match whatever the selected note now holds, so the
-    // next *added* note (`select_or_add`) picks up the same setting.
-    match kind {
-        ModButton::Bend | ModButton::Overblow | ModButton::Overdraw | ModButton::Slide => {
-            state.sticky_pitch = new_pitch;
-            // Overblow/Overdraw forced `note.dir` above — mirror that into
-            // the sticky direction too, and pull any simultaneous notes on
-            // other holes into agreement (direction is whole-player, not
-            // per-hole).
-            if pitch_forced_dir(new_pitch).is_some() {
-                state.sticky_dir = new_dir;
-                enforce_direction(state, id);
             }
         }
-        ModButton::Wah | ModButton::Vibrato => {
-            state.sticky_expr = new_expr;
-            enforce_expr(state, id);
-        }
-        _ => {}
     }
+}
+
+/// Where a pitch-technique button's cycle goes from `anchor`, the primary
+/// note. A bend steps half a semitone deeper, up to the deepest any
+/// selected hole allows, then off; the others toggle. `None` when no
+/// selected note can bend at all — the button does nothing.
+fn next_pitch(
+    kind: ModButton,
+    anchor: &GridNote,
+    selected: &[GridNote],
+    harp: &Harmonica,
+) -> Option<Pitch> {
+    let toggle = |pitch: Pitch| {
+        if anchor.pitch == pitch {
+            Pitch::Normal
+        } else {
+            pitch
+        }
+    };
+    Some(match kind {
+        ModButton::Bend => {
+            let cap = selected
+                .iter()
+                .map(|n| max_bend(harp, n.hole))
+                .fold(0.0, f32::max);
+            if cap <= 0.0 {
+                return None;
+            }
+            let next = anchor.bend() + 0.5;
+            if next > cap + f32::EPSILON {
+                Pitch::Normal
+            } else {
+                Pitch::Bend(next)
+            }
+        }
+        ModButton::Overblow => toggle(Pitch::Overblow),
+        ModButton::Overdraw => toggle(Pitch::Overdraw),
+        ModButton::Slide => toggle(Pitch::Slide),
+        _ => return None,
+    })
+}
+
+/// Whether `pitch` is the technique `kind` switches — what switching it off
+/// clears.
+fn same_technique(kind: ModButton, pitch: Pitch) -> bool {
+    match kind {
+        ModButton::Bend => matches!(pitch, Pitch::Bend(_)),
+        ModButton::Overblow => pitch == Pitch::Overblow,
+        ModButton::Overdraw => pitch == Pitch::Overdraw,
+        ModButton::Slide => pitch == Pitch::Slide,
+        _ => false,
+    }
+}
+
+/// Whether a note on `hole` can play `pitch`.
+fn pitch_fits(pitch: Pitch, hole: u8, harp: &Harmonica) -> bool {
+    match pitch {
+        Pitch::Bend(depth) => depth <= max_bend(harp, hole) + f32::EPSILON,
+        Pitch::Overblow => overblow_ok(hole),
+        Pitch::Overdraw => overdraw_ok(hole),
+        Pitch::Slide | Pitch::Normal => true,
+    }
+}
+
+/// Puts a pending "some selected notes were skipped" count in the status
+/// bar — the technique buttons' sibling of `transpose::report_transpose`.
+pub(super) fn report_technique_skips(
+    mut state: ResMut<EditorState>,
+    loc: Res<Localization>,
+    mut feedback: ResMut<super::save_feedback::SaveFeedback>,
+) {
+    if state.technique_notice.is_none() {
+        return;
+    }
+    let Some(count) = state.bypass_change_detection().technique_notice.take() else {
+        return;
+    };
+    feedback.set(loc.msg_args("editor-technique-skipped", &[("count", count.to_string())]));
 }
 
 /// The deepest bend any hole of `harp` allows — the cap for cycling a

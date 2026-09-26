@@ -362,6 +362,7 @@ mod-transpose-up-tooltip = Transpose the selection (or everything) up a semitone
 mod-transpose-down-tooltip = Transpose the selection (or everything) down a semitone — Ctrl+↓, Ctrl+Shift+↓ for an octave
 editor-transposed = ✓ Transposed {$count} notes {$semitones} semitones
 editor-transposed-warning = ‼ Transposed {$count} notes {$semitones} semitones — {$kept} left unchanged (unplayable or spot taken), {$mixed} mixed-breath chords, {$duplicate} duplicate-hole chords
+editor-technique-skipped = ‼ {$count} of the selected notes can't take that technique and kept their own
 mod-delete-tooltip = Delete the selected note
 editor-tool-select-tooltip = Click a point on the timeline then click a side (or click-drag a range)
 editor-tool-erase-tooltip = Remove all notes in the current selection.
@@ -1246,6 +1247,7 @@ lesson-tree-unit-progress = {$done}/{$needed}
 lesson-tree-track-mastery = {$track} — {$percent}%
 # The warm-up review queue above the skill tree: its label, and one due training as "lesson · tier".
 lesson-tree-warmup = Warm-up:
+lesson-tree-review-due = ↻ Review due: play its highest tier again to keep the skill
 lesson-tree-warmup-item = {$lesson} · {$tier}
 # The practice streak above the skill tree, shown from two days up.
 lesson-tree-streak = {$days}-day practice streak

@@ -360,6 +360,7 @@ mod-transpose-up-tooltip = Transpone la selección (o todo) un semitono arriba �
 mod-transpose-down-tooltip = Transpone la selección (o todo) un semitono abajo — Ctrl+↓, Ctrl+Shift+↓ para una octava
 editor-transposed = ✓ {$count} notas transpuestas {$semitones} semitonos
 editor-transposed-warning = ‼ {$count} notas transpuestas {$semitones} semitonos — {$kept} sin cambios (imposibles o sitio ocupado), {$mixed} acordes con respiración mixta, {$duplicate} acordes con agujero duplicado
+editor-technique-skipped = ‼ {$count} de las notas seleccionadas no admiten esa técnica y se quedaron como estaban
 mod-delete-tooltip = Eliminar la nota seleccionada
 editor-tool-select-tooltip = Haz clic en un punto de la línea de tiempo y luego en un lado (o haz clic y arrastra para seleccionar un rango)
 editor-tool-erase-tooltip = Haz clic en un punto de la línea de tiempo y luego en un lado (o haz clic y arrastra un tramo) para borrar sus notas, dejando un hueco
@@ -1245,6 +1246,7 @@ lesson-tree-unit-progress = {$done}/{$needed}
 lesson-tree-track-mastery = {$track} — {$percent}%
 # La cola de repaso de calentamiento sobre el árbol: la etiqueta y un entrenamiento pendiente como "lección · nivel".
 lesson-tree-warmup = Calentamiento:
+lesson-tree-review-due = ↻ Repaso pendiente: vuelve a tocar su nivel más alto para mantener la habilidad
 lesson-tree-warmup-item = {$lesson} · {$tier}
 # La racha de práctica sobre el árbol, mostrada a partir de dos días.
 lesson-tree-streak = {$days} días seguidos de práctica

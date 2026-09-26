@@ -104,35 +104,56 @@ impl EditorState {
         }
     }
 
-    /// The Depth button's click: steps the selected note's depth, or with
-    /// nothing selected the sticky depth a new note gets. A selected note
-    /// with no vibrato/wah is left alone — the same "silently do nothing
-    /// on an incompatible note" rule Overblow follows on a hole that can't.
+    /// The Depth button's click: steps the selected notes' depth, or with
+    /// nothing selected the sticky depth a new note gets. A primary note
+    /// with no vibrato/wah makes it do nothing — the same "silently do
+    /// nothing on an incompatible note" rule Overblow follows on a hole that
+    /// can't.
     pub(super) fn cycle_depth(&mut self) {
         match self.selected_note() {
             Some(note) if note.expr == Expr::None => {}
             Some(_) => {
+                // The primary note's depth decides the step, as with the
+                // other technique buttons; every selected note with an
+                // expression takes it, and one without is skipped.
                 let next = next_depth_step(self.selected_expression_intensity());
-                self.set_selected_expression_intensity(next);
+                let mut skipped = 0;
+                for id in self.selected.clone() {
+                    if !self.set_expression_intensity(id, &next) {
+                        skipped += 1;
+                    }
+                }
+                if skipped > 0 && self.selected.len() > 1 {
+                    self.technique_notice = Some(skipped);
+                }
             }
             None => self.sticky_intensity = next_depth_step(&self.sticky_intensity),
         }
     }
 
+    #[cfg(test)]
     pub(super) fn set_selected_expression_intensity(&mut self, value: String) {
-        let Some(note) = self.selected_note() else {
-            return;
-        };
-        if note.expr == Expr::None {
-            return;
+        if let Some(id) = self.selected.last().copied() {
+            self.set_expression_intensity(id, &value);
         }
-        let id = note.id;
+    }
+
+    /// Sets note `id`'s vibrato/wah depth; `false` for a note with neither,
+    /// which has no depth to set. `0.5` is the default and is never stored.
+    fn set_expression_intensity(&mut self, id: u32, value: &str) -> bool {
+        if self
+            .note_by_id(id)
+            .is_none_or(|note| note.expr == Expr::None)
+        {
+            return false;
+        }
         let value = value.trim();
         if value.is_empty() || value == "0.5" {
             self.expression_intensities.remove(&id);
         } else if value.parse::<f32>().is_ok_and(|v| (0.0..=1.0).contains(&v)) {
             self.expression_intensities.insert(id, value.to_owned());
         }
+        true
     }
 
     pub(super) fn selected_call(&self) -> bool {
