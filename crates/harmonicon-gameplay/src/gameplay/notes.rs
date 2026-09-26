@@ -393,12 +393,15 @@ pub fn build_scheduled_notes(
 /// `expected_pitch` has nothing to draw and is skipped, same as it already
 /// can never be hit. `beats_per_bar` feeds
 /// [`harmonicon_ui::music_score::split_at_bar_lines`] so a note crossing bar lines
-/// becomes tied segments instead of one oversized notehead.
+/// becomes tied segments instead of one oversized notehead. The staff counts
+/// bars from beat 0, so every note is moved on by `lead_ticks`
+/// (`bars::pickup_lead_ticks`) to put a pickup at the end of its first bar.
 pub fn notes_to_notation(
     notes: &[ScheduledNote],
     resolution: u32,
     tempo_map: &[harmonicon_core::chart::TempoPoint],
     beats_per_bar: f64,
+    lead_ticks: u64,
 ) -> Vec<harmonicon_ui::music_score::NotationNote> {
     notes
         .iter()
@@ -408,7 +411,7 @@ pub fn notes_to_notation(
             let end_tick =
                 harmonicon_core::chart::seconds_to_tick(n.time + n.duration, resolution, tempo_map);
             Some(harmonicon_ui::music_score::NotationNote {
-                start_beat: start_tick as f64 / resolution as f64,
+                start_beat: (start_tick + lead_ticks) as f64 / resolution as f64,
                 duration_beats: (end_tick.saturating_sub(start_tick)).max(1) as f64
                     / resolution as f64,
                 midi,

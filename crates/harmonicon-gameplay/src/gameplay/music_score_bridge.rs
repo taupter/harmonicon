@@ -15,6 +15,7 @@ use harmonicon_core::chart::seconds_to_tick;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{MusicScoreMeter, MusicScoreNotes, MusicScorePlayhead};
 
+use super::bars::pickup_lead_ticks;
 use super::{GameplayClock, GameplayLogic, SongNotes, chart_meter, notes_to_notation};
 
 pub struct MusicScoreBridgePlugin;
@@ -63,6 +64,7 @@ fn sync_music_score_notes(
         timing.resolution,
         &timing.tempo_map,
         beats_per_bar,
+        pickup_lead_ticks(&manifest.chart),
     );
 }
 
@@ -80,6 +82,8 @@ fn update_music_score_playhead(
     };
     let timing = &manifest.chart.timing;
     let tick = seconds_to_tick(clock.get().max(0.0), timing.resolution, &timing.tempo_map);
+    // The same lead the notes carry, so the playhead reads against them.
+    let tick = tick + pickup_lead_ticks(&manifest.chart);
     let beat = tick as f64 / timing.resolution.max(1) as f64;
     // Unchanged while paused or frozen on a wait-for-note.
     if playhead.0 != beat {

@@ -30,7 +30,7 @@ use harmonicon_app::app::SelectedSong;
 use harmonicon_core::chart::{seconds_to_tick, tick_to_seconds};
 use harmonicon_song::song::SongManifest;
 
-use super::bars::{beat_ticks_in_range, chart_meter, ticks_per_beat};
+use super::bars::{beat_ticks_in_range, chart_meter, pickup_lead_ticks, ticks_per_beat};
 use super::clock::GameplayClock;
 use super::gameplay_2d::note_head_bottom_pct;
 use super::notes::LOOKAHEAD;
@@ -110,6 +110,7 @@ pub(super) fn update_beat_guides(
             to_tick(elapsed.max(0.0) + LOOKAHEAD),
             per_beat,
             usize::from(meter.numerator.max(1)),
+            pickup_lead_ticks(&manifest.chart),
         ) {
             let Some((mut node, mut visibility, mut color)) = guides.next() else {
                 break;

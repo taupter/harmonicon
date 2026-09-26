@@ -11,7 +11,7 @@ use harmonicon_core::chart::Modifier;
 use harmonicon_core::midi::{midi_to_freq_hz, note_to_midi};
 use harmonicon_core::scoring::{combo_label, compute_multiplier};
 
-use super::bars::{beat_ticks_in_range, ticks_per_beat};
+use super::bars::{beat_ticks_in_range, pickup_lead_ticks, ticks_per_beat};
 use super::lifecycle::cleanup_gameplay;
 use super::*;
 use harmonicon_core::chart::HarpChart;
@@ -209,7 +209,7 @@ fn ticks_per_beat_never_returns_zero() {
 #[test]
 fn beat_ticks_marks_every_bar_start_as_a_downbeat() {
     // Two bars of 4/4 at 480 ticks per beat: beats 0 and 4 start a bar.
-    let beats = beat_ticks_in_range(0, 480 * 7, 480, 4).collect::<Vec<_>>();
+    let beats = beat_ticks_in_range(0, 480 * 7, 480, 4, 0).collect::<Vec<_>>();
     assert_eq!(beats.len(), 8);
     let downbeats: Vec<u64> = beats
         .iter()
@@ -224,7 +224,7 @@ fn beat_ticks_counts_the_bar_from_tick_zero_not_from_the_window() {
     // A window starting mid-bar must not relabel its first visible beat as a
     // downbeat — the bar phase belongs to the song, not to whatever happens
     // to be on screen.
-    let beats = beat_ticks_in_range(480 * 5, 480 * 9, 480, 4).collect::<Vec<_>>();
+    let beats = beat_ticks_in_range(480 * 5, 480 * 9, 480, 4, 0).collect::<Vec<_>>();
     assert_eq!(beats.first(), Some(&(480 * 5, false)));
     assert!(
         beats.contains(&(480 * 8, true)),
@@ -233,9 +233,59 @@ fn beat_ticks_counts_the_bar_from_tick_zero_not_from_the_window() {
 }
 
 #[test]
+fn a_pickup_puts_the_first_downbeat_where_it_ends() {
+    // A one-beat pickup in 4/4 is bar 0's last beat: the grid starts three
+    // beats before tick 0, so tick 480 is bar 1's downbeat.
+    let mut chart = chart_with_meter(Some("4/4"), None);
+    chart.timing.pickup_ticks = Some(480);
+    let lead = pickup_lead_ticks(&chart);
+    assert_eq!(lead, 480 * 3);
+    let beats = beat_ticks_in_range(0, 480 * 5, 480, 4, lead).collect::<Vec<_>>();
+    assert_eq!(beats.first(), Some(&(0, false)), "the pickup's own beat");
+    let downbeats: Vec<u64> = beats
+        .iter()
+        .filter(|(_, is_downbeat)| *is_downbeat)
+        .map(|(tick, _)| *tick)
+        .collect();
+    assert_eq!(downbeats, vec![480, 480 * 5]);
+}
+
+#[test]
+fn a_pickup_ends_the_staffs_first_bar() {
+    // 4/4 at 120 with a one-beat pickup (lead three beats): the pickup note
+    // is beat 3 of the staff, and a half note from bar 1's last beat ties
+    // at bar 2's line (staff beat 8).
+    let tempo = [harmonicon_core::chart::TempoPoint {
+        tick: 0,
+        bpm: 120.0,
+    }];
+    let mut pickup = loop_test_note(0.0);
+    pickup.duration = 0.5;
+    let mut across = loop_test_note(2.0);
+    across.duration = 1.0;
+    let staff = super::notes_to_notation(&[pickup, across], 480, &tempo, 4.0, 480 * 3);
+    let starts: Vec<f64> = staff.iter().map(|n| n.start_beat).collect();
+    assert_eq!(starts, vec![3.0, 7.0, 8.0]);
+    assert!(staff[2].tied_from_previous);
+}
+
+#[test]
+fn a_pickup_leads_by_the_meters_own_beat() {
+    // Two eighths of 6/8 leave four eighths of bar 0 unplayed.
+    let mut chart = chart_with_meter(Some("6/8"), None);
+    chart.timing.pickup_ticks = Some(480);
+    assert_eq!(pickup_lead_ticks(&chart), 240 * 4);
+    chart.timing.pickup_ticks = None;
+    assert_eq!(pickup_lead_ticks(&chart), 0);
+    // A whole bar of pickup is no offset at all.
+    chart.timing.pickup_ticks = Some(240 * 6);
+    assert_eq!(pickup_lead_ticks(&chart), 0);
+}
+
+#[test]
 fn beat_ticks_includes_a_beat_exactly_on_the_window_edge() {
     assert_eq!(
-        beat_ticks_in_range(480, 480, 480, 4).collect::<Vec<_>>(),
+        beat_ticks_in_range(480, 480, 480, 4, 0).collect::<Vec<_>>(),
         vec![(480, false)]
     );
 }
@@ -243,12 +293,12 @@ fn beat_ticks_includes_a_beat_exactly_on_the_window_edge() {
 #[test]
 fn beat_ticks_is_empty_for_an_inverted_or_degenerate_window() {
     assert!(
-        beat_ticks_in_range(960, 480, 480, 4)
+        beat_ticks_in_range(960, 480, 480, 4, 0)
             .collect::<Vec<_>>()
             .is_empty()
     );
     assert!(
-        beat_ticks_in_range(0, 960, 0, 4)
+        beat_ticks_in_range(0, 960, 0, 4, 0)
             .collect::<Vec<_>>()
             .is_empty()
     );
@@ -258,7 +308,7 @@ fn beat_ticks_is_empty_for_an_inverted_or_degenerate_window() {
 fn beat_ticks_treats_a_zero_beat_count_as_one_bar_per_beat() {
     // `numerator.max(1)` upstream should make this unreachable; guard the
     // modulo anyway rather than divide by zero if a chart ever says 0/4.
-    let beats = beat_ticks_in_range(0, 480 * 2, 480, 0).collect::<Vec<_>>();
+    let beats = beat_ticks_in_range(0, 480 * 2, 480, 0, 0).collect::<Vec<_>>();
     assert!(
         beats.iter().all(|(_, is_downbeat)| *is_downbeat),
         "{beats:?}"

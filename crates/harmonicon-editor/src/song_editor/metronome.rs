@@ -201,6 +201,8 @@ pub(super) fn click_metronome(
     let active_tempo = MetronomeTempo {
         bpm: tempo.bpm,
         meter,
+        // `segment_clock` already counts from a bar line, pickup included.
+        lead_beats: 0.0,
     };
     play_click_if_due(
         clock,
@@ -237,6 +239,7 @@ pub(super) fn tick_count_in(
     let count_in_tempo = MetronomeTempo {
         bpm: tempo.bpm,
         meter: count_in.meter,
+        lead_beats: 0.0,
     };
     play_click_if_due(
         count_in.elapsed_secs() as f64,

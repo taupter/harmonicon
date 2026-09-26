@@ -89,6 +89,17 @@ load-bearing about *this* crate.
     does so (the lesson reader's metronome widget) does it on purpose and
     says why — that widget has a BPM and a beat count and no meter, so
     its beat genuinely is its BPM beat.
+  - **A pickup moves the bar grid, never the clock.** `timing.pickup_ticks`
+    is the end of an unnumbered bar 0, so the grid starts
+    `bars::pickup_lead_ticks` before tick 0. Beat guides pass that lead to
+    `beat_ticks_in_range`, the metronome holds it as
+    `MetronomeTempo::lead_beats` (read through `grid_clock`), both staff
+    bridges add it to every notation beat, since the staff counts bars from
+    beat 0, and `track_current_bar` subtracts the pickup so the 12-bar
+    cycle starts on bar 1. `GameplayClock`, note times and judging are
+    untouched. Anything else that counts bars or beats needs the same
+    lead, or it disagrees with the metronome on exactly the charts that
+    have one.
   - **Compound-meter *feel* is still open.** 6/8 now accents the right
     downbeat and clicks six eighths to the bar, but it does not group them
     3+3 as two dotted-quarter pulses; that's a `MetronomeFeel`-shaped

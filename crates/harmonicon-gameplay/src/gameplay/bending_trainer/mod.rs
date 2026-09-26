@@ -396,6 +396,8 @@ pub fn setup(
     clock.set_free(0.0);
     *pitch_range = pitch_range_for_harp(key.harp());
     tempo.meter = harmonicon_ui::music_score::MusicScoreMeter::default();
+    // The last song's pickup has nothing to do with a drill.
+    tempo.lead_beats = 0.0;
     // Keep whatever BPM was last set; default to a comfortable practice tempo.
     if tempo.bpm < MIN_BPM || tempo.bpm > MAX_BPM {
         tempo.bpm = 90.0;

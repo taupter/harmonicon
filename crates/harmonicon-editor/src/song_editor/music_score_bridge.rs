@@ -14,6 +14,14 @@ use super::metronome::MeterClockCache;
 use super::playback::{Playhead, note_midi};
 use super::state::EditorState;
 
+/// Where `tick` sits on the staff, in quarter-note beats. The staff draws
+/// bar lines at whole multiples of a bar from beat 0, so a pickup is moved
+/// along by the part of its bar the music skips — its first segment's phase
+/// — which puts bar 1 exactly on a bar line.
+fn staff_beat(tick: f64, meter_map: &MeterMap) -> f64 {
+    (tick + meter_map.segments()[0].phase_ticks as f64) / TICKS_PER_BEAT as f64
+}
+
 fn notation_segments(
     note: &super::state::GridNote,
     midi: u8,
@@ -25,7 +33,7 @@ fn notation_segments(
     let mut segment_start = start;
     for (tick, _) in meter_map.bar_starts(start.saturating_add(1), end) {
         segments.push(NotationNote {
-            start_beat: segment_start as f64 / TICKS_PER_BEAT as f64,
+            start_beat: staff_beat(segment_start as f64, meter_map),
             duration_beats: (tick - segment_start) as f64 / TICKS_PER_BEAT as f64,
             midi,
             tied_from_previous: !segments.is_empty(),
@@ -33,7 +41,7 @@ fn notation_segments(
         segment_start = tick;
     }
     segments.push(NotationNote {
-        start_beat: segment_start as f64 / TICKS_PER_BEAT as f64,
+        start_beat: staff_beat(segment_start as f64, meter_map),
         duration_beats: (end - segment_start) as f64 / TICKS_PER_BEAT as f64,
         midi,
         tied_from_previous: !segments.is_empty(),
@@ -85,22 +93,18 @@ pub(super) fn sync_music_score_playhead(
     mut meter: ResMut<MusicScoreMeter>,
     mut meter_cache: Local<Option<MeterClockCache>>,
 ) {
-    let (beat, tick) = if playhead.playing && playhead.secs_per_tick > 0.0 {
-        let cur_tick = playhead.elapsed / playhead.secs_per_tick;
-        (
-            (cur_tick / TICKS_PER_BEAT as f32) as f64,
-            cur_tick.max(0.0).round() as u64,
-        )
+    let cur_tick = if playhead.playing && playhead.secs_per_tick > 0.0 {
+        f64::from(playhead.elapsed / playhead.secs_per_tick)
     } else {
-        (
-            state.scroll_beat as f64,
-            (state.scroll_beat * TICKS_PER_BEAT) as u64,
-        )
+        (state.scroll_beat * TICKS_PER_BEAT) as f64
     };
+    let map = MeterClockCache::map_for(&mut meter_cache, &state);
+    // The same offset the notes carry, so the playhead reads against them.
+    let beat = staff_beat(cur_tick, map);
     if score_playhead.0 != beat {
         score_playhead.0 = beat;
     }
-    let active_meter = MeterClockCache::map_for(&mut meter_cache, &state).meter_at(tick);
+    let active_meter = map.meter_at(cur_tick.max(0.0).round() as u64);
     if *meter != active_meter {
         *meter = active_meter;
     }
@@ -136,6 +140,17 @@ mod tests {
         assert!(!segments[0].tied_from_previous);
         assert!(segments[1].tied_from_previous);
         assert!(segments[2].tied_from_previous);
+    }
+
+    #[test]
+    fn a_pickup_sits_at_the_end_of_the_staffs_first_bar() {
+        // One-beat pickup in 4/4: it is drawn as beat 4 of bar 0, so a note
+        // on bar 1's downbeat lands on the staff's first bar line.
+        let map = MeterMap::with_pickup([(0, "4/4")], TICKS_PER_BEAT as u32, 12);
+        let pickup = notation_segments(&note(0, 12), 60, &map);
+        let downbeat = notation_segments(&note(12, 12), 60, &map);
+        assert_eq!(pickup[0].start_beat, 3.0);
+        assert_eq!(downbeat[0].start_beat, 4.0, "a whole bar from beat 0");
     }
 
     #[test]

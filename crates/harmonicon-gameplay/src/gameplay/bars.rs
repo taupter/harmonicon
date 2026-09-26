@@ -7,7 +7,7 @@
 use bevy::prelude::*;
 
 use harmonicon_app::app::SelectedSong;
-use harmonicon_core::chart::{HarpChart, time_sig_at_tick};
+use harmonicon_core::chart::{HarpChart, tick_to_seconds, time_sig_at_tick};
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{MusicScoreMeter, parse_time_signature};
 
@@ -54,9 +54,21 @@ pub fn ticks_per_beat(resolution: u32, meter: &MusicScoreMeter) -> u64 {
     (u64::from(resolution) * 4 / denominator).max(1)
 }
 
+/// How far before tick 0 the chart's bar grid starts, in ticks: the part of
+/// bar 0 a pickup leaves out. Zero without a pickup, or for one a whole bar
+/// long. Every beat and bar count in gameplay is taken on a clock moved on
+/// by this, so bar 1's downbeat lands where the chart's pickup ends.
+pub fn pickup_lead_ticks(chart: &HarpChart) -> u64 {
+    let meter = chart_meter(chart);
+    let bar_ticks =
+        ticks_per_beat(chart.timing.resolution, &meter) * u64::from(meter.numerator.max(1));
+    let pickup = chart.timing.pickup() % bar_ticks;
+    (bar_ticks - pickup) % bar_ticks
+}
+
 /// Every meter beat whose tick falls in `start_tick..=end_tick`, as
-/// `(tick, is_downbeat)` — a downbeat being the first beat of a bar,
-/// counting from tick 0.
+/// `(tick, is_downbeat)` — a downbeat being the first beat of a bar, with
+/// the grid starting `lead_ticks` before tick 0 ([`pickup_lead_ticks`]).
 ///
 /// Tick space rather than seconds so a chart with a real tempo map gets
 /// beats where the *music* has them: the caller converts each tick back with
@@ -67,6 +79,7 @@ pub fn beat_ticks_in_range(
     end_tick: u64,
     ticks_per_beat: u64,
     beats_per_bar: usize,
+    lead_ticks: u64,
 ) -> impl Iterator<Item = (u64, bool)> {
     let beats_per_bar = beats_per_bar.max(1) as u64;
     // An empty range for a zero stride or a reversed window.
@@ -74,11 +87,16 @@ pub fn beat_ticks_in_range(
         (1, 0)
     } else {
         (
-            start_tick.div_ceil(ticks_per_beat),
-            end_tick / ticks_per_beat,
+            (start_tick + lead_ticks).div_ceil(ticks_per_beat),
+            (end_tick + lead_ticks) / ticks_per_beat,
         )
     };
-    (first..=last).map(move |beat| (beat * ticks_per_beat, beat % beats_per_bar == 0))
+    (first..=last).map(move |beat| {
+        (
+            beat * ticks_per_beat - lead_ticks,
+            beat % beats_per_bar == 0,
+        )
+    })
 }
 
 /// How many whole bars have elapsed since the clock last hit 0 (song/jam
@@ -138,13 +156,18 @@ pub(crate) fn track_current_bar(
     };
     let bpm = manifest.chart.song.tempo_bpm as f64;
     let spb = config.meter.bar_secs(bpm);
-    let bar = current_bar_index(clock.get(), spb);
+    // A pickup is not a bar of the form: the first bar counted is the one
+    // its last note leads into.
+    let timing = &manifest.chart.timing;
+    let pickup_secs = tick_to_seconds(timing.pickup(), timing.resolution, &timing.tempo_map);
+    let clock = clock.get() - pickup_secs;
+    let bar = current_bar_index(clock, spb);
     // Written only on a change: Jam Session's labels and ending check gate on
     // these resources' `is_changed()` to mean "the bar moved".
     if current.0 != bar {
         current.0 = bar;
     }
-    let absolute_bar = absolute_bar_index(clock.get(), spb);
+    let absolute_bar = absolute_bar_index(clock, spb);
     if absolute.0 != absolute_bar {
         absolute.0 = absolute_bar;
     }

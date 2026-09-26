@@ -19,7 +19,7 @@ pub use harmonicon_ui::dialogs::metronome::{
 };
 use harmonicon_ui::music_score::MusicScoreMeter;
 
-use super::bars::chart_meter;
+use super::bars::{chart_meter, pickup_lead_ticks, ticks_per_beat};
 
 use super::{GameplayClock, GameplayLogic, Paused};
 
@@ -37,6 +37,11 @@ use super::{GameplayClock, GameplayLogic, Paused};
 pub struct MetronomeTempo {
     pub bpm: f32,
     pub meter: MusicScoreMeter,
+    /// Meter beats of bar 0 before the clock's 0 — what a chart's pickup
+    /// leaves out (`bars::pickup_lead_ticks`), so the accent falls on bar
+    /// 1's downbeat rather than on the pickup. Zero with no pickup, and for
+    /// any caller that already counts its own clock from a bar line.
+    pub lead_beats: f64,
 }
 
 impl Default for MetronomeTempo {
@@ -44,11 +49,18 @@ impl Default for MetronomeTempo {
         Self {
             bpm: 90.0,
             meter: MusicScoreMeter::default(),
+            lead_beats: 0.0,
         }
     }
 }
 
 impl MetronomeTempo {
+    /// `clock` on the bar grid: moved on by [`Self::lead_beats`], so a whole
+    /// number of bars from 0 is a downbeat.
+    pub fn grid_clock(&self, clock: f64) -> f64 {
+        clock + self.lead_beats * self.beat_secs()
+    }
+
     /// Beats in a bar, in the meter's own beat — the count the HUD's beat
     /// dots and the downbeat accent use.
     pub fn beats_per_bar(&self) -> usize {
@@ -268,7 +280,7 @@ pub fn update_metronome(
 
     let beat_dur = tempo.beat_secs();
     let beats_per_bar = tempo.beats_per_bar();
-    let beat_pos = clock.get() / beat_dur;
+    let beat_pos = tempo.grid_clock(clock.get()) / beat_dur;
     let current = beat_pos.floor() as usize % beats_per_bar;
     let t = beat_pos.fract() as f32;
 
@@ -325,7 +337,11 @@ pub fn play_click_if_due(
     last: &mut Option<i64>,
     commands: &mut Commands,
 ) {
-    let Some(current) = tick_index(clock, tempo.beat_secs(), feel) else {
+    // Nothing before the music starts: the lead only places the grid.
+    if clock < 0.0 {
+        return;
+    }
+    let Some(current) = tick_index(tempo.grid_clock(clock), tempo.beat_secs(), feel) else {
         return;
     };
     if *last == Some(current) {
@@ -437,6 +453,8 @@ fn set_tempo_from_song(
     };
     tempo.bpm = manifest.chart.song.tempo_bpm;
     tempo.meter = chart_meter(&manifest.chart);
+    tempo.lead_beats = pickup_lead_ticks(&manifest.chart) as f64
+        / ticks_per_beat(manifest.chart.timing.resolution, &tempo.meter) as f64;
     if let Some(chart_feel) = feel_from_chart(manifest.chart.song.feel) {
         *feel = chart_feel;
     }
@@ -635,6 +653,7 @@ mod tests {
         let t = MetronomeTempo {
             bpm: 180.0,
             meter: parse_time_signature("6/8"),
+            lead_beats: 0.0,
         };
         assert_eq!(t.beats_per_bar(), 6);
         assert!((t.beat_secs() - 1.0 / 6.0).abs() < 1e-9);
@@ -650,11 +669,29 @@ mod tests {
         let t = MetronomeTempo {
             bpm: 120.0,
             meter: parse_time_signature("3/8"),
+            lead_beats: 0.0,
         };
         assert_eq!(t.beats_per_bar(), 3);
         assert!((t.bar_secs() - 0.75).abs() < 1e-9);
         let tick = tick_index(0.75, t.beat_secs(), MetronomeFeel::Straight).unwrap();
         assert!(is_downbeat(tick, 3.0));
+    }
+
+    #[test]
+    fn a_pickup_moves_the_accent_to_bar_one() {
+        // A one-beat pickup in 4/4 at 120: the music's first beat is bar
+        // 0's fourth, and the accent falls half a second in.
+        let t = MetronomeTempo {
+            bpm: 120.0,
+            lead_beats: 3.0,
+            ..Default::default()
+        };
+        let tick_at = |clock: f64| {
+            tick_index(t.grid_clock(clock), t.beat_secs(), MetronomeFeel::Straight).unwrap()
+        };
+        assert!(!is_downbeat(tick_at(0.0), 4.0), "the pickup is unaccented");
+        assert!(is_downbeat(tick_at(0.5), 4.0));
+        assert!(is_downbeat(tick_at(2.5), 4.0));
     }
 
     #[test]
