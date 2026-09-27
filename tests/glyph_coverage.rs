@@ -238,3 +238,28 @@ fn the_bundled_fonts_parse_and_cover_something() {
         );
     }
 }
+
+/// `music_score::GLYPH_BASELINE_CORRECTION` puts a Bravura glyph's baseline
+/// at half its line box. Parley's baseline is `ascent + (line_height -
+/// ascent - descent) / 2`, which is half the line box only when ascent and
+/// descent are equal — true of the bundled Bravura, and what this pins. A
+/// font update that broke it would draw every notehead off its line and
+/// every stem short of its head.
+#[test]
+fn bravura_ascent_equals_its_descent() {
+    let path = repo_root().join("assets/fonts/Bravura.otf");
+    let data = std::fs::read(&path).expect("read Bravura");
+    let font = skrifa::FontRef::new(&data).expect("parse Bravura");
+    // The same metrics parley lays text out with (it reads them through
+    // skrifa too), at the font's own units.
+    let metrics = skrifa::MetadataProvider::metrics(
+        &font,
+        skrifa::instance::Size::unscaled(),
+        skrifa::instance::LocationRef::default(),
+    );
+    assert!(metrics.ascent > 0.0, "{metrics:?}");
+    assert_eq!(
+        metrics.ascent, -metrics.descent,
+        "Bravura's baseline is no longer mid-line: {metrics:?}"
+    );
+}

@@ -41,11 +41,23 @@ load-bearing about *this* crate.
   `Font::from_bytes` way as `dialogs::font_fallback`'s small icon fonts;
   every glyph codepoint and every relative measurement (notehead width,
   stem attachment point, ledger-line extension) comes straight from
-  Bravura's own published `bravura_metadata.json` — the one thing that
-  *couldn't* be derived that way, `GLYPH_BASELINE_CORRECTION` (correcting
-  for Bevy positioning a `Text` node's bounding box top-left rather than
-  the font's own SMuFL-relative glyph origin), is an estimate, flagged in
-  its own doc comment as the first thing to adjust by eye.
+  Bravura's own published `bravura_metadata.json`. **Glyph and rectangle
+  must agree on where a staff position is.** Bevy places a `Text` node by
+  its box's top-left, not the glyph's SMuFL origin, so every Bravura glyph
+  is offset by `GLYPH_BASELINE_CORRECTION`: half its pinned line box
+  (`GLYPH_LINE_HEIGHT_PX`), which is exactly where parley puts the baseline
+  because Bravura's ascent equals its descent. The line box is a fixed 40
+  px, not relative to the font size, so that half of it is a whole number
+  of physical pixels at every common display scale — parley rounds there,
+  and a relative line height let the baseline drift by up to 0.6 px with
+  the scale. Stems, beams and ledger
+  lines are `Node` rectangles placed from the same `y_for_step`, so a
+  wrong offset shows as heads off their lines *and* stems stopping short
+  of their heads — a half-em guess did both. Every Bravura `Text` must
+  carry `LineHeight::Px(GLYPH_LINE_HEIGHT_PX)`, or it inherits
+  Bevy's default and the derivation no longer holds;
+  `tests/glyph_coverage.rs::bravura_ascent_equals_its_descent` guards the
+  font side.
   - **`NotationNote { start_beat, duration_beats, midi }`** (beats, not
     ticks or seconds) is the module's only input — it never touches a
     chart's tempo map or an editor's own tick resolution, so each of the
@@ -70,13 +82,13 @@ load-bearing about *this* crate.
     the same "custom shader for a shape a plain `Node` can't express"
     pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
     established — one shared material handle covers every tie, since
-    unlike the note tail this shape never varies. Its bounding box spans
-    the *real* pixel gap between the two tied noteheads' own onset
-    positions (computed from the immediately-preceding entry in
-    `MusicScoreNotes`, which `split_at_bar_lines` guarantees is the
-    tied-from segment), not a fixed size — an earlier version centered a
-    fixed-width box on the second note alone and never actually reached
-    the first.
+    unlike the note tail this shape never varies (two instances: one
+    bowing down, one up). It runs from just past the first head's right
+    edge to just before the second head's left edge — positions taken from
+    the immediately-preceding entry in `MusicScoreNotes`, which
+    `split_at_bar_lines` guarantees is the tied-from segment — and sits on
+    the side away from the stems: under the heads for stems up, over them
+    for stems down.
   - **The visible window sizes itself from the panel's own on-screen
     width**, independent of any other host UI (the falling-note highway's
     own lookahead, the Song Editor grid's own column count): `visible_

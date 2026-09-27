@@ -34,12 +34,13 @@
 //! ledger-line extension) is taken directly from Bravura's own published
 //! `bravura_metadata.json` (values in "staff spaces," SMuFL's own unit —
 //! 1 staff space is the gap between two adjacent staff lines), not
-//! estimated. The one thing that *couldn't* be derived that way:
-//! [`GLYPH_BASELINE_CORRECTION`] — see its own doc comment for why, and
-//! flag it as the first thing to adjust by eye if glyphs don't look
-//! vertically centered on their staff position.
+//! estimated. [`GLYPH_BASELINE_CORRECTION`], which maps a glyph's SMuFL
+//! origin onto the top of the `Text` node Bevy places, comes from the
+//! font's own vertical metrics and the pinned line height — see its doc
+//! comment.
 
 use bevy::prelude::*;
+use bevy::text::{FontHinting, LineHeight};
 use bevy::ui::ComputedNode;
 use bevy::ui_render::prelude::MaterialNode;
 
@@ -79,17 +80,30 @@ const STAFF_TOP_MARGIN: f32 = 50.0;
 /// at this font size match a staff built from [`STAFF_LINE_SPACING`].
 const GLYPH_FONT_PX: f32 = STAFF_LINE_SPACING * 4.0;
 
-/// Bevy positions a `Text` node's bounding-box top-left at the `Node`'s own
-/// `top`/`left` — not the font's internal glyph baseline/origin
-/// `bravura_metadata.json`'s coordinates are expressed relative to. There's
-/// no published mapping between the two short of measuring Bravura's
-/// OpenType vertical metrics against Bevy's text shaper (cosmic-text) at a
-/// specific font size, so this constant is the correction — **estimated,
-/// not measured** (no display to render against in this dev environment).
-/// First thing to adjust by eye if glyphs don't look vertically centered
-/// once actually visible; applied uniformly, so recalibrating is a
-/// one-constant fix, not a hunt through per-glyph offsets.
-const GLYPH_BASELINE_CORRECTION: f32 = GLYPH_FONT_PX * 0.5;
+/// The line box every Bravura glyph is laid out in, in logical px — pinned
+/// on each one (`LineHeight::Px`) because [`GLYPH_BASELINE_CORRECTION`] is
+/// derived from it. Each also turns hinting off (`FontHinting::Disabled`;
+/// UI text defaults it on), so an outline isn't snapped to the pixel grid
+/// away from the exact position its stem and ledger lines are drawn at.
+const GLYPH_LINE_HEIGHT_PX: f32 = 40.0;
+
+/// How far below a `Text` node's top its glyphs' baseline sits — the SMuFL
+/// origin every `bravura_metadata.json` coordinate is relative to, and the
+/// point a notehead's staff position names.
+///
+/// Parley places the baseline at `ascent + floor((line_height - ascent -
+/// descent) / 2)`, in physical pixels with ascent and descent each rounded
+/// first. Bravura's ascent and descent are equal (`tests/glyph_coverage.rs`
+/// pins that), so this is `floor(line_height / 2)` physical pixels: half
+/// the line box, whatever the font's metrics. A fixed 40 px line makes that
+/// a whole number of physical pixels at every common display scale (1,
+/// 1.25, 1.5, 1.75, 2), so the baseline is exactly 20 px down at all of
+/// them. A line height relative to the font size put it anywhere from 21 to
+/// 21.6 depending on scale.
+///
+/// Stems, beams and ledger lines are plain rectangles placed from the same
+/// staff positions, so they meet a glyph only if this is right.
+const GLYPH_BASELINE_CORRECTION: f32 = GLYPH_LINE_HEIGHT_PX / 2.0;
 
 /// Notehead stem attachment points, in staff spaces relative to the
 /// notehead's own origin (its bounding box's bottom-left corner) —
@@ -127,13 +141,14 @@ const LEDGER_THICKNESS_SP: f32 = 0.16;
 /// staff line, visually merging with it. The arc's *width* isn't one of
 /// these constants — [`spawn_note_glyphs`] derives it per tie from the
 /// real pixel gap between the two tied noteheads' onset positions, so it
-/// spans from one notehead to the next rather than a fixed size.
-/// [`TIE_END_MARGIN_SP`] pulls each end in from its closest notehead,
-/// clearing the glyph itself (splits the difference between `Filled`/
-/// `Half`'s width and a wider `Whole`, rather than tracking each end's
-/// own kind).
-const TIE_END_MARGIN_SP: f32 = 1.3;
-const TIE_GAP_SP: f32 = 0.15;
+/// spans from one notehead to the next rather than a fixed size: it starts
+/// [`TIE_END_GAP_SP`] past the first head's right edge (that head's own
+/// width, so a whole note's wider head is cleared too) and ends the same
+/// distance before the second head's left edge. [`TIE_GAP_SP`] is how far
+/// from the heads' centre line its ends sit — below for stems up, above for
+/// stems down, the side away from the stems.
+const TIE_END_GAP_SP: f32 = 0.2;
+const TIE_GAP_SP: f32 = 0.35;
 const TIE_ARC_HEIGHT_SP: f32 = 0.7;
 /// Never let the arc's own bounding box collapse to (near) nothing when
 /// two tied segments' onsets land very close together in pixels.
@@ -502,6 +517,8 @@ pub fn spawn_music_score(parent: &mut ChildSpawnerCommands, bravura: &BravuraFon
                 font_size: FontSize::Px(GLYPH_FONT_PX),
                 ..default()
             },
+            LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+            FontHinting::Disabled,
             TextColor(Color::WHITE),
             crate::dialogs::font_fallback::SkipFontFallback,
         ));
@@ -527,6 +544,8 @@ pub fn spawn_music_score(parent: &mut ChildSpawnerCommands, bravura: &BravuraFon
                     font_size: FontSize::Px(GLYPH_FONT_PX),
                     ..default()
                 },
+                LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+                FontHinting::Disabled,
                 TextColor(Color::WHITE),
                 crate::dialogs::font_fallback::SkipFontFallback,
             ));
@@ -798,6 +817,9 @@ fn spawn_note_glyphs(
     let rhythm = note_rhythm(note.duration_beats);
     let kind = rhythm.head;
     let notehead_y = y_for_step(step);
+    // Which way the stem goes — or would go, for a stemless whole note. A
+    // tie is drawn on the other side, clear of it.
+    let stem_up = beam.map_or(step < MIDDLE_LINE_STEP, |b| b.stem_up);
 
     // Which accidental (if any) is decided over the whole song by
     // `notation::accidentals`, since it depends on what the bar has already
@@ -820,6 +842,8 @@ fn spawn_note_glyphs(
                 font_size: FontSize::Px(GLYPH_FONT_PX),
                 ..default()
             },
+            LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+            FontHinting::Disabled,
             TextColor(Color::WHITE),
             MusicScoreNoteGlyph,
             crate::dialogs::font_fallback::SkipFontFallback,
@@ -839,6 +863,8 @@ fn spawn_note_glyphs(
             font_size: FontSize::Px(GLYPH_FONT_PX),
             ..default()
         },
+        LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+        FontHinting::Disabled,
         TextColor(Color::WHITE),
         MusicScoreNoteGlyph,
         crate::dialogs::font_fallback::SkipFontFallback,
@@ -852,19 +878,27 @@ fn spawn_note_glyphs(
         && let Some(prev) = prev
     {
         let prev_x = ((prev.start_beat - now) * scale as f64) as f32;
-        let margin = TIE_END_MARGIN_SP * STAFF_LINE_SPACING;
-        let left = prev_x + margin;
-        let width = (x - margin - left).max(TIE_MIN_WIDTH_PX);
+        let prev_width = note_rhythm(prev.duration_beats).head.width_sp();
+        let gap = TIE_END_GAP_SP * STAFF_LINE_SPACING;
+        let left = prev_x + prev_width * STAFF_LINE_SPACING + gap;
+        let width = (x - gap - left).max(TIE_MIN_WIDTH_PX);
+        let height = TIE_ARC_HEIGHT_SP * STAFF_LINE_SPACING;
+        let offset = TIE_GAP_SP * STAFF_LINE_SPACING;
+        let (top, material) = if stem_up {
+            (notehead_y + offset, &tie_material.below)
+        } else {
+            (notehead_y - offset - height, &tie_material.above)
+        };
         parent.spawn((
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(left),
-                top: Val::Px(notehead_y + TIE_GAP_SP * STAFF_LINE_SPACING),
+                top: Val::Px(top),
                 width: Val::Px(width),
-                height: Val::Px(TIE_ARC_HEIGHT_SP * STAFF_LINE_SPACING),
+                height: Val::Px(height),
                 ..default()
             },
-            MaterialNode(tie_material.0.clone()),
+            MaterialNode(material.clone()),
             MusicScoreNoteGlyph,
         ));
     }
@@ -884,6 +918,8 @@ fn spawn_note_glyphs(
                 font_size: FontSize::Px(GLYPH_FONT_PX),
                 ..default()
             },
+            LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+            FontHinting::Disabled,
             TextColor(Color::WHITE),
             MusicScoreNoteGlyph,
             crate::dialogs::font_fallback::SkipFontFallback,
@@ -891,7 +927,6 @@ fn spawn_note_glyphs(
     }
 
     if kind.has_stem() {
-        let stem_up = beam.map_or(step < MIDDLE_LINE_STEP, |b| b.stem_up);
         let (anchor_x_sp, anchor_y_sp) = if stem_up {
             STEM_UP_ANCHOR_SP
         } else {
@@ -993,6 +1028,8 @@ fn spawn_note_glyphs(
                     font_size: FontSize::Px(GLYPH_FONT_PX),
                     ..default()
                 },
+                LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+                FontHinting::Disabled,
                 TextColor(Color::WHITE),
                 MusicScoreNoteGlyph,
                 crate::dialogs::font_fallback::SkipFontFallback,
@@ -1024,6 +1061,18 @@ mod tests {
 
     // These cover this half's own layout constants and the Bevy-bound
     // `MusicScoreMeter`; the pure notation maths is tested in `notation`.
+    #[test]
+    fn the_glyph_baseline_is_a_whole_physical_pixel_at_common_scales() {
+        // Parley puts the baseline at floor(line box / 2) physical pixels
+        // for a font whose ascent equals its descent. Where that half is
+        // fractional the floor drops it, and glyphs drift from the
+        // rectangles drawn at exact staff positions.
+        for scale in [1.0_f32, 1.25, 1.5, 1.75, 2.0] {
+            let physical = GLYPH_LINE_HEIGHT_PX * scale / 2.0;
+            assert_eq!(physical.fract(), 0.0, "scale {scale}");
+            assert_eq!(physical.floor() / scale, GLYPH_BASELINE_CORRECTION);
+        }
+    }
     #[test]
     fn parse_time_signature_keeps_the_denominator_other_callers_discard() {
         let m = parse_time_signature("6/8");

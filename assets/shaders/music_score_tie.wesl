@@ -5,22 +5,23 @@
 // rectangle a plain `bevy_ui` `Node`/`BackgroundColor` is limited to —
 // see `music_score::tie_material`'s own module doc comment.
 //
-// uv.x spans the node horizontally (0 = left end, 1 = right end); uv.y = 0
-// is the node's top edge (nearest the notehead the tie starts from), 1 is
-// the bottom edge. The arc's two ends sit at uv.y = 0 and dip toward
-// uv.y = 1 at the middle — the same "curves away from the notehead" shape
-// a real tie drawn below the staff has.
+// uv.x spans the node horizontally (0 = left end, 1 = right end). The arc's
+// two ends sit on the edge nearest the noteheads and it bows away from
+// them: from the top edge down for a tie below the notes, and — with
+// `params.z` set — from the bottom edge up for one above them.
 
 import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 // x = arc depth (fraction of the node's own height the middle dips to),
-// y = line thickness (fraction of the node's own height).
+// y = line thickness (fraction of the node's own height),
+// z = 1 for a tie above the notes (the arc bows upward), 0 below.
 @group(1) @binding(0) var<uniform> color: vec4<f32>;
 @group(1) @binding(1) var<uniform> params: vec4<f32>;
 
 @fragment
 fn fragment(in: UiVertexOutput) -> @location(0) vec4<f32> {
-    let uv = in.uv;
+    // Mirrored for a tie above the notes, so its ends sit on the bottom edge.
+    let uv = vec2<f32>(in.uv.x, select(in.uv.y, 1.0 - in.uv.y, params.z > 0.5));
     let depth = params.x;
     let thickness = params.y;
 

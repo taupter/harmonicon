@@ -6,11 +6,12 @@
 //! the same "custom shader for a shape a plain `Node` can't express"
 //! pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
 //! established for the falling-note comet tail, applied here to a small,
-//! static shape instead of an animated one. One shared material instance
-//! covers every tie in the panel: unlike the note tail (animated per-note,
-//! so each note needs its own material instance to carry its own uniform
-//! values), a tie's shape never varies, so [`TieMaterialHandle`] is
-//! created once at startup and every tie glyph just clones its `Handle`.
+//! static shape instead of an animated one. Two shared material instances
+//! cover every tie in the panel — one bowing down under the notes, one up
+//! over them: unlike the note tail (animated per-note, so each note needs
+//! its own material instance to carry its own uniform values), a tie's
+//! shape never varies, so [`TieMaterialHandle`] is created once at startup
+//! and every tie glyph just clones the `Handle` for its side.
 
 use bevy::prelude::*;
 use bevy::render::render_resource::AsBindGroup;
@@ -22,9 +23,10 @@ pub struct TieMaterial {
     #[uniform(0)]
     pub color: LinearRgba,
     /// x = arc depth (fraction of the node's own height the middle dips
-    /// to), y = line thickness (fraction of the node's own height), z/w
-    /// unused (padding — `AsBindGroup` uniforms round up to a `vec4`
-    /// alignment regardless).
+    /// to), y = line thickness (fraction of the node's own height), z = 1
+    /// for a tie above the notes (the arc bows up from the node's bottom
+    /// edge), 0 below; w unused (padding — `AsBindGroup` uniforms round up
+    /// to a `vec4` alignment regardless).
     #[uniform(1)]
     pub params: Vec4,
 }
@@ -35,10 +37,15 @@ impl UiMaterial for TieMaterial {
     }
 }
 
-/// The one shared tie material every tie glyph in the panel points at —
-/// see the module doc comment for why a single instance is enough.
+/// The two shared tie materials every tie glyph in the panel points at —
+/// see the module doc comment for why one per side is enough.
 #[derive(Resource, Clone)]
-pub struct TieMaterialHandle(pub Handle<TieMaterial>);
+pub struct TieMaterialHandle {
+    /// Bows down, for a tie under the noteheads (stems up).
+    pub below: Handle<TieMaterial>,
+    /// Bows up, for a tie over them (stems down).
+    pub above: Handle<TieMaterial>,
+}
 
 pub(super) struct TieMaterialPlugin;
 
@@ -50,8 +57,13 @@ impl Plugin for TieMaterialPlugin {
 }
 
 fn load_tie_material(mut materials: ResMut<Assets<TieMaterial>>, mut commands: Commands) {
-    commands.insert_resource(TieMaterialHandle(materials.add(TieMaterial {
-        color: Color::srgba(0.95, 0.80, 0.35, 0.95).into(),
-        params: Vec4::new(0.85, 0.16, 0.0, 0.0),
-    })));
+    let mut side = |above: f32| {
+        materials.add(TieMaterial {
+            color: Color::srgba(0.95, 0.80, 0.35, 0.95).into(),
+            params: Vec4::new(0.85, 0.16, above, 0.0),
+        })
+    };
+    let below = side(0.0);
+    let above = side(1.0);
+    commands.insert_resource(TieMaterialHandle { below, above });
 }
