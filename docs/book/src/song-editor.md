@@ -24,7 +24,10 @@ The screen has three parts:
   **drag it** or use the **mouse wheel** over it — because on a short
   screen the whole palette doesn't fit at once.
 - The **note grid**, one lane per harmonica hole, under the **Chart**
-  tab.
+  tab, with a **notation staff** below it showing the same notes as sheet
+  music. The staff follows the grid as you scroll (and the playhead while
+  playing), and the notes you select are drawn in gold on it too, so you
+  can see where the selection sits in the music.
 - The song's metadata (tempo, key, position, title, background music,
   and the lesson fields) under the **Details** tab.
 

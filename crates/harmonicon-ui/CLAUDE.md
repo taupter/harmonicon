@@ -58,14 +58,17 @@ load-bearing about *this* crate.
   Bevy's default and the derivation no longer holds;
   `tests/glyph_coverage.rs::bravura_ascent_equals_its_descent` guards the
   font side.
-  - **`NotationNote { start_beat, duration_beats, midi }`** (beats, not
+  - **`NotationNote { start_beat, duration_beats, midi, .. }`** (beats, not
     ticks or seconds) is the module's only input — it never touches a
     chart's tempo map or an editor's own tick resolution, so each of the
     three call sites converts its own time representation first: gameplay
     (`gameplay::music_score_bridge`) goes `ScheduledNote::time` (seconds)
     through `song::chart::seconds_to_tick`; the Song Editor
     (`song_editor::music_score_bridge`) just divides its own
-    already-tempo-independent `GridNote::tick` by `TICKS_PER_BEAT`. This
+    already-tempo-independent `GridNote::tick` by `TICKS_PER_BEAT`.
+    `highlighted` draws a note's own marks (head, stem, flag, dot,
+    accidental) in gold; the editor sets it for its selection, gameplay
+    never does. A beam stays white, since it belongs to its whole group. This
     is the same split `gameplay::metronome_overlay`/`song_editor::
     metronome` already use for the same reason (two genuinely different
     clocks/note models) — not duplicated logic, since the actual

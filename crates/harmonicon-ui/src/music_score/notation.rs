@@ -63,6 +63,9 @@ pub struct NotationNote {
     /// segment starts exactly where the previous one ended). `false` for a
     /// note that was never split, and for a split note's own first segment.
     pub tied_from_previous: bool,
+    /// Drawn in the highlight colour — the Song Editor's selected notes, so
+    /// the staff shows where in the song the grid's selection is.
+    pub highlighted: bool,
 }
 
 /// Splits `note` into one segment per bar it spans, so a note that would
@@ -90,6 +93,7 @@ pub fn split_at_bar_lines(note: NotationNote, beats_per_bar: f64) -> Vec<Notatio
             duration_beats: seg_end - pos,
             midi: note.midi,
             tied_from_previous: !segments.is_empty(),
+            highlighted: note.highlighted,
         });
         pos = seg_end;
     }
@@ -613,6 +617,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_highlighted_note_stays_highlighted_across_a_bar_line() {
+        let note = NotationNote {
+            start_beat: 3.0,
+            duration_beats: 2.0,
+            midi: 60,
+            tied_from_previous: false,
+            highlighted: true,
+        };
+        let segments = split_at_bar_lines(note, 4.0);
+        assert_eq!(segments.len(), 2);
+        assert!(segments.iter().all(|segment| segment.highlighted));
+    }
+
+    #[test]
     fn staff_step_places_e4_at_the_bottom_line() {
         assert_eq!(staff_step(64, Clef::Treble), 0); // E4 = MIDI 64
     }
@@ -736,6 +754,7 @@ mod tests {
             duration_beats: 0.5,
             midi,
             tied_from_previous: false,
+            highlighted: false,
         }
     }
 
@@ -823,6 +842,7 @@ mod tests {
             duration_beats: 0.25,
             midi: 64,
             tied_from_previous: false,
+            highlighted: false,
         };
         let b = beam_groups(&[sixteenth(0.0), sixteenth(0.25)], Clef::Treble);
         assert_eq!(b[0].unwrap().beams, 2);
@@ -843,6 +863,7 @@ mod tests {
                 duration_beats: 0.25,
                 midi: 64,
                 tied_from_previous: false,
+                highlighted: false,
             },
         ];
         assert_eq!(beam_groups(&ns, Clef::Treble)[0].unwrap().beams, 2);
@@ -872,6 +893,7 @@ mod tests {
                 duration_beats: gap,
                 midi: 64,
                 tied_from_previous: false,
+                highlighted: false,
             })
             .collect()
     }
@@ -920,6 +942,7 @@ mod tests {
             duration_beats: 0.01,
             midi: 64,
             tied_from_previous: false,
+            highlighted: false,
         });
         assert_eq!(pixels_per_beat(&notes, 9.0, 34.0, 200.0), 34.0);
     }
@@ -933,6 +956,7 @@ mod tests {
             duration_beats: 0.25,
             midi: 64,
             tied_from_previous: false,
+            highlighted: false,
         }));
         assert!(pixels_per_beat(&notes, 9.0, 34.0, 200.0) > 34.0);
     }
@@ -947,18 +971,21 @@ mod tests {
                 duration_beats: 1.0,
                 midi: 60,
                 tied_from_previous: false,
+                highlighted: false,
             },
             NotationNote {
                 start_beat: 0.0,
                 duration_beats: 1.0,
                 midi: 64,
                 tied_from_previous: false,
+                highlighted: false,
             },
             NotationNote {
                 start_beat: 1.0,
                 duration_beats: 1.0,
                 midi: 67,
                 tied_from_previous: false,
+                highlighted: false,
             },
         ];
         assert_eq!(pixels_per_beat(&notes, 9.0, 34.0, 200.0), 34.0);
@@ -983,6 +1010,7 @@ mod tests {
                 duration_beats: 1.0,
                 midi,
                 tied_from_previous: false,
+                highlighted: false,
             })
             .collect()
     }
@@ -1063,12 +1091,14 @@ mod tests {
                 duration_beats: 1.0,
                 midi: 66,
                 tied_from_previous: false,
+                highlighted: false,
             },
             NotationNote {
                 start_beat: 4.0,
                 duration_beats: 1.0,
                 midi: 66,
                 tied_from_previous: true,
+                highlighted: false,
             },
         ];
         assert_eq!(
@@ -1087,12 +1117,14 @@ mod tests {
                 duration_beats: 1.0,
                 midi: 66,
                 tied_from_previous: true,
+                highlighted: false,
             },
             NotationNote {
                 start_beat: 5.0,
                 duration_beats: 1.0,
                 midi: 65,
                 tied_from_previous: false,
+                highlighted: false,
             },
         ];
         assert_eq!(
@@ -1244,6 +1276,7 @@ mod tests {
             duration_beats: 0.5,
             midi,
             tied_from_previous: false,
+            highlighted: false,
         }
     }
 
@@ -1253,6 +1286,7 @@ mod tests {
             duration_beats,
             midi: 60,
             tied_from_previous: false,
+            highlighted: false,
         }
     }
 
@@ -1300,6 +1334,7 @@ mod tests {
                 duration_beats: 4.0,
                 midi: 67,
                 tied_from_previous: false,
+                highlighted: false,
             },
             4.0,
         );

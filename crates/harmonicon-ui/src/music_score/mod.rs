@@ -165,6 +165,11 @@ const ACCIDENTAL_SHARP_WIDTH_SP: f32 = 0.996;
 const ACCIDENTAL_NATURAL_WIDTH_SP: f32 = 0.664;
 const ACCIDENTAL_GAP_SP: f32 = 0.2;
 
+/// A highlighted note's colour — the Song Editor's selection. Gold like the
+/// tie and the gameplay karaoke line's sung words, so it reads as "this
+/// one" against the white of every other note.
+const HIGHLIGHT_COLOR: Color = Color::srgb(0.98, 0.80, 0.25);
+
 const CLEF_X: f32 = 8.0;
 /// Where the time signature sits, clear of the clef glyph's own width.
 const TIME_SIG_X: f32 = CLEF_X + 26.0;
@@ -820,6 +825,13 @@ fn spawn_note_glyphs(
     // Which way the stem goes — or would go, for a stemless whole note. A
     // tie is drawn on the other side, clear of it.
     let stem_up = beam.map_or(step < MIDDLE_LINE_STEP, |b| b.stem_up);
+    // A highlighted note's own marks take the highlight; a beam stays white,
+    // since it belongs to its whole group rather than to this note.
+    let ink = if note.highlighted {
+        HIGHLIGHT_COLOR
+    } else {
+        Color::WHITE
+    };
 
     // Which accidental (if any) is decided over the whole song by
     // `notation::accidentals`, since it depends on what the bar has already
@@ -844,7 +856,7 @@ fn spawn_note_glyphs(
             },
             LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
             FontHinting::Disabled,
-            TextColor(Color::WHITE),
+            TextColor(ink),
             MusicScoreNoteGlyph,
             crate::dialogs::font_fallback::SkipFontFallback,
         ));
@@ -865,7 +877,7 @@ fn spawn_note_glyphs(
         },
         LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
         FontHinting::Disabled,
-        TextColor(Color::WHITE),
+        TextColor(ink),
         MusicScoreNoteGlyph,
         crate::dialogs::font_fallback::SkipFontFallback,
     ));
@@ -920,7 +932,7 @@ fn spawn_note_glyphs(
             },
             LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
             FontHinting::Disabled,
-            TextColor(Color::WHITE),
+            TextColor(ink),
             MusicScoreNoteGlyph,
             crate::dialogs::font_fallback::SkipFontFallback,
         ));
@@ -955,7 +967,7 @@ fn spawn_note_glyphs(
                 height: Val::Px(stem_len_px),
                 ..default()
             },
-            BackgroundColor(Color::WHITE),
+            BackgroundColor(ink),
             MusicScoreNoteGlyph,
         ));
 
@@ -1030,7 +1042,7 @@ fn spawn_note_glyphs(
                 },
                 LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
                 FontHinting::Disabled,
-                TextColor(Color::WHITE),
+                TextColor(ink),
                 MusicScoreNoteGlyph,
                 crate::dialogs::font_fallback::SkipFontFallback,
             ));

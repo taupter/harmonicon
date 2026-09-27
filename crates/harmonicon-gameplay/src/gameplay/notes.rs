@@ -416,6 +416,7 @@ pub fn notes_to_notation(
                     / resolution as f64,
                 midi,
                 tied_from_previous: false,
+                highlighted: false,
             })
         })
         .flat_map(|note| harmonicon_ui::music_score::split_at_bar_lines(note, beats_per_bar))

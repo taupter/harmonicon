@@ -22,10 +22,14 @@ fn staff_beat(tick: f64, meter_map: &MeterMap) -> f64 {
     (tick + meter_map.segments()[0].phase_ticks as f64) / TICKS_PER_BEAT as f64
 }
 
+/// `note` as staff notes, split and tied at every bar line it crosses.
+/// `selected` highlights every segment, so a long selected note reads as
+/// selected wherever the staff has scrolled to.
 fn notation_segments(
     note: &super::state::GridNote,
     midi: u8,
     meter_map: &MeterMap,
+    selected: bool,
 ) -> Vec<NotationNote> {
     let start = note.tick as u64;
     let end = (note.tick + note.len.max(1)) as u64;
@@ -37,6 +41,7 @@ fn notation_segments(
             duration_beats: (tick - segment_start) as f64 / TICKS_PER_BEAT as f64,
             midi,
             tied_from_previous: !segments.is_empty(),
+            highlighted: selected,
         });
         segment_start = tick;
     }
@@ -45,6 +50,7 @@ fn notation_segments(
         duration_beats: (end - segment_start) as f64 / TICKS_PER_BEAT as f64,
         midi,
         tied_from_previous: !segments.is_empty(),
+        highlighted: selected,
     });
     segments
 }
@@ -55,7 +61,10 @@ fn notation_segments(
 /// A note whose hole/technique the current harp can't resolve is skipped,
 /// same as gameplay's bridge. The editor's meter map supplies every bar
 /// boundary, so notes crossing either an ordinary bar line or a meter change
-/// become tied segments instead of one oversized notehead.
+/// become tied segments instead of one oversized notehead. Selected notes
+/// are highlighted, so the staff shows where in the song the grid's
+/// selection is; a selection change is an `EditorState` change, so it
+/// rebuilds here like any edit.
 pub(super) fn sync_music_score(
     state: Res<EditorState>,
     mut notes: ResMut<MusicScoreNotes>,
@@ -72,7 +81,12 @@ pub(super) fn sync_music_score(
         .iter()
         .filter_map(|n| {
             let midi = note_midi(n, &harp)?;
-            Some(notation_segments(n, midi, &meter_map))
+            Some(notation_segments(
+                n,
+                midi,
+                &meter_map,
+                state.is_selected(n.id),
+            ))
         })
         .flatten()
         .collect();
@@ -131,7 +145,7 @@ mod tests {
     fn notation_splits_and_ties_across_meter_map_bars() {
         let map = MeterMap::new([(0, "4/4"), (48, "3/4")], TICKS_PER_BEAT as u32);
 
-        let segments = notation_segments(&note(36, 60), 60, &map);
+        let segments = notation_segments(&note(36, 60), 60, &map, false);
 
         assert_eq!(segments.len(), 3);
         assert_eq!(segments[0].duration_beats, 1.0);
@@ -147,17 +161,28 @@ mod tests {
         // One-beat pickup in 4/4: it is drawn as beat 4 of bar 0, so a note
         // on bar 1's downbeat lands on the staff's first bar line.
         let map = MeterMap::with_pickup([(0, "4/4")], TICKS_PER_BEAT as u32, 12);
-        let pickup = notation_segments(&note(0, 12), 60, &map);
-        let downbeat = notation_segments(&note(12, 12), 60, &map);
+        let pickup = notation_segments(&note(0, 12), 60, &map, false);
+        let downbeat = notation_segments(&note(12, 12), 60, &map, false);
         assert_eq!(pickup[0].start_beat, 3.0);
         assert_eq!(downbeat[0].start_beat, 4.0, "a whole bar from beat 0");
+    }
+
+    #[test]
+    fn a_selected_note_is_highlighted_in_every_segment() {
+        let map = MeterMap::new([(0, "4/4")], TICKS_PER_BEAT as u32);
+        // Crosses the bar line at 48: two tied segments, both highlighted.
+        let selected = notation_segments(&note(36, 24), 60, &map, true);
+        assert_eq!(selected.len(), 2);
+        assert!(selected.iter().all(|segment| segment.highlighted));
+        let other = notation_segments(&note(36, 24), 60, &map, false);
+        assert!(other.iter().all(|segment| !segment.highlighted));
     }
 
     #[test]
     fn notation_treats_an_off_bar_meter_change_as_a_boundary() {
         let map = MeterMap::new([(0, "4/4"), (42, "3/4")], TICKS_PER_BEAT as u32);
 
-        let segments = notation_segments(&note(36, 54), 60, &map);
+        let segments = notation_segments(&note(36, 54), 60, &map, false);
 
         let starts: Vec<_> = segments.iter().map(|segment| segment.start_beat).collect();
         assert_eq!(starts, vec![3.0, 3.5, 6.5]);
