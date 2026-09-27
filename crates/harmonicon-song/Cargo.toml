@@ -31,3 +31,8 @@ workspace = true
 # The shared MIDI event constructors, so tests can build real files rather
 # than checking in fixtures — same reason harmonicon-score enables them.
 harmonicon-core = { path = "../harmonicon-core", features = ["test-support"] }
+criterion = { workspace = true }
+
+[[bench]]
+name = "chart_validation"
+harness = false

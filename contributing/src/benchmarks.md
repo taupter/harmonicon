@@ -29,6 +29,7 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-jam` `backing` | backing stems, band answer, ending hit | Start / mid-session / session end |
 | `harmonicon-ui` `notation` | stem and beam roles, accidentals, tie lookup on short and long scores | staff window rebuild |
 | `harmonicon-audio` `waveform` | OGG/WAV decode to peaks, and reduction of existing PCM | song load / editor music change |
+| `harmonicon-song` `chart_validation` | JSON parse and cached-schema validation of bundled native charts | opening a `.harpchart` song |
 
 `CODE_ANALYSIS.md` records the baseline numbers and what each one means for
 the frame budget.
@@ -50,6 +51,11 @@ For harp mapping, a quick run took about 142 µs to resolve 64 pitches. The
 full `suggested_harp` search took about 0.9 ms for 256 notes and 7 ms for
 2,048 notes. This is an import-time cost; repeat with normal sampling before
 comparing an optimization.
+
+Native chart validation is smaller: a quick run on the largest bundled chart
+(58 KB) took about 0.26 ms to parse JSON and 0.29 ms to validate and
+deserialize the parsed value with the cached schema. This is a load-time
+regression check, not a likely startup bottleneck.
 
 ## Where a new bench goes
 
