@@ -1,5 +1,524 @@
 # Changelog
 
+## v0.0.13 — 2026-09-27
+
+- Highlight the Song Editor's selected notes on the staff
+- Put staff glyphs on their staff positions and ties between their notes
+- Play Guitar Pro repeats out, and stop stacking .gp bars on the first
+- Mark lesson nodes whose review is due
+- Apply technique buttons to the whole selection
+- Author lyrics in the Song Editor and document them
+- Show lyrics karaoke-style in scored play
+- Add lyrics to the chart format
+- Document pickups and repeats for players, and refresh the editor capture
+- Author repeats and endings in the Song Editor
+- Add repeat signs and endings to the chart format
+- Count pickups in gameplay and on the notation staff
+- Author pickups in the Song Editor
+- Add chart pickups to the format and the meter map
+- Correct the Song Editor arranging plan entry
+- Decide scored play's contextual panels in one tested function
+- Add chord, direction and latency metrics to note_bench
+- Open elective units early and branch the Rhythm Lab chain
+- Measure the curriculum's chokepoints with the unit gate applied
+- Count a forgiving practice streak and show it on the skill tree
+- Add a spaced Warm-up review queue to the skill tree
+- Show a mastery meter per track above the skill tree
+- State each training tier's name and goal before it starts
+- Reposition the skill tree on a toggle instead of rebuilding the page
+- Keep skill-tree units in place when a toggle rescrolls the canvas
+- Honour Reduced Motion in the skill tree's transitions
+- Benchmark score-file import with Criterion
+- Note that benchmark timings depend on the machine's power state
+- Render the harmonica synth 2.2x faster
+- Render the generated Jam backing off the main thread
+- Render the Song Editor's Play preview off the main thread
+- Lock criterion as a harmonicon-jam dev-dependency
+- Document the Criterion benchmarks and track the hitches they found
+- Benchmark the generated Jam band with Criterion
+- Benchmark scoring with Criterion
+- Benchmark core's live-path functions with Criterion
+- Benchmark the pitch detectors with Criterion
+- Benchmark the note-tail animator with Criterion
+- Cargo update
+- Accelerate NMF activation dot products with SimSIMD
+- Accelerate MPM autocorrelation with SimSIMD
+- Accelerate YIN lag differences with SimSIMD
+- Report detector time per chunk in offline benchmark
+- Reuse FFT peak storage and suppress harmonics in place
+- Reuse MPM lag buffer across audio chunks
+- Reuse YIN and pYIN analysis buffers
+- Find MPM pitch peaks without a candidate vector
+- Avoid averaging mono microphone samples
+- Select NMF pitches without a temporary vector
+- Reuse NMF scratch buffers across audio chunks
+- Update plugin architecture guide for current composition
+- Account for nested editor undo allocations
+- Validate lesson charts before loading editor state
+- Localize the calibration status and buttons
+- Record score crate review and crate pass completion
+- Record core crate review
+- Synthesize harmonica partials by recurrence from a reduced phase
+- Parse hole pitches from borrowed note names
+- Measure vibrato and wah rates in one allocation-free pass
+- Look up breath direction from a per-harp table in the note tracker
+- Record audio crate review
+- Leave an already-silent audio frame untouched
+- Record song crate review
+- Parse each loaded chart once, without cloning its JSON
+- Record platform crate review
+- Borrow Fluent arguments and skip needless bidi stripping
+- Return early from idle platform systems
+- Tick play time without marking the profile changed
+- Record harmonicon-ui system review
+- Update spectrogram visuals only when they move
+- Scroll the music staff instead of respawning it every frame
+- Stop menu scroll bars forcing a layout pass every frame
+- Skip run splitting and redundant font writes for plain labels
+- Repaint shared buttons only when their state changes
+- Record lessons crate review completion
+- Leave an idle skill tree untouched each frame
+- Build the lesson graph from borrowed manifests
+- Repaint only changed lesson widget cells
+- Share lesson widget stepper handlers
+- Record lessons crate root review
+- Trim historical welcome page commentary
+- Refresh tutorial overlay on locale change
+- Avoid unchanged theme picker writes
+- Localize song list artist subtitle
+- Record Play menu review
+- Avoid unchanged zoom slider updates
+- Record Options test review
+- Skip unchanged Options slider writes
+- Reuse microphone Options UI state
+- Avoid unchanged harmonica picker writes
+- Record Options page root review
+- Record mode selection review
+- Record main menu review
+- Trim repetitive Jam Session reset comments
+- Record generated Jam menu review
+- Record Help and About page review
+- Record harp-check test review
+- Skip unchanged harp-check asset and label writes
+- Make credits bob independent of frame duration
+- Keep calibration hit markers from respawning
+- Read artist song counts from sorted entries
+- Record menu page module review
+- Record shared menu scene review
+- Record menu routing review
+- Record menu crate entry-point reviews
+- Skip unchanged wait-freeze overlay updates
+- Record gameplay integration test review
+- Record results screen review
+- Avoid redundant pause menu UI writes
+- Record 3D gameplay test review
+- Record 3D gameplay setup review
+- Record coaching code review
+- Borrow call phrase inputs during synthesis setup
+- Reuse bending trace scratch storage
+- Record bending trainer test review
+- Reuse trainer harp and gate layout updates
+- Avoid redundant trainer layout UI writes
+- Update gesture labels only when phase changes
+- Reduce trainer feedback allocation and UI writes
+- Skip unchanged trainer progress bar writes
+- Skip unchanged trainer advanced readouts
+- Reuse dev autoplay output storage
+- Reduce adaptive difficulty scratch allocations
+- Fix clippy warnings
+- Increase maximum file size
+- Tick drill timers without tripping DrillState change detection
+- Give each trainer diagram cell a single colour writer
+- Leave idle metronome dots and harmonica cells untouched
+- Paint progress-bar note markers only on theme change or spawn
+- Refresh metronome and legend labels only on change or spawn
+- Show the chart meter in song info and quiet the countdown
+- Read the staff meter through chart_meter
+- Write HUD, beat guide and bar state only on change
+- Still the 3D harmonica groove under reduced motion
+- Skip unchanged note tail heights
+- Skip unchanged note and hole material writes
+- Collect detected pitches into reused storage
+- Spawn visible notes without per-frame collections
+- Reuse judge scratch storage across frames
+- Fix truncated and stale entries in gameplay notes
+- Make note_bench confusion order deterministic
+- Record Jam review completion
+- Fix Clippy lints in timeline overlay and harp check
+- Feed the Jam band every beat a long frame skips
+- Compare Jam label text without a taken reference
+- Shift humanized backing slots in place
+- Avoid temporary comping vectors
+- Avoid temporary Jam motif weights
+- Reuse Jam call state and skip idle UI writes
+- Borrow harp key in Jam position guide
+- Avoid idle Jam rhythm guide writes
+- Avoid idle Jam stem button updates
+- Trim Jam lesson documentation
+- Avoid per-frame Jam improv pitch set
+- Avoid per-frame Jam hole map allocation
+- Skip unchanged Jam guide UI writes
+- Reuse Jam session mute storage
+- Trim stale jam plugin documentation
+- Correct jam crate documentation
+- Complete editor source review inventory
+- Record editor test module review
+- Record selected metadata review
+- Record editor scoring settings review
+- Record editor save feedback review
+- Reuse meter maps while editing phrases
+- Reuse editor metadata field string storage
+- Record editor material review
+- Record editor loop settings review
+- Avoid idle lesson form UI writes
+- Skip unchanged editor legend visibility writes
+- Borrow harp layouts during chart serialization
+- Avoid idle debug recording UI writes
+- Avoid expected-note drag copies and idle UI writes
+- Record editor details field review
+- Avoid temporary annotation marker storage
+- Reuse meter maps in editor score bridge
+- Avoid temporary placement vectors in transposition
+- Trim editor pitch adapter history
+- Reduce MIDI import copies and picker formatting
+- Check waveform format before reading audio
+- Avoid idle editor audition state writes
+- Cache editor metronome meter maps
+- Reuse pitch storage while recording editor notes
+- Borrow pitch detections during editor practice
+- Skip unchanged editor playback UI writes
+- Trim editor transport documentation
+- Correct editor tool sidebar documentation
+- Record editor panel widget review
+- Skip unchanged editor panel display updates
+- Rebuild editor hole column only when needed
+- Skip unchanged editor form scrollbar writes
+- Avoid temporary touch vectors and idle scroll writes
+- Skip unchanged editor timeline overlay writes
+- Describe all editor timeline interactions
+- Find editor silence gaps without merged storage
+- Evict editor undo history without shifting snapshots
+- Reuse editor selection storage in metadata operations
+- Reserve clipboard paste target storage
+- Avoid idle grip writes and resize drag clones
+- Borrow editor drag state during pointer movement
+- Reuse editor grid snapshot storage
+- Trim stale editor note model documentation
+- Borrow meter signatures while building editor maps
+- Correct song editor module documentation
+- Correct song editor crate documentation
+- Borrow harp chart data during cost calculation
+- Borrow model names and reuse preview traversal storage
+- Avoid repeated calibration summary allocations
+- Reuse credits scene traversal storage
+- Keep tutorial overlay stable between steps
+- Describe generated jam backing as looping
+- Localize the microphone Retry control
+- Skip idle volume slider updates
+- Trim stale welcome page documentation
+- Sort borrowed song entries in the picker
+- Correct menu shell documentation
+- Update lesson tempo labels only when BPM changes
+- Avoid temporary vectors in lesson tree setup
+- Skip idle lesson tree transition work
+- Share lesson edge materials by style and direction
+- Reuse storage in lesson tree ordering sweeps
+- Prepare version 0.0.12 release metadata
+- Avoid allocations for unchanged pitch logs
+- Correct stale architecture descriptions
+- Avoid idle note editor state writes
+- Skip idle hole editor visual updates
+- Reuse DSP scratch buffers during pitch analysis
+- Start file-by-file code analysis ledger
+- Point synth and MIDI references at harmonicon-core; widen the allowlist
+- Correct two stale descriptions of shipped work
+- Reduce PLAN.md to open work only
+- Bring the Bending Trainer validation checklist up to date
+- Scope Bending Trainer validation to the harps on hand
+- Rebuild the Bending Trainer around the bend path
+- Give the Bending Trainer drill memory and precision controls
+- Add focused bend practice shapes
+- Complete Bending Trainer pitch feedback
+- Show live Bending Trainer pitch paths
+- Reject unstable Bending Trainer input
+- Make Bending Trainer feedback trustworthy
+- Plan a control-first Bending Trainer
+- Defer the jam listening acceptance pass
+- Add generated band listening previews
+- Document the generated band listening pass
+- Seed generated jam performances
+- Give generated jams a full-band ending
+- Humanize generated band performances
+- Add playable note transposition to the editor
+- Differentiate generated band timbres
+- Finish the listening-first jam stage
+- Let the generated band listen without grading
+- Make call-and-response sound like phrasing
+- Make Jam Session listening first
+- Add band energy to generated jams
+- Shape generated jams across four choruses
+- Add phrase fills and turnarounds
+- Model generated groove roles together
+- Add generated rhythm-section stems
+- Keep generated jams flowing between choruses
+- Plan a feel-first Jam Session pass
+- Update the plan
+- Read compressed MusicXML and sniff XML imports
+- Localize the enum comboboxes by mapping the pick back by index
+- Mark bring-your-own-harp/songs as shipped in ROADMAP.md
+- Show the player the harp they are holding, everywhere
+- Localize the drill explanation, and follow a const in the literal lint
+- Split the lesson reader's widget runtime from its page, emptying the allowlist
+- Split the Bending Trainer's drill from its screen
+- Split Play 3D into scene setup and the note path
+- Split the Options page one section per file
+- Point PLAN.md's next candidate past the first-run flow
+- Chain the welcome steps, and make the page re-runnable
+- Close the scored-gameplay pass
+- Localize what the pt-BR and es-ES tours found in English
+- Add a Reduced Motion setting ahead of anything that would need one
+- Follow a `let` in the literal lint, and drop `? position`
+- Record Phase 2 as done, and how a headless run gets hits
+- Show each judgment on the note itself, and the hold as it happens
+- Rebuild the results screen around the coaching functions
+- Read a finished run as coaching, and let a loop be entered from outside
+- Mark where the gameplay pass resumes
+- Give the A–B loop range ends
+- Reset the wait-freeze state at song start
+- Name the practice aids that are on, in the live HUD
+- Make wait-for-note a coaching card at the hit line
+- Reach every screen from the shell, and close what the 0.20 port left open
+- Record what the 0.20 port left open
+- Keep the bsn child-list migration script
+- Compile every shader in a test
+- Let a menu page shrink under oversized content
+- Fix wesl file
+- Continue the bevy 0.20 port.
+- Start to port to bevy 0.20
+- Bendor in bevy fluent.
+- Give both play modes the same HUD panel
+- Make the hit line span the highway it judges
+- Show the pulse on the 2D highway
+- Move the song's details off the highway
+- Put one shared score readout at the hit line
+- Give the pause menu real surfaces, and three groups
+- Add a BRP driver script and take the scored-play baseline
+- Caption a wrong-pitch miss with the tab it heard
+- Say why a note failed, not just that it did
+- Show only techniques used by the chart
+- Stop inventing blues form during scored play
+- Plan the scored gameplay experience pass
+- Warn editor authors about unscorable chords
+- Remove the completed song editor audit plan
+- Finish the song editor documentation audit
+- Edit song descriptions as multiline text
+- Pin editor instrument limits to the chart schema
+- Document immutable published history
+- Close the semantic round-trip audit
+- Preserve chart authorship separately from artist
+- Derive bend depth from the reeds, not a Richter table
+- Update the song editor architecture guide
+- Verify bundled charts through editor round trips
+- Clarify unsupported modifier combinations
+- Edit loop settings in Details
+- Edit combo scoring in Details
+- Extract the Details field registry
+- Edit scoring windows in Details
+- Edit song source and licensing metadata
+- Edit song feel in Details
+- Edit song difficulty in Details
+- Keep timing maps aligned when removing ranges
+- Accept meter maps in the song editor
+- Import MIDI meter changes
+- Follow meter changes in editor notation
+- Follow meter changes in the editor metronome
+- Author meter changes from the timeline
+- Lay out the editor's bars from the meter map
+- Make the Details form song-only
+- Split the toolbar into a document column and a note column
+- Edit a phrase's labels from its marker on the annotation lane
+- Plan one editing surface per kind of song-editor data
+- Represent time signature maps in the editor
+- Show phrase annotations above the chart
+- Cargo upgrade
+- Record the metadata alignment commit in the audit plan
+- Carry note and phrase metadata through every bulk edit
+- Mark custom layout preservation done in the audit plan
+- Preserve a chart's custom harmonica layout
+- Document the single meter source
+- Read a chart's meter in one place
+- Document remaining song editor audit plan
+- Preserve non-grid song chart settings
+- Support country-tuned harmonicas in editor
+- Preserve expression intensity in song editor
+- Author groove annotations in song editor
+- Author tongue-block splits in song editor
+- Author call-and-response phrases in song editor
+- Author phrase and chord markers from details panel
+- Add dedicated chord markers to song charts
+- Document the meter picker and tick-based ruler
+- Lay out bars in ticks so odd meters land right
+- Pick the meter from a list instead of typing it
+- Document the outside-the-note resize grips
+- Move the resize handles outside the selected note
+- Move the playback visibility comment onto playback
+- Keep a note's move zone reachable at every length
+- Update editor notes for the snap-driven grid background
+- Draw the editor grid background the active snap mode can reach
+- Track oversized lesson reader in design budget
+- Score MIDI keys against selected harp layout
+- Support alternate diatonic tunings in editor
+- Support 16-hole chromatic charts in editor
+- Report MIDI import playability issues
+- Make song editor imports round-trip safe
+- Harden lesson widget layout at narrow widths
+- Validate lesson phrase looper notation
+- Add phrase loopers to advanced technique lessons
+- Add widgets to foundational blowing lessons
+- Add metronomes to expression lessons
+- Add metronomes to tongue-block drills
+- Add widgets to technique control lessons
+- Add phrase loopers to navigation lessons
+- Add phrase loopers to scale lessons
+- Localize bundled phrase looper headings
+- Localize lesson phrase looper headings
+- Reject accented rests in lesson patterns
+- Add phrase loopers to harmony lessons
+- Add phrase loopers to chromatic studies
+- Add rhythm aids to accompaniment lessons
+- Add phrase loopers to ornament lessons
+- Add patterns to foundational rhythm lessons
+- Complete lesson rhythm widget plan
+- Document lesson rhythm widgets
+- Add phrase loopers to lick lessons
+- Add phrase loopers to lesson manifests
+- Add reusable phrase looper widget
+- Add rhythm patterns to rhythm lab lessons
+- Add rhythm patterns to lesson manifests
+- Add reusable rhythm pattern widget
+- Plan lesson rhythm widgets
+- Add metronome to train whistle lesson
+- Add metronome to slow practice lesson
+- Document advanced lesson widgets
+- Test advanced lesson widget manifests
+- Add section map to form listening lesson
+- Add reusable lesson form map widget
+- Add position circle to circle jam lesson
+- Add accelerating metronome to train rolling
+- Add tempo schedules to lesson metronomes
+- Add triplet metronome to subdivision lesson
+- Add triplet pulse mode to lesson metronome
+- Add metronome to sixteenth-note lesson
+- Add metronome to syncopation lesson
+- Add metronome to articulation lesson
+- Add metronome to train chug lesson
+- Add metronome to pulse lesson
+- Add form widgets to trading fours lesson
+- Add metronome to chord rhythm lesson
+- Add shuffle metronome to swing lesson
+- Add form widgets to question-answer lesson
+- Add form widgets to chord-tone improvisation
+- Add form widgets to licks over changes
+- Add metronome to tempo stability lesson
+- Refresh stale lesson counts in doc comments
+- Document keyboard navigation and drag scrolling
+- Document the whole curriculum in the user guide
+- Document the lesson widgets and the skill tree
+- Describe the crate split in the architecture book
+- Add interactive circle to transposition lesson
+- Add focused circles to position lessons
+- Add jazz blues form widgets
+- Add quick-change form widgets
+- Add minor blues form widgets
+- Add feel metronome to rhythm comparison
+- Add shuffle metronome to feel lesson
+- Add form widgets to turnaround lesson
+- Remove stale metronome helper comment
+- Keep lesson grid state in sync
+- Complete lesson widget lifecycle controls
+- Add lesson widgets to rhythm curriculum
+- Add interactive lesson widget controls
+- Extract shared metronome timing model
+- Extract reusable twelve bar grid widget
+- Add declarative lesson widget manifests
+- Record completed lesson tree navigation work
+- Add a next lesson locator to the skill tree
+- Restore the lesson tree viewport on return
+- Distinguish touch taps from scroll gestures
+- Prevent scroll gestures from activating buttons
+- Verify Android runtime assets in release APKs
+- Document Android asset revision requirements
+- Give lesson titles a backdrop so edges can't cut through them
+- Draw tree edges in a shader so they clip correctly
+- Pan every scroll area by dragging, not just the lesson tree
+- Report elective-only units as progress, not as a gate
+- Give every bundled lesson track its own colour
+- Enable touch panning in the lesson tree
+- Close the completed lesson curriculum plan
+- Round-trip lesson scales in the editor
+- Add guided practice curriculum
+- Add musicianship curriculum
+- Expand chromatic harmonica curriculum
+- Add accompaniment electives
+- Refresh remaining lesson roadmap
+- Add vibrato and dynamics electives
+- Add playable ornament electives
+- Add missing lesson track translations
+- Add tongue-block articulation electives
+- Add overblow and overdraw electives
+- Add aural ear training lessons
+- Add applied position landing drills
+- Add advanced rhythm curriculum
+- Add high-register blow bend training
+- Add more lessons
+- Create optional lessons
+- Close the lesson tree implementation plan
+- Split lesson tree transitions from rendering
+- Animate lesson units into compact layouts
+- Disable lessons while their unit closes
+- Clean lesson transitions after rescans
+- Expose lesson unit expansion to accessibility
+- Anchor lesson viewport during unit toggles
+- Compact collapsed lesson units
+- Update lesson tree plan after layout pass
+- Improve lesson readability on the graph
+- Record the pitch-filter behaviour in the validation docs
+- Give each frame-count threshold one owner
+- Pin the direction tracker's blind spot in a test
+- Share one rule for which harp decides the valid notes
+- Judge every note of a frame at one instant
+- Release a detected pitch on the first silent frame
+- Add animated lesson unit collapse
+- Extract lesson UI into its own crate
+- Add harmonica-aware polyphonic pitch filtering
+- Draw the curriculum as units of lessons, and drop the list view
+- Gate the curriculum on units, not just on prerequisites
+- Bound audio catch-up work and preserve capture timing through backlogs
+- Share adaptive note rebuilding across gameplay presentations
+- Rebuild the editor grid only when rendered content changes
+- Keep microphone sample callbacks within a fixed buffer inventory
+- Stream waveform summaries and decode editor previews off the ECS thread
+- Avoid redundant undo snapshots and bound retained history memory
+- Run microphone processing before Update consumers
+- Clear stale pitch detection after capture failure or timeout
+- Reject malformed and unsupported PCM WAV input
+- Prevent expired note visuals from respawning
+- Spread the skill tree so no column stacks more than four deep
+- Smooth the tree's edges, thin its fan-out, and label its nodes
+- Lay the skill tree out as a tree, not a grid
+- Draw the curriculum as a skill tree
+- Share the cargo permission allowlist with the repo
+- Update libraries
+- Make trainings playable and recorded
+- Generate bend drills, and fix the ladder by listening to it
+- Write the unbent reed for an imported bend, not the bent pitch
+- Record what lessons::graph is load-bearing about
+- Add lessons::graph, and correct the plan it came from
+- Make tree nodes circular, with room for lesson art
+- Fix phrasing the track redistribution left behind
+- Even out the tracks by distributing improvisation
+- Plan the training tree: technique DAG, trainings, motivation
+
 ## v0.0.12 — 2026-09-23
 
 - Point synth and MIDI references at harmonicon-core; widen the allowlist
