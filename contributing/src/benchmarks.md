@@ -31,6 +31,7 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-audio` `waveform` | OGG/WAV decode to peaks, and reduction of existing PCM | song load / editor music change |
 | `harmonicon-song` `chart_validation` | JSON parse and cached-schema validation of bundled native charts | opening a `.harpchart` song |
 | `harmonicon-bench` `midi_tempo` | MIDI note extraction with 1, 64 or 256 tempo points | opening a tempo-changing MIDI song |
+| `harmonicon-gameplay` `adaptive_rebuild` | carry scored note state across a mid-song difficulty change | pause-menu adaptive resync |
 
 `CODE_ANALYSIS.md` records the baseline numbers and what each one means for
 the frame budget.
@@ -61,6 +62,11 @@ regression check, not a likely startup bottleneck.
 MIDI extraction from a synthetic 2,048-note part took about 0.13 ms with one
 tempo point and 1.25 ms with 256 tempo points in a quick run. The denser map
 costs more because both ends of every note are converted to absolute time.
+
+The adaptive state transfer took about 57 µs for 500 matching notes and
+1.83 ms for 3,000; adding a newly unlocked note after every fourth old note
+raised the 3,000-note case to about 2.95 ms. This happens on a manual
+mid-song adaptive change, not during ordinary frames.
 
 ## Where a new bench goes
 

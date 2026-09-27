@@ -52,6 +52,7 @@ pub use harmonicon_core::scoring::{
 };
 
 pub use adaptive_difficulty::AdaptiveDifficulty;
+pub use adaptive_difficulty::carry_over_note_state;
 pub use bars::*;
 pub use clock::*;
 pub use gameplay_2d::HIT_H_PCT;

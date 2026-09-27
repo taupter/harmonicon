@@ -25,6 +25,10 @@ name = "note_tails"
 harness = false
 
 [[bench]]
+name = "adaptive_rebuild"
+harness = false
+
+[[bench]]
 name = "judge"
 harness = false
 
