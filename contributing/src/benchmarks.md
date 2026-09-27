@@ -23,6 +23,7 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-bench` `detectors` | `pitch_detect::analyze` per algorithm, warm and fresh `FftState` | every audio hop |
 | `harmonicon-bench` `core_hot_paths` | `HarmonicaNoteTracker::update`, `tick_to_seconds`/`seconds_to_tick`, `synth::render_pcm` | every hop / every frame / on demand |
 | `harmonicon-bench` `score_import` | MIDI parse, track note extraction, all-track harmonica conversion on two bundled files | opening an imported song |
+| `harmonicon-bench` `harp_mapping` | key and harp selection, strict pitch-to-hole mapping | score import / live pitch event |
 | `harmonicon-gameplay` `judge` | `score_notes`, `build_scheduled_notes` | every frame / on a note-list rebuild |
 | `harmonicon-gameplay` `note_tails` | `animate_note_tails` with the asset plugin | every frame |
 | `harmonicon-jam` `backing` | backing stems, band answer, ending hit | Start / mid-session / session end |
@@ -44,6 +45,11 @@ the bundled example-song OGG at about 350 ms, including decoding and peak
 extraction. A generated 60-second mono WAV took about 9 ms; reducing its PCM
 after decoding took about 1.1 ms. The OGG path runs during asset loading or
 on the editor's worker, so these are load costs rather than frame costs.
+
+For harp mapping, a quick run took about 142 µs to resolve 64 pitches. The
+full `suggested_harp` search took about 0.9 ms for 256 notes and 7 ms for
+2,048 notes. This is an import-time cost; repeat with normal sampling before
+comparing an optimization.
 
 ## Where a new bench goes
 

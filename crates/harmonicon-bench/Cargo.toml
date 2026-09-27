@@ -36,5 +36,9 @@ harness = false
 name = "score_import"
 harness = false
 
+[[bench]]
+name = "harp_mapping"
+harness = false
+
 [lints]
 workspace = true
