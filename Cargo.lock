@@ -3688,6 +3688,7 @@ dependencies = [
  "harmonicon-core",
  "harmonicon-dsp",
  "harmonicon-score",
+ "midly",
  "serde_json",
 ]
 

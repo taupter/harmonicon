@@ -30,6 +30,7 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-ui` `notation` | stem and beam roles, accidentals, tie lookup on short and long scores | staff window rebuild |
 | `harmonicon-audio` `waveform` | OGG/WAV decode to peaks, and reduction of existing PCM | song load / editor music change |
 | `harmonicon-song` `chart_validation` | JSON parse and cached-schema validation of bundled native charts | opening a `.harpchart` song |
+| `harmonicon-bench` `midi_tempo` | MIDI note extraction with 1, 64 or 256 tempo points | opening a tempo-changing MIDI song |
 
 `CODE_ANALYSIS.md` records the baseline numbers and what each one means for
 the frame budget.
@@ -56,6 +57,10 @@ Native chart validation is smaller: a quick run on the largest bundled chart
 (58 KB) took about 0.26 ms to parse JSON and 0.29 ms to validate and
 deserialize the parsed value with the cached schema. This is a load-time
 regression check, not a likely startup bottleneck.
+
+MIDI extraction from a synthetic 2,048-note part took about 0.13 ms with one
+tempo point and 1.25 ms with 256 tempo points in a quick run. The denser map
+costs more because both ends of every note are converted to absolute time.
 
 ## Where a new bench goes
 
