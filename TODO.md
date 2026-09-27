@@ -37,10 +37,11 @@ See `ROADMAP.md`'s 1.0 section for the bar and `PLAN.md` for the order.
 - [ ] **Tab timing is reconstructed, and only round-trip-tested.** The
   `guitarpro` crate ships no fixtures, so `guitar_pro`'s measure/beat
   placement is verified against songs this codebase writes itself plus an
-  in-memory model — not against a file Guitar Pro produced. Repeats
-  (`repeat_open`/`repeat_close`/`repeat_alternative`) are read but *not
-  honoured*: a tab that repeats a bar plays it once. Worth revisiting with a
-  real tab in hand.
+  in-memory model — not against a file Guitar Pro produced. Repeats and
+  alternate endings are played out, but the pass count of a repeat played
+  three or more times is a guess: the `guitarpro` crate's readers disagree
+  on what `repeat_close` counts (`guitar_pro::repeats_from_marks`). Worth
+  revisiting with a real tab in hand.
 
 ## Mobile (post-1.0)
 

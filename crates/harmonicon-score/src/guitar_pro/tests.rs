@@ -452,3 +452,144 @@ fn only_a_musicxml_root_element_reads_as_a_score() {
     ));
     assert!(!looks_like_musicxml(b""));
 }
+
+// ── Repeats ──────────────────────────────────────────────────────────────────
+
+/// One 4/4 bar's marks at bar `index` (3840 ticks a bar).
+fn bar(index: u64, open: bool, close: i8, alternative: u8) -> MeasureMarks {
+    MeasureMarks {
+        start: index * 3840,
+        end: (index + 1) * 3840,
+        open,
+        close,
+        alternative,
+    }
+}
+
+#[test]
+fn a_close_without_an_open_repeats_from_the_top() {
+    let repeats = repeats_from_marks(&[
+        bar(0, false, -1, 0),
+        bar(1, false, 1, 0),
+        bar(2, false, -1, 0),
+    ]);
+    assert_eq!(repeats.len(), 1);
+    assert_eq!((repeats[0].start_tick, repeats[0].end_tick), (0, 2 * 3840));
+    assert_eq!(repeats[0].passes(), 2, "one repeat is two passes");
+}
+
+#[test]
+fn first_and_second_endings_attach_to_their_repeat() {
+    // |: A | B | 1. C :| 2. D | E
+    let repeats = repeats_from_marks(&[
+        bar(0, true, -1, 0),
+        bar(1, false, -1, 0),
+        bar(2, false, 1, 0b01),
+        bar(3, false, -1, 0b10),
+        bar(4, false, -1, 0),
+    ]);
+    assert_eq!(repeats.len(), 1);
+    let endings: Vec<(u64, u64, Vec<u32>)> = repeats[0]
+        .endings
+        .iter()
+        .map(|e| (e.start_tick / 3840, e.end_tick / 3840, e.passes.clone()))
+        .collect();
+    assert_eq!(endings, vec![(2, 3, vec![1]), (3, 4, vec![2])]);
+}
+
+#[test]
+fn a_multi_bar_ending_is_one_ending() {
+    let repeats = repeats_from_marks(&[
+        bar(0, true, -1, 0),
+        bar(1, false, -1, 0b01),
+        bar(2, false, 1, 0b01),
+    ]);
+    assert_eq!(repeats[0].endings.len(), 1);
+    assert_eq!(repeats[0].endings[0].start_tick, 3840);
+    assert_eq!(repeats[0].endings[0].end_tick, 3 * 3840);
+}
+
+#[test]
+fn a_repeated_bar_is_played_again_with_its_endings() {
+    // |: bar 1 | 1. bar 2 :| 2. bar 3 |, one quarter note per bar at 120.
+    let mut song = song_of(vec![Track {
+        name: "Harmonica".to_string(),
+        strings: standard_tuning(),
+        measures: vec![
+            unplaced_measure(0, &[(1, 0)]),
+            unplaced_measure(1, &[(1, 2)]),
+            unplaced_measure(2, &[(1, 4)]),
+        ],
+        ..Default::default()
+    }]);
+    song.measure_headers[0].repeat_open = true;
+    song.measure_headers.push(MeasureHeader {
+        repeat_close: 1,
+        repeat_alternative: 0b01,
+        ..Default::default()
+    });
+    song.measure_headers.push(MeasureHeader {
+        repeat_alternative: 0b10,
+        ..Default::default()
+    });
+    let score = GpScore::from_song(song, ScoreFormat::GuitarPro);
+    let notes = score.notes(0).unwrap();
+    let played: Vec<(f64, u8)> = notes.iter().map(|n| (n.start_secs, n.midi)).collect();
+    // A bar of 4/4 at 120 is two seconds: bar 1, 1st ending, bar 1 again,
+    // then the 2nd ending.
+    assert_eq!(played, vec![(0.0, 64), (2.0, 66), (4.0, 64), (6.0, 68)]);
+}
+
+#[test]
+fn a_repeat_survives_a_gp7_round_trip() {
+    // The crate's own GPIF reader, not the in-memory model: the marks have
+    // to come back out of a real container for any of this to matter.
+    let mut song = song_of(vec![Track {
+        name: "Harmonica".to_string(),
+        strings: standard_tuning(),
+        measures: vec![
+            unplaced_measure(0, &[(1, 0)]),
+            unplaced_measure(1, &[(1, 2)]),
+        ],
+        ..Default::default()
+    }]);
+    song.measure_headers[0].repeat_open = true;
+    song.measure_headers[0].repeat_close = 1;
+    song.measure_headers.push(MeasureHeader::default());
+    let bytes = song.write_gp().expect("failed to write a .gp file");
+    let score = crate::parse_import("gp", bytes).unwrap();
+    let pitches: Vec<u8> = score.notes(0).unwrap().iter().map(|n| n.midi).collect();
+    assert_eq!(pitches, vec![64, 64, 66], "the first bar is played twice");
+}
+
+#[test]
+fn a_gp7_file_keeps_each_bar_in_its_place() {
+    // The `.gp`/`.gpx` reader leaves every measure's `header_index` at 0;
+    // trusting it stacked the whole tune on the first bar. Pitches alone
+    // (as `round_trip` checks) can't see that — only the times can.
+    let mut song = song_of(vec![Track {
+        name: "Harmonica".to_string(),
+        strings: standard_tuning(),
+        measures: vec![
+            unplaced_measure(0, &[(1, 0)]),
+            unplaced_measure(1, &[(1, 2)]),
+            unplaced_measure(2, &[(1, 4)]),
+        ],
+        ..Default::default()
+    }]);
+    song.measure_headers.push(MeasureHeader::default());
+    song.measure_headers.push(MeasureHeader::default());
+    for (extension, bytes) in [
+        ("gp", song.write_gp().unwrap()),
+        ("gpx", song.write_gpx().unwrap()),
+    ] {
+        let score = crate::parse_import(extension, bytes).unwrap();
+        let starts: Vec<f64> = score
+            .notes(0)
+            .unwrap()
+            .iter()
+            .map(|n| n.start_secs)
+            .collect();
+        assert_eq!(starts, vec![0.0, 2.0, 4.0], ".{extension}");
+    }
+}

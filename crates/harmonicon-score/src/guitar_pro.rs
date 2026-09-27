@@ -27,10 +27,19 @@
 //! Lengths are then clamped to the next onset in the track, so a tuplet or a
 //! dotted figure can't overrun the note after it — which also means the
 //! adapter never has to be certain about tuplet arithmetic.
+//!
+//! **Repeats are played out**, like every [`ScoreFile`]: the notes come back
+//! in performance order. The measure headers' repeat signs and alternate
+//! endings become `harmonicon_core` [`Repeat`]s ([`repeats_from_marks`]),
+//! and [`harmonicon_core::repeats::spans`] — the same expansion the song
+//! loader runs on a chart — says which written bars play when.
 
 use guitarpro::Song as GpSong;
 use guitarpro::model::legacy::key_signature::Duration as GpDuration;
 use guitarpro::{Beat, NoteType, Track as GpTrack};
+
+use harmonicon_core::chart::{Ending, Repeat};
+use harmonicon_core::repeats::{MAX_PASSES, spans};
 
 use crate::{ScoreError, ScoreFile, ScoreFormat, ScoreNote, ScoreTrack};
 
@@ -59,6 +68,8 @@ pub struct GpScore {
     /// position — without it every song would begin one beat late.
     origin: i64,
     time_signature: (u8, u8),
+    /// The tab's repeat signs, in ticks from [`origin`](Self::origin).
+    repeats: Vec<Repeat>,
 }
 
 impl GpScore {
@@ -116,6 +127,7 @@ impl GpScore {
             .unwrap_or(0);
         let measure_starts = measure_starts(&song, origin);
         let tempo_map = build_tempo_map(&song, &measure_starts, origin);
+        let repeats = repeats_from_marks(&measure_marks(&song, &measure_starts, origin));
         let time_signature = song
             .measure_headers
             .first()
@@ -146,6 +158,7 @@ impl GpScore {
             measure_starts,
             origin,
             time_signature,
+            repeats,
         }
     }
 
@@ -187,10 +200,15 @@ impl GpScore {
     fn placed_beats<'a>(&self, track: &'a GpTrack) -> Vec<(i64, f64, &'a Beat)> {
         let mut placed = Vec::new();
         let mut fallback_start = self.origin;
-        for measure in &track.measures {
+        // A measure's place in its track is its header's: Guitar Pro keeps
+        // one measure per header in every track. `Measure::header_index`
+        // says the same where it's set, but the `.gp`/`.gpx` reader leaves
+        // it at 0 on every measure, which stacked a whole tune on its first
+        // bar.
+        for (header, measure) in track.measures.iter().enumerate() {
             let base = self
                 .measure_starts
-                .get(measure.header_index)
+                .get(header)
                 .copied()
                 .unwrap_or(fallback_start);
             let mut measure_end = base;
@@ -244,6 +262,22 @@ impl ScoreFile for GpScore {
         onsets.sort_unstable();
         onsets.dedup();
 
+        // Each written stretch the performance plays, with how far its
+        // performed seconds sit from its written ones — the time every
+        // earlier stretch took, whatever tempo it was at.
+        let written_secs = |tick: u64| self.seconds_at(self.origin + tick as i64);
+        let mut elapsed = 0.0;
+        let played: Vec<_> = spans(&self.repeats)
+            .into_iter()
+            .map(|span| {
+                let shift = elapsed - written_secs(span.written_start);
+                if span.written_end != u64::MAX {
+                    elapsed += written_secs(span.written_end) - written_secs(span.written_start);
+                }
+                (span, shift)
+            })
+            .collect();
+
         let mut notes = Vec::new();
         for &(start, written, beat) in &placed {
             let next = onsets
@@ -255,15 +289,21 @@ impl ScoreFile for GpScore {
             let length = written.min(next).max(1.0);
             let start_secs = self.seconds_at(start);
             let duration_secs = self.seconds_at(start + length.round() as i64) - start_secs;
-            for note in &beat.notes {
-                let Some(midi) = pitch_of(note, source) else {
+            let tick = (start - self.origin).max(0) as u64;
+            for (span, shift) in &played {
+                if !(span.written_start..span.written_end).contains(&tick) {
                     continue;
-                };
-                notes.push(ScoreNote {
-                    start_secs,
-                    duration_secs: duration_secs.max(0.01),
-                    midi,
-                });
+                }
+                for note in &beat.notes {
+                    let Some(midi) = pitch_of(note, source) else {
+                        continue;
+                    };
+                    notes.push(ScoreNote {
+                        start_secs: start_secs + shift,
+                        duration_secs: duration_secs.max(0.01),
+                        midi,
+                    });
+                }
             }
         }
         notes.sort_by(|a, b| {
@@ -393,6 +433,112 @@ fn measure_starts(song: &GpSong, origin: i64) -> Vec<i64> {
         at += (whole * numerator / denominator).round() as i64;
     }
     starts
+}
+
+/// One measure's repeat marks, positioned in ticks from the origin.
+#[derive(Clone, Copy, Debug, Default)]
+struct MeasureMarks {
+    start: u64,
+    end: u64,
+    /// A start-repeat sign on this measure's opening bar line.
+    open: bool,
+    /// An end-repeat sign on its closing one, above zero when present.
+    close: i8,
+    /// The passes this measure is an alternate ending for, bit `n` being
+    /// pass `n + 1`.
+    alternative: u8,
+}
+
+fn measure_marks(song: &GpSong, measure_starts: &[i64], origin: i64) -> Vec<MeasureMarks> {
+    song.measure_headers
+        .iter()
+        .enumerate()
+        .map(|(index, header)| {
+            let at = |i: usize| {
+                measure_starts
+                    .get(i)
+                    .map(|&tick| (tick - origin).max(0) as u64)
+            };
+            let start = at(index).unwrap_or(0);
+            // The last bar has no successor to end at; its own length is
+            // the next start `measure_starts` would have produced.
+            let end = at(index + 1).unwrap_or_else(|| {
+                let whole = TICKS_PER_QUARTER * 4.0;
+                let numerator = f64::from(header.time_signature.numerator.max(1));
+                let denominator =
+                    f64::from(denominator_of(&header.time_signature.denominator).max(1));
+                start + (whole * numerator / denominator).round() as u64
+            });
+            MeasureMarks {
+                start,
+                end,
+                open: header.repeat_open,
+                close: header.repeat_close,
+                alternative: header.repeat_alternative,
+            }
+        })
+        .collect()
+}
+
+/// The repeats a tab's measure marks describe.
+///
+/// An end-repeat sign goes back to the last start-repeat sign, or to the
+/// start of the piece (or the previous end-repeat) when there isn't one.
+/// Consecutive measures sharing an alternate-ending mask are one ending,
+/// belonging to the repeat it sits inside or starts right after — so the
+/// usual "1." bar before the sign and "2." bar after it both land.
+///
+/// **The pass count is a guess past two.** The `guitarpro` crate's readers
+/// disagree about `repeat_close`: the binary one keeps the file's byte, one
+/// converter stores the *extra* plays, another the total. Every reading
+/// agrees a close sign means at least one repeat, so the count is the
+/// value but never under two: exact for the everyday repeat-once, and for
+/// three or more it may be one pass out until a real tab settles which
+/// convention a given format uses.
+fn repeats_from_marks(marks: &[MeasureMarks]) -> Vec<Repeat> {
+    let mut repeats = Vec::new();
+    let mut open_at = 0;
+    for mark in marks {
+        if mark.open {
+            open_at = mark.start;
+        }
+        if mark.close > 0 {
+            repeats.push(Repeat {
+                start_tick: open_at,
+                end_tick: mark.end,
+                times: Some((mark.close as u32).clamp(2, MAX_PASSES)),
+                endings: Vec::new(),
+            });
+            open_at = mark.end;
+        }
+    }
+
+    let mut endings: Vec<Ending> = Vec::new();
+    for mark in marks.iter().filter(|m| m.alternative != 0) {
+        let passes: Vec<u32> = (0..8)
+            .filter(|bit| mark.alternative & (1 << bit) != 0)
+            .map(|bit| bit + 1)
+            .collect();
+        match endings.last_mut() {
+            Some(last) if last.end_tick == mark.start && last.passes == passes => {
+                last.end_tick = mark.end;
+            }
+            _ => endings.push(Ending {
+                start_tick: mark.start,
+                end_tick: mark.end,
+                passes,
+            }),
+        }
+    }
+    for ending in endings {
+        if let Some(repeat) = repeats.iter_mut().find(|r| {
+            (r.start_tick < ending.start_tick && ending.end_tick <= r.end_tick)
+                || ending.start_tick == r.end_tick
+        }) {
+            repeat.endings.push(ending);
+        }
+    }
+    repeats
 }
 
 /// The lower number of a time signature, from the note value naming it.
