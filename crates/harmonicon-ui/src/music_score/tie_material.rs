@@ -37,14 +37,18 @@ impl UiMaterial for TieMaterial {
     }
 }
 
-/// The two shared tie materials every tie glyph in the panel points at —
-/// see the module doc comment for why one per side is enough.
+/// The shared tie materials every tie glyph in the panel points at — one
+/// per side, in white and in the highlight gold (a tie belongs to its note,
+/// so it follows the note's highlight). See the module doc comment for why
+/// shared instances are enough.
 #[derive(Resource, Clone)]
 pub struct TieMaterialHandle {
     /// Bows down, for a tie under the noteheads (stems up).
     pub below: Handle<TieMaterial>,
     /// Bows up, for a tie over them (stems down).
     pub above: Handle<TieMaterial>,
+    pub below_highlighted: Handle<TieMaterial>,
+    pub above_highlighted: Handle<TieMaterial>,
 }
 
 pub(super) struct TieMaterialPlugin;
@@ -57,13 +61,16 @@ impl Plugin for TieMaterialPlugin {
 }
 
 fn load_tie_material(mut materials: ResMut<Assets<TieMaterial>>, mut commands: Commands) {
-    let mut side = |above: f32| {
+    let mut tie = |color: Color, above: f32| {
         materials.add(TieMaterial {
-            color: Color::srgba(0.95, 0.80, 0.35, 0.95).into(),
+            color: color.into(),
             params: Vec4::new(0.85, 0.16, above, 0.0),
         })
     };
-    let below = side(0.0);
-    let above = side(1.0);
-    commands.insert_resource(TieMaterialHandle { below, above });
+    commands.insert_resource(TieMaterialHandle {
+        below: tie(Color::WHITE, 0.0),
+        above: tie(Color::WHITE, 1.0),
+        below_highlighted: tie(super::HIGHLIGHT_COLOR, 0.0),
+        above_highlighted: tie(super::HIGHLIGHT_COLOR, 1.0),
+    });
 }

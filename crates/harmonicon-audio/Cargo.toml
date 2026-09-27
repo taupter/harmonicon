@@ -32,3 +32,10 @@ trace_tracy = ["bevy/trace_tracy"]
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "waveform"
+harness = false

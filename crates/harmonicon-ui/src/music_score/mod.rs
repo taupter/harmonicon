@@ -13,7 +13,7 @@
 //! ties across a bar line ([`split_at_bar_lines`]), bar lines
 //! and a time signature ([`MusicScoreMeter`]), one of three clefs picked
 //! from the music's own range ([`choose_clef`]), and beams joining short
-//! notes within a beat ([`beam_groups`]).
+//! notes within a beat, with a chord's notes on one stem ([`stem_roles`]).
 //!
 //! Durations round to the nearest standard value and are spelled with the
 //! dots and flags that value actually takes ([`note_rhythm`]) — down to a
@@ -750,7 +750,7 @@ fn spawn_window(
     // the window edge must still agree on one direction and beam line, and
     // an accidental's effect on the rest of its bar has to be known even
     // when the note that established it has already scrolled off.
-    let beams = beam_groups(notes, clef);
+    let stems = stem_roles(notes, clef);
     let marks = accidentals(notes, clef, meter.beats_per_bar());
 
     for glyph in existing {
@@ -758,11 +758,6 @@ fn spawn_window(
     }
 
     commands.entity(layer).with_children(|parent| {
-        // `prev` tracks the immediately-preceding element of `notes`
-        // regardless of visibility — `split_at_bar_lines` always produces a
-        // split note's segments as consecutive entries, so this is reliably
-        // "the segment `note` was tied from" whenever `note.tied_from_previous`
-        // is set, even if that segment itself lies outside the spawned span.
         // Bar lines first, so a notehead always paints over one rather than
         // under it.
         for beat in bar_line_beats(lo, hi, meter.beats_per_bar()) {
@@ -783,24 +778,28 @@ fn spawn_window(
             ));
         }
 
-        let mut prev: Option<&NotationNote> = None;
         for (i, note) in notes.iter().enumerate() {
             let visible = note.start_beat + note.duration_beats >= lo && note.start_beat <= hi;
             if visible {
+                // Looked up over every note, not just the visible ones: the
+                // segment a tie starts from may have scrolled off already.
+                let tied_from = note
+                    .tied_from_previous
+                    .then(|| tied_from(notes, i))
+                    .flatten();
                 spawn_note_glyphs(
                     parent,
                     bravura,
                     tie_material,
                     note,
-                    prev,
+                    tied_from,
                     origin,
                     clef,
-                    beams[i],
+                    stems[i],
                     marks[i],
                     scale,
                 );
             }
-            prev = Some(note);
         }
     });
 }
@@ -810,13 +809,14 @@ fn spawn_note_glyphs(
     bravura: &BravuraFont,
     tie_material: &TieMaterialHandle,
     note: &NotationNote,
-    prev: Option<&NotationNote>,
+    tied_from: Option<&NotationNote>,
     now: f64,
     clef: Clef,
-    beam: Option<BeamPlacement>,
+    stem: StemRole,
     accidental: Accidental,
     scale: f32,
 ) {
+    let beam = stem.beam;
     let x = ((note.start_beat - now) * scale as f64) as f32;
     let step = staff_step(note.midi, clef);
     let rhythm = note_rhythm(note.duration_beats);
@@ -824,7 +824,7 @@ fn spawn_note_glyphs(
     let notehead_y = y_for_step(step);
     // Which way the stem goes — or would go, for a stemless whole note. A
     // tie is drawn on the other side, clear of it.
-    let stem_up = beam.map_or(step < MIDDLE_LINE_STEP, |b| b.stem_up);
+    let stem_up = stem.stem_up;
     // A highlighted note's own marks take the highlight; a beam stays white,
     // since it belongs to its whole group rather than to this note.
     let ink = if note.highlighted {
@@ -887,7 +887,7 @@ fn spawn_note_glyphs(
     // to this one's — not a fixed size, since that gap varies with how
     // long the previous (tied-from) segment was.
     if note.tied_from_previous
-        && let Some(prev) = prev
+        && let Some(prev) = tied_from
     {
         let prev_x = ((prev.start_beat - now) * scale as f64) as f32;
         let prev_width = note_rhythm(prev.duration_beats).head.width_sp();
@@ -896,10 +896,14 @@ fn spawn_note_glyphs(
         let width = (x - gap - left).max(TIE_MIN_WIDTH_PX);
         let height = TIE_ARC_HEIGHT_SP * STAFF_LINE_SPACING;
         let offset = TIE_GAP_SP * STAFF_LINE_SPACING;
-        let (top, material) = if stem_up {
-            (notehead_y + offset, &tie_material.below)
-        } else {
-            (notehead_y - offset - height, &tie_material.above)
+        let (top, material) = match (stem_up, note.highlighted) {
+            (true, false) => (notehead_y + offset, &tie_material.below),
+            (true, true) => (notehead_y + offset, &tie_material.below_highlighted),
+            (false, false) => (notehead_y - offset - height, &tie_material.above),
+            (false, true) => (
+                notehead_y - offset - height,
+                &tie_material.above_highlighted,
+            ),
         };
         parent.spawn((
             Node {
@@ -938,7 +942,8 @@ fn spawn_note_glyphs(
         ));
     }
 
-    if kind.has_stem() {
+    // In a chord only one head draws the stem; the rest sit on it.
+    if kind.has_stem() && stem.draws_stem {
         let (anchor_x_sp, anchor_y_sp) = if stem_up {
             STEM_UP_ANCHOR_SP
         } else {
@@ -949,9 +954,14 @@ fn spawn_note_glyphs(
         // A beamed stem stops at its group's shared beam line instead of
         // its own default length — that common tip is what lets one
         // straight beam join them.
+        // A chord's stem runs from this, its far head, past the head
+        // nearest the tip (`reach_step`, this note's own for a single note).
         let stem_len_px = match beam {
             Some(b) => (stem_notehead_y - y_for_step(b.beam_step)).abs(),
-            None => STEM_LENGTH_SP * STAFF_LINE_SPACING,
+            None => {
+                (stem_notehead_y - y_for_step(stem.reach_step)).abs()
+                    + STEM_LENGTH_SP * STAFF_LINE_SPACING
+            }
         };
         let stem_top = if stem_up {
             stem_notehead_y - stem_len_px

@@ -26,16 +26,32 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-gameplay` `judge` | `score_notes`, `build_scheduled_notes` | every frame / on a note-list rebuild |
 | `harmonicon-gameplay` `note_tails` | `animate_note_tails` with the asset plugin | every frame |
 | `harmonicon-jam` `backing` | backing stems, band answer, ending hit | Start / mid-session / session end |
+| `harmonicon-ui` `notation` | stem and beam roles, accidentals, tie lookup on short and long scores | staff window rebuild |
+| `harmonicon-audio` `waveform` | OGG/WAV decode to peaks, and reduction of existing PCM | song load / editor music change |
 
 `CODE_ANALYSIS.md` records the baseline numbers and what each one means for
 the frame budget.
 
+The notation bench uses fixed synthetic scores to track the new chord and tie
+work. A quick local run measured `stem_roles` at about 0.17 ms for 256
+two-note chords and 1.30 ms for 2,048; `accidentals` took about 0.064 ms and
+0.52 ms. These prepare the full score only when the staff window is rebuilt,
+not on every playhead move. Re-run with normal Criterion sampling before
+using the figures to judge an optimization.
+
+A quick local waveform run measured the bundled lesson OGG at about 82 ms and
+the bundled example-song OGG at about 350 ms, including decoding and peak
+extraction. A generated 60-second mono WAV took about 9 ms; reducing its PCM
+after decoding took about 1.1 ms. The OGG path runs during asset loading or
+on the editor's worker, so these are load costs rather than frame costs.
+
 ## Where a new bench goes
 
-- **Bevy-free code goes in `harmonicon-bench/benches/`**, even when the
-  function lives in `harmonicon-core` or `harmonicon-dsp`. A dev-dependency
-  is compiled for `cargo test` too, and Criterion would slow down the
-  core crates' fast test loop.
+- **Code in Bevy-free crates goes in `harmonicon-bench/benches/`**, even when
+  the function lives in `harmonicon-core`, `harmonicon-dsp` or
+  `harmonicon-score`. A dev-dependency is compiled for `cargo test` too, and
+  Criterion would slow down the core crates' fast test loop. Pure functions
+  in a Bevy crate can stay in that crate's benches, as notation does.
 - **ECS code goes in the owning crate's `benches/`**, running the real
   system in a minimal `World` or `App` the way the crate's tests do. A
   bench can only reach public items, so a system it measures has to be

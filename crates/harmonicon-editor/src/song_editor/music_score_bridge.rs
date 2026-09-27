@@ -76,7 +76,7 @@ pub(super) fn sync_music_score(
     }
     let harp = state.effective_harp();
     let meter_map = state.meter_map();
-    notes.0 = state
+    let mut staff: Vec<NotationNote> = state
         .notes
         .iter()
         .filter_map(|n| {
@@ -90,6 +90,11 @@ pub(super) fn sync_music_score(
         })
         .flatten()
         .collect();
+    // The grid keeps notes in the order they were placed; the staff reads
+    // them in time order (accidentals carry through a bar, beams join
+    // neighbours). Stable, so a note's own tied segments stay in order.
+    staff.sort_by(|a, b| a.start_beat.total_cmp(&b.start_beat));
+    notes.0 = staff;
 }
 
 /// Keeps [`MusicScorePlayhead`] following the same tick position

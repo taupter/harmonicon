@@ -517,77 +517,185 @@ pub(super) const MIDDLE_LINE_STEP: i32 = 4;
 /// spaces is the conventional length, and a staff space is 2 steps.
 const STEM_LENGTH_STEPS: i32 = 7;
 
+/// The segment `notes[i]` is tied from: the latest note of the same pitch
+/// ending exactly where it starts. Searched for rather than taken to be the
+/// previous entry, which in a chord is another of the chord's notes.
+pub fn tied_from(notes: &[NotationNote], i: usize) -> Option<&NotationNote> {
+    let note = &notes[i];
+    notes[..i].iter().rev().find(|n| {
+        n.midi == note.midi && (n.start_beat + n.duration_beats - note.start_beat).abs() < 1e-6
+    })
+}
+
+/// How one note's stem is drawn: its direction, whether this note draws it
+/// at all, and how far it reaches. Computed once for the whole song by
+/// [`stem_roles`], so the per-note spawn code never re-decides any of it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct StemRole {
+    pub stem_up: bool,
+    /// Whether this note draws the stem (and its flag). A chord has one
+    /// stem, drawn by the head at its far end — the lowest for an up-stem,
+    /// the highest for a down-stem — so it runs through every head.
+    pub draws_stem: bool,
+    /// The step of the chord's head nearest the stem's tip: where an
+    /// unbeamed stem measures its length from, so it clears the whole
+    /// chord. A single note's own step.
+    pub reach_step: i32,
+    pub beam: Option<BeamPlacement>,
+}
+
 /// Groups consecutive notes into beams, returning one entry per input note
-/// (`None` where the note is not beamed).
-///
-/// Beams a maximal run that is all flag-worthy ([`has_eighth_flag`]),
-/// gapless (each note starting where the last ended), and inside one beat
-/// — the ordinary rule that keeps the beat visible when reading. A run of
-/// one keeps its flag instead, since a beam needs two stems to span.
-///
-/// Direction follows the standard rule: whichever note of the group sits
-/// furthest from the middle line decides for all of them, so the beam
-/// leans away from the staff rather than through it.
+/// (`None` where the note is not beamed) — [`stem_roles`]' beams alone.
 pub fn beam_groups(notes: &[NotationNote], clef: Clef) -> Vec<Option<BeamPlacement>> {
-    let mut out: Vec<Option<BeamPlacement>> = vec![None; notes.len()];
-    let mut i = 0;
-    while i < notes.len() {
-        if !has_eighth_flag(notes[i].duration_beats) {
-            i += 1;
+    stem_roles(notes, clef)
+        .into_iter()
+        .map(|r| r.beam)
+        .collect()
+}
+
+/// Notes starting together with the same length sound as one chord, and a
+/// chord has one stem. Returns the members' indices per chord, in time
+/// order; `notes` itself may be in any order.
+fn chords(notes: &[NotationNote]) -> Vec<Vec<usize>> {
+    let mut order: Vec<usize> = (0..notes.len()).collect();
+    order.sort_by(|&a, &b| notes[a].start_beat.total_cmp(&notes[b].start_beat));
+    let mut chords: Vec<Vec<usize>> = Vec::new();
+    for i in order {
+        let joins = chords.last().is_some_and(|chord| {
+            let first = &notes[chord[0]];
+            (first.start_beat - notes[i].start_beat).abs() < 1e-6
+                && (first.duration_beats - notes[i].duration_beats).abs() < 1e-6
+        });
+        match chords.last_mut() {
+            Some(chord) if joins => chord.push(i),
+            _ => chords.push(vec![i]),
+        }
+    }
+    chords
+}
+
+/// The stem of every note: direction, which note of a chord draws it, and
+/// the beam it joins, if any. One entry per input note.
+///
+/// **Chords.** Notes starting together with the same length share a stem.
+/// Its direction follows the standard rule — whichever head sits furthest
+/// from the middle line decides — and only the head at the stem's far end
+/// draws it, reaching past the other extreme, so the stem runs through the
+/// chord instead of each note growing its own. (Heads a step apart, a
+/// second, still sit side by side on one column rather than being offset.)
+///
+/// **Beams.** A maximal run of chords that are all flag-worthy
+/// ([`has_eighth_flag`]), gapless (each starting where the last ended) and
+/// inside one beat is beamed — the ordinary rule that keeps the beat
+/// visible when reading. A run of one keeps its flag instead, since a beam
+/// needs two stems to span. The group's direction follows the same
+/// furthest-head rule across every note in it, so the beam leans away from
+/// the staff rather than through it.
+pub fn stem_roles(notes: &[NotationNote], clef: Clef) -> Vec<StemRole> {
+    let step = |i: usize| staff_step(notes[i].midi, clef);
+    let furthest = |steps: &mut dyn Iterator<Item = i32>| {
+        steps
+            .max_by_key(|s| (*s - MIDDLE_LINE_STEP).abs())
+            .unwrap_or(MIDDLE_LINE_STEP)
+    };
+    let chords = chords(notes);
+
+    // Beam runs over whole chords: `beam_of[c]` is the chord's placement
+    // before it is handed to the note drawing its stem.
+    let mut beam_of: Vec<Option<BeamPlacement>> = vec![None; chords.len()];
+    let mut c = 0;
+    while c < chords.len() {
+        let lead = &notes[chords[c][0]];
+        if !has_eighth_flag(lead.duration_beats) {
+            c += 1;
             continue;
         }
-        // Extend while the next note continues this beat without a gap.
-        let mut j = i;
-        while j + 1 < notes.len() {
-            let cur = &notes[j];
-            let next = &notes[j + 1];
+        let mut d = c;
+        while d + 1 < chords.len() {
+            let cur = &notes[chords[d][0]];
+            let next = &notes[chords[d + 1][0]];
             let contiguous = (next.start_beat - (cur.start_beat + cur.duration_beats)).abs() < 1e-6;
             let same_beat = cur.start_beat.floor() == next.start_beat.floor();
             if !has_eighth_flag(next.duration_beats) || !contiguous || !same_beat {
                 break;
             }
-            j += 1;
+            d += 1;
         }
-        if j > i {
-            let group = &notes[i..=j];
-            let steps: Vec<i32> = group.iter().map(|n| staff_step(n.midi, clef)).collect();
-            // Furthest from the middle line (step 4) decides for the group.
-            let extreme = *steps
-                .iter()
-                .max_by_key(|s| (*s - MIDDLE_LINE_STEP).abs())
-                .unwrap_or(&MIDDLE_LINE_STEP);
-            let stem_up = extreme < MIDDLE_LINE_STEP;
+        if d > c {
+            let members: Vec<usize> = chords[c..=d].iter().flatten().copied().collect();
+            let stem_up = furthest(&mut members.iter().map(|&i| step(i))) < MIDDLE_LINE_STEP;
             // A horizontal beam has to clear the group's own extreme note,
             // so measure from whichever stem would be longest.
+            let steps = members.iter().map(|&i| step(i));
             let beam_step = if stem_up {
-                steps.iter().max().unwrap_or(&0) + STEM_LENGTH_STEPS
+                steps.max().unwrap_or(0) + STEM_LENGTH_STEPS
             } else {
-                steps.iter().min().unwrap_or(&0) - STEM_LENGTH_STEPS
+                steps.min().unwrap_or(0) - STEM_LENGTH_STEPS
             };
-            let last = &notes[j];
-            let span_beats = last.start_beat - notes[i].start_beat;
-            // The group is drawn with as many beams as its shortest note
-            // needs; a plain eighth beside a sixteenth still gets one beam
-            // through it, which is the ordinary simplification here (real
-            // engraving would use a partial second beam).
-            let beams = group
+            let span_beats = notes[chords[d][0]].start_beat - lead.start_beat;
+            // As many beams as the shortest note needs; a plain eighth
+            // beside a sixteenth still gets one beam through it, the
+            // ordinary simplification here (real engraving would use a
+            // partial second beam).
+            let beams = members
                 .iter()
-                .map(|n| note_rhythm(n.duration_beats).flags)
+                .map(|&i| note_rhythm(notes[i].duration_beats).flags)
                 .max()
                 .unwrap_or(1);
-            for (k, slot) in out[i..=j].iter_mut().enumerate() {
-                *slot = Some(BeamPlacement {
+            for (k, slot) in beam_of[c..=d].iter_mut().enumerate() {
+                let placement = BeamPlacement {
                     stem_up,
                     beam_step,
                     is_first: k == 0,
                     span_beats: if k == 0 { span_beats } else { 0.0 },
                     beams,
-                });
+                };
+                *slot = Some(placement);
             }
         }
-        i = j + 1;
+        c = d + 1;
     }
-    out
+
+    let mut roles = vec![
+        StemRole {
+            stem_up: true,
+            draws_stem: true,
+            reach_step: MIDDLE_LINE_STEP,
+            beam: None,
+        };
+        notes.len()
+    ];
+    for (chord, beamed) in chords.iter().zip(&beam_of) {
+        let steps: Vec<i32> = chord.iter().map(|&i| step(i)).collect();
+        let stem_up = match beamed {
+            Some(beam) => beam.stem_up,
+            None => furthest(&mut steps.iter().copied()) < MIDDLE_LINE_STEP,
+        };
+        let (low, high) = (
+            *steps.iter().min().unwrap_or(&0),
+            *steps.iter().max().unwrap_or(&0),
+        );
+        let (root, reach) = if stem_up { (low, high) } else { (high, low) };
+        // Exactly one member draws: the first at the far end, should two
+        // notes of a chord share a step (a unison).
+        let owner = chord
+            .iter()
+            .copied()
+            .find(|&i| step(i) == root)
+            .unwrap_or(chord[0]);
+        for &i in chord {
+            let draws_stem = i == owner;
+            roles[i] = StemRole {
+                stem_up,
+                draws_stem,
+                reach_step: reach,
+                // Only the stem that draws carries the beam, so a chord's
+                // beam is drawn once and every other head joins it silently.
+                beam: beamed.filter(|_| draws_stem),
+            };
+        }
+    }
+    roles
 }
 
 pub(super) fn time_sig_glyphs(n: u8) -> String {
@@ -615,6 +723,89 @@ pub fn bar_line_beats(from_beat: f64, to_beat: f64, beats_per_bar: f64) -> Vec<f
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn chord_of(midis: &[u8], start_beat: f64, duration_beats: f64) -> Vec<NotationNote> {
+        midis
+            .iter()
+            .map(|&midi| NotationNote {
+                start_beat,
+                duration_beats,
+                midi,
+                tied_from_previous: false,
+                highlighted: false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_chord_shares_one_stem_drawn_by_its_far_head() {
+        // G4 and B4 together, both below the middle line: one up-stem,
+        // drawn by the lower head and reaching past the upper one.
+        let notes = chord_of(&[71, 67], 0.0, 1.0);
+        let roles = stem_roles(&notes, Clef::Treble);
+        assert!(roles.iter().all(|r| r.stem_up));
+        assert!(!roles[0].draws_stem, "B4 sits on the stem");
+        assert!(roles[1].draws_stem, "G4, the lowest, draws it");
+        assert_eq!(roles[1].reach_step, staff_step(71, Clef::Treble));
+    }
+
+    #[test]
+    fn the_head_furthest_from_the_middle_turns_a_chords_stem() {
+        // A4 is just under the middle line, F5 two steps further above it:
+        // the stem goes down, drawn by F5.
+        let notes = chord_of(&[69, 77], 0.0, 1.0);
+        let roles = stem_roles(&notes, Clef::Treble);
+        assert!(roles.iter().all(|r| !r.stem_up));
+        assert!(roles[1].draws_stem && !roles[0].draws_stem);
+    }
+
+    #[test]
+    fn chords_of_eighths_are_beamed_once() {
+        let mut notes = chord_of(&[60, 64], 0.0, 0.5);
+        notes.extend(chord_of(&[62, 65], 0.5, 0.5));
+        let roles = stem_roles(&notes, Clef::Treble);
+        let beams: Vec<_> = roles.iter().filter_map(|r| r.beam).collect();
+        assert_eq!(beams.len(), 2, "one per chord, on the stem that draws");
+        assert_eq!(beams.iter().filter(|b| b.is_first).count(), 1);
+        assert!(roles.iter().filter(|r| r.draws_stem).count() == 2);
+    }
+
+    #[test]
+    fn notes_of_different_lengths_are_not_one_chord() {
+        let mut notes = chord_of(&[67], 0.0, 1.0);
+        notes.extend(chord_of(&[71], 0.0, 2.0));
+        let roles = stem_roles(&notes, Clef::Treble);
+        assert!(roles.iter().all(|r| r.draws_stem));
+    }
+
+    #[test]
+    fn a_tie_finds_its_own_segment_through_a_chord() {
+        // A tied C5 whose previous entry is the E5 of a chord.
+        let mut notes = vec![
+            NotationNote {
+                start_beat: 2.0,
+                duration_beats: 2.0,
+                midi: 72,
+                tied_from_previous: false,
+                highlighted: false,
+            },
+            NotationNote {
+                start_beat: 2.0,
+                duration_beats: 2.0,
+                midi: 76,
+                tied_from_previous: false,
+                highlighted: false,
+            },
+        ];
+        notes.push(NotationNote {
+            start_beat: 4.0,
+            duration_beats: 1.0,
+            midi: 72,
+            tied_from_previous: true,
+            highlighted: false,
+        });
+        assert_eq!(tied_from(&notes, 2).map(|n| n.midi), Some(72));
+    }
 
     #[test]
     fn a_highlighted_note_stays_highlighted_across_a_bar_line() {
