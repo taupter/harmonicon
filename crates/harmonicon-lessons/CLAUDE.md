@@ -22,5 +22,5 @@ unit and lesson part carries a `placement::TreePart` and is placed by
 stays behind when its unit moves. Only edges are recreated, inside the
 `EdgeLayer` so they stay beneath the nodes.
 
-Update `docs/lesson_tree_layout_plan.md` as its phases land, pruning completed
-steps rather than keeping an implementation diary.
+The shipped layout and its design rules are summarized in
+`docs/lesson_tree_layout_plan.md`.

@@ -1,6 +1,6 @@
 # Polyphonic Harmonica Detection Plan
 
-## Implemented before real recordings
+## Current baseline
 
 - Preserve raw detector events for diagnostics.
 - Reject pitches the selected harmonica cannot produce.

@@ -1,23 +1,6 @@
-# Lessons: curriculum & engine design
+# Lessons: shipped curriculum and scoring design
 
-Design doc for the Lessons feature (`ROADMAP.md` 0.4 → 0.6). Covers what's
-shipped (wave 1, compactly), the scoring primitives lessons are built from,
-and the plan for the next batch of exercises (wave 2). Read this before
-writing any lesson code.
-
-**Structure, progression and motivation live in
-`docs/training_tree_plan.md`** — the technique DAG, the five-tier training
-ladder hung off each lesson, the horizontal skill-tree view, and what the
-evidence says about gamifying practice. This file stays curriculum: what
-each lesson teaches and what is honestly scoreable.
-
-A note on sourcing: this curriculum was drafted from general, widely-taught
-blues/jazz harmonica pedagogy (single note → tongue blocking → bending →
-12-bar form → positions → improvisation is the standard progression taught
-by most harmonica method books and instructors), not from a specific
-external source. If you have a particular curriculum or reference you want
-the lesson order/content matched to, share it and this doc should be
-revised against it before content authoring continues.
+The 100 bundled lessons and their planned branches have shipped. This document remains a content reference for the lesson waves and their scoring limits; the asset manifests are the source of truth. Structure, progression, and generated trainings are tracked in `docs/training_tree_plan.md`.
 
 ## Design principle: honest about what's scoreable
 
@@ -105,12 +88,9 @@ train trio are all live — 12 lessons, `assets/lessons/`:
   built on `tick` + a tempo map instead of fixed seconds, a genuine
   end-to-end exercise of that timing path), `train-whistle`
   (`11_train_whistle`, chord targets + wah oscillation combined).
-- **All three wave-2 engine items are built** (see "Engine work" below,
-  kept for reference): `PassCriteria::ChordToneAdherence`, the lesson
+- **All three wave-2 engine items are built**: `PassCriteria::ChordToneAdherence`, the lesson
   manifest's `progression` field, and `PassCriteria::PhraseDiscipline` +
-  `jam_session::in_rest_window`/`ImprovStats::rest_violations`. Nothing
-  left to build for the rest of wave 2 — what remains below is pure content
-  authoring.
+  `jam_session::in_rest_window`/`ImprovStats::rest_violations`.
 
 ## Wave 2, part 2 — shipped
 
@@ -259,9 +239,8 @@ it.
 ### Unit 5 — jazz (`05_jazz/`) — 4 lessons shipped
 
 Its own engine work (jazz chord-tone tables, a jazz-blues `Progression`
-variant) was already done before this unit's content — see "Engine work
-(done)" below — so all four drills below needed zero further engine
-changes, only content:
+variant) was already done before this unit's content, so all four drills
+needed zero further engine changes, only content:
 
 | Lesson (id, folder) | Scoreable? | Mechanism | Prereq | Pass |
 |---|---|---|---|---|
@@ -410,44 +389,3 @@ criterion exists. The long-tone capstone scores sustained pitch and duration.
 | **Vibrato rate control** (`vibrato-control`) | Measured 3 Hz and 5 Hz oscillation, technique ≥ 0.6 | all three families |
 | **Crescendo and diminuendo** (`dynamic-shaping`) | Instructional | `breathing` |
 | **Long-tone control** (`long-tone-control`) | Sustained pitch/duration, accuracy ≥ 0.75 | `dynamic-shaping`, `vibrato-control` |
-
-### Engine work (done)
-
-Unit 14 (`14_accompaniment/`) adds four elective accompaniment lessons:
-scored chord rhythm, instructional singer support, timed vocal-gap fills, and
-trading fours judged with the existing phrase-discipline criterion.
-
-All three wave-2 engine items are built (see "Wave 2, part 1 — shipped"
-above): `PassCriteria::ChordToneAdherence`/`PhraseDiscipline`, the lesson
-manifest's `progression` field, and `jam_session::in_rest_window` +
-`ImprovStats::rest_violations`/`chord_tone_adherence`/`phrase_discipline`.
-`harmonicon-lessons::lesson_reader::is_jam_criteria` routes all three jam-based criteria (plus
-`ScaleAdherence`) into `GameplayMode::JamSession`;
-`gameplay::pause_menu::jam_fraction_for` picks the right `ImprovStats`
-fraction for whichever criterion a given lesson declares. Unit 3 (above)
-used every one of these with no further engine changes. Wave 3's `JamScale`
-resource + `LessonManifest::scale` field (see above) is the other piece of
-engine work landed so far. Unit 5 (jazz) below needed none of its own —
-every mechanism its four shipped lessons use already existed. The later
-original chromatic study supplies the planned jazz repertoire capstone.
-
-Cross-cutting authoring notes:
-
-- Every new lesson: `lesson.json` + locale keys in all three languages
-  (`tests/asset_layout.rs` enforces schema, prereq integrity, and key
-  existence — it will catch omissions).
-- Cross-unit prerequisites (`train-chug` ← `multiple-notes`,
-  `blues-scale` ← `deep-bends`) are just ids — `is_unlocked` doesn't care
-  about units — but double-check the skill tree presents a locked
-  lesson's prerequisite name legibly when it lives in another unit.
-- New charts using only existing schema features need no `format_version`
-  bump; `train-rolling`'s tempo map and the multi-modifier charts all use
-  long-supported fields.
-
-### Completion status
-
-All planned curriculum branches are now represented. Future lesson additions
-should follow learner feedback rather than extending the graph by default.
-The chromatic branch now ends in an original jazz study, avoiding the earlier
-repertoire-rights blocker. Reduced motion belongs to shared application
-settings; a lesson-map minimap remains conditional on usability evidence.

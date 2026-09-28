@@ -23,7 +23,7 @@ Nothing below can be approved by a test.
   changes, not impressions.
 - **Scored play, live**: the mid-hold drop-out, the steady-vs-wobble vibrato
   contrast, and whether judgment feedback lands on the same visual beat as
-  the judged note (`docs/gameplay_improvement_plan.md`, Phase 2).
+  the judged note (`docs/gameplay_improvement_plan.md`, Manual timing acceptance).
 - **A recorded detection corpus** (`docs/pitch_detection_plan.md`): single
   notes, bends, overbends, adjacent-hole chords, octave splits, tongue-block
   intervals, blow/draw transitions, breath-only passages and room noise, at
@@ -44,23 +44,18 @@ Nothing below can be approved by a test.
   Accept a change only if the corpus improves without losing exact chord
   recall or adding latency.
 
-## Code work, unblocked
-
-Nothing right now: everything left needs a harp, a decision, content or
-hardware.
-
 ## Decide before building
 
 - **Are generated trainings good enough?** The generator exists and the
   `bend` track has specs (`first-bend`, `deep-bends`, `high-blow-bends`).
   Play them. Only a yes rolls trainings out to the other tracks
-  (`docs/training_tree_plan.md`, Order of work 1 and 5).
+  (`docs/training_tree_plan.md`, Generated trainings).
 - **Technique symbols beside the notes.** The note-head label drops the
   bend/overblow/slide suffix on purpose, so this reverses a design rather
-  than fixing an oversight (`docs/gameplay_improvement_plan.md`, Phase 1).
+  than fixing an oversight (`docs/gameplay_improvement_plan.md`, Visual decisions).
 - **Play 3D's hole map and beat guides.** Its lane is world-space geometry,
   so guides mean projecting `HIT_Z` per beat, not reusing the 2D spawner
-  (same phase).
+  (`docs/gameplay_improvement_plan.md`, Visual decisions).
 - **The single-lesson `hand` track**: fold it into `tone`, or leave the gap
   visible as a place the curriculum wants more lessons.
 
