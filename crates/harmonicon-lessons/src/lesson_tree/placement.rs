@@ -102,13 +102,13 @@ impl PartKind {
 }
 
 /// The canvas every node is positioned in.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(crate) struct LessonTreeCanvas;
 
 /// The canvas's first child, holding every edge. Edges are the one thing a
 /// toggle does create and destroy, and new children draw on top of old ones
 /// — so they live in a layer that already sits beneath every node.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(crate) struct EdgeLayer;
 
 /// Lays the tree out, with every unit in `collapsed` compacted.

@@ -162,7 +162,7 @@ const SCROLLBAR_THUMB: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
 #[derive(Component)]
 pub(crate) struct ClusterMember(String);
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(crate) struct UnitChevron(String);
 
 #[derive(Component)]
@@ -284,20 +284,15 @@ pub(crate) fn setup_lesson_tree(
         // into `~/Harmonicon/lessons` — say so rather than draw nothing.
         Err(error) => {
             let line = commands
-                .spawn((
-                    Text::new(String::from(
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    Text({String::from(
                         loc.msg_args("lesson-tree-broken", &[("error", error)]),
-                    )),
-                    TextFont {
-                        font_size: FontSize::Px(16.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.95, 0.65, 0.45)),
-                    Node {
-                        max_width: Val::Px(560.0),
-                        ..default()
-                    },
-                ))
+                    )})
+                    TextFont { font_size: {FontSize::Px(16.0)} }
+                    TextColor({Color::srgb(0.95, 0.65, 0.45)})
+                    Node { max_width: {Val::Px(560.0)} }
+                })
                 .id();
             commands.entity(root).add_child(line);
             spawn_back_button(&mut commands, header, &loc.msg("back"), back_to_play);
@@ -398,42 +393,41 @@ pub(crate) fn setup_lesson_tree(
         .entity(scroller)
         .insert((LessonTreeScroller, ScrollPosition(viewport.0)));
 
+    // Every node is positioned absolutely inside this box, so it has to
+    // keep the height it asks for. Left to shrink — the flexbox default
+    // inside the scroll column — the box collapses to the viewport while
+    // its children keep their pixel offsets, and the scroll extent is
+    // computed from the collapsed box: the tree spills past both ends and
+    // neither can be scrolled to.
     let canvas = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                position_type: PositionType::Relative,
-                width: Val::Px(canvas_size.0.x),
-                height: Val::Px(canvas_size.0.y),
-                // Every node is positioned absolutely inside this box, so it
-                // has to keep the height it asks for. Left to shrink — the
-                // flexbox default inside the scroll column — the box
-                // collapses to the viewport while its children keep their
-                // pixel offsets, and the scroll extent is computed from the
-                // collapsed box: the tree spills past both ends and neither
-                // can be scrolled to.
-                flex_shrink: 0.0,
-                ..default()
-            },
-            LessonTreeCanvas,
-        ))
+                position_type: {PositionType::Relative},
+                width: {Val::Px(canvas_size.0.x)},
+                height: {Val::Px(canvas_size.0.y)},
+                flex_shrink: {0.0f32},
+            }
+            LessonTreeCanvas
+        })
         .id();
     commands.entity(scroller).add_child(canvas);
 
     // The edge layer is the canvas's first child, so node art always sits
     // on top of its connectors, including edges a relayout recreates.
     let edge_layer = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                top: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            Pickable::IGNORE,
-            EdgeLayer,
-        ))
+                position_type: {PositionType::Absolute},
+                left: {Val::Px(0.0)},
+                top: {Val::Px(0.0)},
+                width: {Val::Percent(100.0)},
+                height: {Val::Percent(100.0)},
+            }
+            ~{Pickable::IGNORE}
+            EdgeLayer
+        })
         .id();
     commands.entity(canvas).add_child(edge_layer);
     spawn_edges(&mut commands, edge_layer, &tree, &mut materials);
@@ -585,33 +579,29 @@ fn spawn_unit(
     commands.entity(canvas).add_child(node);
 
     let progress = commands
-        .spawn((
-            Text::new(String::from(loc.msg_args(
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Text({String::from(loc.msg_args(
                 "lesson-tree-unit-progress",
                 &[
                     ("done", unit.completed.to_string()),
                     ("needed", unit.required.to_string()),
                 ],
-            ))),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(ring),
-        ))
+            ))})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({ring})
+        })
         .id();
     commands.entity(node).add_child(progress);
 
     let chevron = commands
-        .spawn((
-            Text::new("▼"),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(ring),
-            UnitChevron(unit.id.clone()),
-        ))
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Text("▼")
+            TextFont { font_size: {FontSize::Px(13.0)} }
+            TextColor({ring})
+            UnitChevron({unit.id.clone()})
+        })
         .id();
     commands.entity(node).add_child(chevron);
 
@@ -777,32 +767,29 @@ fn spawn_node(
     commands.entity(canvas).add_child(label);
 
     let title = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
+            // Padding plus this width comes to exactly `LABEL_PX`, so the
+            // backdrop still can't reach a neighbouring column — which is
+            // what `COL_PX > LABEL_PX` is there to promise.
             Node {
-                // Padding plus this width comes to exactly `LABEL_PX`, so
-                // the backdrop still can't reach a neighbouring column —
-                // which is what `COL_PX > LABEL_PX` is there to promise.
-                max_width: Val::Px(LABEL_TEXT_PX),
-                padding: UiRect::axes(Val::Px(LABEL_PAD_X), Val::Px(LABEL_PAD_Y)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
-                ..default()
-            },
-            // Edges pass behind the titles, and glyphs drawn straight over
-            // a line are hard to read. The backdrop is what separates the
-            // text from whatever runs under it.
-            BackgroundColor(LABEL_BACKDROP),
-            Text::new(String::from(loc.msg(&node.title_key))),
-            TextFont {
-                font_size: FontSize::Px(LABEL_FONT_PX),
-                ..default()
-            },
-            TextLayout::justify(Justify::Center),
-            TextColor(if locked {
+                max_width: {Val::Px(LABEL_TEXT_PX)},
+                padding: {UiRect::axes(Val::Px(LABEL_PAD_X), Val::Px(LABEL_PAD_Y))},
+                border_radius: {BorderRadius::all(Val::Px(4.0))},
+            }
+            // Edges pass behind the titles, and glyphs drawn straight over a
+            // line are hard to read. The backdrop is what separates the text
+            // from whatever runs under it.
+            BackgroundColor({LABEL_BACKDROP})
+            Text({String::from(loc.msg(&node.title_key))})
+            TextFont { font_size: {FontSize::Px(LABEL_FONT_PX)} }
+            ~{TextLayout::justify(Justify::Center)}
+            TextColor({if locked {
                 Color::srgba(0.62, 0.65, 0.74, 0.55)
             } else {
                 Color::srgb(0.86, 0.89, 0.95)
-            }),
-        ))
+            }})
+        })
         .id();
     commands.entity(label).add_child(title);
 
