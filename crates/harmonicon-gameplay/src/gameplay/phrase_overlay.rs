@@ -10,38 +10,32 @@ use harmonicon_song::song::SongManifest;
 use super::{GameplayClock, GameplayLogic, Paused, resolve_item_time};
 
 /// Live banner text showing the current phrase and groove from the chart.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct PhraseText;
 
 pub fn spawn_phrase_banner(parent: &mut ChildSpawnerCommands) {
-    parent.spawn((
-        Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(15.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.80, 0.70, 0.95)),
-        PhraseText,
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text("")
+        TextFont { font_size: {FontSize::Px(15.0)} }
+        TextColor({Color::srgb(0.80, 0.70, 0.95)})
+        PhraseText
+    });
 }
 
 /// Live tab-notation ribbon for the phrase currently active — see
 /// [`tab_label`]/[`phrase_tab_sequence`]. Spawned as a sibling right below
 /// [`PhraseText`] so the two "what's happening right now" readouts sit
 /// together.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct TabRibbonText;
 
 pub fn spawn_tab_ribbon(parent: &mut ChildSpawnerCommands) {
-    parent.spawn((
-        Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(15.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.90, 0.90, 0.75)),
-        TabRibbonText,
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text("")
+        TextFont { font_size: {FontSize::Px(15.0)} }
+        TextColor({Color::srgb(0.90, 0.90, 0.75)})
+        TabRibbonText
+    });
 }
 
 /// Selects the phrase/groove in effect at `clock` from a time-ordered stream of

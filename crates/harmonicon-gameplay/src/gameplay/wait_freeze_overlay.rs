@@ -21,15 +21,15 @@ use super::state::{ActivePitches, HoleTab, PlayedHarp, ValidHarpNotes};
 pub struct WaitFreezeState(pub Option<usize>);
 
 /// The card's root; hidden whenever [`WaitFreezeState`] is `None`.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct WaitFreezePrompt;
 
 /// "Play 8↓" — set once per freeze.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct WaitFreezeTarget;
 
 /// "hearing 4↑" / "listening…" — refreshed every frame while frozen.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct WaitFreezeHeard;
 
 /// Spawns the (initially hidden) card as a child of `parent`, its bottom
@@ -38,59 +38,49 @@ pub struct WaitFreezeHeard;
 /// Session never populates `SongNotes`, so `WaitFreezeState` never becomes
 /// `Some` there and the card just never shows.
 pub fn spawn_wait_freeze_prompt(commands: &mut Commands, parent: Entity, bottom: Val) {
+    // Not `GameplayRoot`: a child of a mode's own root, which the cleanup
+    // sweep already despawns recursively (see the same note on
+    // `beat_guides`).
     let root = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(0.0),
-                width: Val::Percent(100.0),
-                bottom,
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            Visibility::Hidden,
-            Pickable::IGNORE,
-            WaitFreezePrompt,
-            // Not `GameplayRoot`: a child of a mode's own root, which the
-            // cleanup sweep already despawns recursively (see the same note
-            // on `beat_guides`).
-        ))
+                position_type: {PositionType::Absolute},
+                left: {Val::Percent(0.0)},
+                width: {Val::Percent(100.0)},
+                bottom: {bottom},
+                flex_direction: {FlexDirection::Column},
+                align_items: {AlignItems::Center},
+            }
+            ~{Visibility::Hidden}
+            ~{Pickable::IGNORE}
+            WaitFreezePrompt
+        })
         .id();
     commands.entity(parent).add_child(root);
 
     commands.entity(root).with_children(|card| {
-        card.spawn((
+        card.spawn_empty().apply_scene(bsn! {
             Node {
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                row_gap: Val::Px(2.0),
-                padding: UiRect::axes(Val::Px(18.0), Val::Px(8.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.92)),
-            BorderColor::all(Color::srgba(1.0, 0.85, 0.35, 0.55)),
-        ))
-        .with_children(|lines| {
-            lines.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(26.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(1.0, 0.85, 0.35)),
-                WaitFreezeTarget,
-            ));
-            lines.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.78, 0.80, 0.88)),
-                WaitFreezeHeard,
-            ));
+                flex_direction: {FlexDirection::Column},
+                align_items: {AlignItems::Center},
+                row_gap: {Val::Px(2.0)},
+                padding: {UiRect::axes(Val::Px(18.0), Val::Px(8.0))},
+                border: {UiRect::all(Val::Px(1.0))},
+            }
+            BackgroundColor({Color::srgba(0.05, 0.05, 0.08, 0.92)})
+            ~{BorderColor::all(Color::srgba(1.0, 0.85, 0.35, 0.55))}
+            Children [
+                Text("")
+                TextFont { font_size: {FontSize::Px(26.0)} }
+                TextColor({Color::srgb(1.0, 0.85, 0.35)})
+                WaitFreezeTarget
+                --
+                Text("")
+                TextFont { font_size: {FontSize::Px(14.0)} }
+                TextColor({Color::srgb(0.78, 0.80, 0.88)})
+                WaitFreezeHeard
+            ]
         });
     });
 }

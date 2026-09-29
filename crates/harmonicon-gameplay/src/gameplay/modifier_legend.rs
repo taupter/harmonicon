@@ -184,7 +184,9 @@ pub fn spawn_modifier_legend(
                         ..default()
                     })
                     .with_children(|row| {
-                        // A short ribbon drawing this technique.
+                        // A short ribbon drawing this technique. `MaterialNode`
+                        // has no `Template` impl (its handle isn't `Unpin`),
+                        // so this stays a plain tuple spawn.
                         row.spawn((
                             Node {
                                 width: Val::Px(24.0),
@@ -193,14 +195,11 @@ pub fn spawn_modifier_legend(
                             },
                             MaterialNode(handle.clone()),
                         ));
-                        row.spawn((
-                            Text::new(String::from(loc.msg(label_key))),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgb(0.70, 0.72, 0.78)),
-                        ));
+                        row.spawn_empty().apply_scene(bsn! {
+                            Text({String::from(loc.msg(label_key))})
+                            TextFont { font_size: {FontSize::Px(15.0)} }
+                            TextColor({Color::srgb(0.70, 0.72, 0.78)})
+                        });
                     });
                 }
             });
