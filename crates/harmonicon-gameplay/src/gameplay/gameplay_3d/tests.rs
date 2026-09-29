@@ -73,6 +73,15 @@ fn a_ribbon_leaves_a_gap_behind_it_but_always_fits_its_cap() {
 }
 
 #[test]
+fn a_ribbon_clears_every_surface_it_crosses() {
+    // Equal heights z-fight: the ribbon flickered over the hole pads when
+    // it sat exactly on their top face.
+    let pad_top = LANE_Y + PAD_H;
+    let hit_line_top = HIT_LINE_Y + HIT_LINE_H * 0.5;
+    assert!(RIBBON_Y - pad_top.max(hit_line_top) >= 0.05);
+}
+
+#[test]
 fn a_wobble_crosses_the_hit_line_at_the_charted_rate() {
     // Crests `1 / cycles` units apart, scrolling at `lane_speed`, pass the
     // hit line `cycles * lane_speed` times a second.

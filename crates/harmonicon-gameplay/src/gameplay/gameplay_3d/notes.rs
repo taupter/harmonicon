@@ -196,9 +196,9 @@ pub(super) fn spawn_note_visual_3d(
 
     let note_entity = commands
         .spawn((
-            // Just above the hit band, hit line and hole pads, so the
-            // ribbon draws over them rather than fighting them for depth.
-            Transform::from_xyz(note_x, LANE_Y + 0.12, FAR_Z),
+            // Clear of the hit band, hit line and hole pads (see
+            // `RIBBON_Y`), so it never fights them for depth.
+            Transform::from_xyz(note_x, RIBBON_Y, FAR_Z),
             NoteVisual3D { note_id },
             JudgedState::default(),
             GameplayRoot,

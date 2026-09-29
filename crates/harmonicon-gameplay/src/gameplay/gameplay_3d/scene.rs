@@ -116,14 +116,14 @@ pub(super) fn create_hit_zone(commands: &mut Commands, total_width: f32) {
     // The line inside the band that is the judgment instant — a note's
     // front face reaches it exactly on time, as 2D's hit line.
     commands.spawn_scene(bsn! {
-        Mesh3d({asset_value(Cuboid::new(total_width, 0.08, 0.08))})
+        Mesh3d({asset_value(Cuboid::new(total_width, HIT_LINE_H, 0.08))})
         MeshMaterial3d::<StandardMaterial>({asset_value(StandardMaterial {
             base_color: Color::srgb(1.0, 0.98, 0.62),
             emissive: LinearRgba::new(2.0, 1.9, 1.0, 1.0),
             unlit: true,
             ..default()
         })})
-        Transform { translation: {Vec3::new(0.0, LANE_Y + 0.07, HIT_Z)} }
+        Transform { translation: {Vec3::new(0.0, HIT_LINE_Y, HIT_Z)} }
         GameplayRoot
     });
 }
@@ -138,7 +138,7 @@ pub(super) fn spawn_hole_pads(
     materials: &mut Assets<StandardMaterial>,
     hole_count: u8,
 ) {
-    let pad_mesh = meshes.add(Cuboid::new(LANE_WIDTH * NOTE_W, 0.12, 0.9));
+    let pad_mesh = meshes.add(Cuboid::new(LANE_WIDTH * NOTE_W, PAD_H, 0.9));
     for hole in 1..=hole_count {
         let pad_mat = materials.add(StandardMaterial {
             base_color: Color::srgb(0.10, 0.11, 0.15),
@@ -150,7 +150,7 @@ pub(super) fn spawn_hole_pads(
         commands.spawn((
             Mesh3d(pad_mesh.clone()),
             MeshMaterial3d(pad_mat.clone()),
-            Transform::from_xyz(lane_x(hole, hole_count), LANE_Y + 0.06, PAD_Z),
+            Transform::from_xyz(lane_x(hole, hole_count), LANE_Y + PAD_H * 0.5, PAD_Z),
             HoleCell(hole),
             HoleMesh3D(pad_mat),
             GameplayRoot,

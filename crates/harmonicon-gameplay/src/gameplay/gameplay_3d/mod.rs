@@ -55,6 +55,16 @@ const HIT_Z: f32 = 6.0;
 const HIT_PLANE_BOTTOM_PCT: f32 = 21.4;
 const FAR_Z: f32 = HIT_Z - LANE_DEPTH; // -10
 const LANE_Y: f32 = 1.6;
+/// Hole pad thickness, and the hit line's height and thickness: with
+/// `LANE_Y`, the tops of the solid surfaces a note ribbon passes over.
+const PAD_H: f32 = 0.12;
+const HIT_LINE_Y: f32 = LANE_Y + 0.07;
+const HIT_LINE_H: f32 = 0.08;
+/// Height of a note ribbon. It must sit clearly above every surface it
+/// crosses: coplanar with the pads' top face, the depth test picked a
+/// different winner per pixel each frame and the ribbon flickered as it
+/// passed over them.
+const RIBBON_Y: f32 = LANE_Y + PAD_H + 0.06;
 /// Where the row of hole pads sits: just past the hit zone's near edge, so
 /// a pad lights under the note being played.
 const PAD_Z: f32 = HIT_Z + 1.9;
