@@ -133,25 +133,24 @@ pub fn harp_banner_text(harp: &Harmonica, song_key: &str, loc: &Localization) ->
 /// mid-phrase is not reading a description, and the space is worth more as
 /// highway.
 pub fn spawn_song_header(parent: &mut ChildSpawnerCommands, info: &SongInfo) {
-    parent.spawn((
-        Text::new(info.title.clone()),
-        TextFont {
-            font_size: FontSize::Px(16.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.82, 0.84, 0.92)),
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({info.title.clone()})
+        TextFont { font_size: {FontSize::Px(16.0)} }
+        TextColor({Color::srgb(0.82, 0.84, 0.92)})
+    });
 }
 
 /// The whole block, for the two moments the player is not playing: the
 /// countdown before the first note, and the pause menu.
 pub fn spawn_song_details(parent: &mut ChildSpawnerCommands, info: &SongInfo) {
     parent
-        .spawn(Node {
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(3.0),
-            max_width: Val::Px(560.0),
-            ..default()
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Node {
+                flex_direction: {FlexDirection::Column},
+                row_gap: {Val::Px(3.0)},
+                max_width: {Val::Px(560.0)},
+            }
         })
         .with_children(|col| {
             for (text, size, color) in [
@@ -170,14 +169,11 @@ pub fn spawn_song_details(parent: &mut ChildSpawnerCommands, info: &SongInfo) {
                 ),
             ] {
                 let Some(text) = text else { continue };
-                col.spawn((
-                    Text::new(text.clone()),
-                    TextFont {
-                        font_size: FontSize::Px(size),
-                        ..default()
-                    },
-                    TextColor(color),
-                ));
+                col.spawn_empty().apply_scene(bsn! {
+                    Text({text.clone()})
+                    TextFont { font_size: {FontSize::Px(size)} }
+                    TextColor({color})
+                });
             }
         });
 }
