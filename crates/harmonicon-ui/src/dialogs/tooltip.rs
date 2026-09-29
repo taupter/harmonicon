@@ -30,10 +30,10 @@ pub struct Tooltip(pub String);
 
 /// The floating tooltip panel — one instance, repositioned and re-labelled
 /// as the hovered entity changes rather than spawned per-widget.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct TooltipRoot;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct TooltipText;
 
 /// The entity currently under the pointer that carries a [`Tooltip`], if
@@ -53,34 +53,27 @@ const CURSOR_OFFSET: f32 = 16.0;
 const TOOLTIP_MAX_WIDTH: f32 = 320.0;
 
 fn spawn_tooltip_root(mut commands: Commands) {
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
-                max_width: Val::Px(TOOLTIP_MAX_WIDTH),
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
-            },
-            BackgroundColor(TOOLTIP_BG),
-            BorderColor::all(TOOLTIP_BORDER),
-            GlobalZIndex(1000),
-            Visibility::Hidden,
-            Pickable::IGNORE,
-            TooltipRoot,
-        ))
-        .with_children(|root| {
-            root.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                TooltipText,
-                Pickable::IGNORE,
-            ));
-        });
+    commands.spawn_empty().apply_scene(bsn! {
+        Node {
+            position_type: {PositionType::Absolute},
+            padding: {UiRect::axes(Val::Px(8.0), Val::Px(4.0))},
+            max_width: {Val::Px(TOOLTIP_MAX_WIDTH)},
+            border: {UiRect::all(Val::Px(1.0))},
+        }
+        BackgroundColor({TOOLTIP_BG})
+        ~{BorderColor::all(TOOLTIP_BORDER)}
+        ~{GlobalZIndex(1000)}
+        ~{Visibility::Hidden}
+        ~{Pickable::IGNORE}
+        TooltipRoot
+        Children [
+            Text("")
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::WHITE})
+            TooltipText
+            ~{Pickable::IGNORE}
+        ]
+    });
 }
 
 fn on_hover_start(
