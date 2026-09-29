@@ -25,19 +25,13 @@ pub(super) fn spawn_harmonica_row(
         .id();
 
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Node {
-                width: Val::Px(OPTIONS_LABEL_WIDTH),
-                ..default()
-            },
-            Text::new(String::from(loc.msg("options-harmonica"))),
-            TextFont {
-                font_size: FontSize::Px(20.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            Tooltip(String::from(loc.msg("options-harmonica-tooltip"))),
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(OPTIONS_LABEL_WIDTH)} }
+            Text({String::from(loc.msg("options-harmonica"))})
+            TextFont { font_size: {FontSize::Px(20.0)} }
+            TextColor({Color::WHITE})
+            Tooltip({String::from(loc.msg("options-harmonica-tooltip"))})
+        });
         for (image, name) in previews {
             let is_selected = *name == selected;
             r.spawn_empty().apply_scene(harmonica_button_scene(
