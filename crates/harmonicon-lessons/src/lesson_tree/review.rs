@@ -125,20 +125,15 @@ pub(crate) fn spawn_streak(commands: &mut Commands, parent: Entity, days: u32, l
         return;
     }
     let line = commands
-        .spawn((
-            Text::new(String::from(
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Text({String::from(
                 loc.msg_args("lesson-tree-streak", &[("days", days.to_string())]),
-            )),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.95, 0.82, 0.45)),
-            Node {
-                margin: UiRect::bottom(Val::Px(6.0)),
-                ..default()
-            },
-        ))
+            )})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::srgb(0.95, 0.82, 0.45)})
+            Node { margin: {UiRect::bottom(Val::Px(6.0))} }
+        })
         .id();
     commands.entity(parent).add_child(line);
 }
