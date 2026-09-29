@@ -173,14 +173,12 @@ fn step_circle_key(
 /// "Passed" badge both use, differing only in text/color.
 fn spawn_reader_line(commands: &mut Commands, root: Entity, text: String, color: Color) {
     let line = commands
-        .spawn((
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(16.0),
-                ..default()
-            },
-            TextColor(color),
-        ))
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Text({text})
+            TextFont { font_size: {FontSize::Px(16.0)} }
+            TextColor({color})
+        })
         .id();
     commands.entity(root).add_child(line);
 }
@@ -215,24 +213,21 @@ pub(crate) fn setup_lesson_reader(
     // rather than spanning the whole window, on a dark translucent card so
     // it stays readable over a busy background image.
     let body = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                max_width: Val::Px(760.0),
-                margin: UiRect::axes(Val::Px(24.0), Val::Px(8.0)),
-                padding: UiRect::axes(Val::Px(18.0), Val::Px(14.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.95)),
-        ))
+                max_width: {Val::Px(760.0)},
+                margin: {UiRect::axes(Val::Px(24.0), Val::Px(8.0))},
+                padding: {UiRect::axes(Val::Px(18.0), Val::Px(14.0))},
+            }
+            BackgroundColor({Color::srgba(0.0, 0.0, 0.0, 0.95)})
+        })
         .with_children(|card| {
-            card.spawn((
-                Text::new(String::from(loc.msg(&entry.manifest.body_key))),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.82, 0.84, 0.90)),
-            ));
+            card.spawn_empty().apply_scene(bsn! {
+                Text({String::from(loc.msg(&entry.manifest.body_key))})
+                TextFont { font_size: {FontSize::Px(18.0)} }
+                TextColor({Color::srgb(0.82, 0.84, 0.90)})
+            });
         })
         .id();
     commands.entity(root).add_child(body);
@@ -486,14 +481,12 @@ pub(crate) fn setup_lesson_reader(
                     cells = spawn_phrase_looper(parent, steps);
                 });
                 let label = commands
-                    .spawn((
-                        Text::new(format!("♩ = {}", *bpm as u32)),
-                        TextFont {
-                            font_size: FontSize::Px(22.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ))
+                    .spawn_empty()
+                    .apply_scene(bsn! {
+                        Text({format!("♩ = {}", *bpm as u32)})
+                        TextFont { font_size: {FontSize::Px(22.0)} }
+                        TextColor({Color::WHITE})
+                    })
                     .id();
                 let marker = commands
                     .spawn((
@@ -580,14 +573,12 @@ pub(crate) fn setup_lesson_reader(
                 sync_group,
             } => {
                 let label = commands
-                    .spawn((
-                        Text::new(format!("\u{2669} = {}", *bpm as u32)),
-                        TextFont {
-                            font_size: FontSize::Px(22.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ))
+                    .spawn_empty()
+                    .apply_scene(bsn! {
+                        Text({format!("\u{2669} = {}", *bpm as u32)})
+                        TextFont { font_size: {FontSize::Px(22.0)} }
+                        TextColor({Color::WHITE})
+                    })
                     .id();
                 let metronome = commands
                     .spawn((
