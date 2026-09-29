@@ -286,7 +286,7 @@ pub(super) struct RecordModeGroup;
 #[derive(Component)]
 pub(super) struct ExpectedNotesGroup;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(super) struct BendDot;
 
 /// Marks a mod button's label text so [`super::panel::update_mod_panel`] can
