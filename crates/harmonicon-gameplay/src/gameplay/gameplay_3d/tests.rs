@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+use harmonicon_core::chart::Modifier;
+
 use super::*;
 
 #[test]
@@ -30,22 +32,22 @@ fn note_label_position_cancels_out_ui_scale() {
     // converts to physical pixels — so we must emit half the viewport
     // coordinate up front for the two to cancel out to the right place.
     let pos = note_label_position(Vec2::new(200.0, 100.0), 2.0);
-    assert_eq!(pos, Vec2::new(100.0, 50.0) + NOTE_LABEL_OFFSET);
+    assert_eq!(pos, Vec2::new(100.0, 50.0));
 }
 
 #[test]
 fn note_label_position_is_unchanged_at_default_ui_scale() {
     let pos = note_label_position(Vec2::new(300.0, 150.0), 1.0);
-    assert_eq!(pos, Vec2::new(300.0, 150.0) + NOTE_LABEL_OFFSET);
+    assert_eq!(pos, Vec2::new(300.0, 150.0));
 }
 
 #[test]
-fn note_label_position_lifts_the_label_clear_of_the_note() {
-    let pos = note_label_position(Vec2::ZERO, 1.0);
-    assert_eq!(pos, NOTE_LABEL_OFFSET);
-    // Centred over the note by its `UiTransform`, so no sideways offset.
-    assert_eq!(pos.x, 0.0);
-    assert!(pos.y < 0.0, "should sit above the note");
+fn a_label_anchors_just_past_the_ribbons_side() {
+    let right = label_anchor_offset(true);
+    let left = label_anchor_offset(false);
+    assert!(right.x > LANE_WIDTH * NOTE_W * 0.5);
+    assert_eq!(left.x, -right.x);
+    assert_eq!((right.y, right.z), (0.0, 0.0));
 }
 
 #[test]
@@ -56,35 +58,82 @@ fn note_depth_scales_with_duration() {
 
 #[test]
 fn note_depth_is_clamped() {
-    assert_eq!(note_depth(0.0), 0.4); // tiny notes keep a visible minimum
-    assert_eq!(note_depth(100.0), 12.0); // long notes are capped
+    assert_eq!(note_depth(0.0), 0.4); // tiny notes keep room for their cap
+    assert_eq!(note_depth(100.0), LANE_DEPTH * 1.5); // the rest is off screen
 }
 
-// ── note_tint_3d ───────────────────────────────────────────────────────────
+// ── note ribbons ───────────────────────────────────────────────────────────
 
 #[test]
-fn note_tint_3d_is_gold_when_hit_and_leaves_the_tail_for_the_hold_fill() {
+fn a_ribbon_leaves_a_gap_behind_it_but_always_fits_its_cap() {
+    let (_, long) = note_dimensions(LOOKAHEAD / 2.0);
+    assert!((long - (LANE_DEPTH / 2.0 - RIBBON_END_GAP)).abs() < 1e-4);
+    let (_, tiny) = note_dimensions(0.0);
+    assert!(tiny > RIBBON_CAP);
+}
+
+#[test]
+fn a_wobble_crosses_the_hit_line_at_the_charted_rate() {
+    // Crests `1 / cycles` units apart, scrolling at `lane_speed`, pass the
+    // hit line `cycles * lane_speed` times a second.
+    let vibrato = [Modifier::Vibrato {
+        oscillation_hz: 5.0,
+        intensity: None,
+    }];
+    let t = ribbon_technique(&vibrato);
+    assert_eq!(t.x, 2.0);
+    assert!((t.y * lane_speed() - 5.0).abs() < 1e-4);
+    let wah = [Modifier::WahWah {
+        oscillation_hz: 3.0,
+        intensity: None,
+    }];
+    let t = ribbon_technique(&wah);
+    assert_eq!(t.x, 3.0);
+    assert!((t.y * lane_speed() - 3.0).abs() < 1e-4);
+}
+
+#[test]
+fn a_deeper_bend_leans_further_and_pitch_up_leans_the_other_way() {
+    let bend = |semitones| {
+        ribbon_technique(&[Modifier::Bend {
+            semitones,
+            intensity: None,
+        }])
+    };
+    let (half, whole) = (bend(-1.0), bend(-2.0));
+    assert_eq!(half.x, 1.0);
+    assert!(half.z < 0.0 && whole.z < half.z);
+    let up = ribbon_technique(&[Modifier::Overblow]);
+    assert_eq!(up.x, 4.0);
+    assert!(up.z > 0.0);
+    assert_eq!(ribbon_technique(&[]), Vec4::ZERO);
+}
+
+#[test]
+fn a_vibrato_on_a_bend_keeps_the_bend_and_rides_on_it() {
+    let t = ribbon_technique(&[
+        Modifier::Vibrato {
+            oscillation_hz: 5.0,
+            intensity: None,
+        },
+        Modifier::Bend {
+            semitones: -1.0,
+            intensity: None,
+        },
+    ]);
+    assert_eq!((t.x, t.w), (1.0, 1.0));
+}
+
+#[test]
+fn a_missed_ribbon_dims_red_and_a_hit_keeps_its_colour_for_the_hold_state() {
     let colors = NoteColors::default();
-    let (base, _, tail_color) = note_tint_3d(true, false, true, colors);
-    assert_eq!(base, Color::srgb(1.0, 0.9, 0.3));
-    let (r, g, b, ..) = note_base_appearance(colors, true);
-    assert_eq!(tail_color, Color::srgba(r, g, b, 0.9).to_linear());
-}
-
-#[test]
-fn note_tint_3d_is_dark_red_when_missed() {
-    let (base, _, _) = note_tint_3d(false, true, true, NoteColors::default());
-    assert_eq!(base, Color::srgb(0.4, 0.12, 0.12));
-}
-
-#[test]
-fn note_tint_3d_restores_the_base_blow_draw_appearance_once_neither() {
-    let colors = NoteColors::default();
-    let (base, emissive, tail_color) = note_tint_3d(false, false, true, colors);
-    let (r, g, b, emit_r, emit_g, emit_b) = note_base_appearance(colors, true);
-    assert_eq!(base, Color::srgb(r, g, b));
-    assert_eq!(emissive, LinearRgba::new(emit_r, emit_g, emit_b, 1.0));
-    assert_eq!(tail_color, Color::srgba(r, g, b, 0.9).to_linear());
+    let base = ribbon_color(false, true, colors);
+    assert_eq!(base, {
+        let c = colors.blow.to_srgba();
+        Color::srgba(c.red, c.green, c.blue, 0.95).to_linear()
+    });
+    assert_ne!(ribbon_color(true, true, colors), base);
+    assert_ne!(ribbon_color(false, false, colors), base);
 }
 
 #[test]
@@ -115,10 +164,9 @@ fn leaving_3d_restores_the_2d_camera() {
 
 #[test]
 fn expired_note_cannot_respawn_until_rewind() {
-    let assets = NoteRenderAssets3D::default();
     let mut note = super::super::tests::overlap_test_note(0.0);
     note.duration = 0.1;
-    assert!(note_has_left_view(&assets, &note, 1.0));
-    assert!(note_has_left_view(&assets, &note, 2.0));
-    assert!(!note_has_left_view(&assets, &note, 0.0));
+    assert!(note_has_left_view(&note, 1.0));
+    assert!(note_has_left_view(&note, 2.0));
+    assert!(!note_has_left_view(&note, 0.0));
 }

@@ -69,7 +69,8 @@ See [Song Editor](song-editor.md) for how to author a chart of your own.
 
 A song folder only strictly needs one thing: a `.harpchart` file (any
 filename) inside its `song/` subfolder. Everything else is optional —
-`background.png`, `song/*.ogg` for the backing track, and the `2d/`/`3d/`
-note art folders — Harmonicon fills in a generated background, plays no
-backing track, and falls back to the selected note theme respectively for
-whatever's missing, rather than refusing to load the song.
+`background.png`, `song/*.ogg` for the backing track, and the `2d/` note
+art folder — Harmonicon fills in a generated background, plays no backing
+track, and falls back to the selected note theme respectively for
+whatever's missing, rather than refusing to load the song. (A `3d/` folder
+is accepted but no longer used: Play 3D draws every note as a ribbon.)

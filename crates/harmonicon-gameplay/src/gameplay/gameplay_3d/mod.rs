@@ -6,15 +6,14 @@ use bevy::prelude::*;
 use harmonicon_core::chart::{Action, HarpChart};
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
-use harmonicon_platform::assets_management::{SelectedNoteTheme3d, ShowNoteNumbers};
+use harmonicon_platform::assets_management::ShowNoteNumbers;
 use harmonicon_platform::theme::{HUD_PANEL_BG, LoadedTheme, NoteColors, effective_note_colors};
-use harmonicon_song::song::NoteCube3dConfig;
 use harmonicon_song::song::SongManifest;
 use harmonicon_ui::music_score::{self, BravuraFont};
 
 use super::adaptive_difficulty::AdaptiveDifficulty;
 use super::countdown_overlay::spawn_countdown;
-use super::gameplay_2d::{harp_pitches, note_anim_mode, note_techniques};
+use super::gameplay_2d::harp_pitches;
 use super::hud_panel::{
     ContextualPanels, HudPanel, LaneSurface, contextual_panels, spawn_hud_panel, used_modifiers,
 };
@@ -23,8 +22,8 @@ use super::modifier_legend::build_legend_materials;
 use super::note_feedback::{
     Judged, JudgedState, hold_uniform, judged_now, judged_scale, judged_stamp,
 };
-use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
-use super::note_tail_3d::NoteTail3dMaterial;
+use super::note_ribbon_3d::NoteRibbon3dMaterial;
+use super::note_tail_2d::NoteTail2dMaterial;
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
@@ -56,7 +55,6 @@ const HIT_Z: f32 = 6.0;
 const HIT_PLANE_BOTTOM_PCT: f32 = 21.4;
 const FAR_Z: f32 = HIT_Z - LANE_DEPTH; // -10
 const LANE_Y: f32 = 1.6;
-const NOTE_H: f32 = 0.18;
 /// Where the row of hole pads sits: just past the hit zone's near edge, so
 /// a pad lights under the note being played.
 const PAD_Z: f32 = HIT_Z + 1.9;
@@ -88,24 +86,16 @@ pub(super) struct NoteVisual3D {
 #[derive(Component)]
 pub(super) struct NoteHoleLabel3D {
     target: Entity,
+    /// Which side of the ribbon the label sits on — the lane beside it that
+    /// stays on the track (`technique_cue::beside_lane`).
+    on_right: bool,
 }
 
 /// Chart-level (not per-note) 3D rendering config `spawn_visible_notes_3d`
 /// needs once a note's `LOOKAHEAD` window arrives — set once at song load.
 #[derive(Resource, Default)]
 pub(super) struct NoteRenderAssets3D {
-    head_mesh: Option<Handle<Mesh>>,
-    cfg: Option<NoteCube3dConfig>,
     hole_count: u8,
-}
-
-/// The cube head of a 3D note (child). Tinted gold/red on hit/miss and
-/// scaled by `animate_judged_notes_3d` the moment the note is judged —
-/// `base_scale` is what the pop/shrink multiplies, since the `Transform`
-/// itself is overwritten each frame.
-#[derive(Component)]
-pub(super) struct NoteHead3d {
-    base_scale: f32,
 }
 
 /// The tab text inside a [`NoteHoleLabel3D`]. Replaced by a check or cross
@@ -113,9 +103,11 @@ pub(super) struct NoteHead3d {
 #[derive(Component)]
 pub(super) struct NoteHoleLabelText3D;
 
-/// The animated tail ribbon of a 3D note (child). Tinted gold/red on hit/miss.
+/// The ribbon that *is* a 3D note (child of its [`NoteVisual3D`], trailing
+/// back from the front edge). Its width pops on a hit and narrows on a
+/// miss; its material carries the hold state and the gold/red tint.
 #[derive(Component)]
-pub(super) struct NoteTail3d;
+pub(super) struct NoteRibbon3d;
 
 #[derive(Component)]
 pub(super) struct HoleMesh3D(Handle<StandardMaterial>);
@@ -154,9 +146,7 @@ pub fn setup(
     mut note_build: NoteBuildState,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
     shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
-    note_theme: Res<SelectedNoteTheme3d>,
     mut cameras: Query<(&mut Camera, &mut Transform), With<Camera2d>>,
     hud: HudContext,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
@@ -191,17 +181,7 @@ pub fn setup(
     create_hit_zone(&mut commands, total_width);
     spawn_hole_pads(&mut commands, &mut meshes, &mut materials, hole_count);
 
-    // Comet head mesh + 3D tail layout: loaded here — on entering the 3D game —
-    // from the song's own GLB if it ships a `3d/` folder, else the selected
-    // theme's default. The handle lives only on the note entities, so it frees
-    // when they despawn on leaving the song.
-    let head_mesh: Handle<Mesh> = match &manifest.assets_3d {
-        Some(path) => asset_server.load(path.clone().with_label("Mesh0/Primitive0")),
-        None => asset_server.load(format!("notes/3d/{}.glb#Mesh0/Primitive0", note_theme.0)),
-    };
-    let note_cfg = manifest.assets_3d_config.clone();
-    let (notes, assets) =
-        build_song_notes_3d(&effective, chart, head_mesh, note_cfg, &note_build.adaptive);
+    let (notes, assets) = build_song_notes_3d(&effective, chart, &note_build.adaptive);
     *note_build.song_notes = notes;
     *note_build.render_assets = assets;
 

@@ -45,7 +45,7 @@ struct UiVertexOutput {
 ";
 
 /// Stand-in for `bevy_pbr::render::forward_io`, used by the one mesh
-/// `Material` we have (`note_tail_3d`). The real struct gates several
+/// `Material` we have (`note_ribbon_3d`). The real struct gates several
 /// fields behind `@if(...)` shader defs; only the ones a mesh material
 /// can always rely on are declared here.
 const FORWARD_IO: &str = "\

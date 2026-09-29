@@ -1,23 +1,28 @@
 // SPDX-License-Identifier: MIT
 
-//! 3D notes: building `SongNotes` for a chart, spawning each note's cube
-//! head, tail ribbon and floating hole label in the `LOOKAHEAD` window,
-//! scrolling and recycling them, and the per-frame tint / judged-note /
-//! tail animation systems — the 3D twin of `gameplay_2d`'s note path.
+//! 3D notes: building `SongNotes` for a chart, spawning each note as a flat
+//! ribbon plus its floating label in the `LOOKAHEAD` window, scrolling and
+//! recycling them, and the per-frame tint / judged-note / ribbon animation
+//! systems — the 3D twin of `gameplay_2d`'s note path.
+
+use harmonicon_core::chart::Modifier;
 
 use super::*;
 
-/// `(note_w, head_depth, tail_len)` for a note of `duration` — everything
-/// `spawn_visible_notes_3d` (at spawn) and `update_notes_3d` (every frame)
-/// need beyond what's already on `ScheduledNote`. Recomputed on demand
-/// rather than cached, since it's cheap: every lane is the same width, so
-/// only the note's own duration varies.
-pub(super) fn note_dimensions(assets: &NoteRenderAssets3D, duration: f64) -> (f32, f32, f32) {
-    let note_w = LANE_WIDTH * NOTE_W;
-    let head_scale = note_w * assets.cfg.as_ref().map(|c| c.head_scale).unwrap_or(1.0);
-    let head_depth = head_scale * 1.4;
-    let tail_len = note_depth(duration);
-    (note_w, head_depth, tail_len)
+/// Length of the bright cap at a ribbon's front edge — the attack — in world
+/// units. Fixed rather than proportional, so a short note's attack is as
+/// clear as a long one's.
+pub(super) const RIBBON_CAP: f32 = 0.3;
+/// Gap left at the back of every ribbon, in world units, so two notes back
+/// to back on one hole read as two attacks rather than one long note.
+pub(super) const RIBBON_END_GAP: f32 = 0.15;
+
+/// `(ribbon_w, ribbon_len)` for a note of `duration`: the ribbon runs the
+/// note's length less the end gap, never shorter than its cap plus a
+/// sliver of body.
+pub(super) fn note_dimensions(duration: f64) -> (f32, f32) {
+    let len = (note_depth(duration) - RIBBON_END_GAP).max(RIBBON_CAP + 0.1);
+    (LANE_WIDTH * NOTE_W, len)
 }
 
 /// `hole_count` comes from the loaded chart's harmonica (10 for diatonic,
@@ -27,33 +32,79 @@ pub(super) fn lane_x(hole: u8, hole_count: u8) -> f32 {
     (hole as f32 - 1.0) * LANE_WIDTH - (hole_count as f32 * LANE_WIDTH) / 2.0 + LANE_WIDTH * 0.5
 }
 
+/// A note's full length on the lane in world units: its duration at the
+/// lane's speed. Clamped below so a very short note still has room for its
+/// cap, and above at a lane and a half, past which the rest is off screen.
 pub(super) fn note_depth(duration: f64) -> f32 {
-    ((duration as f32 / LOOKAHEAD as f32) * LANE_DEPTH).clamp(0.4, 12.0)
+    ((duration as f32 / LOOKAHEAD as f32) * LANE_DEPTH).clamp(0.4, LANE_DEPTH * 1.5)
 }
 
-/// Spawns each note as a 3D comet: an elongated cube head (from the theme's
-/// glTF) tinted by blow/draw colour, trailing a flat ribbon that runs the
-/// technique's animation via [`NoteTail3dMaterial`] — the 3D twin of the 2D
-/// head+tail comet. Builds every note's score state (`SongNotes`) plus the
-/// render config `spawn_visible_notes_3d` needs (`NoteRenderAssets3D`) — no
-/// entities yet; notes spawn lazily in a `LOOKAHEAD` window around the
-/// playhead, mirroring `gameplay_2d::spawn_visible_notes`.
+/// World units a note travels per second.
+pub(super) fn lane_speed() -> f32 {
+    LANE_DEPTH / LOOKAHEAD as f32
+}
+
+/// The ribbon shader's `technique` uniform for a note's modifiers — see
+/// `note_ribbon_3d.wesl` for how each is drawn:
+///
+/// - `x` — mode: 0 plain, 1 bend, 2 vibrato, 3 wah, 4 pitch-up shift
+///   (overblow, overdraw, slide).
+/// - `y` — oscillation cycles per world unit, from the charted rate. The
+///   ribbon scrolls at [`lane_speed`], so crests this far apart cross the
+///   hit line at exactly `oscillation_hz` — the wobble to copy.
+/// - `z` — how far the core leans across the lane, signed: a deeper bend
+///   leans further, down-bends one way and pitch-up shifts the other.
+/// - `w` — 1 when a vibrato rides on a bend or shift, which keeps the bend
+///   as the mode and draws the vibrato on top.
+pub(super) fn ribbon_technique(modifiers: &[Modifier]) -> Vec4 {
+    let bend = modifiers.iter().find_map(|m| match m {
+        Modifier::Bend { semitones, .. } => Some(*semitones),
+        _ => None,
+    });
+    let up = modifiers
+        .iter()
+        .any(|m| matches!(m, Modifier::Overblow | Modifier::Overdraw | Modifier::Slide));
+    let wobble = modifiers.iter().find_map(|m| match m {
+        Modifier::Vibrato { oscillation_hz, .. } => Some((false, *oscillation_hz)),
+        Modifier::WahWah { oscillation_hz, .. } => Some((true, *oscillation_hz)),
+        _ => None,
+    });
+
+    let (mut mode, mut lean) = (0.0, 0.0);
+    if let Some(semitones) = bend {
+        mode = 1.0;
+        let depth = semitones.abs().clamp(1.0, 3.0);
+        lean = (0.12 + 0.08 * depth).copysign(semitones);
+    } else if up {
+        mode = 4.0;
+        lean = 0.2;
+    }
+    let (mut cycles, mut vibrato_on_shift) = (0.0, 0.0);
+    if let Some((is_wah, hz)) = wobble {
+        cycles = hz / lane_speed();
+        if mode == 0.0 {
+            mode = if is_wah { 3.0 } else { 2.0 };
+        } else if !is_wah {
+            vibrato_on_shift = 1.0;
+        }
+    }
+    Vec4::new(mode, cycles, lean, vibrato_on_shift)
+}
+
+/// Builds every note's score state (`SongNotes`) plus the render config
+/// `spawn_visible_notes_3d` needs (`NoteRenderAssets3D`) — no entities yet;
+/// notes spawn lazily in a `LOOKAHEAD` window around the playhead,
+/// mirroring `gameplay_2d::spawn_visible_notes`.
 pub(super) fn build_song_notes_3d(
     effective: &EffectiveHarmonica,
     chart: &HarpChart,
-    head_mesh: Handle<Mesh>,
-    cfg: NoteCube3dConfig,
     adaptive: &AdaptiveDifficulty,
 ) -> (super::super::SongNotes, NoteRenderAssets3D) {
     let (notes, _) = super::super::build_scheduled_notes(effective, chart, adaptive);
     let hole_count = effective.harp_for(chart).hole_count();
     (
         super::super::SongNotes { notes, cursor: 0 },
-        NoteRenderAssets3D {
-            head_mesh: Some(head_mesh),
-            cfg: Some(cfg),
-            hole_count,
-        },
+        NoteRenderAssets3D { hole_count },
     )
 }
 
@@ -68,8 +119,7 @@ pub fn spawn_visible_notes_3d(
     song_notes: Res<super::super::SongNotes>,
     render_assets: Res<NoteRenderAssets3D>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut tail_materials: ResMut<Assets<NoteTail3dMaterial>>,
+    mut ribbons: ResMut<Assets<NoteRibbon3dMaterial>>,
     existing: Query<&NoteVisual3D>,
     show_numbers: Res<ShowNoteNumbers>,
     theme: Res<LoadedTheme>,
@@ -80,22 +130,18 @@ pub fn spawn_visible_notes_3d(
     if lesson.is_some_and(|lesson| lesson.aural) {
         return;
     }
-    if render_assets.head_mesh.is_none() {
-        return;
-    }
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
     let elapsed = clock.get();
     already_spawned.clear();
     already_spawned.extend(existing.iter().map(|v| v.note_id));
     for i in super::super::notes_needing_spawn(&song_notes.notes, &already_spawned, elapsed) {
-        if note_has_left_view(&render_assets, &song_notes.notes[i], elapsed) {
+        if note_has_left_view(&song_notes.notes[i], elapsed) {
             continue;
         }
         spawn_note_visual_3d(
             &mut commands,
             &mut meshes,
-            &mut materials,
-            &mut tail_materials,
+            &mut ribbons,
             &render_assets,
             i,
             &song_notes.notes[i],
@@ -106,36 +152,28 @@ pub fn spawn_visible_notes_3d(
     }
 }
 
-/// A note's base (un-hit, un-missed) blow/draw appearance: `(r, g, b,
-/// emissive_r, emissive_g, emissive_b)`. `r`/`g`/`b` come from `colors`
-/// (the active theme's note colors, or the fixed colorblind-safe pair —
-/// see `theme::effective_note_colors`); the emissive glow stays a fixed
-/// per-direction accent regardless of palette, a secondary bloom layered
-/// on top of the palette-driven base color. Shared by `spawn_note_visual_3d`
-/// and `update_note_visuals_3d` so the two can't drift out of sync.
-pub(super) fn note_base_appearance(
-    colors: NoteColors,
-    is_blow: bool,
-) -> (f32, f32, f32, f32, f32, f32) {
+/// A note ribbon's colour: its blow/draw colour from `colors` (the active
+/// theme's, or the fixed colorblind-safe pair — see
+/// `theme::effective_note_colors`), or dim red once missed. A hit keeps the
+/// base colour: the shader's hold state turns it gold while the pitch is
+/// held and greys it when it drops, so the tint must not also claim it.
+/// Shared by spawn and `update_note_visuals_3d` so the two can't drift.
+pub(super) fn ribbon_color(missed: bool, is_blow: bool, colors: NoteColors) -> LinearRgba {
+    if missed {
+        return Color::srgba(0.5, 0.13, 0.13, 0.6).to_linear();
+    }
     let c = if is_blow { colors.blow } else { colors.draw }.to_srgba();
-    let (emit_r, emit_g, emit_b) = if is_blow {
-        (0.1, 0.3, 1.2)
-    } else {
-        (1.2, 0.2, 0.05)
-    };
-    (c.red, c.green, c.blue, emit_r, emit_g, emit_b)
+    Color::srgba(c.red, c.green, c.blue, 0.95).to_linear()
 }
 
-/// Spawns one note as a 3D comet: an elongated cube head (from the theme's
-/// glTF) tinted by blow/draw colour, trailing a flat ribbon that runs the
-/// technique's animation via [`NoteTail3dMaterial`] — the 3D twin of the 2D
-/// head+tail comet. Positioned once here (holes don't move); `update_notes_3d`
-/// drives the Z position every frame.
+/// Spawns one note as a flat ribbon on its lane — no separate head: the
+/// ribbon's front edge (with its bright cap) is the attack and its length
+/// the duration. The note root sits at the front edge, so
+/// `update_notes_3d` only has to move it and the label can anchor on it.
 pub(super) fn spawn_note_visual_3d(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    tail_materials: &mut Assets<NoteTail3dMaterial>,
+    ribbons: &mut Assets<NoteRibbon3dMaterial>,
     assets: &NoteRenderAssets3D,
     note_id: usize,
     note: &ScheduledNote,
@@ -143,67 +181,35 @@ pub(super) fn spawn_note_visual_3d(
     cue: Option<String>,
     colors: NoteColors,
 ) {
-    let head_mesh = assets.head_mesh.as_ref().expect("checked by caller");
-    let cfg = assets.cfg.as_ref().expect("checked by caller");
-    let (r, g, b, emit_r, emit_g, emit_b) = note_base_appearance(colors, note.is_blow);
-
     let note_x = lane_x(note.hole, assets.hole_count);
-    let (note_w, head_depth, tail_len) = note_dimensions(assets, note.duration);
-
-    // Head: the elongated cube (1.4 units long in Z), tinted blow/draw.
-    let head_scale = note_w * cfg.head_scale;
-    let head_mat = materials.add(StandardMaterial {
-        base_color: Color::srgb(r, g, b),
-        emissive: LinearRgba::new(emit_r, emit_g, emit_b, 1.0),
-        ..default()
-    });
-
-    // Tail: a flat ribbon driven by the same technique animation as 2D.
-    let (vib, shift, wah) = note_techniques(Some(&note.modifiers));
-    let mode = note_anim_mode(Some(&note.modifiers));
-    let (mut params, mut wah_v) = tail_params(20.0, vib, shift, wah);
-    params.z = 0.0; // animation clock, set each frame
-    wah_v.z = mode; // which technique animation
-    wah_v.w = note_id as f32 * 1.7; // per-note phase
-    let tail_mat = tail_materials.add(NoteTail3dMaterial {
-        color: Color::srgba(r, g, b, 0.9).to_linear(),
-        params,
-        wah: wah_v,
+    let (ribbon_w, ribbon_len) = note_dimensions(note.duration);
+    let material = ribbons.add(NoteRibbon3dMaterial {
+        color: ribbon_color(false, note.is_blow, colors),
+        technique: ribbon_technique(&note.modifiers),
+        shape: Vec4::new(ribbon_len, RIBBON_CAP, 0.0, note_id as f32 * 1.7),
         hold: Vec4::ZERO,
     });
-    let tail_w = note_w * cfg.tail_width;
-    let tail_mesh = meshes.add(Mesh::from(Plane3d::new(
+    let mesh = meshes.add(Mesh::from(Plane3d::new(
         Vec3::Y,
-        Vec2::new(tail_w * 0.5, tail_len * 0.5),
+        Vec2::new(ribbon_w * 0.5, ribbon_len * 0.5),
     )));
 
     let note_entity = commands
         .spawn((
-            Transform::from_xyz(note_x, LANE_Y + NOTE_H * 0.5, FAR_Z),
+            // Just above the hit band, hit line and hole pads, so the
+            // ribbon draws over them rather than fighting them for depth.
+            Transform::from_xyz(note_x, LANE_Y + 0.12, FAR_Z),
             NoteVisual3D { note_id },
             JudgedState::default(),
             GameplayRoot,
         ))
         .with_children(|note_e| {
-            // Cube head at the leading edge (parent origin).
+            // Trailing back (−Z) from the front edge at the parent origin.
             note_e.spawn((
-                Mesh3d(head_mesh.clone()),
-                MeshMaterial3d(head_mat),
-                Transform::from_scale(Vec3::splat(head_scale)),
-                NoteHead3d {
-                    base_scale: head_scale,
-                },
-            ));
-            // Tail ribbon trailing behind the head (−Z), flat over the lane.
-            note_e.spawn((
-                Mesh3d(tail_mesh),
-                MeshMaterial3d(tail_mat),
-                Transform::from_xyz(
-                    0.0,
-                    -NOTE_H * 0.5 + 0.02,
-                    -(head_depth * 0.5 + tail_len * 0.5),
-                ),
-                NoteTail3d,
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_xyz(0.0, 0.0, -ribbon_len * 0.5),
+                NoteRibbon3d,
             ));
         })
         .id();
@@ -215,6 +221,8 @@ pub(super) fn spawn_note_visual_3d(
     // at the origin. A technique note gets one even with note numbers off,
     // since the cue is the only place its technique is spelled out.
     if show_numbers || cue.is_some() {
+        let on_right =
+            super::super::technique_cue::beside_lane(note.hole, assets.hole_count) > note.hole;
         let tab = super::super::gameplay_2d::head_label(
             note.hole,
             note.is_blow,
@@ -233,12 +241,18 @@ pub(super) fn spawn_note_visual_3d(
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                     ..default()
                 },
-                // Centred over the note, sitting on top of it.
-                UiTransform::from_translation(Val2::percent(-50.0, -100.0)),
+                // Beside the ribbon's front edge, vertically centred on it,
+                // so it never covers the technique drawn along the ribbon.
+                UiTransform::from_translation(if on_right {
+                    Val2::percent(0.0, -50.0)
+                } else {
+                    Val2::percent(-100.0, -50.0)
+                }),
                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
                 Visibility::Hidden,
                 NoteHoleLabel3D {
                     target: note_entity,
+                    on_right,
                 },
                 GameplayRoot,
             ))
@@ -267,22 +281,24 @@ pub(super) fn spawn_note_visual_3d(
     }
 }
 
-/// Offset (logical px) from a note's projected screen position to where its
-/// label's anchor lands. The label is centred horizontally on that anchor
-/// and sits on top of it (its `UiTransform`), so this only lifts it a
-/// little clear of the head.
-pub(super) const NOTE_LABEL_OFFSET: Vec2 = Vec2::new(0.0, -6.0);
+/// Where a label anchors relative to its note's root (the ribbon's front
+/// edge, centred in the lane): just past the ribbon's side, on the side the
+/// label sits.
+pub(super) fn label_anchor_offset(on_right: bool) -> Vec3 {
+    let reach = LANE_WIDTH * NOTE_W * 0.5 + 0.05;
+    Vec3::X * if on_right { reach } else { -reach }
+}
 
 /// Converts a `Camera::world_to_viewport` result into the `Val::Px` a UI
-/// `Node`'s `left`/`top` needs, offset to the label's anchor point.
-/// `world_to_viewport` resolves through `logical_viewport_rect()`, the same
-/// logical-window-pixel space `Val::Px` is in — except bevy_ui additionally
-/// multiplies every `Val::Px` by [`UiScale`] before converting to physical
-/// pixels, a multiplier the camera projection knows nothing about. Dividing
-/// by `ui_scale` here cancels that back out, so the label lands under the
-/// note regardless of the player's UI zoom level (`dialogs::ui_scale`).
+/// `Node`'s `left`/`top` needs. `world_to_viewport` resolves through
+/// `logical_viewport_rect()`, the same logical-window-pixel space `Val::Px`
+/// is in — except bevy_ui additionally multiplies every `Val::Px` by
+/// [`UiScale`] before converting to physical pixels, a multiplier the camera
+/// projection knows nothing about. Dividing by `ui_scale` here cancels that
+/// back out, so the label lands beside the note regardless of the player's
+/// UI zoom level (`dialogs::ui_scale`).
 pub(super) fn note_label_position(viewport_px: Vec2, ui_scale: f32) -> Vec2 {
-    viewport_px / ui_scale + NOTE_LABEL_OFFSET
+    viewport_px / ui_scale
 }
 
 /// Positions each [`NoteHoleLabel3D`] over its target note's current screen
@@ -312,8 +328,7 @@ pub fn update_note_hole_labels_3d(
             commands.entity(entity).despawn();
             continue;
         };
-        // Anchored just above the head's top face.
-        let anchor = note_transform.translation + Vec3::Y * 0.4;
+        let anchor = note_transform.translation + label_anchor_offset(label.on_right);
         match camera.world_to_viewport(camera_transform, anchor) {
             Ok(viewport_px) => {
                 let pos = note_label_position(viewport_px, ui_scale.0);
@@ -335,22 +350,17 @@ pub fn update_note_hole_labels_3d(
     }
 }
 
-pub(super) fn note_has_left_view(
-    assets: &NoteRenderAssets3D,
-    note: &ScheduledNote,
-    elapsed: f64,
-) -> bool {
-    let (_, head_depth, tail_len) = note_dimensions(assets, note.duration);
-    let distance = (elapsed - note.time) as f32 / LOOKAHEAD as f32 * LANE_DEPTH;
-    // Gone once the whole comet has run off the track's near end (just past
-    // the hole pads), rather than sliding on under the camera.
-    distance > head_depth + tail_len + (PAD_Z + 0.6 - HIT_Z)
+pub(super) fn note_has_left_view(note: &ScheduledNote, elapsed: f64) -> bool {
+    let (_, ribbon_len) = note_dimensions(note.duration);
+    let distance = (elapsed - note.time) as f32 * lane_speed();
+    // Gone once the whole ribbon has run off the track's near end (just
+    // past the hole pads), rather than sliding on under the camera.
+    distance > ribbon_len + (PAD_Z + 0.6 - HIT_Z)
 }
 
 pub fn update_notes_3d(
     clock: Res<super::super::GameplayClock>,
     song_notes: Res<super::super::SongNotes>,
-    render_assets: Res<NoteRenderAssets3D>,
     mut commands: Commands,
     mut notes: Query<(Entity, &NoteVisual3D, &mut Transform)>,
 ) {
@@ -359,65 +369,24 @@ pub fn update_notes_3d(
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
-        let (_, head_depth, _) = note_dimensions(&render_assets, note.duration);
-        let remaining = (note.time - elapsed) as f32;
-        // The head's front face lands on the hit line at the note's time.
-        let z = HIT_Z - remaining / LOOKAHEAD as f32 * LANE_DEPTH - head_depth * 0.5;
-        // Recycle once the whole comet (head + trailing tail) has passed the
-        // hit zone. Score state lives independently in `SongNotes` now, so
-        // this despawns unconditionally even while looping —
-        // `spawn_visible_notes_3d` respawns it once the (rewound) clock
-        // nears it again, with no state to lose.
-        if note_has_left_view(&render_assets, note, elapsed) {
+        // Recycle once the whole ribbon has passed the hit zone. Score
+        // state lives independently in `SongNotes`, so this despawns
+        // unconditionally even while looping — `spawn_visible_notes_3d`
+        // respawns it once the (rewound) clock nears it again.
+        if note_has_left_view(note, elapsed) {
             commands.entity(entity).despawn();
             continue;
         }
-        tf.translation.z = z;
+        // The front edge lands on the hit line at the note's time.
+        tf.translation.z = HIT_Z - (note.time - elapsed) as f32 * lane_speed();
     }
 }
 
-/// Head/emissive/tail appearance for a 3D note visual: a gold head while
-/// hit — the tail ribbon keeps its base colour so the shader's credited-hold
-/// fill can advance along it — dim red while missed, otherwise its base
-/// blow/draw appearance ([`note_base_appearance`]). Pulled out of
-/// `update_note_visuals_3d` so the tint decision is unit-testable without
-/// spinning up rendering — mirrors [`gameplay_2d::note_tint`].
-pub(super) fn note_tint_3d(
-    hit: bool,
-    missed: bool,
-    is_blow: bool,
-    colors: NoteColors,
-) -> (Color, LinearRgba, LinearRgba) {
-    if hit {
-        let (r, g, b, ..) = note_base_appearance(colors, is_blow);
-        (
-            Color::srgb(1.0, 0.9, 0.3),
-            LinearRgba::new(2.5, 2.0, 0.3, 1.0),
-            Color::srgba(r, g, b, 0.9).to_linear(),
-        )
-    } else if missed {
-        (
-            Color::srgb(0.4, 0.12, 0.12),
-            LinearRgba::new(0.2, 0.05, 0.05, 1.0),
-            Color::srgba(0.5, 0.13, 0.13, 0.6).to_linear(),
-        )
-    } else {
-        let (r, g, b, emit_r, emit_g, emit_b) = note_base_appearance(colors, is_blow);
-        (
-            Color::srgb(r, g, b),
-            LinearRgba::new(emit_r, emit_g, emit_b, 1.0),
-            Color::srgba(r, g, b, 0.9).to_linear(),
-        )
-    }
-}
-
-/// Tints a 3D note's cube head and tail ribbon when it is hit or missed —
-/// gold on a hit, dim red on a miss — mirroring the 2D path, and restores
-/// the base blow/draw appearance otherwise (see [`note_tint_3d`]).
-/// `ScheduledNote` isn't an ECS component (score state lives in
-/// `SongNotes`), so this re-syncs every currently-spawned note's tint each
-/// frame rather than reacting to `Changed<ScheduledNote>` — cheap since only
-/// a `LOOKAHEAD` window's worth of notes are ever spawned.
+/// Keeps each ribbon's colour ([`ribbon_color`]) and live hold state in
+/// step with its note. `ScheduledNote` isn't an ECS component (score state
+/// lives in `SongNotes`), so this re-syncs every currently-spawned note
+/// each frame rather than reacting to a change — cheap, since only a
+/// `LOOKAHEAD` window's worth of notes are ever spawned.
 pub fn update_note_visuals_3d(
     mut sounding: Local<HashSet<u8>>,
     song_notes: Res<super::super::SongNotes>,
@@ -427,10 +396,8 @@ pub fn update_note_visuals_3d(
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
     notes: Query<(&NoteVisual3D, &Children)>,
-    heads: Query<&MeshMaterial3d<StandardMaterial>, With<NoteHead3d>>,
-    tails: Query<&MeshMaterial3d<NoteTail3dMaterial>, With<NoteTail3d>>,
-    mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut tail_materials: ResMut<Assets<NoteTail3dMaterial>>,
+    ribbon_meshes: Query<&MeshMaterial3d<NoteRibbon3dMaterial>, With<NoteRibbon3d>>,
+    mut ribbons: ResMut<Assets<NoteRibbon3dMaterial>>,
     theme: Res<LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
 ) {
@@ -441,8 +408,7 @@ pub fn update_note_visuals_3d(
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
-        let (base, emissive, tail_color) =
-            note_tint_3d(note.hit, note.missed, note.is_blow, colors);
+        let color = ribbon_color(note.missed, note.is_blow, colors);
         let hold = hold_uniform(
             note,
             judged,
@@ -452,32 +418,24 @@ pub fn update_note_visuals_3d(
         // Writing through `get_mut` queues `AssetEvent::Modified` and a GPU
         // re-upload even for an unchanged value, so compare first.
         for child in children {
-            if let Ok(h) = heads.get(*child)
-                && std_materials
+            if let Ok(h) = ribbon_meshes.get(*child)
+                && ribbons
                     .get(&h.0)
-                    .is_some_and(|m| m.base_color != base || m.emissive != emissive)
-                && let Some(mut m) = std_materials.get_mut(&h.0)
+                    .is_some_and(|m| m.color != color || m.hold != hold)
+                && let Some(mut m) = ribbons.get_mut(&h.0)
             {
-                m.base_color = base;
-                m.emissive = emissive;
-            }
-            if let Ok(h) = tails.get(*child)
-                && tail_materials
-                    .get(&h.0)
-                    .is_some_and(|m| m.color != tail_color || m.hold != hold)
-                && let Some(mut m) = tail_materials.get_mut(&h.0)
-            {
-                m.color = tail_color;
+                m.color = color;
                 m.hold = hold;
             }
         }
     }
 }
 
-/// The 3D twin of `gameplay_2d::animate_judged_notes`: pops the cube head
-/// on a hit, shrinks it on a miss, and stamps the floating hole label with
-/// a check or cross — once per judgment, via [`JudgedState`], and undone
-/// when an A–B loop clears the note.
+/// The 3D twin of `gameplay_2d::animate_judged_notes`: widens the ribbon on
+/// a hit and narrows it on a miss — its width only, since its length is the
+/// note's duration and must stay true — and stamps the floating label with
+/// a check or cross, once per judgment via [`JudgedState`], undone when an
+/// A–B loop clears the note.
 pub fn animate_judged_notes_3d(
     mut commands: Commands,
     song_notes: Res<super::super::SongNotes>,
@@ -490,7 +448,7 @@ pub fn animate_judged_notes_3d(
         Option<&Judged>,
         &Children,
     )>,
-    mut heads: Query<(&NoteHead3d, &mut Transform)>,
+    mut ribbons: Query<&mut Transform, With<NoteRibbon3d>>,
     labels: Query<(&NoteHoleLabel3D, &Children)>,
     mut label_texts: Query<&mut Text, With<NoteHoleLabelText3D>>,
     show_numbers: Res<ShowNoteNumbers>,
@@ -522,11 +480,10 @@ pub fn animate_judged_notes_3d(
             judged_scale(j.hit, (now - j.at) as f32, reduced_motion.0)
         });
         for child in children {
-            if let Ok((head, mut transform)) = heads.get_mut(*child) {
-                let wanted = Vec3::splat(head.base_scale * scale);
-                if transform.scale != wanted {
-                    transform.scale = wanted;
-                }
+            if let Ok(mut transform) = ribbons.get_mut(*child)
+                && transform.scale.x != scale
+            {
+                transform.scale.x = scale;
             }
         }
         if !transitioned {
@@ -554,18 +511,20 @@ pub fn animate_judged_notes_3d(
     }
 }
 
-/// Drives every 3D tail's animation clock (`params.z`) from the gameplay clock,
-/// so the ribbons flow in time with the song and freeze on pause.
-pub fn animate_note_tails_3d(
+/// Drives every ribbon's animation clock (`shape.z`) from the gameplay
+/// clock, so the hold shimmer runs in time with the song and freezes on
+/// pause. The technique patterns themselves are fixed along the ribbon and
+/// move only because the note does.
+pub fn animate_note_ribbons_3d(
     clock: Res<super::super::GameplayClock>,
     reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
-    mut materials: ResMut<Assets<NoteTail3dMaterial>>,
+    mut materials: ResMut<Assets<NoteRibbon3dMaterial>>,
 ) {
     if reduced_motion.0 {
         return;
     }
     let t = clock.get() as f32;
     for (_, material) in materials.iter_mut() {
-        material.params.z = t;
+        material.shape.z = t;
     }
 }

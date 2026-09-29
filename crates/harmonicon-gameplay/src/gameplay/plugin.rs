@@ -29,7 +29,7 @@ use super::technique_coach;
 use super::{
     adaptive_difficulty, bending_trainer, call_response, countdown_overlay, gameplay_2d,
     gameplay_3d, harmonica_overlay, metronome_overlay, modifier_legend, music_score_bridge,
-    note_tail_2d, note_tail_3d, pause_menu, phrase_overlay, results, song_progress_overlay,
+    note_ribbon_3d, note_tail_2d, pause_menu, phrase_overlay, results, song_progress_overlay,
     twelve_bar_blues_overlay, wait_freeze_overlay, warning_banner,
 };
 
@@ -76,7 +76,7 @@ impl Plugin for GameplayPlugin {
             modifier_legend::ModifierLegendPlugin,
             phrase_overlay::PhrasePlugin,
             note_tail_2d::NoteTail2dPlugin,
-            note_tail_3d::NoteTail3dPlugin,
+            note_ribbon_3d::NoteRibbon3dPlugin,
             song_progress_overlay::SongProgressPlugin,
             warning_banner::WarningBannerPlugin,
             wait_freeze_overlay::WaitFreezePlugin,
@@ -389,7 +389,7 @@ impl Plugin for GameplayPlugin {
                 gameplay_3d::update_note_hole_labels_3d,
                 gameplay_3d::update_note_visuals_3d,
                 gameplay_3d::animate_judged_notes_3d,
-                gameplay_3d::animate_note_tails_3d,
+                gameplay_3d::animate_note_ribbons_3d,
                 gameplay_3d::update_holes_3d,
                 technique_coach::update_technique_coach,
             )
