@@ -335,59 +335,11 @@ fn parse_credits(markdown: &str) -> Vec<CreditLine> {
 }
 
 fn spawn_credit_line(parent: &mut ChildSpawnerCommands, item: CreditLine) {
-    match item {
-        CreditLine::BigTitle(text) => {
-            parent.spawn((
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(38.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Node {
-                    margin: UiRect::bottom(Val::Px(6.0)),
-                    ..default()
-                },
-            ));
-        }
-        CreditLine::Subtitle(text) => {
-            parent.spawn((
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.62, 0.65, 0.80)),
-            ));
-        }
-        CreditLine::Heading(text) => {
-            parent.spawn((
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(20.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.85, 0.72, 0.35)),
-                Node {
-                    margin: UiRect::bottom(Val::Px(8.0)),
-                    ..default()
-                },
-            ));
-        }
-        CreditLine::Body(text) => {
-            parent.spawn((
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(17.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.78, 0.80, 0.88)),
-                Node {
-                    margin: UiRect::bottom(Val::Px(4.0)),
-                    ..default()
-                },
-            ));
-        }
+    let (text, font_size, color, bottom_margin) = match item {
+        CreditLine::BigTitle(text) => (text, 38.0, Color::WHITE, 6.0),
+        CreditLine::Subtitle(text) => (text, 18.0, Color::srgb(0.62, 0.65, 0.80), 0.0),
+        CreditLine::Heading(text) => (text, 20.0, Color::srgb(0.85, 0.72, 0.35), 8.0),
+        CreditLine::Body(text) => (text, 17.0, Color::srgb(0.78, 0.80, 0.88), 4.0),
         CreditLine::Divider => {
             parent.spawn((
                 Node {
@@ -398,14 +350,22 @@ fn spawn_credit_line(parent: &mut ChildSpawnerCommands, item: CreditLine) {
                 },
                 BackgroundColor(Color::srgba(0.55, 0.58, 0.72, 0.40)),
             ));
+            return;
         }
         CreditLine::Gap(px) => {
             parent.spawn(Node {
                 height: Val::Px(px),
                 ..default()
             });
+            return;
         }
-    }
+    };
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({text})
+        TextFont { font_size: {FontSize::Px(font_size)} }
+        TextColor({color})
+        Node { margin: {UiRect::bottom(Val::Px(bottom_margin))} }
+    });
 }
 
 // ── Update systems ────────────────────────────────────────────────────────────
