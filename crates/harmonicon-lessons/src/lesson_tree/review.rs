@@ -165,14 +165,11 @@ pub(crate) fn spawn_warmups(
         .id();
     commands.entity(parent).add_child(row);
     commands.entity(row).with_children(|row| {
-        row.spawn((
-            Text::new(String::from(loc.msg("lesson-tree-warmup"))),
-            TextFont {
-                font_size: FontSize::Px(16.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.95, 0.82, 0.45)),
-        ));
+        row.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("lesson-tree-warmup"))})
+            TextFont { font_size: {FontSize::Px(16.0)} }
+            TextColor({Color::srgb(0.95, 0.82, 0.45)})
+        });
     });
 
     for warmup in warmups {
