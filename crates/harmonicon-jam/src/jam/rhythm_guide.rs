@@ -22,7 +22,7 @@ use super::backing::{Genre, JamGenre, groove_arrangement, groove_arrangement_for
 /// Tags one of the 8 pulse-row cells with its slot index (matching
 /// `jam::backing::GrooveArrangement::bass`) so [`update_rhythm_guide`]
 /// can look up whether it's a hit or a rest, and pulse it accordingly.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct RhythmGuideSlot(pub usize);
 
 // ── Pure timing ────────────────────────────────────────────────────────────
@@ -80,14 +80,11 @@ pub fn spawn_rhythm_guide(parent: &mut ChildSpawnerCommands, loc: &Localization,
             ..default()
         })
         .with_children(|col| {
-            col.spawn((
-                Text::new(String::from(loc.msg("jam-rhythm-guide"))),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.55, 0.55, 0.60)),
-            ));
+            col.spawn_empty().apply_scene(bsn! {
+                Text({String::from(loc.msg("jam-rhythm-guide"))})
+                TextFont { font_size: {FontSize::Px(13.0)} }
+                TextColor({Color::srgb(0.55, 0.55, 0.60)})
+            });
             col.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(4.0),
@@ -96,17 +93,16 @@ pub fn spawn_rhythm_guide(parent: &mut ChildSpawnerCommands, loc: &Localization,
             .with_children(|row| {
                 for (i, slot) in pattern.iter().enumerate() {
                     let is_rest = slot.is_none();
-                    row.spawn((
+                    row.spawn_empty().apply_scene(bsn! {
                         Node {
-                            width: Val::Px(14.0),
-                            height: Val::Px(14.0),
-                            border: UiRect::all(Val::Px(1.0)),
-                            ..default()
-                        },
-                        BackgroundColor(if is_rest { Color::NONE } else { HIT_IDLE }),
-                        BorderColor::all(if is_rest { REST_BORDER } else { HIT_BORDER }),
-                        RhythmGuideSlot(i),
-                    ));
+                            width: {Val::Px(14.0)},
+                            height: {Val::Px(14.0)},
+                            border: {UiRect::all(Val::Px(1.0))},
+                        }
+                        BackgroundColor({if is_rest { Color::NONE } else { HIT_IDLE }})
+                        ~{BorderColor::all(if is_rest { REST_BORDER } else { HIT_BORDER })}
+                        RhythmGuideSlot(i)
+                    });
                 }
             });
         });
