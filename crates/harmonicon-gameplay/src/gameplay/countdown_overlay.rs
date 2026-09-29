@@ -18,7 +18,7 @@ use super::{
 #[derive(Component, Default, Clone)]
 pub struct CountdownOverlay;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct CountdownText;
 
 /// `song_info` is `None` for Jam Session, which has no chart to describe.
@@ -33,9 +33,8 @@ pub fn spawn_countdown(
     harp_hint: Option<&str>,
     song_info: Option<&SongInfo>,
 ) {
-    // The full-screen overlay shell is static, so it's a `bsn!` scene. The
-    // children stay imperative because the harp hint and song details are
-    // optional and spawned conditionally.
+    // The shell and text rows use `bsn!`; optional harp and song details are
+    // still chosen imperatively so absent content takes no layout space.
     let overlay = commands
         .spawn_scene(bsn! {
             Node {
@@ -54,37 +53,28 @@ pub fn spawn_countdown(
         })
         .id();
     commands.entity(overlay).with_children(|ov| {
-        ov.spawn((
-            Text::new(String::from(loc.msg("gameplay-get-ready"))),
-            TextFont {
-                font_size: FontSize::Px(22.0),
-                ..default()
-            },
-            TextColor(Color::srgba(0.85, 0.85, 1.0, 0.80)),
-        ));
+        ov.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("gameplay-get-ready"))})
+            TextFont { font_size: {FontSize::Px(22.0)} }
+            TextColor({Color::srgba(0.85, 0.85, 1.0, 0.80)})
+        });
         // Which physical harp to grab (2D/3D pass this; jam shows it elsewhere).
         if let Some(hint) = harp_hint {
-            ov.spawn((
-                Text::new(hint.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(16.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.95, 0.80, 0.35)),
-            ));
+            ov.spawn_empty().apply_scene(bsn! {
+                Text({hint.to_string()})
+                TextFont { font_size: {FontSize::Px(16.0)} }
+                TextColor({Color::srgb(0.95, 0.80, 0.35)})
+            });
         }
         if let Some(info) = song_info {
             spawn_song_details(ov, info);
         }
-        ov.spawn((
-            Text::new("3"),
-            TextFont {
-                font_size: FontSize::Px(120.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            CountdownText,
-        ));
+        ov.spawn_empty().apply_scene(bsn! {
+            Text("3")
+            TextFont { font_size: {FontSize::Px(120.0)} }
+            TextColor({Color::WHITE})
+            CountdownText
+        });
     });
 }
 
