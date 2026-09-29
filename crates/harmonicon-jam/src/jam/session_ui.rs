@@ -112,17 +112,14 @@ pub fn spawn_form_strip(
                     .with_children(|group| {
                         for col in 0..4usize {
                             let bar = line * 4 + col;
-                            group.spawn((
-                                Node {
-                                    width: Val::Px(26.0),
-                                    height: Val::Px(12.0),
-                                    border: UiRect::all(Val::Px(1.0)),
-                                    ..default()
-                                },
-                                BackgroundColor(bar_bg(bar, key, progression, colors)),
-                                BorderColor::all(Color::srgb(0.25, 0.25, 0.38)),
-                                BarCell(bar),
-                            ));
+                            group
+                                .spawn_empty()
+                                .apply_scene(bsn! {
+                                    Node { width: {Val::Px(26.0)}, height: {Val::Px(12.0)}, border: {UiRect::all(Val::Px(1.0))} }
+                                    BackgroundColor({bar_bg(bar, key, progression, colors)})
+                                    ~{BorderColor::all(Color::srgb(0.25, 0.25, 0.38))}
+                                })
+                                .insert(BarCell(bar));
                         }
                     });
             }
