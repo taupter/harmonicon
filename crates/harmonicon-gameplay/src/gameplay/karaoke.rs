@@ -48,15 +48,15 @@ pub(super) struct KaraokeStrip {
 }
 
 /// The sung half of the current line.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct KaraokeSung;
 
 /// The rest of the current line.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct KaraokeUnsung;
 
 /// The line after it.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct KaraokeNext;
 
 /// Where the strip starts: under the song-progress bar, and under the staff
@@ -79,71 +79,41 @@ pub(super) fn spawn_karaoke(commands: &mut Commands, lines: Vec<LyricLine>, top:
         return;
     }
     commands
-        .spawn((
+        .spawn_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(top),
-                left: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            GlobalZIndex(100),
-            GameplayRoot,
-            KaraokeStrip { lines, shown: None },
-        ))
-        .with_children(|strip| {
-            strip
-                .spawn((
-                    Node {
-                        padding: UiRect::axes(Val::Px(14.0), Val::Px(4.0)),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.45)),
-                ))
-                .with_children(|lines| {
-                    lines
-                        .spawn((
-                            Text::new(String::new()),
-                            TextFont {
-                                font_size: FontSize::Px(CURRENT_FONT),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|current| {
-                            current.spawn((
-                                TextSpan::new(String::new()),
-                                TextFont {
-                                    font_size: FontSize::Px(CURRENT_FONT),
-                                    ..default()
-                                },
-                                TextColor(SUNG_COLOR),
-                                KaraokeSung,
-                            ));
-                            current.spawn((
-                                TextSpan::new(String::new()),
-                                TextFont {
-                                    font_size: FontSize::Px(CURRENT_FONT),
-                                    ..default()
-                                },
-                                TextColor(UNSUNG_COLOR),
-                                KaraokeUnsung,
-                            ));
-                        });
-                    lines.spawn((
-                        Text::new(String::new()),
-                        TextFont {
-                            font_size: FontSize::Px(NEXT_FONT),
-                            ..default()
-                        },
-                        TextColor(NEXT_COLOR),
-                        KaraokeNext,
-                    ));
-                });
-        });
+                position_type: {PositionType::Absolute},
+                top: {Val::Px(top)},
+                left: {Val::Px(0.0)},
+                width: {Val::Percent(100.0)},
+                flex_direction: {FlexDirection::Column},
+                align_items: {AlignItems::Center},
+            }
+            GlobalZIndex(100)
+            GameplayRoot
+            Children [
+                Node {
+                    padding: {UiRect::axes(Val::Px(14.0), Val::Px(4.0))},
+                    flex_direction: {FlexDirection::Column},
+                    align_items: {AlignItems::Center},
+                }
+                BackgroundColor({Color::srgba(0.0, 0.0, 0.0, 0.45)})
+                Children [
+                    Text("")
+                    TextFont { font_size: {FontSize::Px(CURRENT_FONT)} }
+                    Children [
+                        TextSpan("") TextFont { font_size: {FontSize::Px(CURRENT_FONT)} }
+                        TextColor({SUNG_COLOR}) KaraokeSung
+                        --
+                        TextSpan("") TextFont { font_size: {FontSize::Px(CURRENT_FONT)} }
+                        TextColor({UNSUNG_COLOR}) KaraokeUnsung
+                    ]
+                    --
+                    Text("") TextFont { font_size: {FontSize::Px(NEXT_FONT)} }
+                    TextColor({NEXT_COLOR}) KaraokeNext
+                ]
+            ]
+        })
+        .insert(KaraokeStrip { lines, shown: None });
 }
 
 /// Moves the highlight to wherever the clock is. Runs every frame but only
@@ -225,7 +195,13 @@ mod tests {
 
     #[test]
     fn the_strip_follows_the_clock() {
-        let mut world = World::new();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            bevy::scene::ScenePlugin,
+        ));
+        let mut world = app.world_mut();
         world.insert_resource(GameplayClock::default());
         let lines = vec![
             line(&[("how", 1.0), ("sweet", 2.0)]),
