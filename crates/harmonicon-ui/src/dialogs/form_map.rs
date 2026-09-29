@@ -26,30 +26,27 @@ pub fn spawn_form_map(parent: &mut ChildSpawnerCommands, sections: &[String]) ->
         .with_children(|row| {
             for (index, label) in sections.iter().enumerate() {
                 let cell = row
-                    .spawn((
+                    .spawn_empty()
+                    .apply_scene(bsn! {
                         Node {
-                            width: Val::Px(76.0),
-                            height: Val::Px(54.0),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border: UiRect::all(Val::Px(1.0)),
-                            ..default()
-                        },
-                        BackgroundColor(if index == 0 {
+                            width: {Val::Px(76.0)},
+                            height: {Val::Px(54.0)},
+                            align_items: {AlignItems::Center},
+                            justify_content: {JustifyContent::Center},
+                            border: {UiRect::all(Val::Px(1.0))},
+                        }
+                        BackgroundColor({if index == 0 {
                             Color::srgba(0.82, 0.62, 0.10, 1.0)
                         } else {
                             section_bg(label)
-                        }),
-                        BorderColor::all(Color::srgb(0.40, 0.40, 0.55)),
-                    ))
-                    .with_child((
-                        Text::new(format!("{}  {}", index + 1, label)),
-                        TextFont {
-                            font_size: FontSize::Px(20.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ))
+                        }})
+                        ~{BorderColor::all(Color::srgb(0.40, 0.40, 0.55))}
+                        Children [
+                            Text({format!("{}  {}", index + 1, label)})
+                            TextFont { font_size: {FontSize::Px(20.0)} }
+                            TextColor({Color::WHITE})
+                        ]
+                    })
                     .id();
                 cells.push(cell);
             }
