@@ -487,47 +487,40 @@ pub fn spawn_song_progress(
                 // translucent wash alone has no ends; these are what make
                 // it read as *from here to here*.
                 for (edge, label) in [(LoopEdge::A, "A"), (LoopEdge::B, "B")] {
-                    let mut node = Node {
-                        position_type: PositionType::Absolute,
-                        top: Val::Px(0.0),
-                        width: Val::Px(3.0),
-                        height: Val::Percent(100.0),
-                        justify_content: JustifyContent::FlexStart,
-                        ..default()
+                    let (left, right, cap_left, cap_right) = match edge {
+                        LoopEdge::A => (Val::ZERO, Val::Auto, Val::Auto, Val::Px(3.0)),
+                        LoopEdge::B => (Val::Auto, Val::ZERO, Val::Px(3.0), Val::Auto),
                     };
-                    match edge {
-                        LoopEdge::A => node.left = Val::Px(0.0),
-                        LoopEdge::B => node.right = Val::Px(0.0),
-                    }
-                    range
-                        .spawn((node, BackgroundColor(LOOP_HANDLE_COLOR), Pickable::IGNORE))
-                        .with_children(|handle| {
-                            // The letter sits just outside the handle, on
-                            // the side away from the range, so it never
-                            // covers what it labels.
-                            let mut cap = Node {
-                                position_type: PositionType::Absolute,
-                                top: Val::Px(-1.0),
-                                padding: UiRect::axes(Val::Px(3.0), Val::Px(0.0)),
-                                ..default()
-                            };
-                            match edge {
-                                LoopEdge::A => cap.right = Val::Px(3.0),
-                                LoopEdge::B => cap.left = Val::Px(3.0),
+                    range.spawn_empty().apply_scene(bsn! {
+                        Node {
+                            position_type: {PositionType::Absolute},
+                            top: {Val::ZERO},
+                            left: {left},
+                            right: {right},
+                            width: {Val::Px(3.0)},
+                            height: {Val::Percent(100.0)},
+                            justify_content: {JustifyContent::FlexStart},
+                        }
+                        BackgroundColor({LOOP_HANDLE_COLOR})
+                        ~{Pickable::IGNORE}
+                        Children [
+                            // The letter sits outside the handle, away from the range.
+                            Node {
+                                position_type: {PositionType::Absolute},
+                                top: {Val::Px(-1.0)},
+                                left: {cap_left},
+                                right: {cap_right},
+                                padding: {UiRect::axes(Val::Px(3.0), Val::ZERO)},
                             }
-                            handle
-                                .spawn((cap, BackgroundColor(LOOP_HANDLE_COLOR), Pickable::IGNORE))
-                                .with_children(|c| {
-                                    c.spawn((
-                                        Text::new(label),
-                                        TextFont {
-                                            font_size: FontSize::Px(10.0),
-                                            ..default()
-                                        },
-                                        TextColor(Color::srgb(0.08, 0.07, 0.03)),
-                                    ));
-                                });
-                        });
+                            BackgroundColor({LOOP_HANDLE_COLOR})
+                            ~{Pickable::IGNORE}
+                            Children [
+                                Text({label})
+                                TextFont { font_size: {FontSize::Px(10.0)} }
+                                TextColor({Color::srgb(0.08, 0.07, 0.03)})
+                            ]
+                        ]
+                    });
                 }
             });
 
