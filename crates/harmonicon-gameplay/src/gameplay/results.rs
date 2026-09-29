@@ -263,14 +263,11 @@ pub(super) fn setup(
             ResultsRoot,
         ))
         .with_children(|root| {
-            root.spawn((
-                Text::new(String::from(loc.msg("results-song-complete"))),
-                TextFont {
-                    font_size: FontSize::Px(28.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.80, 0.82, 0.90)),
-            ));
+            root.spawn_empty().apply_scene(bsn! {
+                Text({String::from(loc.msg("results-song-complete"))})
+                TextFont { font_size: {FontSize::Px(28.0)} }
+                TextColor({Color::srgb(0.80, 0.82, 0.90)})
+            });
 
             // A lesson's verdict and its goal come first: they're what the
             // run was for, and the song score below is incidental to them.
@@ -280,14 +277,11 @@ pub(super) fn setup(
                 } else {
                     ("lesson-failed-banner", Color::srgb(0.95, 0.62, 0.30))
                 };
-                root.spawn((
-                    Text::new(String::from(loc.msg(key))),
-                    TextFont {
-                        font_size: FontSize::Px(22.0),
-                        ..default()
-                    },
-                    TextColor(color),
-                ));
+                root.spawn_empty().apply_scene(bsn! {
+                    Text({String::from(loc.msg(key))})
+                    TextFont { font_size: {FontSize::Px(22.0)} }
+                    TextColor({color})
+                });
                 if let Some((goal_line, reached_line)) = goal {
                     spawn_caption(root, goal_line, Color::srgb(0.75, 0.78, 0.85));
                     spawn_caption(root, reached_line, color);
@@ -297,38 +291,28 @@ pub(super) fn setup(
             // Accuracy leads, with the observation right under it — the two
             // things a player should take away before the grade catches
             // the eye.
-            root.spawn((
-                Text::new(format!("{:.0}%", acc * 100.0)),
-                TextFont {
-                    font_size: FontSize::Px(72.0),
-                    ..default()
-                },
-                TextColor(grade_color(g)),
-                Node {
-                    margin: UiRect::top(Val::Px(6.0)),
-                    ..default()
-                },
-            ));
+            root.spawn_empty().apply_scene(bsn! {
+                Text({format!("{:.0}%", acc * 100.0)})
+                TextFont { font_size: {FontSize::Px(72.0)} }
+                TextColor({grade_color(g)})
+                Node { margin: {UiRect::top(Val::Px(6.0))} }
+            });
             spawn_caption(
                 root,
                 &loc.msg("results-accuracy-caption"),
                 Color::srgb(0.55, 0.58, 0.65),
             );
             if let Some(obs) = obs {
-                root.spawn((
-                    Text::new(observation_text(&loc, obs)),
-                    TextFont {
-                        font_size: FontSize::Px(19.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.95, 0.85, 0.45)),
-                    TextLayout::justify(Justify::Center),
+                root.spawn_empty().apply_scene(bsn! {
+                    Text({observation_text(&loc, obs)})
+                    TextFont { font_size: {FontSize::Px(19.0)} }
+                    TextColor({Color::srgb(0.95, 0.85, 0.45)})
+                    ~{TextLayout::justify(Justify::Center)}
                     Node {
-                        max_width: Val::Px(620.0),
-                        margin: UiRect::vertical(Val::Px(4.0)),
-                        ..default()
-                    },
-                ));
+                        max_width: {Val::Px(620.0)},
+                        margin: {UiRect::vertical(Val::Px(4.0))},
+                    }
+                });
             }
 
             // Grade and score together, one line.
@@ -357,14 +341,11 @@ pub(super) fn setup(
             // callout when this run just raised it.
             if let Some((improved, best_score)) = new_best {
                 if improved {
-                    root.spawn((
-                        Text::new(String::from(loc.msg("results-new-best"))),
-                        TextFont {
-                            font_size: FontSize::Px(18.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.95, 0.85, 0.20)),
-                    ));
+                    root.spawn_empty().apply_scene(bsn! {
+                        Text({String::from(loc.msg("results-new-best"))})
+                        TextFont { font_size: {FontSize::Px(18.0)} }
+                        TextColor({Color::srgb(0.95, 0.85, 0.20)})
+                    });
                 } else {
                     spawn_stat_row(
                         root,
@@ -541,14 +522,13 @@ fn spawn_timing_bar(parent: &mut ChildSpawnerCommands, loc: &Localization, stats
                 if count == 0 {
                     continue;
                 }
-                bar.spawn((
+                bar.spawn_empty().apply_scene(bsn! {
                     Node {
-                        flex_grow: count as f32,
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(color),
-                ));
+                        flex_grow: {count as f32},
+                        height: {Val::Percent(100.0)},
+                    }
+                    BackgroundColor({color})
+                });
             }
         });
     parent
@@ -560,14 +540,11 @@ fn spawn_timing_bar(parent: &mut ChildSpawnerCommands, loc: &Localization, stats
         })
         .with_children(|row| {
             for (key, count, color) in counts {
-                row.spawn((
-                    Text::new(String::from(loc.msg_args(key, &[("n", count.to_string())]))),
-                    TextFont {
-                        font_size: FontSize::Px(15.0),
-                        ..default()
-                    },
-                    TextColor(color),
-                ));
+                row.spawn_empty().apply_scene(bsn! {
+                    Text({String::from(loc.msg_args(key, &[("n", count.to_string())]))})
+                    TextFont { font_size: {FontSize::Px(15.0)} }
+                    TextColor({color})
+                });
             }
         });
 }
