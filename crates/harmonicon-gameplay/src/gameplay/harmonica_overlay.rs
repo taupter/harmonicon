@@ -339,6 +339,14 @@ fn cell<'a>(row: &'a mut ChildSpawnerCommands, bg: Color) -> EntityCommands<'a> 
     ))
 }
 
+fn cell_text(text: String, color: Color) -> impl Scene {
+    bsn! {
+        Text({text})
+        TextFont { font_size: {FontSize::Px(15.0)} }
+        TextColor({color})
+    }
+}
+
 /// A note cell: shows the note class, lights up live (carries `HarpOverlayCell`).
 /// Returns its `EntityCommands` so a selectable diagram can additionally tag
 /// it with [`DiagramCellTarget`] and an `on_click` observer.
@@ -352,14 +360,8 @@ fn spawn_note_cell<'a>(
         midi: note_to_midi(note).and_then(|m| u8::try_from(m).ok()),
     });
     ec.with_children(|c| {
-        c.spawn((
-            Text::new(note_class(note).to_string()),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(color),
-        ));
+        c.spawn_empty()
+            .apply_scene(cell_text(note_class(note).to_string(), color));
     });
     ec
 }
@@ -367,37 +369,23 @@ fn spawn_note_cell<'a>(
 /// A static text cell (header numbers), no highlight.
 fn spawn_text_cell(row: &mut ChildSpawnerCommands, text: &str, color: Color) {
     cell(row, Color::NONE).with_children(|c| {
-        c.spawn((
-            Text::new(text.to_string()),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(color),
-        ));
+        c.spawn_empty()
+            .apply_scene(cell_text(text.to_string(), color));
     });
 }
 
 /// The left-hand row label (narrower than a hole cell). Wide enough for the
 /// longest label ("overblow ↑"/"overdraw ↓") at this font size.
 fn spawn_label(row: &mut ChildSpawnerCommands, text: &str) {
-    row.spawn(Node {
-        width: Val::Px(90.0),
-        height: Val::Px(28.0),
-        align_items: AlignItems::Center,
-        justify_content: JustifyContent::FlexEnd,
-        padding: UiRect::right(Val::Px(4.0)),
-        ..default()
-    })
-    .with_children(|c| {
-        c.spawn((
-            Text::new(text.to_string()),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(LABEL_COLOR),
-        ));
+    row.spawn_empty().apply_scene(bsn! {
+        Node {
+            width: {Val::Px(90.0)},
+            height: {Val::Px(28.0)},
+            align_items: {AlignItems::Center},
+            justify_content: {JustifyContent::FlexEnd},
+            padding: {UiRect::right(Val::Px(4.0))},
+        }
+        Children [ @cell_text(text.to_string(), LABEL_COLOR) ]
     });
 }
 
