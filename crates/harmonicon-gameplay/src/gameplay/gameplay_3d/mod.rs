@@ -22,8 +22,8 @@ use super::modifier_legend::build_legend_materials;
 use super::note_feedback::{
     Judged, JudgedState, hold_uniform, judged_now, judged_scale, judged_stamp,
 };
+use super::note_ribbon_2d::NoteRibbon2dMaterial;
 use super::note_ribbon_3d::NoteRibbon3dMaterial;
-use super::note_tail_2d::NoteTail2dMaterial;
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
@@ -156,7 +156,7 @@ pub fn setup(
     mut note_build: NoteBuildState,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
+    shape_materials: ResMut<Assets<NoteRibbon2dMaterial>>,
     mut cameras: Query<(&mut Camera, &mut Transform), With<Camera2d>>,
     hud: HudContext,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
@@ -282,7 +282,7 @@ fn spawn_hud_overlay(
     modifiers: &[harmonicon_core::chart::Modifier],
     bpm: f32,
     beats_per_bar: usize,
-    mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
+    mut shape_materials: ResMut<Assets<NoteRibbon2dMaterial>>,
     loc: &Localization,
     song_info: &SongInfo,
     panels: ContextualPanels,

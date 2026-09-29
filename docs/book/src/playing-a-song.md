@@ -48,7 +48,14 @@ what the chart expects, at that instant:
   terms, not just "was some pitch playing": a bend note checks you actually
   bent to the target pitch, a vibrato/wah note checks the oscillation rate
   you played matches what the chart asks for.
-- **Each technique note says what it wants.** The head's tab carries the
+- **Every note is a ribbon** as long as the note lasts, in both Play 2D
+  and Play 3D. Its bright front edge is the attack — play when it reaches
+  the hit line — and the technique is drawn along it: a **vibrato** is a
+  wavy line and a **wah** pinches the ribbon in and out, both spaced so
+  each swing crosses the hit line at the rate the chart asks for (follow
+  the ribbon and you're wobbling at the right speed); a **bend** steps the
+  ribbon's bright core sideways, further for a deeper bend.
+- **Each technique note says what it wants.** The note's tab carries the
   bend depth — one `'` per half step, so `-3''` is draw 3 bent a whole
   step — and a short label beside the note gives the note to land on
   (*→ A*) or the wobble rate to play (*vib 5/s*: five swings a second).
@@ -67,11 +74,12 @@ what the chart expects, at that instant:
   time doesn't count.
 
 Every judgment shows on the note itself, not just in the readout by the hit
-line: a hit note's head **pops** and turns gold with a **✓**; a missed one
-**shrinks**, dims to red and gets a **✗** — so hit and miss are told apart
-by shape as well as colour. While you hold a long note, the part of its
-tail still above the line stays **gold as long as the right pitch is
-sounding** and goes grey the moment it drops out; on a vibrato or wah note
+line: a hit note's ribbon **widens** for a moment and turns gold, its tab
+becoming a **✓**; a missed one **narrows**, dims to red and gets a **✗** —
+so hit and miss are told apart by shape as well as colour. While you hold
+a long note, the part of its ribbon still above the line stays **gold as
+long as the right pitch is sounding** and goes grey the moment it drops
+out; on a vibrato or wah note
 the gold **shimmers** once the wobble is heard at the right rate, before
 the hold ends, so you can correct it in time.
 

@@ -13,7 +13,7 @@
 //! - which ticks the visible window spans, and what second each beat falls
 //!   on — `chart::seconds_to_tick`/`tick_to_seconds`, an inverse pair that
 //!   already honours the chart's tempo map;
-//! - where a second sits on screen — `gameplay_2d::note_head_bottom_pct`,
+//! - where a second sits on screen — `gameplay_2d::note_attack_pct`,
 //!   the same mapping `spawn_visible_notes` gives the notes.
 //!
 //! Derive any of those from a local `60.0 / bpm` instead and the guides
@@ -32,7 +32,7 @@ use harmonicon_song::song::SongManifest;
 
 use super::bars::{beat_ticks_in_range, chart_meter, pickup_lead_ticks, ticks_per_beat};
 use super::clock::GameplayClock;
-use super::gameplay_2d::note_head_bottom_pct;
+use super::gameplay_2d::note_attack_pct;
 use super::notes::LOOKAHEAD;
 
 /// One line in the pool. Which beat it shows changes every frame; the entity
@@ -116,7 +116,7 @@ pub(super) fn update_beat_guides(
                 break;
             };
             let beat_time = tick_to_seconds(tick, timing.resolution, &timing.tempo_map);
-            let bottom = note_head_bottom_pct(beat_time, elapsed, LOOKAHEAD);
+            let bottom = note_attack_pct(beat_time, elapsed, LOOKAHEAD);
             if !(0.0..=100.0).contains(&bottom) {
                 set_visibility(&mut visibility, Visibility::Hidden);
                 continue;

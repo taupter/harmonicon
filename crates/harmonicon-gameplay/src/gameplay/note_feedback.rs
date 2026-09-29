@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use super::notes::ScheduledNote;
 
 /// The live state of a hit note's sustain, as the tail shader wants it —
-/// see `hold` in `assets/shaders/note_tail_2d.wesl`.
+/// see `hold` in `assets/shaders/note_ribbon_2d.wesl`.
 ///
 /// The tail scrolls through the hit line time-accurately (its tip meets the
 /// line at the note's end), so *progress* is already the line sweeping up

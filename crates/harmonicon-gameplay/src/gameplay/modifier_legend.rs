@@ -7,8 +7,8 @@ use bevy::ui_render::prelude::MaterialNode;
 use bevy::ui_widgets::Activate;
 use bevy::ui_widgets::Button as WidgetButton;
 
-use super::gameplay_2d::{note_anim_mode, note_techniques};
-use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
+use super::note_ribbon::ribbon_technique;
+use super::note_ribbon_2d::NoteRibbon2dMaterial;
 use harmonicon_core::chart::Modifier;
 use harmonicon_platform::localization::{Localization, LocalizationExt};
 
@@ -26,11 +26,9 @@ struct TechniqueLegendBody;
 #[derive(Component, Default, Clone)]
 struct TechniqueLegendToggleLabel;
 
-/// The techniques shown in the legend, paired with their label. Example
-/// modifiers carry representative intensities so each preview animates
-/// clearly; actual params/animation come from the same `note_techniques`/
-/// `note_anim_mode`/`tail_params` the falling notes use, so the legend
-/// can't drift from what the notes do.
+/// The techniques shown in the legend, paired with their label. The drawing
+/// comes from the same `ribbon_technique` the falling notes use, so the
+/// legend can't drift from what the notes do.
 fn legend_techniques() -> [(Modifier, &'static str); 6] {
     use harmonicon_core::chart::Modifier::*;
     [
@@ -88,33 +86,30 @@ fn used_legend_techniques(modifiers: &[Modifier]) -> Vec<(Modifier, &'static str
         .collect()
 }
 
-/// Builds one comet-tail material per technique for the legend previews. They are
-/// regular `NoteTail2dMaterial`s, so `animate_note_tails` drives them in time with
-/// everything else. A neutral colour is used on purpose — the *animation*, not the
-/// colour, now tells the techniques apart.
+/// Builds one ribbon material per technique for the legend previews:
+/// regular `NoteRibbon2dMaterial`s, so `animate_note_ribbons` drives them in
+/// time with everything else. A falling note's pattern moves because the
+/// note does; a preview stands still, so it scrolls its pattern instead
+/// (`shape.w`), at the same rate a note would carry it past the hit line. A
+/// neutral colour is used on purpose — the *drawing*, not the colour, tells
+/// the techniques apart.
 pub fn build_legend_materials(
-    materials: &mut Assets<NoteTail2dMaterial>,
+    materials: &mut Assets<NoteRibbon2dMaterial>,
     used_modifiers: &[Modifier],
-) -> Vec<(Handle<NoteTail2dMaterial>, &'static str)> {
-    // A short, fixed preview "note": enough length for the animations to read.
-    const PREVIEW_H_PCT: f32 = 20.0;
+) -> Vec<(Handle<NoteRibbon2dMaterial>, &'static str)> {
+    /// Note time the preview spans: enough for a few swings to read.
+    const PREVIEW_SECS: f32 = 0.9;
+    /// A small cap, in px, to show which end is the attack.
+    const PREVIEW_CAP_PX: f32 = 5.0;
     let color = Color::srgba(0.74, 0.82, 1.0, 0.95).to_linear();
 
     used_legend_techniques(used_modifiers)
         .into_iter()
-        .enumerate()
-        .map(|(i, (modifier, name))| {
-            let slice = std::slice::from_ref(&modifier);
-            let (vib, shift, wah) = note_techniques(Some(slice));
-            let mode = note_anim_mode(Some(slice));
-            let (mut params, mut wah_v) = tail_params(PREVIEW_H_PCT, vib, shift, wah);
-            params.z = 0.0; // animation clock, driven by animate_note_tails
-            wah_v.z = mode; // which technique animation
-            wah_v.w = i as f32 * 1.3; // stagger the phases
-            let handle = materials.add(NoteTail2dMaterial {
+        .map(|(modifier, name)| {
+            let handle = materials.add(NoteRibbon2dMaterial {
                 color,
-                params,
-                wah: wah_v,
+                technique: ribbon_technique(std::slice::from_ref(&modifier)),
+                shape: Vec4::new(PREVIEW_SECS, PREVIEW_CAP_PX, 0.0, 1.0),
                 hold: Vec4::ZERO,
             });
             (handle, name)
@@ -138,14 +133,14 @@ fn technique_legend_toggle_text(loc: &Localization, collapsed: bool) -> String {
     .into()
 }
 
-/// Spawns the techniques legend: a small *animated tail* preview beside each
-/// technique's name, so players learn to read a note by its motion, stacked
+/// Spawns the techniques legend: a small ribbon preview beside each
+/// technique's name, drawn as the notes draw it, stacked
 /// one per row under a clickable header that collapses/expands the list. Used
 /// by both the 2D and 3D HUDs. `entries` come from [`build_legend_materials`].
 pub fn spawn_modifier_legend(
     parent: &mut ChildSpawnerCommands,
     loc: &Localization,
-    entries: &[(Handle<NoteTail2dMaterial>, &'static str)],
+    entries: &[(Handle<NoteRibbon2dMaterial>, &'static str)],
 ) {
     parent
         .spawn(Node {
@@ -189,11 +184,11 @@ pub fn spawn_modifier_legend(
                         ..default()
                     })
                     .with_children(|row| {
-                        // The live, animated comet tail for this technique.
+                        // A short ribbon drawing this technique.
                         row.spawn((
                             Node {
-                                width: Val::Px(18.0),
-                                height: Val::Px(38.0),
+                                width: Val::Px(24.0),
+                                height: Val::Px(44.0),
                                 ..default()
                             },
                             MaterialNode(handle.clone()),

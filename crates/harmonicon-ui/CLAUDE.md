@@ -83,7 +83,7 @@ load-bearing about *this* crate.
     flat rectangle: `music_score::tie_material::TieMaterial` is a
     `UiMaterial` fragment shader (`assets/shaders/music_score_tie.wesl`),
     the same "custom shader for a shape a plain `Node` can't express"
-    pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
+    pattern `gameplay::note_ribbon_2d::NoteRibbon2dMaterial` already
     established — one shared material handle covers every tie, since
     unlike the note tail this shape never varies (two instances: one
     bowing down, one up). It runs from just past the first head's right
@@ -105,7 +105,7 @@ load-bearing about *this* crate.
     beats(panel_width_px)` derives how many beats fit on each side of the
     "now" reference line from `ComputedNode` (read via a `MusicScorePanel`
     marker on the panel's root), converted from physical to logical px the
-    same way `gameplay_2d::size_note_tails` already has to. Rebuilds also
+    same way `gameplay_2d::size_note_ribbons` already has to. Rebuilds also
     fire on `Changed<ComputedNode>` (first layout pass, a window resize),
     not just on note/playhead changes. The Song Editor's own
     `MusicScorePlayhead` — which only gameplay's clock naturally drives —

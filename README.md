@@ -230,7 +230,6 @@ src/                   # Binaries + the composition root
                        #   from a shell (contributing/src/remote-control.md)
   bin/
     hole_editor.rs     # 3D harmonica hole-layout editor
-    note_editor.rs     # Visual editor for 2D note layouts
     note_bench.rs      # Pitch-detection algorithm benchmark runner
 
 assets/

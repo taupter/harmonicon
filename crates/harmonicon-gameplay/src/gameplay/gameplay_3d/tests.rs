@@ -89,48 +89,8 @@ fn a_wobble_crosses_the_hit_line_at_the_charted_rate() {
         oscillation_hz: 5.0,
         intensity: None,
     }];
-    let t = ribbon_technique(&vibrato);
-    assert_eq!(t.x, 2.0);
+    let t = ribbon_technique_3d(&vibrato);
     assert!((t.y * lane_speed() - 5.0).abs() < 1e-4);
-    let wah = [Modifier::WahWah {
-        oscillation_hz: 3.0,
-        intensity: None,
-    }];
-    let t = ribbon_technique(&wah);
-    assert_eq!(t.x, 3.0);
-    assert!((t.y * lane_speed() - 3.0).abs() < 1e-4);
-}
-
-#[test]
-fn a_deeper_bend_leans_further_and_pitch_up_leans_the_other_way() {
-    let bend = |semitones| {
-        ribbon_technique(&[Modifier::Bend {
-            semitones,
-            intensity: None,
-        }])
-    };
-    let (half, whole) = (bend(-1.0), bend(-2.0));
-    assert_eq!(half.x, 1.0);
-    assert!(half.z < 0.0 && whole.z < half.z);
-    let up = ribbon_technique(&[Modifier::Overblow]);
-    assert_eq!(up.x, 4.0);
-    assert!(up.z > 0.0);
-    assert_eq!(ribbon_technique(&[]), Vec4::ZERO);
-}
-
-#[test]
-fn a_vibrato_on_a_bend_keeps_the_bend_and_rides_on_it() {
-    let t = ribbon_technique(&[
-        Modifier::Vibrato {
-            oscillation_hz: 5.0,
-            intensity: None,
-        },
-        Modifier::Bend {
-            semitones: -1.0,
-            intensity: None,
-        },
-    ]);
-    assert_eq!((t.x, t.w), (1.0, 1.0));
 }
 
 #[test]

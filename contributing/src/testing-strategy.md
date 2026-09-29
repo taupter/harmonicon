@@ -132,9 +132,6 @@ game:
   `gameplay_3d`/`bending_trainer` read at runtime — a visual tool for
   content that would otherwise mean hand-editing pixel coordinates in a
   text editor and reloading to check them.
-- **`note-editor`** — a visual editor for the 2D/3D note-head tail
-  layout configs (`NoteThemeConfig`/`NoteCube3dConfig` — see
-  [Chart Format and Asset Loading](chart-and-assets.md)).
 - **`note-bench`** — an *offline pitch-detection benchmark*: replays a
   "debug recording" (raw captured mic audio plus the chart and detection
   metadata, dumped by the Song Editor's own `--features dev` "Debug

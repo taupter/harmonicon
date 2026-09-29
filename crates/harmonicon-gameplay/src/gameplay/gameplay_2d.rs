@@ -2,12 +2,10 @@
 
 use std::collections::HashSet;
 
-use bevy::asset::AssetPath;
 use bevy::prelude::*;
 use bevy::ui::ComputedNode;
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
 use harmonicon_core::chart::{Action, Modifier};
-use harmonicon_song::song::NoteThemeConfig;
 use harmonicon_song::song::SongManifest;
 
 use harmonicon_ui::music_score::{self, BravuraFont};
@@ -22,8 +20,8 @@ use super::modifier_legend::build_legend_materials;
 use super::note_feedback::{
     Judged, JudgedState, head_label_color, hold_uniform, judged_now, judged_scale, judged_stamp,
 };
-use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
-use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
+use super::note_ribbon::ribbon_technique;
+use super::note_ribbon_2d::NoteRibbon2dMaterial;
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
 use super::technique_cue;
 use super::{
@@ -44,8 +42,6 @@ pub const HIT_H_PCT: f32 = 7.0;
 /// alongside `SongNotes`, since neither changes for the rest of the song.
 #[derive(Resource, Default)]
 pub(super) struct NoteRenderAssets {
-    head_image: Option<AssetPath<'static>>,
-    tail_cfg: Option<NoteThemeConfig>,
     /// Chord/split play-mode badge text, parallel to `SongNotes::notes`
     /// (same index = same note) — the one piece of per-note render data that
     /// doesn't already live on `ScheduledNote` itself.
@@ -71,8 +67,7 @@ pub fn setup(
     song_info: Res<SongInfo>,
     mut song_notes: ResMut<SongNotes>,
     mut render_assets: ResMut<NoteRenderAssets>,
-    mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
-    note_theme: Res<harmonicon_platform::assets_management::SelectedNoteTheme2d>,
+    mut shape_materials: ResMut<Assets<NoteRibbon2dMaterial>>,
     adaptive: Res<AdaptiveDifficulty>,
     loc: Res<Localization>,
     display: LessonDisplayContext,
@@ -81,18 +76,6 @@ pub fn setup(
         error!("SongManifest not ready when entering Playing state");
         return;
     };
-
-    // Comet head: the disc image (white interior tinted per note, black rim
-    // kept), paired with its tail layout. We resolve only the *path* — the
-    // song's own image if it ships one, else the selected theme's default — and
-    // the head's `bsn!` scene loads it. The image frees when the note entities
-    // despawn on leaving the song.
-    let head_image: AssetPath<'static> = match &manifest.assets_2d {
-        Some(path) => path.clone(),
-        None => format!("notes/2d/{}.png", note_theme.0).into(),
-    };
-
-    let tail_cfg = manifest.assets_2d_config.clone();
 
     clock.set_free(-COUNTDOWN);
     music_started.0 = false;
@@ -112,11 +95,7 @@ pub fn setup(
     // for every note's UI subtree (and comet-tail material) at song load.
     let (notes, play_mode_tags) = super::build_scheduled_notes(&effective, chart, &adaptive);
     *song_notes = SongNotes { notes, cursor: 0 };
-    *render_assets = NoteRenderAssets {
-        head_image: Some(head_image),
-        tail_cfg: Some(tail_cfg),
-        play_mode_tags,
-    };
+    *render_assets = NoteRenderAssets { play_mode_tags };
 
     let compact = display.compact.0;
     let aural = display.lesson.is_some_and(|lesson| lesson.aural);
@@ -342,7 +321,7 @@ pub fn setup(
 /// full-width strip pinned directly below the song-progress bar (`BAR_HEIGHT`
 /// down from the top) — shared by both `gameplay_2d::setup` and
 /// `gameplay_3d::setup`, the same "helper lives in `gameplay_2d`, `gameplay_3d`
-/// reuses it" precedent as `note_anim_mode`/`note_techniques`.
+/// reuses it" precedent as `harp_pitches`/`head_label`.
 ///
 /// A sibling top-level entity, not a child of the background-image root each
 /// gameplay mode paints at `GlobalZIndex(1)` (see that root's own comment),
@@ -371,64 +350,49 @@ pub(super) fn spawn_gameplay_music_score(commands: &mut Commands, bravura: &Brav
         });
 }
 
-fn note_height_pct(duration: f64) -> f32 {
-    ((duration / LOOKAHEAD) as f32 * 100.0).clamp(3.5, 40.0)
-}
-
 /// The note highway (the clipping container notes scroll inside). Marked so the
 /// recycle logic can measure its height and convert head-heights to a fraction.
 #[derive(Component)]
 pub(super) struct NoteHighway;
 
-/// The round comet head (an `ImageNode`), child of a note. Tinted on hit/miss
-/// and scaled by `animate_judged_notes` the moment the note is judged.
+/// The tab text in a note's cap (`+4`, `-3''`, `↓`), child of the note.
+/// Replaced by a check or cross once the note is judged — a cue that doesn't
+/// depend on telling gold from red.
 #[derive(Component)]
-pub(super) struct NoteHead;
+pub(super) struct NoteCapLabel;
 
-/// The tab text on the head (`+4`, `↓`), child of [`NoteHead`]. Replaced by
-/// a check or cross once the note is judged — a cue that doesn't depend on
-/// telling gold from red.
+/// A note's ribbon: sized each frame to be time-accurate. Carries the
+/// note's duration as a fraction of `LOOKAHEAD` so `size_note_ribbons` can
+/// length it against the live highway height.
 #[derive(Component)]
-pub(super) struct NoteHeadLabel;
-
-/// The comet tail (a shader `MaterialNode`), child of a note. Tinted on hit/miss
-/// and sized each frame to be time-accurate. Carries the note's duration as a
-/// fraction of `LOOKAHEAD` so `size_note_tails` can length it correctly.
-#[derive(Component)]
-pub(super) struct NoteTail {
+pub(super) struct NoteRibbon {
     duration_frac: f32,
 }
 
-/// The highway distance (in %) a note scrolls from entering at the top to its
-/// head reaching the hit line — i.e. the span covered in `LOOKAHEAD` seconds.
-/// A tail representing `duration` seconds is `SCROLL_SPAN * duration / LOOKAHEAD`
-/// percent long, which is what makes the tail time-accurate.
-const SCROLL_SPAN: f32 = 100.0 - HIT_H_PCT * 0.5;
+/// Height of a ribbon's bright cap — the attack, holding the tab label — in
+/// logical px, and so also the shortest a ribbon is drawn: a very short
+/// note is always at least its cap.
+const CAP_PX: f32 = 26.0;
 
-/// Which tail animation a note runs, picked from its (first) technique modifier
-/// and passed to the shader as `wah.z`. Plain notes get the gentle default flow.
-/// Indices must match the `mode` branches in the note-tail shaders (2D + 3D).
-pub(super) fn note_anim_mode(modifiers: Option<&[Modifier]>) -> f32 {
-    match modifiers.and_then(|m| m.first()) {
-        Some(Modifier::Bend { .. }) => 1.0,
-        Some(Modifier::Vibrato { .. }) => 2.0,
-        Some(Modifier::WahWah { .. }) => 3.0,
-        Some(Modifier::Overblow) => 4.0,
-        Some(Modifier::Overdraw) => 5.0,
-        // No dedicated shader animation yet — falls through to the shader's
-        // default/last branch (currently "overdraw"'s), which is harmless.
-        Some(Modifier::Slide) => 6.0,
-        None => 0.0,
-    }
-}
+/// A note's width as a fraction of its lane, leaving a gap so neighbouring
+/// lanes stay distinct.
+const NOTE_W: f32 = 0.85;
 
-/// Distance (in %) from the bottom of the highway to a note head's bottom edge.
-/// The head's bottom reaches the hit line exactly at `note_time`; it decreases
-/// as the note falls, going negative once the head drops past the hit line.
-pub fn note_head_bottom_pct(note_time: f64, elapsed: f64, lookahead: f64) -> f32 {
+/// The highway distance (in %) a note scrolls from entering at the top to
+/// its attack reaching the hit line — i.e. the span covered in `LOOKAHEAD`
+/// seconds. A ribbon representing `duration` seconds is
+/// `SCROLL_SPAN * duration / LOOKAHEAD` percent long, which is what makes it
+/// time-accurate.
+const SCROLL_SPAN: f32 = 100.0 - HIT_H_PCT;
+
+/// Distance (in %) from the bottom of the highway to a note's attack — the
+/// bottom edge of its ribbon. It reaches the drawn hit line (the top of the
+/// hit band, `HIT_H_PCT` up) exactly at `note_time`, and goes below it as
+/// the note carries on. Beat guides use the same mapping, so they cross the
+/// line on the beat.
+pub fn note_attack_pct(note_time: f64, elapsed: f64, lookahead: f64) -> f32 {
     let progress = 1.0 - (note_time - elapsed) / lookahead;
-    let hit_center_pct = 100.0 - (HIT_H_PCT as f64) * 0.5;
-    (100.0 - hit_center_pct * progress) as f32
+    (100.0 - f64::from(SCROLL_SPAN) * progress) as f32
 }
 
 /// Spawns note visuals for any note that has newly entered the `LOOKAHEAD`
@@ -447,7 +411,7 @@ pub fn spawn_visible_notes(
     played: Res<PlayedHarp>,
     highway: Query<Entity, With<NoteHighway>>,
     existing: Query<&NoteVisual>,
-    mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
+    mut shape_materials: ResMut<Assets<NoteRibbon2dMaterial>>,
     show_numbers: Res<harmonicon_platform::assets_management::ShowNoteNumbers>,
     theme: Res<LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
@@ -457,12 +421,7 @@ pub fn spawn_visible_notes(
     if lesson.is_some_and(|lesson| lesson.aural) {
         return;
     }
-    let (Some(harp), Ok(highway_entity), Some(head_image), Some(tail_cfg)) = (
-        played.0.as_ref(),
-        highway.single(),
-        &render_assets.head_image,
-        &render_assets.tail_cfg,
-    ) else {
+    let (Some(harp), Ok(highway_entity)) = (played.0.as_ref(), highway.single()) else {
         return;
     };
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
@@ -497,8 +456,6 @@ pub fn spawn_visible_notes(
                 note,
                 cue,
                 lane_pct,
-                head_image,
-                tail_cfg,
                 render_assets.play_mode_tags.get(i).copied().flatten(),
                 &mut shape_materials,
                 show_numbers.0,
@@ -508,41 +465,29 @@ pub fn spawn_visible_notes(
     });
 }
 
-/// Spawns one note's visual: the comet head (a lane-width square, kept round
-/// by the disc image + aspect_ratio) plus its trailing tail. Positioned each
-/// frame by `update_notes`; the material's shape/animation is driven by the
-/// note's own technique modifiers, matching `size_note_tails`'s time-accurate
-/// length.
+/// Spawns one note's visual: a ribbon down its lane, as long as the note
+/// lasts, whose bright cap at the bottom is the attack and carries the tab
+/// label. Positioned each frame by `update_notes` and lengthened by
+/// `size_note_ribbons`; the ribbon's technique drawing comes from the
+/// note's modifiers (`note_ribbon::ribbon_technique`).
 fn spawn_note_visual(
     hw: &mut ChildSpawnerCommands,
     note_id: usize,
     note: &ScheduledNote,
     cue: Option<NoteCue>,
     lane_pct: f32,
-    head_image: &AssetPath<'static>,
-    tail_cfg: &NoteThemeConfig,
     play_mode_tag: Option<&'static str>,
-    shape_materials: &mut Assets<NoteTail2dMaterial>,
+    shape_materials: &mut Assets<NoteRibbon2dMaterial>,
     show_numbers: bool,
     colors: NoteColors,
 ) {
     let label = head_label(note.hole, note.is_blow, &note.modifiers, show_numbers);
-    let (r, g, b) = note_rgb(colors, note.is_blow);
-    let note_color = Color::srgba(r, g, b, 1.0);
-    let left_pct = (note.hole as f32 - 1.0) * lane_pct;
-    let duration_frac = (note.duration / LOOKAHEAD) as f32;
-
-    let h_pct = note_height_pct(note.duration);
-    let (vib, bend, wah) = note_techniques(Some(&note.modifiers));
-    let mode = note_anim_mode(Some(&note.modifiers));
-    let (mut params, mut wah_v) = tail_params(h_pct, vib, bend, wah);
-    params.z = 0.0; // animation time, refreshed every frame
-    wah_v.z = mode; // which technique animation to run
-    wah_v.w = note_id as f32 * 0.7; // per-note phase offset
-    let material = shape_materials.add(NoteTail2dMaterial {
-        color: Color::srgba(r, g, b, 0.95).to_linear(),
-        params,
-        wah: wah_v,
+    let width_pct = lane_pct * NOTE_W;
+    let left_pct = (note.hole as f32 - 1.0) * lane_pct + (lane_pct - width_pct) * 0.5;
+    let material = shape_materials.add(NoteRibbon2dMaterial {
+        color: ribbon_color(false, note.is_blow, colors),
+        technique: ribbon_technique(&note.modifiers),
+        shape: Vec4::new(note.duration as f32, CAP_PX, 0.0, 0.0),
         hold: Vec4::ZERO,
     });
 
@@ -551,57 +496,46 @@ fn spawn_note_visual(
             position_type: PositionType::Absolute,
             left: Val::Percent(left_pct),
             bottom: Val::Percent(150.0), // placeholder; set in update_notes
-            width: Val::Percent(lane_pct),
-            aspect_ratio: Some(1.0),
+            width: Val::Percent(width_pct),
+            height: Val::Px(CAP_PX), // placeholder; set in size_note_ribbons
             ..default()
         },
+        MaterialNode(material),
         NoteVisual { note_id },
+        NoteRibbon {
+            duration_frac: (note.duration / LOOKAHEAD) as f32,
+        },
         JudgedState::default(),
     ))
     .with_children(|note_e| {
-        // Tail + head layout shared with the note_editor binary via
-        // note_visual_2d::spawn_note_children. Game-specific markers and
-        // the direction arrow are added in the callbacks.
-        spawn_note_children(
-            note_e,
-            &NoteChildConfig {
-                tail_x: tail_cfg.tail_x,
-                tail_y: tail_cfg.tail_y,
-                tail_width: tail_cfg.tail_width,
-                // Placeholder height; resized each frame by size_note_tails.
-                tail_height: Val::Percent(100.0),
-                tail_material: material,
-                head_image: head_image.clone(),
-                head_color: note_color,
-                head_left: tail_cfg.head.x,
-                head_top: tail_cfg.head.y,
-                head_width: tail_cfg.head.width,
-                head_height: tail_cfg.head.height,
+        // The tab label, centred in the cap at the bottom.
+        note_e.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Px(CAP_PX),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
             },
-            |cmd| {
-                cmd.insert(NoteTail { duration_frac });
-            },
-            |cmd| {
-                cmd.insert(NoteHead).with_children(|head| {
-                    head.spawn((
-                        Text::new(label),
-                        TextFont {
-                            font_size: FontSize::Px(15.0),
-                            ..default()
-                        },
-                        TextColor(head_label_color(None)),
-                        NoteHeadLabel,
-                    ));
-                });
-            },
-        );
+            children![(
+                Text::new(label),
+                TextFont {
+                    font_size: FontSize::Px(18.0),
+                    ..default()
+                },
+                TextColor(head_label_color(None)),
+                NoteCapLabel,
+            )],
+        ));
 
-        // What the technique asks for, in the lane beside the head.
+        // What the technique asks for, in the lane beside the cap.
         if let Some(cue) = cue {
             note_e.spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(30.0),
+                    bottom: Val::Px(2.0),
                     left: if cue.on_right {
                         Val::Percent(100.0)
                     } else {
@@ -612,6 +546,7 @@ fn spawn_note_visual(
                     } else {
                         Val::Percent(100.0)
                     },
+                    margin: UiRect::horizontal(Val::Px(4.0)),
                     padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                     ..default()
@@ -629,62 +564,44 @@ fn spawn_note_visual(
             ));
         }
 
-        // Chord / split play-mode badge, pinned to the bottom edge.
+        // Chord / split play-mode badge, in the cap's corner.
         if let Some(tag) = play_mode_tag {
             note_e.spawn((
                 Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(1.0),
+                    right: Val::Px(3.0),
                     ..default()
                 },
                 Text::new(tag),
                 TextFont {
-                    font_size: FontSize::Px(8.0),
+                    font_size: FontSize::Px(9.0),
                     ..default()
                 },
-                TextColor(Color::srgba(0.95, 0.95, 1.0, 0.75)),
+                TextColor(Color::srgba(0.05, 0.05, 0.08, 0.8)),
             ));
         }
     });
 }
 
-/// Extracts the shape-driving techniques from a note's modifiers:
-/// `(vibrato_intensity, pitch_shift_semitones, wah_intensity)`. The pitch shift is
-/// negative for bends (pitch down) and positive for overblow/overdraw (pitch up);
-/// its sign drives the arc direction and its magnitude the arc depth. Wah pulses
-/// the note width. Any may be absent.
-pub(super) fn note_techniques(
-    modifiers: Option<&[Modifier]>,
-) -> (Option<f32>, Option<f32>, Option<f32>) {
-    let mut vib = None;
-    let mut shift = None;
-    let mut wah = None;
-    for m in modifiers.unwrap_or(&[]) {
-        match m {
-            Modifier::Vibrato { intensity, .. } => vib = Some(intensity.unwrap_or(0.5)),
-            Modifier::WahWah { intensity, .. } => wah = Some(intensity.unwrap_or(0.5)),
-            Modifier::Bend { semitones, .. } => shift = Some(*semitones),
-            // Overblow/overdraw/slide all raise pitch ~1 semitone — represent
-            // as an up-bend.
-            Modifier::Overblow | Modifier::Overdraw | Modifier::Slide => shift = Some(1.0),
-        }
+/// A note ribbon's colour: its blow/draw colour from `colors` (the active
+/// theme's note colors, or the fixed colorblind-safe pair — see
+/// `theme::effective_note_colors`), or dim red once missed. A hit keeps the
+/// base colour: the shader's hold state turns it gold while the pitch is
+/// held and greys it when it drops, so the tint must not also claim it.
+fn ribbon_color(missed: bool, is_blow: bool, colors: NoteColors) -> LinearRgba {
+    if missed {
+        return Color::srgba(0.5, 0.13, 0.13, 0.7).to_linear();
     }
-    (vib, shift, wah)
-}
-
-/// Blow/draw fill colour for a note tile, from `colors` (the active theme's
-/// note colors, or the fixed colorblind-safe pair — see
-/// `theme::effective_note_colors`).
-fn note_rgb(colors: NoteColors, is_blow: bool) -> (f32, f32, f32) {
     let c = if is_blow { colors.blow } else { colors.draw }.to_srgba();
-    (c.red, c.green, c.blue)
+    Color::srgba(c.red, c.green, c.blue, 0.95).to_linear()
 }
 
 // ── Per-frame systems ─────────────────────────────────────────────────────────
 
 fn note_has_left_view(note: &ScheduledNote, elapsed: f64) -> bool {
-    let tail_pct = SCROLL_SPAN * (note.duration / LOOKAHEAD) as f32;
-    note_head_bottom_pct(note.time, elapsed, LOOKAHEAD) < -(tail_pct + 15.0)
+    let ribbon_pct = SCROLL_SPAN * (note.duration / LOOKAHEAD) as f32;
+    note_attack_pct(note.time, elapsed, LOOKAHEAD) < -(ribbon_pct + 15.0)
 }
 
 pub fn update_notes(
@@ -698,28 +615,31 @@ pub fn update_notes(
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
-        let bottom = note_head_bottom_pct(note.time, elapsed, LOOKAHEAD);
-
-        // Recycle once the whole comet has fallen past the bottom. The tail
-        // tip sits `SCROLL_SPAN * duration_frac` % above the head, so a long
-        // note lingers exactly as long as its tail needs. Score state lives
-        // independently in `SongNotes` now, so this despawns unconditionally
-        // even while looping — `spawn_visible_notes` respawns it once the
-        // (rewound) clock nears it again, with no state to lose.
+        // Recycle once the whole ribbon has fallen past the bottom. Score
+        // state lives independently in `SongNotes`, so this despawns
+        // unconditionally even while looping — `spawn_visible_notes`
+        // respawns it once the (rewound) clock nears it again, with no
+        // state to lose.
         if note_has_left_view(note, elapsed) {
             commands.entity(entity).despawn();
             continue;
         }
-        node.bottom = Val::Percent(bottom);
+        node.bottom = Val::Percent(note_attack_pct(note.time, elapsed, LOOKAHEAD));
     }
 }
 
-/// Lengths every comet tail to be time-accurate: its tip meets the hit line at
-/// the note's end. The on-screen length is the highway distance scrolled during
-/// the note's duration, so it's measured against the live highway height.
-pub fn size_note_tails(
+/// A ribbon's on-screen height in logical px for a highway `highway_px`
+/// tall: the distance scrolled during the note, so its top meets the hit
+/// line as the note ends — but never shorter than its cap.
+fn ribbon_height_px(duration_frac: f32, highway_px: f32) -> f32 {
+    ((SCROLL_SPAN / 100.0) * duration_frac * highway_px).max(CAP_PX)
+}
+
+/// Lengths every ribbon to be time-accurate against the live highway height
+/// (see [`ribbon_height_px`]).
+pub fn size_note_ribbons(
     highway: Query<&ComputedNode, With<NoteHighway>>,
-    mut tails: Query<(&NoteTail, &mut Node)>,
+    mut ribbons: Query<(&NoteRibbon, &mut Node)>,
 ) {
     let Some(hw) = highway.iter().next() else {
         return;
@@ -730,43 +650,19 @@ pub fn size_note_tails(
     }
     // ComputedNode sizes are physical px; Node lengths are logical px.
     let logical = height_px * hw.inverse_scale_factor();
-    for (tail, mut node) in &mut tails {
-        let height = Val::Px(((SCROLL_SPAN / 100.0) * tail.duration_frac * logical).max(1.0));
+    for (ribbon, mut node) in &mut ribbons {
+        let height = Val::Px(ribbon_height_px(ribbon.duration_frac, logical));
         if node.height != height {
             node.height = height;
         }
     }
 }
 
-/// Head/tail tint for a note visual: a gold head while hit — the tail keeps
-/// its base colour so the shader's credited-hold fill (`hold` uniform) can
-/// advance up it in gold as the note is held — both dim red while missed,
-/// otherwise the base blow/draw colour (head at full alpha, tail slightly
-/// under, matching the alphas `spawn_note_visual` gives a freshly-spawned
-/// note). Pulled out of `update_note_visuals` so the tint decision is
-/// unit-testable without spinning up rendering.
-fn note_tint(hit: bool, missed: bool, is_blow: bool, colors: NoteColors) -> (Color, Color) {
-    if hit {
-        let (r, g, b) = note_rgb(colors, is_blow);
-        (
-            Color::srgba(1.0, 0.85, 0.25, 1.0),
-            Color::srgba(r, g, b, 0.95),
-        )
-    } else if missed {
-        let tint = Color::srgba(0.5, 0.13, 0.13, 1.0);
-        (tint, tint)
-    } else {
-        let (r, g, b) = note_rgb(colors, is_blow);
-        (Color::srgba(r, g, b, 1.0), Color::srgba(r, g, b, 0.95))
-    }
-}
-
-/// Tints a note's head image and tail material when it is hit or missed, and
-/// restores its base blow/draw colour otherwise (see [`note_tint`]).
-/// `ScheduledNote` isn't an ECS component (score state lives in
-/// `SongNotes`), so this re-syncs every currently-spawned note's tint each
-/// frame rather than reacting to `Changed<ScheduledNote>` — cheap since only
-/// a `LOOKAHEAD` window's worth of notes are ever spawned.
+/// Keeps each ribbon's colour ([`ribbon_color`]) and live hold state in step
+/// with its note. `ScheduledNote` isn't an ECS component (score state lives
+/// in `SongNotes`), so this re-syncs every currently-spawned note each frame
+/// rather than reacting to a change — cheap, since only a `LOOKAHEAD`
+/// window's worth of notes are ever spawned.
 pub fn update_note_visuals(
     mut sounding: Local<HashSet<u8>>,
     song_notes: Res<SongNotes>,
@@ -775,74 +671,78 @@ pub fn update_note_visuals(
     pitch_filter: Res<super::HarmonicaPitchFilter>,
     active: Res<ActivePitches>,
     valid_notes: Res<ValidHarpNotes>,
-    notes: Query<(&NoteVisual, &Children)>,
-    mut heads: Query<&mut ImageNode, With<NoteHead>>,
-    tails: Query<&MaterialNode<NoteTail2dMaterial>, With<NoteTail>>,
-    mut shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
+    notes: Query<(&NoteVisual, &MaterialNode<NoteRibbon2dMaterial>)>,
+    mut ribbons: ResMut<Assets<NoteRibbon2dMaterial>>,
     theme: Res<LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
 ) {
     let colors = effective_note_colors(theme.note_colors(), colorblind.0);
     let judged = judged_instant(clock.get(), &audio, Some(&pitch_filter));
     harp_pitches(&active, &valid_notes, &mut sounding);
-    for (visual, children) in &notes {
+    for (visual, material) in &notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
-        let (head_tint, tail_tint) = note_tint(note.hit, note.missed, note.is_blow, colors);
-        // Live hold progress for the tail shader, from the same samples the
-        // judge will verify the technique from when the hold ends.
+        let color = ribbon_color(note.missed, note.is_blow, colors);
+        // Live hold progress for the shader, from the same samples the judge
+        // will verify the technique from when the hold ends.
         let hold = hold_uniform(
             note,
             judged,
             note.expected_pitch.is_some_and(|m| sounding.contains(&m)),
             live_technique_status(&note.modifiers, &note.pitch_samples, &note.amp_samples),
         );
-        let tail_color = tail_tint.to_linear();
-        for child in children {
-            if let Ok(mut head) = heads.get_mut(*child)
-                && head.color != head_tint
-            {
-                head.color = head_tint;
-            }
-            // Writing through `get_mut` queues `AssetEvent::Modified` and a
-            // GPU re-upload even for an unchanged value, so compare first.
-            if let Ok(tail) = tails.get(*child)
-                && shape_materials
-                    .get(&tail.0)
-                    .is_some_and(|m| m.color != tail_color || m.hold != hold)
-                && let Some(mut material) = shape_materials.get_mut(&tail.0)
-            {
-                material.color = tail_color;
-                material.hold = hold;
-            }
+        // Writing through `get_mut` queues `AssetEvent::Modified` and a GPU
+        // re-upload even for an unchanged value, so compare first.
+        if ribbons
+            .get(&material.0)
+            .is_some_and(|m| m.color != color || m.hold != hold)
+            && let Some(mut m) = ribbons.get_mut(&material.0)
+        {
+            m.color = color;
+            m.hold = hold;
         }
     }
 }
 
-/// Pops a head the instant its note is hit, shrinks it on a miss, and stamps
-/// the label with a check or cross — the transition is noticed through
-/// [`JudgedState`] rather than per-frame, so it fires exactly once per
-/// judgment, and an A–B loop clearing the note's state puts the head back
-/// (scale 1, tab label) the same way.
+/// A ribbon's `(left, width)` in percent of the highway when scaled by
+/// `scale` about its own centre — the lane's `(left, width)` at scale 1.
+fn scaled_span(lane_left: f32, width: f32, scale: f32) -> (f32, f32) {
+    let scaled = width * scale;
+    (lane_left + (width - scaled) * 0.5, scaled)
+}
+
+/// Widens a ribbon the instant its note is hit, narrows it on a miss, and
+/// stamps its cap label with a check or cross. Width only, and through
+/// layout rather than a transform: its length is the note's duration and
+/// must stay true, and a transform would squash the label with it. The
+/// transition is noticed through [`JudgedState`] rather than per-frame, so it
+/// fires exactly once per judgment, and an A–B loop clearing the note's state
+/// puts the ribbon back (full width, tab label) the same way.
 pub fn animate_judged_notes(
     mut commands: Commands,
     song_notes: Res<SongNotes>,
     clock: Res<super::GameplayClock>,
     show_numbers: Res<harmonicon_platform::assets_management::ShowNoteNumbers>,
     reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
+    played: Res<PlayedHarp>,
     mut notes: Query<(
         Entity,
         &NoteVisual,
         &mut JudgedState,
         Option<&Judged>,
+        &mut Node,
         &Children,
     )>,
-    mut heads: Query<(&mut UiTransform, &Children), With<NoteHead>>,
-    mut labels: Query<(&mut Text, &mut TextColor), With<NoteHeadLabel>>,
+    caps: Query<&Children, Without<NoteVisual>>,
+    mut labels: Query<(&mut Text, &mut TextColor), With<NoteCapLabel>>,
 ) {
+    let Some(harp) = played.0.as_ref() else {
+        return;
+    };
+    let lane_pct = 100.0 / f32::from(harp.hole_count().max(1));
     let now = clock.get();
-    for (entity, visual, mut state, judged, children) in &mut notes {
+    for (entity, visual, mut state, judged, mut node, children) in &mut notes {
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
@@ -867,22 +767,23 @@ pub fn animate_judged_notes(
         let scale = judged.map_or(1.0, |j| {
             judged_scale(j.hit, (now - j.at) as f32, reduced_motion.0)
         });
-        for child in children {
-            let Ok((mut transform, head_children)) = heads.get_mut(*child) else {
-                continue;
-            };
-            if transform.scale != Vec2::splat(scale) {
-                transform.scale = Vec2::splat(scale);
-            }
-            if !transitioned {
-                continue;
-            }
-            let wanted = match current {
-                Some(hit) => judged_stamp(hit).to_string(),
-                None => head_label(note.hole, note.is_blow, &note.modifiers, show_numbers.0),
-            };
-            for grandchild in head_children {
-                if let Ok((mut text, mut color)) = labels.get_mut(*grandchild) {
+        let width = lane_pct * NOTE_W;
+        let lane_left = (note.hole as f32 - 1.0) * lane_pct + (lane_pct - width) * 0.5;
+        let (left, scaled) = scaled_span(lane_left, width, scale);
+        if node.width != Val::Percent(scaled) {
+            node.width = Val::Percent(scaled);
+            node.left = Val::Percent(left);
+        }
+        if !transitioned {
+            continue;
+        }
+        let wanted = match current {
+            Some(hit) => judged_stamp(hit).to_string(),
+            None => head_label(note.hole, note.is_blow, &note.modifiers, show_numbers.0),
+        };
+        for cap in children.iter().filter_map(|c| caps.get(c).ok()) {
+            for label in cap {
+                if let Ok((mut text, mut color)) = labels.get_mut(*label) {
                     text.0 = wanted.clone();
                     color.0 = head_label_color(current);
                 }
@@ -891,7 +792,7 @@ pub fn animate_judged_notes(
     }
 }
 
-/// The tab shown on a note head: `+`/`-` and the hole with numbers on, a
+/// The tab shown in a note's cap: `+`/`-` and the hole with numbers on, a
 /// direction arrow with them off — followed either way by the tab ribbon's
 /// technique suffix (`'` per bent semitone, `o`, `*`), so `-3''` reads as a
 /// whole-step bend right where the player is looking.
@@ -1040,199 +941,87 @@ pub fn update_holes(
 mod tests {
     use super::*;
 
+    // ── ribbon geometry ───────────────────────────────────────────────────────
+
     #[test]
-    fn height_pct_clamped_to_minimum() {
-        assert_eq!(note_height_pct(0.001), 3.5);
+    fn a_ribbon_is_as_long_as_its_note_but_never_shorter_than_its_cap() {
+        let highway_px = 900.0;
+        let one_sec = ribbon_height_px(1.0 / LOOKAHEAD as f32, highway_px);
+        assert!((one_sec - SCROLL_SPAN / 100.0 * highway_px / LOOKAHEAD as f32).abs() < 1e-3);
+        assert_eq!(ribbon_height_px(0.0, highway_px), CAP_PX);
     }
 
     #[test]
-    fn height_pct_clamped_to_maximum() {
-        assert_eq!(note_height_pct(LOOKAHEAD), 40.0);
+    fn a_scaled_ribbon_stays_centred_in_its_lane() {
+        let (left, width) = scaled_span(10.0, 8.0, 1.25);
+        assert_eq!(width, 10.0);
+        assert_eq!(left + width * 0.5, 10.0 + 8.0 * 0.5);
+        assert_eq!(scaled_span(10.0, 8.0, 1.0), (10.0, 8.0));
     }
 
     #[test]
-    fn height_pct_proportional() {
-        let h = note_height_pct(1.0);
-        assert!((h - 33.333).abs() < 0.01, "got {h}");
+    fn attack_reaches_the_drawn_hit_line_on_time() {
+        // The hit line is drawn at the top of the hit band, `HIT_H_PCT` up;
+        // a ribbon's bottom edge is the attack and must meet it exactly.
+        let got = note_attack_pct(1.0, 1.0, LOOKAHEAD);
+        assert!((got - HIT_H_PCT).abs() < 0.01, "got {got}");
     }
 
     #[test]
-    fn head_bottom_at_hit_line_on_time() {
-        // At the note's time, the head's bottom sits at the hit-line center.
-        let expected = HIT_H_PCT * 0.5;
-        let got = note_head_bottom_pct(1.0, 1.0, LOOKAHEAD);
-        assert!((got - expected).abs() < 0.01, "got {got}");
-    }
-
-    #[test]
-    fn head_bottom_high_in_the_future() {
-        // A note a full lookahead away enters at the top of the highway.
-        let got = note_head_bottom_pct(LOOKAHEAD, 0.0, LOOKAHEAD);
+    fn attack_enters_at_the_top_a_lookahead_early() {
+        let got = note_attack_pct(LOOKAHEAD, 0.0, LOOKAHEAD);
         assert!((got - 100.0).abs() < 0.01, "got {got}");
     }
 
     #[test]
-    fn head_bottom_descends_over_time() {
-        let b0 = note_head_bottom_pct(2.0, 0.0, LOOKAHEAD);
-        let b1 = note_head_bottom_pct(2.0, 1.0, LOOKAHEAD);
+    fn attack_descends_over_time() {
+        let b0 = note_attack_pct(2.0, 0.0, LOOKAHEAD);
+        let b1 = note_attack_pct(2.0, 1.0, LOOKAHEAD);
         assert!(
             b1 < b0,
-            "head should fall (smaller bottom%) as time advances"
+            "a note should fall (smaller bottom%) as time advances"
         );
     }
 
     #[test]
-    fn head_bottom_goes_negative_past_the_line() {
-        // Well after its time, the head has dropped below the hit line.
-        let got = note_head_bottom_pct(0.0, 3.0, LOOKAHEAD);
+    fn attack_goes_negative_past_the_line() {
+        let got = note_attack_pct(0.0, 3.0, LOOKAHEAD);
         assert!(got < 0.0, "got {got}");
     }
 
-    // ── note_tint ──────────────────────────────────────────────────────────────
+    // ── ribbon_color ──────────────────────────────────────────────────────────
 
     #[test]
-    fn note_tint_is_gold_when_hit_and_leaves_the_tail_for_the_hold_fill() {
+    fn a_hit_ribbon_keeps_its_colour_for_the_hold_state() {
+        // Gold comes from the shader's hold state, which also greys it when
+        // the pitch drops — so a hit must not tint it gold itself.
         let colors = NoteColors::default();
-        let (head, tail) = note_tint(true, false, true, colors);
-        assert_eq!(head, Color::srgba(1.0, 0.85, 0.25, 1.0));
-        let (r, g, b) = note_rgb(colors, true);
-        assert_eq!(tail, Color::srgba(r, g, b, 0.95));
+        assert_eq!(ribbon_color(false, true, colors), {
+            let c = colors.blow.to_srgba();
+            Color::srgba(c.red, c.green, c.blue, 0.95).to_linear()
+        });
     }
 
     #[test]
-    fn note_tint_is_dark_red_when_missed() {
-        let (head, tail) = note_tint(false, true, true, NoteColors::default());
-        assert_eq!(head, Color::srgba(0.5, 0.13, 0.13, 1.0));
-        assert_eq!(tail, head);
-    }
-
-    #[test]
-    fn note_tint_hit_wins_over_missed() {
-        // Shouldn't happen in practice (score_notes never sets both), but
-        // the tint decision itself should still be unambiguous.
-        let (head, _) = note_tint(true, true, true, NoteColors::default());
-        assert_eq!(head, Color::srgba(1.0, 0.85, 0.25, 1.0));
-    }
-
-    #[test]
-    fn note_tint_restores_the_base_blow_draw_colour_once_neither() {
+    fn a_missed_ribbon_dims_red() {
         let colors = NoteColors::default();
-        let (blow_head, blow_tail) = note_tint(false, false, true, colors);
-        let (r, g, b) = note_rgb(colors, true);
-        assert_eq!(blow_head, Color::srgba(r, g, b, 1.0));
-        assert_eq!(blow_tail, Color::srgba(r, g, b, 0.95));
-
-        let (draw_head, draw_tail) = note_tint(false, false, false, colors);
-        let (r, g, b) = note_rgb(colors, false);
-        assert_eq!(draw_head, Color::srgba(r, g, b, 1.0));
-        assert_eq!(draw_tail, Color::srgba(r, g, b, 0.95));
+        let missed = ribbon_color(true, true, colors);
+        assert_eq!(missed, Color::srgba(0.5, 0.13, 0.13, 0.7).to_linear());
+        assert_eq!(missed, ribbon_color(true, false, colors));
     }
 
     #[test]
-    fn note_tint_uses_the_colorblind_palette_when_given_it() {
-        let colors = harmonicon_platform::theme::COLORBLIND_NOTE_COLORS;
-        let (blow_head, _) = note_tint(false, false, true, colors);
-        let (r, g, b) = note_rgb(colors, true);
-        assert_eq!(blow_head, Color::srgba(r, g, b, 1.0));
-        assert_ne!(colors.blow, NoteColors::default().blow);
-    }
-
-    // ── note_techniques ───────────────────────────────────────────────────────
-
-    #[test]
-    fn techniques_extract_each_dimension() {
-        let mods = [
-            Modifier::Vibrato {
-                oscillation_hz: 5.0,
-                intensity: Some(0.8),
-            },
-            Modifier::Bend {
-                semitones: -2.0,
-                intensity: None,
-            },
-            Modifier::WahWah {
-                oscillation_hz: 3.0,
-                intensity: Some(0.4),
-            },
-        ];
-        let (vib, shift, wah) = note_techniques(Some(&mods));
-        assert_eq!(vib, Some(0.8));
-        assert_eq!(shift, Some(-2.0));
-        assert_eq!(wah, Some(0.4));
-    }
-
-    #[test]
-    fn techniques_default_intensity_when_omitted() {
-        let (vib, _, _) = note_techniques(Some(&[Modifier::Vibrato {
-            oscillation_hz: 5.0,
-            intensity: None,
-        }]));
-        assert_eq!(vib, Some(0.5));
-    }
-
-    #[test]
-    fn overblow_overdraw_read_as_an_up_shift() {
-        assert_eq!(note_techniques(Some(&[Modifier::Overblow])).1, Some(1.0));
-        assert_eq!(note_techniques(Some(&[Modifier::Overdraw])).1, Some(1.0));
-    }
-
-    #[test]
-    fn no_modifiers_yield_no_techniques() {
-        assert_eq!(note_techniques(None), (None, None, None));
-        assert_eq!(note_techniques(Some(&[])), (None, None, None));
-    }
-
-    // ── note_anim_mode ────────────────────────────────────────────────────────
-
-    #[test]
-    fn anim_mode_maps_each_technique() {
-        assert_eq!(note_anim_mode(None), 0.0);
-        assert_eq!(
-            note_anim_mode(Some(&[Modifier::Bend {
-                semitones: -1.0,
-                intensity: None
-            }])),
-            1.0
-        );
-        assert_eq!(
-            note_anim_mode(Some(&[Modifier::Vibrato {
-                oscillation_hz: 5.0,
-                intensity: None
-            }])),
-            2.0
-        );
-        assert_eq!(
-            note_anim_mode(Some(&[Modifier::WahWah {
-                oscillation_hz: 3.0,
-                intensity: None
-            }])),
-            3.0
-        );
-        assert_eq!(note_anim_mode(Some(&[Modifier::Overblow])), 4.0);
-        assert_eq!(note_anim_mode(Some(&[Modifier::Overdraw])), 5.0);
-    }
-
-    #[test]
-    fn anim_mode_uses_the_first_modifier() {
-        let mods = [
-            Modifier::WahWah {
-                oscillation_hz: 3.0,
-                intensity: None,
-            },
-            Modifier::Bend {
-                semitones: -1.0,
-                intensity: None,
-            },
-        ];
-        assert_eq!(note_anim_mode(Some(&mods)), 3.0);
-    }
-
-    // ── note_rgb ──────────────────────────────────────────────────────────────
-
-    #[test]
-    fn blow_and_draw_have_distinct_colors() {
+    fn blow_and_draw_ribbons_differ_and_follow_the_colorblind_palette() {
         let colors = NoteColors::default();
-        assert_ne!(note_rgb(colors, true), note_rgb(colors, false));
+        assert_ne!(
+            ribbon_color(false, true, colors),
+            ribbon_color(false, false, colors)
+        );
+        let colorblind = harmonicon_platform::theme::COLORBLIND_NOTE_COLORS;
+        assert_ne!(
+            ribbon_color(false, true, colorblind),
+            ribbon_color(false, true, colors)
+        );
     }
 
     // ── harp_pitches / step_hole_glow ─────────────────────────────────────────

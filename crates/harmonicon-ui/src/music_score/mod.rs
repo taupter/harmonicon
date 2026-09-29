@@ -798,7 +798,7 @@ fn rebuild_score_notes(
     // sizes are physical px; every length in this module (`STAFF_LINE_
     // SPACING`, `MusicScoreSpacing`, ...) feeds `Val::Px`, which is logical
     // px, so this needs `inverse_scale_factor()` to match — same
-    // conversion `gameplay_2d::size_note_tails` already applies for the
+    // conversion `gameplay_2d::size_note_ribbons` already applies for the
     // same reason.
     let Some(panel_width) = panels
         .iter()

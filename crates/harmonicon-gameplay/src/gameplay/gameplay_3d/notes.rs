@@ -44,51 +44,14 @@ pub(super) fn lane_speed() -> f32 {
     LANE_DEPTH / LOOKAHEAD as f32
 }
 
-/// The ribbon shader's `technique` uniform for a note's modifiers — see
-/// `note_ribbon_3d.wesl` for how each is drawn:
-///
-/// - `x` — mode: 0 plain, 1 bend, 2 vibrato, 3 wah, 4 pitch-up shift
-///   (overblow, overdraw, slide).
-/// - `y` — oscillation cycles per world unit, from the charted rate. The
-///   ribbon scrolls at [`lane_speed`], so crests this far apart cross the
-///   hit line at exactly `oscillation_hz` — the wobble to copy.
-/// - `z` — how far the core leans across the lane, signed: a deeper bend
-///   leans further, down-bends one way and pitch-up shifts the other.
-/// - `w` — 1 when a vibrato rides on a bend or shift, which keeps the bend
-///   as the mode and draws the vibrato on top.
-pub(super) fn ribbon_technique(modifiers: &[Modifier]) -> Vec4 {
-    let bend = modifiers.iter().find_map(|m| match m {
-        Modifier::Bend { semitones, .. } => Some(*semitones),
-        _ => None,
-    });
-    let up = modifiers
-        .iter()
-        .any(|m| matches!(m, Modifier::Overblow | Modifier::Overdraw | Modifier::Slide));
-    let wobble = modifiers.iter().find_map(|m| match m {
-        Modifier::Vibrato { oscillation_hz, .. } => Some((false, *oscillation_hz)),
-        Modifier::WahWah { oscillation_hz, .. } => Some((true, *oscillation_hz)),
-        _ => None,
-    });
-
-    let (mut mode, mut lean) = (0.0, 0.0);
-    if let Some(semitones) = bend {
-        mode = 1.0;
-        let depth = semitones.abs().clamp(1.0, 3.0);
-        lean = (0.12 + 0.08 * depth).copysign(semitones);
-    } else if up {
-        mode = 4.0;
-        lean = 0.2;
-    }
-    let (mut cycles, mut vibrato_on_shift) = (0.0, 0.0);
-    if let Some((is_wah, hz)) = wobble {
-        cycles = hz / lane_speed();
-        if mode == 0.0 {
-            mode = if is_wah { 3.0 } else { 2.0 };
-        } else if !is_wah {
-            vibrato_on_shift = 1.0;
-        }
-    }
-    Vec4::new(mode, cycles, lean, vibrato_on_shift)
+/// The 3D ribbon's `technique` uniform: the shared
+/// `note_ribbon::ribbon_technique`, with the rate turned into cycles per
+/// world unit. The ribbon scrolls at [`lane_speed`], so crests that far
+/// apart cross the hit line at exactly the charted rate.
+pub(super) fn ribbon_technique_3d(modifiers: &[Modifier]) -> Vec4 {
+    let mut technique = super::super::note_ribbon::ribbon_technique(modifiers);
+    technique.y /= lane_speed();
+    technique
 }
 
 /// Builds every note's score state (`SongNotes`) plus the render config
@@ -185,7 +148,7 @@ pub(super) fn spawn_note_visual_3d(
     let (ribbon_w, ribbon_len) = note_dimensions(note.duration);
     let material = ribbons.add(NoteRibbon3dMaterial {
         color: ribbon_color(false, note.is_blow, colors),
-        technique: ribbon_technique(&note.modifiers),
+        technique: ribbon_technique_3d(&note.modifiers),
         shape: Vec4::new(ribbon_len, RIBBON_CAP, 0.0, note_id as f32 * 1.7),
         hold: Vec4::ZERO,
     });

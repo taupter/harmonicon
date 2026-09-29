@@ -358,7 +358,7 @@ load-bearing about *this* crate.
   with no UI highway to hang percentages off). A guide's position is
   `bars::beat_ticks_in_range` (off `chart_meter`, so 6/8 gets six eighths to
   the bar) → `chart::seconds_to_tick`/`tick_to_seconds` (which honour the
-  tempo map) → `gameplay_2d::note_head_bottom_pct` (the same mapping the
+  tempo map) → `gameplay_2d::note_attack_pct` (the same mapping the
   notes get). A local `60.0 / bpm` anywhere in that chain puts the guides
   somewhere the notes aren't, on exactly the charts where a visible pulse
   would have earned its keep. Two implementation notes:
@@ -489,20 +489,29 @@ load-bearing about *this* crate.
     Results.
 
 - **What a judged note does on the highway is decided once, in
-  `gameplay::note_feedback`, and applied by both renderers.** The head's
-  pop/shrink curve (`judged_scale`), the ✓/✗ stamp, and the tail's `hold`
-  uniform (`hold_uniform`) are pure functions; `gameplay_2d::
-  animate_judged_notes` and `gameplay_3d::animate_judged_notes_3d` only
-  differ in what they apply them to (`UiTransform` vs `Transform`). Three
-  things that follow:
+  `gameplay::note_feedback`, and applied by both renderers.** Both draw a
+  note as a ribbon (`note_ribbon_2d`/`note_ribbon_3d`, with the technique
+  drawing shared in `note_ribbon::ribbon_technique`). The pop/shrink curve
+  (`judged_scale`), the ✓/✗ stamp, and the ribbon's `hold` uniform
+  (`hold_uniform`) are pure functions; `gameplay_2d::animate_judged_notes`
+  and `gameplay_3d::animate_judged_notes_3d` apply the curve to the
+  ribbon's *width only* — its length is the note's duration and must stay
+  true — through layout in 2D (a transform would squash the cap label) and
+  `Transform::scale.x` in 3D. Four things that follow:
   - **The transition is observed, not the state.** Each note visual carries
     a `JudgedState`; the renderer compares it with `judged_now(note)` and
     only on a change inserts/removes `Judged { hit, at }` and rewrites the
     label. That's what makes an A–B loop clean — `handle_loop_boundary`
     clears `hit`/`missed`, the state reads the change back to `None`, and
-    the head is restored — and why nothing re-derives the animation from
+    the ribbon is restored — and why nothing re-derives the animation from
     `ScheduledNote` per frame.
-  - **The tail shows hold *state*, not a fill.** It scrolls through the hit
+  - **Techniques are drawn in note time, so they cross the hit line at the
+    charted rate.** A vibrato's crests and a wah's pinches are spaced by
+    `oscillation_hz` along the ribbon — per second of note in 2D, per world
+    unit at `lane_speed` in 3D — so the ribbon itself is the pulse to
+    follow. Anything else drawn along a ribbon should use the same
+    convention, or it will scroll at a rate that means nothing.
+  - **The ribbon shows hold *state*, not a fill.** It scrolls through the hit
     line time-accurately, so the part already credited is below the line
     and off-screen within a fraction of a second; a fill was tried and is
     invisible. The part above the line shows whether the expected pitch is
@@ -524,7 +533,7 @@ load-bearing about *this* crate.
   `GameplayLogic` chain — never earlier, or a live mic's events would
   overwrite it — and sounds notes on `judged_instant`, so a run reads as
   on-time rather than early by the filter's onset lag. Anything a hit shows
-  (head pop, hold state, the results timing bar) is verified through it;
+  (the ribbon pop, hold state, the results timing bar) is verified through it;
   what it cannot verify is detection of a real harmonica.
 
 - **Call-and-response** (`gameplay::call_response`): a chart's consecutive

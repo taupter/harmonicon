@@ -25,7 +25,7 @@ Each bench's `//!` header says what it measures and why.
 | `harmonicon-bench` `score_import` | MIDI parse, track note extraction, all-track harmonica conversion on two bundled files | opening an imported song |
 | `harmonicon-bench` `harp_mapping` | key and harp selection, strict pitch-to-hole mapping | score import / live pitch event |
 | `harmonicon-gameplay` `judge` | `score_notes`, `build_scheduled_notes` | every frame / on a note-list rebuild |
-| `harmonicon-gameplay` `note_tails` | `animate_note_tails` with the asset plugin | every frame |
+| `harmonicon-gameplay` `note_ribbons` | `animate_note_ribbons` with the asset plugin | every frame |
 | `harmonicon-jam` `backing` | backing stems, band answer, ending hit | Start / mid-session / session end |
 | `harmonicon-ui` `notation` | stem and beam roles, accidentals, tie lookup on short and long scores | staff window rebuild |
 | `harmonicon-audio` `waveform` | OGG/WAV decode to peaks, and reduction of existing PCM | song load / editor music change |

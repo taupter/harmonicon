@@ -21,7 +21,7 @@ serde_json = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]
-name = "note_tails"
+name = "note_ribbons"
 harness = false
 
 [[bench]]

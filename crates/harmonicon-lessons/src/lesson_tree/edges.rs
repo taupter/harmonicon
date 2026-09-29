@@ -13,7 +13,7 @@
 //! properly.
 //!
 //! Same "custom shader for a shape a plain `Node` can't express" pattern as
-//! `gameplay::note_tail_2d` and `music_score::tie_material`.
+//! `gameplay::note_ribbon_2d` and `music_score::tie_material`.
 //!
 //! **The material carries no endpoints.** A node here *is* its segment's
 //! bounding box, padded by the half-thickness, and a segment always spans

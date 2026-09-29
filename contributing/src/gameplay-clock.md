@@ -150,7 +150,7 @@ package "GameplayLogic (chained, in this order)" {
   rectangle "score_notes" as score
   rectangle "update_score_display" as hud
   rectangle "detect_song_end" as song_end
-  rectangle "animate_note_tails" as tails
+  rectangle "animate_note_ribbons" as tails
 }
 
 rectangle "Every clock-reading overlay/renderer\n(note movement, phrase overlay, song-progress\nbar, metronome, harmonica overlay, ...)" as readers

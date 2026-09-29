@@ -4,7 +4,7 @@
 //! (`assets/shaders/music_score_tie.wesl`) rather than the flat rectangle
 //! plain `bevy_ui` `Node`/`BackgroundColor` primitives are limited to —
 //! the same "custom shader for a shape a plain `Node` can't express"
-//! pattern `gameplay::note_tail_2d::NoteTail2dMaterial` already
+//! pattern `gameplay::note_ribbon_2d::NoteRibbon2dMaterial` already
 //! established for the falling-note comet tail, applied here to a small,
 //! static shape instead of an animated one. Two shared material instances
 //! cover every tie in the panel — one bowing down under the notes, one up

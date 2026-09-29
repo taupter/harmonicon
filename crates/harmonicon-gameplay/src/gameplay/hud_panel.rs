@@ -21,7 +21,7 @@ use harmonicon_core::chart::Modifier;
 use super::highway_2d::spawn_blow_draw_legend;
 use super::metronome_overlay::spawn_metronome;
 use super::modifier_legend::spawn_modifier_legend;
-use super::note_tail_2d::NoteTail2dMaterial;
+use super::note_ribbon_2d::NoteRibbon2dMaterial;
 use super::phrase_overlay::{spawn_phrase_banner, spawn_tab_ribbon};
 use super::practice_badges::spawn_practice_badges;
 use super::song_info::{SongInfo, spawn_song_header};
@@ -96,7 +96,7 @@ pub(super) struct HudPanel<'a> {
     pub bpm: f32,
     /// Empty when the chart uses no techniques — the legend is then omitted
     /// rather than shown empty.
-    pub legend_materials: &'a [(Handle<NoteTail2dMaterial>, &'static str)],
+    pub legend_materials: &'a [(Handle<NoteRibbon2dMaterial>, &'static str)],
     /// 2D prints the blow/draw key under its hole strip, where the colours
     /// it explains actually are. 3D has no hole strip, so it asks for the
     /// key inside the panel instead. The one honest difference between the

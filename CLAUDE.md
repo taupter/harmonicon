@@ -158,7 +158,7 @@ cargo sweep --installed      # artifacts from toolchains rustup no longer has
 cargo run --release --features trace_tracy
 ```
 
-Binaries: main game (`src/main.rs`), plus `hole-editor`, `note_editor`,
+Binaries: main game (`src/main.rs`), plus `hole-editor`,
 `note_bench`, `gen_synthetic_dataset` (in `src/bin/`). The root package is
 the binaries **plus one library**: `src/lib.rs`, the composition root, whose
 `run()` assembles every plugin. That library exists because Android never

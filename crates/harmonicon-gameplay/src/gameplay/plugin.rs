@@ -29,7 +29,7 @@ use super::technique_coach;
 use super::{
     adaptive_difficulty, bending_trainer, call_response, countdown_overlay, gameplay_2d,
     gameplay_3d, harmonica_overlay, metronome_overlay, modifier_legend, music_score_bridge,
-    note_ribbon_3d, note_tail_2d, pause_menu, phrase_overlay, results, song_progress_overlay,
+    note_ribbon_2d, note_ribbon_3d, pause_menu, phrase_overlay, results, song_progress_overlay,
     twelve_bar_blues_overlay, wait_freeze_overlay, warning_banner,
 };
 
@@ -75,7 +75,7 @@ impl Plugin for GameplayPlugin {
             metronome_overlay::MetronomePlugin,
             modifier_legend::ModifierLegendPlugin,
             phrase_overlay::PhrasePlugin,
-            note_tail_2d::NoteTail2dPlugin,
+            note_ribbon_2d::NoteRibbon2dPlugin,
             note_ribbon_3d::NoteRibbon3dPlugin,
             song_progress_overlay::SongProgressPlugin,
             warning_banner::WarningBannerPlugin,
@@ -330,7 +330,7 @@ impl Plugin for GameplayPlugin {
                 judge::score_notes,
                 hud::update_score_display,
                 lifecycle::detect_song_end,
-                note_tail_2d::animate_note_tails,
+                note_ribbon_2d::animate_note_ribbons,
             )
                 .chain()
                 .in_set(GameplayLogic)
@@ -365,7 +365,7 @@ impl Plugin for GameplayPlugin {
             (
                 gameplay_2d::spawn_visible_notes,
                 gameplay_2d::update_notes,
-                gameplay_2d::size_note_tails,
+                gameplay_2d::size_note_ribbons,
                 gameplay_2d::update_note_visuals,
                 gameplay_2d::animate_judged_notes,
                 gameplay_2d::update_holes,

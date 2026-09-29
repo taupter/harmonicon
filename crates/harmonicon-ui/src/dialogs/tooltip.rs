@@ -161,7 +161,7 @@ fn update_tooltip(
     // scaled by `UiScale` at layout time (see the note-label fix in
     // `gameplay_3d.rs`), so divide it back out here to land at the cursor —
     // and likewise for the window bounds and the panel's own computed size
-    // (physical px — see `gameplay_2d::size_note_tails`'s identical
+    // (physical px — see `gameplay_2d::size_note_ribbons`'s identical
     // conversion) so every quantity below is in the same `Val::Px` units.
     let tooltip_h = computed.size().y * computed.inverse_scale_factor();
     let (left, top) = clamp_popup_position(
