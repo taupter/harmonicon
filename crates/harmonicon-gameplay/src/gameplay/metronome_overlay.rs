@@ -93,7 +93,7 @@ fn metronome_ui_active(state: Res<State<AppState>>) -> bool {
     matches!(state.get(), AppState::Playing | AppState::BendingTrainer)
 }
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct MetronomeBeat(pub usize);
 
 /// Marks the click on/off toggle button in the metronome HUD block.
@@ -156,16 +156,13 @@ pub fn spawn_metronome(
             ..default()
         })
         .with_children(|row| {
-            row.spawn((
-                Text::new(format!("\u{2669} = {}", bpm as u32)),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.65, 0.65, 0.70)),
-                // Refreshed live from MetronomeTempo (the trainer's BPM control).
-                MetronomeTempoLabel,
-            ));
+            // Refreshed live from MetronomeTempo (the trainer's BPM control).
+            row.spawn_empty().apply_scene(bsn! {
+                Text({format!("\u{2669} = {}", bpm as u32)})
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.65, 0.65, 0.70)})
+                MetronomeTempoLabel
+            });
 
             // Click on/off toggle. Authored with bsn!; click + hover ride along
             // inline as on(...). The border colour is inserted after (bsn! can't
@@ -227,17 +224,16 @@ pub fn spawn_metronome(
         .with_children(|row| {
             for i in 0..beats_per_bar {
                 let size = if i == 0 { Val::Px(28.0) } else { Val::Px(22.0) };
-                row.spawn((
+                row.spawn_empty().apply_scene(bsn! {
                     Node {
-                        width: size,
-                        height: size,
-                        border: UiRect::all(Val::Px(1.5)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.12, 0.12, 0.16, 0.9)),
-                    BorderColor::all(Color::srgb(0.35, 0.35, 0.50)),
-                    MetronomeBeat(i),
-                ));
+                        width: {size},
+                        height: {size},
+                        border: {UiRect::all(Val::Px(1.5))},
+                    }
+                    BackgroundColor({Color::srgba(0.12, 0.12, 0.16, 0.9)})
+                    ~{BorderColor::all(Color::srgb(0.35, 0.35, 0.50))}
+                    MetronomeBeat(i)
+                });
             }
         });
 }
