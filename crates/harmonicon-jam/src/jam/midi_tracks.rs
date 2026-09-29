@@ -37,13 +37,13 @@ pub struct JamStemMute(pub Vec<bool>);
 /// `toggle_track_mute` observer (cloned onto every button) can look up
 /// which track fired via the clicked entity — see `gameplay::
 /// harmonica_overlay::DiagramCellTarget` for the same pattern.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Default)]
 pub struct TrackMuteCell(usize);
 
 /// The "with sound"/"no sound" icon inside one mute button — its text is
 /// the only part [`update_stem_mute_buttons`] rewrites; the stem-name
 /// label next to it is static, set once at spawn.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Default)]
 pub struct TrackMuteIcon(usize);
 
 const SOUND_ICON: &str = "\u{1F50A}"; // 🔊 — subsetted into fallback_emoji.ttf
@@ -76,41 +76,31 @@ pub fn spawn_backing_stem_row(
         })
         .with_children(|row| {
             for (index, track) in tracks.iter().enumerate() {
-                row.spawn((
-                    WidgetButton,
-                    TabIndex(0),
-                    TrackMuteCell(index),
+                row.spawn_empty().apply_scene(bsn! {
+                    WidgetButton
+                    TabIndex(0)
+                    TrackMuteCell(index)
                     Node {
-                        align_items: AlignItems::Center,
-                        padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(UNMUTED_BG),
-                    BorderColor::all(Color::srgb(0.30, 0.30, 0.40)),
-                    Tooltip(String::from(loc.msg("jam-midi-track-mute-tooltip"))),
-                ))
-                .observe(toggle_track_mute)
-                .with_children(|b| {
-                    b.spawn((
-                        TrackMuteIcon(index),
-                        Text::new(SOUND_ICON),
-                        TextFont {
-                            font_size: FontSize::Px(14.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Pickable::IGNORE,
-                    ));
-                    b.spawn((
-                        Text::new(format!(" {}", track.name)),
-                        TextFont {
-                            font_size: FontSize::Px(14.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Pickable::IGNORE,
-                    ));
+                        align_items: {AlignItems::Center},
+                        padding: {UiRect::axes(Val::Px(10.0), Val::Px(6.0))},
+                        border: {UiRect::all(Val::Px(1.0))},
+                    }
+                    BackgroundColor({UNMUTED_BG})
+                    ~{BorderColor::all(Color::srgb(0.30, 0.30, 0.40))}
+                    Tooltip({String::from(loc.msg("jam-midi-track-mute-tooltip"))})
+                    on(toggle_track_mute)
+                    Children [
+                        Text({SOUND_ICON})
+                        TextFont { font_size: {FontSize::Px(14.0)} }
+                        TextColor({Color::WHITE})
+                        TrackMuteIcon(index)
+                        ~{Pickable::IGNORE}
+                        --
+                        Text({format!(" {}", track.name)})
+                        TextFont { font_size: {FontSize::Px(14.0)} }
+                        TextColor({Color::WHITE})
+                        ~{Pickable::IGNORE}
+                    ]
                 });
             }
         });
