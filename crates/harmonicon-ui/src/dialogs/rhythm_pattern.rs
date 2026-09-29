@@ -50,31 +50,28 @@ pub fn spawn_rhythm_pattern(
                 step.label.clone()
             };
             let cell = row
-                .spawn((
+                .spawn_empty()
+                .apply_scene(bsn! {
                     Node {
-                        min_width: Val::Px(58.0),
-                        height: Val::Px(54.0),
-                        padding: UiRect::horizontal(Val::Px(10.0)),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(if index == 0 { ACTIVE_BG } else { step_bg(step) }),
-                    BorderColor::all(Color::srgb(0.40, 0.40, 0.55)),
-                ))
-                .with_child((
-                    Text::new(display),
-                    TextFont {
-                        font_size: FontSize::Px(20.0),
-                        ..default()
-                    },
-                    TextColor(if step.rest {
-                        Color::srgb(0.62, 0.64, 0.70)
-                    } else {
-                        Color::WHITE
-                    }),
-                ))
+                        min_width: {Val::Px(58.0)},
+                        height: {Val::Px(54.0)},
+                        padding: {UiRect::horizontal(Val::Px(10.0))},
+                        align_items: {AlignItems::Center},
+                        justify_content: {JustifyContent::Center},
+                        border: {UiRect::all(Val::Px(1.0))},
+                    }
+                    BackgroundColor({if index == 0 { ACTIVE_BG } else { step_bg(step) }})
+                    ~{BorderColor::all(Color::srgb(0.40, 0.40, 0.55))}
+                    Children [
+                        Text({display})
+                        TextFont { font_size: {FontSize::Px(20.0)} }
+                        TextColor({if step.rest {
+                            Color::srgb(0.62, 0.64, 0.70)
+                        } else {
+                            Color::WHITE
+                        }})
+                    ]
+                })
                 .id();
             cells.push(cell);
         }
