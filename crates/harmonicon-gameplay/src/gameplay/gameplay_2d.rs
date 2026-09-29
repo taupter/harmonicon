@@ -895,7 +895,12 @@ pub fn animate_judged_notes(
 /// direction arrow with them off — followed either way by the tab ribbon's
 /// technique suffix (`'` per bent semitone, `o`, `*`), so `-3''` reads as a
 /// whole-step bend right where the player is looking.
-fn head_label(hole: u8, is_blow: bool, modifiers: &[Modifier], show_numbers: bool) -> String {
+pub(super) fn head_label(
+    hole: u8,
+    is_blow: bool,
+    modifiers: &[Modifier],
+    show_numbers: bool,
+) -> String {
     let tab = super::phrase_overlay::tab_label(hole, is_blow, modifiers);
     if show_numbers {
         return tab;

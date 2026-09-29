@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 //! The 3D scene around the notes: camera, lighting, backdrop, the note
-//! track and hit zone, the harmonica model and its groove, the hole glow, and
-//! the camera restore on exit.
+//! track and hit zone, the row of hole pads and their glow, and the camera
+//! restore on exit.
 
 use super::*;
 
@@ -11,7 +11,10 @@ use super::*;
 pub(super) fn setup_camera_3d(commands: &mut Commands) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 14.0, 24.0).looking_at(Vec3::new(0.0, 0.0, HIT_Z - 18.0), Vec3::Y),
+        // High and close, looking down the lane: steep enough that the
+        // far end isn't crushed into the horizon (see `LANE_DEPTH` for the
+        // measured speed ratio), shallow enough that it still reads as depth.
+        Transform::from_xyz(0.0, 14.0, 16.0).looking_at(Vec3::new(0.0, LANE_Y, 0.0), Vec3::Y),
         GameplayCamera3D,
         GameplayRoot,
         Name::new("Camera3d (gameplay 3D)"),
@@ -58,50 +61,46 @@ pub(super) fn create_note_track(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    total_width: f32,
-    lane_width: f32,
-    track_len: f32,
-    center_x: f32,
-    track_ctr_z: f32,
-    holes: &[HoleConfig],
+    hole_count: u8,
 ) {
+    let total_width = f32::from(hole_count) * LANE_WIDTH;
+    // The track runs from the far end to just past the hole pads.
+    let track_len = PAD_Z + 0.6 - FAR_Z;
+    let track_ctr_z = FAR_Z + track_len * 0.5;
     // Semi-translucent floor so notes dipping below the lane (downward bends)
     // stay visible. Mesh + material built inline via `asset_value`.
     commands.spawn_scene(bsn! {
         Mesh3d({asset_value(Cuboid::new(total_width, 0.05, track_len))})
         MeshMaterial3d::<StandardMaterial>({asset_value(StandardMaterial {
-            base_color: Color::srgba(0.08, 0.08, 0.12, 0.5),
+            base_color: Color::srgba(0.08, 0.08, 0.12, 0.7),
             alpha_mode: AlphaMode::Blend,
             metallic: 0.3,
             perceptual_roughness: 0.8,
             ..default()
         })})
-        Transform { translation: {Vec3::new(center_x, LANE_Y - 0.025, track_ctr_z)} }
+        Transform { translation: {Vec3::new(0.0, LANE_Y - 0.025, track_ctr_z)} }
         GameplayRoot
     });
 
     // Alternating-lane shading is per-hole (a loop), so it stays imperative.
-    for (i, hole) in holes.iter().enumerate() {
-        if i % 2 == 1 {
-            continue;
-        }
-        let shade_mat = materials.add(StandardMaterial {
-            base_color: Color::srgba(1.0, 1.0, 1.0, 0.04),
-            alpha_mode: AlphaMode::Blend,
-            unlit: true,
-            ..default()
-        });
-        let shade_mesh = meshes.add(Cuboid::new(lane_width, 0.04, track_len));
+    let shade_mat = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 1.0, 1.0, 0.05),
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        ..default()
+    });
+    let shade_mesh = meshes.add(Cuboid::new(LANE_WIDTH, 0.04, track_len));
+    for hole in (1..=hole_count).step_by(2) {
         commands.spawn((
-            Mesh3d(shade_mesh),
-            MeshMaterial3d(shade_mat),
-            Transform::from_xyz(hole.x, LANE_Y, track_ctr_z),
+            Mesh3d(shade_mesh.clone()),
+            MeshMaterial3d(shade_mat.clone()),
+            Transform::from_xyz(lane_x(hole, hole_count), LANE_Y, track_ctr_z),
             GameplayRoot,
         ));
     }
 }
 
-pub(super) fn create_hit_zone(commands: &mut Commands, center_x: f32, total_width: f32) {
+pub(super) fn create_hit_zone(commands: &mut Commands, total_width: f32) {
     commands.spawn_scene(bsn! {
         Mesh3d({asset_value(Cuboid::new(total_width, 0.06, 2.8))})
         MeshMaterial3d::<StandardMaterial>({asset_value(StandardMaterial {
@@ -111,136 +110,55 @@ pub(super) fn create_hit_zone(commands: &mut Commands, center_x: f32, total_widt
             unlit: true,
             ..default()
         })})
-        Transform { translation: {Vec3::new(center_x, LANE_Y + 0.03, HIT_Z)} }
+        Transform { translation: {Vec3::new(0.0, LANE_Y + 0.03, HIT_Z)} }
+        GameplayRoot
+    });
+    // The line inside the band that is the judgment instant — a note's
+    // front face reaches it exactly on time, as 2D's hit line.
+    commands.spawn_scene(bsn! {
+        Mesh3d({asset_value(Cuboid::new(total_width, 0.08, 0.08))})
+        MeshMaterial3d::<StandardMaterial>({asset_value(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.98, 0.62),
+            emissive: LinearRgba::new(2.0, 1.9, 1.0, 1.0),
+            unlit: true,
+            ..default()
+        })})
+        Transform { translation: {Vec3::new(0.0, LANE_Y + 0.07, HIT_Z)} }
         GameplayRoot
     });
 }
 
-pub(super) fn spawn_harmonica_3d(
+/// One flat pad per hole at the near end of its lane, lit by
+/// `update_holes_3d` when that hole sounds (blow blue, draw orange) and
+/// dimly when a note in its lane is due — the 3D stand-in for 2D's hole
+/// strip.
+pub(super) fn spawn_hole_pads(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    asset_server: &AssetServer,
-    model_name: &str,
-    config: &HarmonicaModelConfig,
+    hole_count: u8,
 ) {
-    let [tx, ty, tz] = config.model_translation;
-
-    // Everything that should "dance" lives under one parent. `groove_harmonica`
-    // nudges this parent's Transform; children (model + holes) inherit the motion
-    // so the hole overlays stay glued to the model face.
-    commands
-        .spawn((HarmonicaGroove, GameplayRoot))
-        .with_children(|groove| {
-            groove.spawn((
-                WorldAssetRoot(
-                    asset_server.load(format!("harmonicas/3d/{model_name}/harmonica.glb#Scene0")),
-                ),
-                Transform::from_xyz(tx, ty, tz)
-                    .with_rotation(Quat::from_rotation_y(
-                        config.model_rotation_y_deg.to_radians(),
-                    ))
-                    .with_scale(Vec3::splat(config.model_scale)),
-            ));
-
-            for (i, hole_cfg) in config.holes.iter().enumerate() {
-                let hole = (i + 1) as u8;
-                let hole_mat = materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.10, 0.11, 0.15),
-                    emissive: LinearRgba::new(0.0, 0.0, 0.0, 0.0),
-                    metallic: 0.3,
-                    perceptual_roughness: 0.6,
-                    ..default()
-                });
-                let hole_mesh = meshes.add(Cuboid::new(hole_cfg.w, hole_cfg.h, hole_cfg.d));
-                let mat_handle = hole_mat.clone();
-                groove.spawn((
-                    Mesh3d(hole_mesh),
-                    MeshMaterial3d(hole_mat),
-                    Transform::from_xyz(hole_cfg.x, hole_cfg.y, hole_cfg.z),
-                    HoleCell(hole),
-                    HoleMesh3D(mat_handle),
-                ));
-            }
+    let pad_mesh = meshes.add(Cuboid::new(LANE_WIDTH * NOTE_W, 0.12, 0.9));
+    for hole in 1..=hole_count {
+        let pad_mat = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.10, 0.11, 0.15),
+            emissive: LinearRgba::new(0.0, 0.0, 0.0, 0.0),
+            metallic: 0.3,
+            perceptual_roughness: 0.6,
+            ..default()
         });
+        commands.spawn((
+            Mesh3d(pad_mesh.clone()),
+            MeshMaterial3d(pad_mat.clone()),
+            Transform::from_xyz(lane_x(hole, hole_count), LANE_Y + 0.06, PAD_Z),
+            HoleCell(hole),
+            HoleMesh3D(pad_mat),
+            GameplayRoot,
+        ));
+    }
 }
 
 // ── Per-frame systems ─────────────────────────────────────────────────────────
-
-/// Deterministic pseudo-random in -1..1 from an integer-ish input. The classic
-/// `fract(sin(x) * big)` hash — repeatable per beat, so the groove is stable but
-/// looks improvised.
-pub(super) fn hash11(n: f32) -> f32 {
-    let x = (n * 127.1).sin() * 43758.547;
-    x.fract() * 2.0 - 1.0
-}
-
-/// Sways the harmonica a few millimeters in all directions, in time with the
-/// song's tempo, so it looks like it's grooving to the music. The motion has a
-/// blues shuffle: a triplet bounce, a backbeat accent, and per-beat randomness
-/// so it never settles into a metronomic rocking-chair arc.
-pub fn groove_harmonica(
-    clock: Res<super::super::GameplayClock>,
-    selected: Res<SelectedSong>,
-    manifests: Res<Assets<SongManifest>>,
-    reduced_motion: Res<harmonicon_platform::settings::ReducedMotion>,
-    mut groove: Query<&mut Transform, With<HarmonicaGroove>>,
-) {
-    use std::f32::consts::{PI, TAU};
-
-    let Some(manifest) = manifests.get(&selected.0) else {
-        return;
-    };
-    // Hold still during the countdown (clock is negative) and under reduced
-    // motion — the sway is decoration; only dance once the music has started.
-    if clock.get() < 0.0 || reduced_motion.0 {
-        for mut tf in &mut groove {
-            if tf.translation != Vec3::ZERO || tf.rotation != Quat::IDENTITY {
-                tf.translation = Vec3::ZERO;
-                tf.rotation = Quat::IDENTITY;
-            }
-        }
-        return;
-    }
-
-    let bpm = manifest.chart.song.tempo_bpm.max(1.0);
-    // Beats elapsed (fractional).
-    let beat = (clock.get() / (60.0 / bpm as f64)) as f32;
-    let bi = beat.floor();
-    let frac = beat.fract();
-
-    // Per-beat random accent, smoothly interpolated across the beat (smoothstep)
-    // so each beat lands a little differently — the "improvised" blues feel.
-    let s = frac * frac * (3.0 - 2.0 * frac);
-    let accent = hash11(bi) + (hash11(bi + 1.0) - hash11(bi)) * s;
-
-    // Backbeat emphasis on beats 2 & 4 (the blues snare hits), the off-beats get
-    // a stronger kick than the downbeats.
-    let backbeat = if (bi as i32).rem_euclid(2) == 1 {
-        1.0
-    } else {
-        0.6
-    };
-
-    // Triplet shuffle: a strong hit on the beat plus a lighter swung hit on the
-    // last triplet (the "and-a"). This is what gives the bounce its blues swing
-    // instead of an even, sea-saw oscillation.
-    let shuffle = (beat * TAU).sin() * 0.7 + (beat * TAU * 1.5).sin() * 0.3;
-    let bob = shuffle * backbeat * (0.6 + 0.4 * accent);
-
-    // Quasi-periodic sway/nod: layering sines at incommensurate (non-integer)
-    // ratios means they never line up the same way twice, so the side-to-side and
-    // fore/aft never repeat into a clean rocking arc. The accent nudges them too.
-    let sway = (beat * PI).sin() * 0.6 + (beat * PI * 0.37).sin() * 0.25 + accent * 0.35;
-    let nod = (beat * PI * 0.73 + PI * 0.25).cos() * 0.6 + (beat * TAU * 0.21).sin() * 0.4;
-
-    for mut tf in &mut groove {
-        tf.translation = Vec3::new(sway * 0.03, bob * 0.022, nod * 0.018);
-        tf.rotation = Quat::from_rotation_z(sway * 0.018)
-            * Quat::from_rotation_x(nod * 0.012)
-            * Quat::from_rotation_y(accent * 0.012);
-    }
-}
 
 pub fn update_holes_3d(
     mut sounding: Local<std::collections::HashSet<u8>>,

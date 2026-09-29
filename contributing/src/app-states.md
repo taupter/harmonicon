@@ -73,7 +73,7 @@ A single `AppState::Playing` covers three quite different experiences,
 selected by the `GameplayMode` resource before entering it:
 
 - `Play2D` — falling notes, one lane per hole.
-- `Play3D` — the same scoring, rendered around a rotating 3D harmonica.
+- `Play3D` — the same scoring, rendered as a lane in perspective.
 - `JamSession` — free play over a 12-bar backing, nothing scored.
 
 All three share the same `AppState::Playing` `OnEnter`/`OnExit` and the

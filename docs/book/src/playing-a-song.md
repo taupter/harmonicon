@@ -3,8 +3,8 @@
 **Play → Play Song** starts the scored song flow:
 
 1. **Select Mode** — choose [Play 2D](play-2d.md) (a scrolling note
-   highway) or [Play 3D](play-3d.md) (a 3D harmonica model you play along
-   with). Both modes share the same scoring, timing, and pause menu — it's
+   highway) or [Play 3D](play-3d.md) (the same notes on a lane in
+   perspective). Both modes share the same scoring, timing, and pause menu — it's
    purely a visual choice.
 2. **Select Artist**, then **Select Song** — browse the bundled songs (and
    anything you've dropped into `~/Harmonicon/songs/`, see

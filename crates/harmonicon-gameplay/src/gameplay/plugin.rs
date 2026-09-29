@@ -391,7 +391,7 @@ impl Plugin for GameplayPlugin {
                 gameplay_3d::animate_judged_notes_3d,
                 gameplay_3d::animate_note_tails_3d,
                 gameplay_3d::update_holes_3d,
-                gameplay_3d::groove_harmonica,
+                technique_coach::update_technique_coach,
             )
                 .chain()
                 .after(GameplayLogic)

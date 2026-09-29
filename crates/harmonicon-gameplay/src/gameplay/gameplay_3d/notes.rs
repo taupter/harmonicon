@@ -7,18 +7,13 @@
 
 use super::*;
 
-/// `(note_w, head_depth, tail_len)` for `hole`/`duration` — everything
+/// `(note_w, head_depth, tail_len)` for a note of `duration` — everything
 /// `spawn_visible_notes_3d` (at spawn) and `update_notes_3d` (every frame)
 /// need beyond what's already on `ScheduledNote`. Recomputed on demand
-/// rather than cached, since it's cheap: just the hole's configured width
-/// and the note's own duration.
-pub(super) fn note_dimensions(
-    assets: &NoteRenderAssets3D,
-    hole: u8,
-    duration: f64,
-) -> (f32, f32, f32) {
-    let hole_cfg = assets.holes.get(hole.saturating_sub(1) as usize);
-    let note_w = hole_cfg.map(|h| h.w).unwrap_or(LANE_WIDTH - LANE_GAP);
+/// rather than cached, since it's cheap: every lane is the same width, so
+/// only the note's own duration varies.
+pub(super) fn note_dimensions(assets: &NoteRenderAssets3D, duration: f64) -> (f32, f32, f32) {
+    let note_w = LANE_WIDTH * NOTE_W;
     let head_scale = note_w * assets.cfg.as_ref().map(|c| c.head_scale).unwrap_or(1.0);
     let head_depth = head_scale * 1.4;
     let tail_len = note_depth(duration);
@@ -48,7 +43,6 @@ pub(super) fn build_song_notes_3d(
     chart: &HarpChart,
     head_mesh: Handle<Mesh>,
     cfg: NoteCube3dConfig,
-    holes: Vec<HoleConfig>,
     adaptive: &AdaptiveDifficulty,
 ) -> (super::super::SongNotes, NoteRenderAssets3D) {
     let (notes, _) = super::super::build_scheduled_notes(effective, chart, adaptive);
@@ -58,7 +52,6 @@ pub(super) fn build_song_notes_3d(
         NoteRenderAssets3D {
             head_mesh: Some(head_mesh),
             cfg: Some(cfg),
-            holes,
             hole_count,
         },
     )
@@ -82,6 +75,7 @@ pub fn spawn_visible_notes_3d(
     theme: Res<LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
+    loc: Res<Localization>,
 ) {
     if lesson.is_some_and(|lesson| lesson.aural) {
         return;
@@ -106,6 +100,7 @@ pub fn spawn_visible_notes_3d(
             i,
             &song_notes.notes[i],
             show_numbers.0,
+            super::super::technique_cue::note_cue(&loc, &song_notes.notes[i]),
             colors,
         );
     }
@@ -145,17 +140,15 @@ pub(super) fn spawn_note_visual_3d(
     note_id: usize,
     note: &ScheduledNote,
     show_numbers: bool,
+    cue: Option<String>,
     colors: NoteColors,
 ) {
     let head_mesh = assets.head_mesh.as_ref().expect("checked by caller");
     let cfg = assets.cfg.as_ref().expect("checked by caller");
     let (r, g, b, emit_r, emit_g, emit_b) = note_base_appearance(colors, note.is_blow);
 
-    let hole_cfg = assets.holes.get(note.hole.saturating_sub(1) as usize);
-    let note_x = hole_cfg
-        .map(|h| h.x)
-        .unwrap_or_else(|| lane_x(note.hole, assets.hole_count));
-    let (note_w, head_depth, tail_len) = note_dimensions(assets, note.hole, note.duration);
+    let note_x = lane_x(note.hole, assets.hole_count);
+    let (note_w, head_depth, tail_len) = note_dimensions(assets, note.duration);
 
     // Head: the elongated cube (1.4 units long in Z), tinted blow/draw.
     let head_scale = note_w * cfg.head_scale;
@@ -215,20 +208,34 @@ pub(super) fn spawn_note_visual_3d(
         })
         .id();
 
-    // Hole-number label: a separate UI entity (see `NoteHoleLabel3D`'s doc
-    // comment for why), positioned every frame by `update_note_hole_labels_3d`
-    // — hidden until then, since it starts at the origin.
-    if show_numbers {
+    // Tab label (with the technique suffix, `-3''`) and, for a technique
+    // note, the short cue under it (`→ A`, `vib 5/s`): a separate UI entity
+    // (see `NoteHoleLabel3D`'s doc comment for why), positioned every frame
+    // by `update_note_hole_labels_3d` — hidden until then, since it starts
+    // at the origin. A technique note gets one even with note numbers off,
+    // since the cue is the only place its technique is spelled out.
+    if show_numbers || cue.is_some() {
+        let tab = super::super::gameplay_2d::head_label(
+            note.hole,
+            note.is_blow,
+            &note.modifiers,
+            show_numbers,
+        );
         commands
             .spawn((
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(0.0),
                     top: Val::Px(0.0),
-                    padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::axes(Val::Px(6.0), Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+                // Centred over the note, sitting on top of it.
+                UiTransform::from_translation(Val2::percent(-50.0, -100.0)),
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
                 Visibility::Hidden,
                 NoteHoleLabel3D {
                     target: note_entity,
@@ -237,28 +244,34 @@ pub(super) fn spawn_note_visual_3d(
             ))
             .with_children(|l| {
                 l.spawn((
-                    // `+`/`-` for blow/draw — see the matching comment in
-                    // `gameplay_2d::spawn_note_visual`.
-                    Text::new(super::super::phrase_overlay::tab_label(
-                        note.hole,
-                        note.is_blow,
-                        &[],
-                    )),
+                    Text::new(tab),
                     TextFont {
-                        font_size: FontSize::Px(16.0),
+                        font_size: FontSize::Px(22.0),
                         ..default()
                     },
                     TextColor(Color::WHITE),
                     NoteHoleLabelText3D,
                 ));
+                if let Some(cue) = cue {
+                    l.spawn((
+                        Text::new(cue),
+                        TextFont {
+                            font_size: FontSize::Px(18.0),
+                            ..default()
+                        },
+                        TextColor(Color::srgb(1.0, 0.92, 0.6)),
+                        TextLayout::no_wrap(),
+                    ));
+                }
             });
     }
 }
 
 /// Offset (logical px) from a note's projected screen position to where its
-/// hole-number label's top-left corner should land — up and to the left, so
-/// the label sits just outside the note instead of covering it.
-pub(super) const NOTE_LABEL_OFFSET: Vec2 = Vec2::new(-24.0, -20.0);
+/// label's anchor lands. The label is centred horizontally on that anchor
+/// and sits on top of it (its `UiTransform`), so this only lifts it a
+/// little clear of the head.
+pub(super) const NOTE_LABEL_OFFSET: Vec2 = Vec2::new(0.0, -6.0);
 
 /// Converts a `Camera::world_to_viewport` result into the `Val::Px` a UI
 /// `Node`'s `left`/`top` needs, offset to the label's anchor point.
@@ -299,7 +312,9 @@ pub fn update_note_hole_labels_3d(
             commands.entity(entity).despawn();
             continue;
         };
-        match camera.world_to_viewport(camera_transform, note_transform.translation) {
+        // Anchored just above the head's top face.
+        let anchor = note_transform.translation + Vec3::Y * 0.4;
+        match camera.world_to_viewport(camera_transform, anchor) {
             Ok(viewport_px) => {
                 let pos = note_label_position(viewport_px, ui_scale.0);
                 node.left = Val::Px(pos.x);
@@ -325,9 +340,11 @@ pub(super) fn note_has_left_view(
     note: &ScheduledNote,
     elapsed: f64,
 ) -> bool {
-    let (_, head_depth, tail_len) = note_dimensions(assets, note.hole, note.duration);
+    let (_, head_depth, tail_len) = note_dimensions(assets, note.duration);
     let distance = (elapsed - note.time) as f32 / LOOKAHEAD as f32 * LANE_DEPTH;
-    distance > head_depth + tail_len + 4.0
+    // Gone once the whole comet has run off the track's near end (just past
+    // the hole pads), rather than sliding on under the camera.
+    distance > head_depth + tail_len + (PAD_Z + 0.6 - HIT_Z)
 }
 
 pub fn update_notes_3d(
@@ -342,7 +359,7 @@ pub fn update_notes_3d(
         let Some(note) = song_notes.notes.get(visual.note_id) else {
             continue;
         };
-        let (_, head_depth, _) = note_dimensions(&render_assets, note.hole, note.duration);
+        let (_, head_depth, _) = note_dimensions(&render_assets, note.duration);
         let remaining = (note.time - elapsed) as f32;
         // The head's front face lands on the hit line at the note's time.
         let z = HIT_Z - remaining / LOOKAHEAD as f32 * LANE_DEPTH - head_depth * 0.5;
@@ -476,6 +493,7 @@ pub fn animate_judged_notes_3d(
     mut heads: Query<(&NoteHead3d, &mut Transform)>,
     labels: Query<(&NoteHoleLabel3D, &Children)>,
     mut label_texts: Query<&mut Text, With<NoteHoleLabelText3D>>,
+    show_numbers: Res<ShowNoteNumbers>,
 ) {
     let now = clock.get();
     for (entity, visual, mut state, judged, children) in &mut notes {
@@ -516,7 +534,12 @@ pub fn animate_judged_notes_3d(
         }
         let wanted = match current {
             Some(hit) => judged_stamp(hit).to_string(),
-            None => super::super::phrase_overlay::tab_label(note.hole, note.is_blow, &[]),
+            None => super::super::gameplay_2d::head_label(
+                note.hole,
+                note.is_blow,
+                &note.modifiers,
+                show_numbers.0,
+            ),
         };
         for (label, label_children) in &labels {
             if label.target != entity {

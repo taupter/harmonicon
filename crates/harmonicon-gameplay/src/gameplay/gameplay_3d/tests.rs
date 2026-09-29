@@ -40,17 +40,18 @@ fn note_label_position_is_unchanged_at_default_ui_scale() {
 }
 
 #[test]
-fn note_label_position_offsets_up_and_left() {
+fn note_label_position_lifts_the_label_clear_of_the_note() {
     let pos = note_label_position(Vec2::ZERO, 1.0);
     assert_eq!(pos, NOTE_LABEL_OFFSET);
-    assert!(pos.x < 0.0, "should sit left of the note");
+    // Centred over the note by its `UiTransform`, so no sideways offset.
+    assert_eq!(pos.x, 0.0);
     assert!(pos.y < 0.0, "should sit above the note");
 }
 
 #[test]
 fn note_depth_scales_with_duration() {
-    // Half a lookahead of duration is proportional, inside the clamp band.
-    assert!((note_depth(0.3) - 6.0).abs() < 1e-4);
+    // Half a lookahead of duration is half the lane, inside the clamp band.
+    assert!((note_depth(LOOKAHEAD / 2.0) - LANE_DEPTH / 2.0).abs() < 1e-4);
 }
 
 #[test]

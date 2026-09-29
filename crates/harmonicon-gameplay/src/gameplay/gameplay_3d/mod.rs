@@ -6,9 +6,7 @@ use bevy::prelude::*;
 use harmonicon_core::chart::{Action, HarpChart};
 
 use harmonicon_app::app::{EffectiveHarmonica, SelectedSong};
-use harmonicon_platform::assets_management::{
-    HarmonicaModelConfig, HoleConfig, SelectedHarmonicaModel, SelectedNoteTheme3d, ShowNoteNumbers,
-};
+use harmonicon_platform::assets_management::{SelectedNoteTheme3d, ShowNoteNumbers};
 use harmonicon_platform::theme::{HUD_PANEL_BG, LoadedTheme, NoteColors, effective_note_colors};
 use harmonicon_song::song::NoteCube3dConfig;
 use harmonicon_song::song::SongManifest;
@@ -38,19 +36,30 @@ use harmonicon_platform::localization::Localization;
 // ── 3D layout constants ───────────────────────────────────────────────────────
 
 const LANE_WIDTH: f32 = 1.0;
-const LANE_GAP: f32 = 0.06;
-const LANE_DEPTH: f32 = 60.0;
+/// A note's width as a fraction of its lane: wide enough that the head and
+/// the tail's technique animation read at a glance, with a gap left so
+/// neighbouring lanes stay distinct.
+const NOTE_W: f32 = 0.85;
+/// How deep the lane runs, in world units, over `LOOKAHEAD` seconds. Short
+/// on purpose: with the camera in `scene::setup_camera_3d`, a note's on-screen
+/// speed grows about 3.3x from the far end to the hit line (109 to 357 px/s
+/// at 1080p). A 60-unit lane seen from a low camera made that 13x — notes
+/// crawled at the horizon for two seconds, then crossed half the screen in
+/// the last half second.
+const LANE_DEPTH: f32 = 16.0;
 const HIT_Z: f32 = 6.0;
 /// Where the lane's hit plane lands on screen, as a fraction of window height
 /// measured up from the bottom. The camera is fixed
-/// (`Transform::from_xyz(0.0, 14.0, 24.0)` looking at the lane), so this is a
-/// constant of that camera rather than something worth projecting per frame —
-/// but it has to be re-measured if the camera ever moves.
-const HIT_PLANE_BOTTOM_PCT: f32 = 24.0;
-const FAR_Z: f32 = HIT_Z - LANE_DEPTH; // -54
+/// (`Transform::from_xyz(0.0, 14.0, 16.0)` looking at the lane's origin), so
+/// this is a constant of that camera rather than something worth projecting
+/// per frame — but it has to be re-measured if the camera ever moves.
+const HIT_PLANE_BOTTOM_PCT: f32 = 21.4;
+const FAR_Z: f32 = HIT_Z - LANE_DEPTH; // -10
 const LANE_Y: f32 = 1.6;
 const NOTE_H: f32 = 0.18;
-const HARP_Z: f32 = HIT_Z + 2.2;
+/// Where the row of hole pads sits: just past the hit zone's near edge, so
+/// a pad lights under the note being played.
+const PAD_Z: f32 = HIT_Z + 1.9;
 
 // ── 3D-only marker components ─────────────────────────────────────────────────
 
@@ -87,9 +96,6 @@ pub(super) struct NoteHoleLabel3D {
 pub(super) struct NoteRenderAssets3D {
     head_mesh: Option<Handle<Mesh>>,
     cfg: Option<NoteCube3dConfig>,
-    /// Per-hole x-position/width from the harmonica model's `holes.json`
-    /// (falls back to `lane_x`/an even width when a hole has no entry).
-    holes: Vec<HoleConfig>,
     hole_count: u8,
 }
 
@@ -113,49 +119,6 @@ pub(super) struct NoteTail3d;
 
 #[derive(Component)]
 pub(super) struct HoleMesh3D(Handle<StandardMaterial>);
-
-/// Parent entity holding the GLB model and its hole overlays. Animated by
-/// `groove_harmonica` so the whole harmonica bobs in time with the music.
-#[derive(Component)]
-#[require(Transform, Visibility)]
-pub(super) struct HarmonicaGroove;
-
-// ── Harmonica model config ────────────────────────────────────────────────────
-
-/// The fallback layout when a model has no `holes.json`: holes evenly
-/// spaced across the lanes at the harmonica's resting position, sized to
-/// the chart's actual hole count. (No bundled 3D model ships a chromatic
-/// `holes.json`, so a chromatic chart's *note lanes* line up correctly
-/// even though the harmonica prop still renders as whichever diatonic
-/// model is selected — that needs a matching 3D asset, not just code.)
-fn default_model_layout(hole_count: u8) -> HarmonicaModelConfig {
-    HarmonicaModelConfig {
-        model_translation: [0.0, LANE_Y + 0.45, HARP_Z],
-        model_rotation_y_deg: 0.0,
-        model_scale: 1.0,
-        holes: (1u8..=hole_count)
-            .map(|hole| HoleConfig {
-                x: lane_x(hole, hole_count),
-                y: LANE_Y + 0.9 + 0.10,
-                z: HARP_Z,
-                w: LANE_WIDTH - LANE_GAP - 0.08,
-                h: 0.20,
-                d: 0.90,
-            })
-            .collect(),
-    }
-}
-
-fn load_model_config(model_name: &str, hole_count: u8) -> HarmonicaModelConfig {
-    let path = format!("assets/harmonicas/3d/{model_name}/holes.json");
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(|| {
-            warn!("No holes.json for model '{model_name}', using default layout");
-            default_model_layout(hole_count)
-        })
-}
 
 /// Note-building state bundled into one `SystemParam` so `setup` stays under
 /// Bevy's function-system parameter arity limit — plain individual params
@@ -192,7 +155,6 @@ pub fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
-    selected_model: Res<SelectedHarmonicaModel>,
     shape_materials: ResMut<Assets<NoteTail2dMaterial>>,
     note_theme: Res<SelectedNoteTheme3d>,
     mut cameras: Query<(&mut Camera, &mut Transform), With<Camera2d>>,
@@ -217,36 +179,17 @@ pub fn setup(
     let chart = &manifest.chart;
     // The instrument on screen is the one the player is holding, as for 2D.
     let played = effective.harp_for(chart);
-    let model_cfg = load_model_config(&selected_model.0, played.hole_count());
+    let hole_count = played.hole_count();
 
     setup_camera_3d(&mut commands);
     setup_lighting(&mut commands);
     setup_background(&mut commands, manifest.background.clone());
 
-    let holes = &model_cfg.holes;
-    let left_edge = holes.first().map(|h| h.x - h.w * 0.5).unwrap_or(-5.0);
-    let right_edge = holes.last().map(|h| h.x + h.w * 0.5).unwrap_or(5.0);
-    let total_width = right_edge - left_edge;
-    let center_x = (left_edge + right_edge) * 0.5;
-    let lane_width = total_width / holes.len() as f32;
-
-    let track_end_z = holes.first().map(|h| h.z).unwrap_or(HARP_Z);
-    let track_len = track_end_z - FAR_Z;
-    let track_ctr_z = FAR_Z + track_len * 0.5;
-
-    create_note_track(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        total_width,
-        lane_width,
-        track_len,
-        center_x,
-        track_ctr_z,
-        holes,
-    );
-
-    create_hit_zone(&mut commands, center_x, total_width);
+    // Lanes are the played harp's holes, evenly spaced and centred on x = 0.
+    let total_width = f32::from(hole_count) * LANE_WIDTH;
+    create_note_track(&mut commands, &mut meshes, &mut materials, hole_count);
+    create_hit_zone(&mut commands, total_width);
+    spawn_hole_pads(&mut commands, &mut meshes, &mut materials, hole_count);
 
     // Comet head mesh + 3D tail layout: loaded here — on entering the 3D game —
     // from the song's own GLB if it ships a `3d/` folder, else the selected
@@ -257,37 +200,42 @@ pub fn setup(
         None => asset_server.load(format!("notes/3d/{}.glb#Mesh0/Primitive0", note_theme.0)),
     };
     let note_cfg = manifest.assets_3d_config.clone();
-    let (notes, assets) = build_song_notes_3d(
-        &effective,
-        chart,
-        head_mesh,
-        note_cfg,
-        holes.clone(),
-        &note_build.adaptive,
-    );
+    let (notes, assets) =
+        build_song_notes_3d(&effective, chart, head_mesh, note_cfg, &note_build.adaptive);
     *note_build.song_notes = notes;
     *note_build.render_assets = assets;
-    spawn_harmonica_3d(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        &asset_server,
-        &selected_model.0,
-        &model_cfg,
-    );
 
     // The meter's own beat count, for the HUD's beat dots — from the one
     // reading of the chart's meter gameplay has (`bars::chart_meter`).
     let beats_per_bar = usize::from(super::bars::chart_meter(chart).numerator.max(1));
     let modifiers = used_modifiers(chart);
     let lyrics = harmonicon_core::lyrics::lyric_lines(chart);
+    let aural = lesson.is_some_and(|lesson| lesson.aural);
     let panels = contextual_panels(
         LaneSurface::Lane3d,
         compact,
-        lesson.is_some_and(|lesson| lesson.aural),
+        aural,
         !modifiers.is_empty(),
         !lyrics.is_empty(),
     );
+    // The same technique coach 2D has, pinned along the bottom under the
+    // hole pads — the one place on screen that neither the lane nor the
+    // side panel uses.
+    if !aural && modifiers.iter().any(super::technique_cue::is_coachable) {
+        commands
+            .spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(12.0),
+                    left: Val::Percent(18.0),
+                    width: Val::Percent(64.0),
+                    ..default()
+                },
+                GlobalZIndex(1),
+                GameplayRoot,
+            ))
+            .with_children(super::technique_coach::spawn_technique_coach);
+    }
     spawn_hud_overlay(
         &mut commands,
         &modifiers,
