@@ -163,20 +163,17 @@ fn spawn_position_caption(
         colors,
         &loc.msg("circle-of-fifths-harp-label"),
     );
-    parent.spawn((
-        Text::new(String::from(loc.msg_args(
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({String::from(loc.msg_args(
             "jam-position-label",
             &[(
                 "position",
                 harmonicon_gameplay::gameplay::position_label(position.label(), loc),
             )],
-        ))),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.55, 0.55, 0.60)),
-    ));
+        ))})
+        TextFont { font_size: {FontSize::Px(13.0)} }
+        TextColor({Color::srgb(0.55, 0.55, 0.60)})
+    });
 }
 
 /// Spawns the live position compass in Jam Session, as a child of `parent`.
