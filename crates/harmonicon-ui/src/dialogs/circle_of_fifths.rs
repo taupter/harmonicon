@@ -103,46 +103,36 @@ pub fn spawn_circle_of_fifths(
                 } else {
                     colors.base
                 };
+                let secondary = position_label
+                    .map(|label| (label.to_string(), colors.position))
+                    .or_else(|| is_harp_key.then(|| (harp_label.to_string(), colors.harp_key)));
 
                 circle
-                    .spawn(Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x * SIZE_PX - LABEL_PX / 2.0),
-                        top: Val::Px(y * SIZE_PX - LABEL_PX / 2.0),
-                        width: Val::Px(LABEL_PX),
-                        height: Val::Px(LABEL_PX),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        ..default()
+                    .spawn_empty()
+                    .apply_scene(bsn! {
+                        Node {
+                            position_type: {PositionType::Absolute},
+                            left: {Val::Px(x * SIZE_PX - LABEL_PX / 2.0)},
+                            top: {Val::Px(y * SIZE_PX - LABEL_PX / 2.0)},
+                            width: {Val::Px(LABEL_PX)},
+                            height: {Val::Px(LABEL_PX)},
+                            flex_direction: {FlexDirection::Column},
+                            align_items: {AlignItems::Center},
+                            justify_content: {JustifyContent::Center},
+                        }
+                        Children [
+                            Text({key.clone()})
+                            TextFont { font_size: {FontSize::Px(16.0)} }
+                            TextColor({key_color})
+                        ]
                     })
                     .with_children(|cell| {
-                        cell.spawn((
-                            Text::new(key.clone()),
-                            TextFont {
-                                font_size: FontSize::Px(16.0),
-                                ..default()
-                            },
-                            TextColor(key_color),
-                        ));
-                        if let Some(label) = position_label {
-                            cell.spawn((
-                                Text::new(label),
-                                TextFont {
-                                    font_size: FontSize::Px(10.0),
-                                    ..default()
-                                },
-                                TextColor(colors.position),
-                            ));
-                        } else if is_harp_key {
-                            cell.spawn((
-                                Text::new(harp_label.to_string()),
-                                TextFont {
-                                    font_size: FontSize::Px(10.0),
-                                    ..default()
-                                },
-                                TextColor(colors.harp_key),
-                            ));
+                        if let Some((label, color)) = secondary {
+                            cell.spawn_empty().apply_scene(bsn! {
+                                Text({label})
+                                TextFont { font_size: {FontSize::Px(10.0)} }
+                                TextColor({color})
+                            });
                         }
                     });
             }
