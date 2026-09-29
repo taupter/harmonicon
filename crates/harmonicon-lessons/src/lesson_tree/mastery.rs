@@ -106,50 +106,39 @@ pub(crate) fn spawn_track_meters(
             ],
         );
         commands.entity(row).with_children(|row| {
-            row.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(8.0),
-                ..default()
-            })
-            .with_children(|chip| {
-                chip.spawn((
+            row.spawn_empty().apply_scene(bsn! {
+                Node {
+                    flex_direction: {FlexDirection::Row},
+                    align_items: {AlignItems::Center},
+                    column_gap: {Val::Px(8.0)},
+                }
+                Children [
                     Node {
-                        width: Val::Px(SWATCH_PX),
-                        height: Val::Px(SWATCH_PX),
-                        border_radius: BorderRadius::MAX,
-                        ..default()
-                    },
-                    BackgroundColor(color),
-                ));
-                chip.spawn((
-                    Text::new(String::from(label)),
-                    TextFont {
-                        font_size: FontSize::Px(14.0),
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.86, 0.89, 0.95)),
-                ));
-                chip.spawn((
+                        width: {Val::Px(SWATCH_PX)},
+                        height: {Val::Px(SWATCH_PX)},
+                        border_radius: {BorderRadius::MAX},
+                    }
+                    BackgroundColor({color})
+                    --
+                    Text({String::from(label)})
+                    TextFont { font_size: {FontSize::Px(14.0)} }
+                    TextColor({Color::srgb(0.86, 0.89, 0.95)})
+                    --
                     Node {
-                        width: Val::Px(BAR_W_PX),
-                        height: Val::Px(BAR_H_PX),
-                        border_radius: BorderRadius::all(Val::Px(BAR_H_PX / 2.0)),
-                        ..default()
-                    },
-                    BackgroundColor(BAR_TRACK),
-                ))
-                .with_children(|bar| {
-                    bar.spawn((
+                        width: {Val::Px(BAR_W_PX)},
+                        height: {Val::Px(BAR_H_PX)},
+                        border_radius: {BorderRadius::all(Val::Px(BAR_H_PX / 2.0))},
+                    }
+                    BackgroundColor({BAR_TRACK})
+                    Children [
                         Node {
-                            width: Val::Percent(meter.mastery * 100.0),
-                            height: Val::Percent(100.0),
-                            border_radius: BorderRadius::all(Val::Px(BAR_H_PX / 2.0)),
-                            ..default()
-                        },
-                        BackgroundColor(color),
-                    ));
-                });
+                            width: {Val::Percent(meter.mastery * 100.0)},
+                            height: {Val::Percent(100.0)},
+                            border_radius: {BorderRadius::all(Val::Px(BAR_H_PX / 2.0))},
+                        }
+                        BackgroundColor({color})
+                    ]
+                ]
             });
         });
     }
