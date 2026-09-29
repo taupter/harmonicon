@@ -76,15 +76,13 @@ pub(super) fn spawn_technique_coach(parent: &mut ChildSpawnerCommands) {
         })
         .with_children(|cell| {
             text = cell
-                .spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(LABEL_PX),
-                        ..default()
-                    },
-                    TextColor(LABEL),
-                    TextLayout::no_wrap(),
-                ))
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    Text("")
+                    TextFont { font_size: {FontSize::Px(LABEL_PX)} }
+                    TextColor({LABEL})
+                    ~{TextLayout::no_wrap()}
+                })
                 .id();
         });
         text
