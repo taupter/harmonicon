@@ -79,24 +79,20 @@ pub(super) fn spawn_hole_column_rows(
             ..default()
         })
         .with_children(|r| {
-            r.spawn((
-                Text::new(format!("{hole:02}")),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(colors.label),
-            ));
-            r.spawn((
+            r.spawn_empty().apply_scene(bsn! {
+                Text({format!("{hole:02}")})
+                TextFont { font_size: {FontSize::Px(13.0)} }
+                TextColor({colors.label})
+            });
+            r.spawn_empty().apply_scene(bsn! {
                 Node {
-                    width: Val::Px(20.0),
-                    height: Val::Px(20.0),
-                    border: UiRect::all(Val::Px(1.5)),
-                    ..default()
-                },
-                BackgroundColor(colors.hole_box),
-                BorderColor::all(Color::srgb(0.45, 0.45, 0.55)),
-            ));
+                    width: {Val::Px(20.0)},
+                    height: {Val::Px(20.0)},
+                    border: {UiRect::all(Val::Px(1.5))},
+                }
+                BackgroundColor({colors.hole_box})
+                ~{BorderColor::all(Color::srgb(0.45, 0.45, 0.55))}
+            });
         });
     }
     // Label for the silence track's background strip (spawned in
@@ -113,15 +109,12 @@ pub(super) fn spawn_hole_column_rows(
         Tooltip(String::from(loc.msg("editor-silence-track-tooltip"))),
     ))
     .with_children(|r| {
-        r.spawn((
-            Text::new(loc.msg("editor-silence-track-label").to_string()),
-            TextFont {
-                font_size: FontSize::Px(11.0),
-                ..default()
-            },
-            TextColor(colors.label),
-            Pickable::IGNORE,
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Text({loc.msg("editor-silence-track-label").to_string()})
+            TextFont { font_size: {FontSize::Px(11.0)} }
+            TextColor({colors.label})
+            ~{Pickable::IGNORE}
+        });
     });
 }
 
@@ -168,18 +161,12 @@ fn spawn_cycle_row<T: Component, M: 'static>(
         ..default()
     })
     .with_children(|line| {
-        line.spawn((
-            Node {
-                width: Val::Px(FORM_LABEL_W),
-                ..default()
-            },
-            Text::new(format!("{}:", loc.msg(label_key))),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(colors.label),
-        ));
+        line.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(FORM_LABEL_W)} }
+            Text({format!("{}:", loc.msg(label_key))})
+            TextFont { font_size: {FontSize::Px(14.0)} }
+            TextColor({colors.label})
+        });
         let mut btn = line.spawn((
             WidgetButton,
             TabIndex(0),
@@ -337,18 +324,12 @@ pub(super) fn spawn_field_row(
     });
     let row_id = row_ec.id();
     row_ec.with_children(|line| {
-        line.spawn((
-            Node {
-                width: Val::Px(FORM_LABEL_W),
-                ..default()
-            },
-            Text::new(format!("{}:", loc.msg(label))),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(colors.label),
-        ));
+        line.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(FORM_LABEL_W)} }
+            Text({format!("{}:", loc.msg(label))})
+            TextFont { font_size: {FontSize::Px(14.0)} }
+            TextColor({colors.label})
+        });
 
         if field.is_cycle() {
             let mut btn = line.spawn((
@@ -517,15 +498,12 @@ pub(super) fn spawn_field_row(
                     },
                 )
                 .with_children(|b| {
-                    b.spawn((
-                        Text::new(String::from(loc.msg("editor-browse"))),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Pickable::IGNORE,
-                    ));
+                    b.spawn_empty().apply_scene(bsn! {
+                        Text({String::from(loc.msg("editor-browse"))})
+                        TextFont { font_size: {FontSize::Px(13.0)} }
+                        TextColor({Color::WHITE})
+                        ~{Pickable::IGNORE}
+                    });
                 });
         }
     });
@@ -545,18 +523,12 @@ fn spawn_midi_track_row(
         ..default()
     })
     .with_children(|line| {
-        line.spawn((
-            Node {
-                width: Val::Px(FORM_LABEL_W),
-                ..default()
-            },
-            Text::new(format!("{}:", loc.msg("editor-field-midi-track"))),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(colors.label),
-        ));
+        line.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(FORM_LABEL_W)} }
+            Text({format!("{}:", loc.msg("editor-field-midi-track"))})
+            TextFont { font_size: {FontSize::Px(14.0)} }
+            TextColor({colors.label})
+        });
         let mut import_midi = line.spawn((
             WidgetButton,
             TabIndex(0),
@@ -586,15 +558,12 @@ fn spawn_midi_track_row(
                 },
             )
             .with_children(|b| {
-                b.spawn((
-                    Text::new(String::from(loc.msg("editor-import-midi"))),
-                    TextFont {
-                        font_size: FontSize::Px(13.0),
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                    Pickable::IGNORE,
-                ));
+                b.spawn_empty().apply_scene(bsn! {
+                    Text({String::from(loc.msg("editor-import-midi"))})
+                    TextFont { font_size: {FontSize::Px(13.0)} }
+                    TextColor({Color::WHITE})
+                    ~{Pickable::IGNORE}
+                });
             });
         line.spawn((
             MidiTrackComboboxSlot,
