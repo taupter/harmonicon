@@ -255,19 +255,19 @@ pub(super) fn rebuild_grid(
         // callers below for the actual gap blocks drawn on top of it).
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x),
-                        top: Val::Px(silence_row_top(hole_count)),
-                        width: Val::Px(BEAT_W),
-                        height: Val::Px(SILENCE_ROW_H),
-                        ..default()
-                    },
-                    BackgroundColor(colors.panel_bg),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(x)},
+                        top: {Val::Px(silence_row_top(hole_count))},
+                        width: {Val::Px(BEAT_W)},
+                        height: {Val::Px(SILENCE_ROW_H)},
+                    }
+                    BackgroundColor({colors.panel_bg})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
 
@@ -284,19 +284,19 @@ pub(super) fn rebuild_grid(
         // top of this where the two coincide (as they always do in 4/4).
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x),
-                        top: Val::Px(0.0),
-                        width: Val::Px(1.0),
-                        height: Val::Px(grid_height(hole_count)),
-                        ..default()
-                    },
-                    BackgroundColor(colors.grid_line),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(x)},
+                        top: {Val::Px(0.0)},
+                        width: {Val::Px(1.0)},
+                        height: {Val::Px(grid_height(hole_count))},
+                    }
+                    BackgroundColor({colors.grid_line})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
 
@@ -309,23 +309,23 @@ pub(super) fn rebuild_grid(
         for (tick, kind) in sub_beat_gridlines(state.snap_mode) {
             items.push(
                 commands
-                    .spawn((
-                        GridItem,
+                    .spawn_empty()
+                    .apply_scene(bsn! {
+                        GridItem
                         Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(x + tick as f32 * TICK_W),
-                            top: Val::Px(HEADER_H),
-                            width: Val::Px(1.0),
-                            height: Val::Px(grid_height(hole_count) - HEADER_H),
-                            ..default()
-                        },
-                        BackgroundColor(match kind {
+                            position_type: {PositionType::Absolute},
+                            left: {Val::Px(x + tick as f32 * TICK_W)},
+                            top: {Val::Px(HEADER_H)},
+                            width: {Val::Px(1.0)},
+                            height: {Val::Px(grid_height(hole_count) - HEADER_H)},
+                        }
+                        BackgroundColor({match kind {
                             GridlineKind::Half => colors.half_line,
                             GridlineKind::Sixteenth => colors.quarter_line,
                             GridlineKind::Triplet => colors.triplet_line,
-                        }),
-                        Pickable::IGNORE,
-                    ))
+                        }})
+                        ~{Pickable::IGNORE}
+                    })
                     .id(),
             );
         }
@@ -363,26 +363,23 @@ pub(super) fn rebuild_grid(
         };
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(tick as f32 * TICK_W + 4.0),
-                        top: Val::Px(6.0),
-                        ..default()
-                    },
-                    Text::new(label),
-                    TextFont {
-                        font_size: FontSize::Px(if is_bar {
-                            BAR_LABEL_FONT
-                        } else {
-                            BEAT_LABEL_FONT
-                        }),
-                        ..default()
-                    },
-                    TextColor(if is_bar { colors.accent } else { colors.label }),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(tick as f32 * TICK_W + 4.0)},
+                        top: {Val::Px(6.0)},
+                    }
+                    Text({label})
+                    TextFont { font_size: {FontSize::Px(if is_bar {
+                        BAR_LABEL_FONT
+                    } else {
+                        BEAT_LABEL_FONT
+                    })} }
+                    TextColor({if is_bar { colors.accent } else { colors.label }})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
     }
@@ -397,23 +394,23 @@ pub(super) fn rebuild_grid(
         let is_change = changes.contains_key(&tick);
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(tick as f32 * TICK_W),
-                        top: Val::Px(0.0),
-                        width: Val::Px(2.0),
-                        height: Val::Px(grid_height(hole_count)),
-                        ..default()
-                    },
-                    BackgroundColor(if is_change {
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(tick as f32 * TICK_W)},
+                        top: {Val::Px(0.0)},
+                        width: {Val::Px(2.0)},
+                        height: {Val::Px(grid_height(hole_count))},
+                    }
+                    BackgroundColor({if is_change {
                         METER_MARKER_COLOR
                     } else {
                         colors.bar_line
-                    }),
-                    Pickable::IGNORE,
-                ))
+                    }})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
     }
@@ -442,22 +439,19 @@ pub(super) fn rebuild_grid(
             }
             items.push(
                 commands
-                    .spawn((
-                        GridItem,
+                    .spawn_empty()
+                    .apply_scene(bsn! {
+                        GridItem
                         Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(tick as f32 * TICK_W + 2.0),
-                            top: Val::Px(6.0),
-                            ..default()
-                        },
-                        Text::new(String::from(loc.msg(key))),
-                        TextFont {
-                            font_size: FontSize::Px(OFF_BEAT_LABEL_FONT),
-                            ..default()
-                        },
-                        TextColor(colors.label.with_alpha(0.55)),
-                        Pickable::IGNORE,
-                    ))
+                            position_type: {PositionType::Absolute},
+                            left: {Val::Px(tick as f32 * TICK_W + 2.0)},
+                            top: {Val::Px(6.0)},
+                        }
+                        Text({String::from(loc.msg(key))})
+                        TextFont { font_size: {FontSize::Px(OFF_BEAT_LABEL_FONT)} }
+                        TextColor({colors.label.with_alpha(0.55)})
+                        ~{Pickable::IGNORE}
+                    })
                     .id(),
             );
         }
@@ -510,19 +504,19 @@ pub(super) fn rebuild_grid(
         let h = (amplitude * WAVEFORM_H).max(1.0);
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x),
-                        top: Val::Px(WAVEFORM_TOP + (WAVEFORM_H - h)),
-                        width: Val::Px(w.max(1.0) - 1.0),
-                        height: Val::Px(h),
-                        ..default()
-                    },
-                    BackgroundColor(colors.accent.with_alpha(0.35)),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(x)},
+                        top: {Val::Px(WAVEFORM_TOP + (WAVEFORM_H - h))},
+                        width: {Val::Px(w.max(1.0) - 1.0)},
+                        height: {Val::Px(h)},
+                    }
+                    BackgroundColor({colors.accent.with_alpha(0.35)})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
     }
@@ -537,39 +531,36 @@ pub(super) fn rebuild_grid(
         let x = tick as f32 * TICK_W;
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x),
-                        top: Val::Px(0.0),
-                        width: Val::Px(2.0),
-                        height: Val::Px(HEADER_H),
-                        ..default()
-                    },
-                    BackgroundColor(TEMPO_MARKER_COLOR),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(x)},
+                        top: {Val::Px(0.0)},
+                        width: {Val::Px(2.0)},
+                        height: {Val::Px(HEADER_H)},
+                    }
+                    BackgroundColor({TEMPO_MARKER_COLOR})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
         items.push(
             commands
-                .spawn((
-                    GridItem,
+                .spawn_empty()
+                .apply_scene(bsn! {
+                    GridItem
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(x + 4.0),
-                        top: Val::Px(WAVEFORM_TOP - 14.0),
-                        ..default()
-                    },
-                    Text::new(format!("\u{2669}={}", bpm.round() as i32)),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(TEMPO_MARKER_COLOR),
-                    Pickable::IGNORE,
-                ))
+                        position_type: {PositionType::Absolute},
+                        left: {Val::Px(x + 4.0)},
+                        top: {Val::Px(WAVEFORM_TOP - 14.0)},
+                    }
+                    Text({format!("\u{2669}={}", bpm.round() as i32)})
+                    TextFont { font_size: {FontSize::Px(11.0)} }
+                    TextColor({TEMPO_MARKER_COLOR})
+                    ~{Pickable::IGNORE}
+                })
                 .id(),
         );
     }
@@ -613,32 +604,27 @@ fn spawn_silence_gap(
     let left = start as f32 * TICK_W + 1.0;
     let width = (end - start) as f32 * TICK_W - 2.0;
     commands
-        .spawn((
-            GridItem,
+        .spawn_empty()
+        .apply_scene(bsn! {
+            GridItem
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(left),
-                top: Val::Px(silence_row_top(hole_count) + 2.0),
-                width: Val::Px(width.max(0.0)),
-                height: Val::Px(SILENCE_ROW_H - 4.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                overflow: Overflow::clip(),
-                ..default()
-            },
-            BackgroundColor(colors.label.with_alpha(0.20)),
-            Pickable::IGNORE,
-        ))
-        .with_children(|b| {
-            b.spawn((
-                Text::new(format!("{duration_secs:.1}s")),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(colors.label),
-                Pickable::IGNORE,
-            ));
+                position_type: {PositionType::Absolute},
+                left: {Val::Px(left)},
+                top: {Val::Px(silence_row_top(hole_count) + 2.0)},
+                width: {Val::Px(width.max(0.0))},
+                height: {Val::Px(SILENCE_ROW_H - 4.0)},
+                align_items: {AlignItems::Center},
+                justify_content: {JustifyContent::Center},
+                overflow: {Overflow::clip()},
+            }
+            BackgroundColor({colors.label.with_alpha(0.20)})
+            ~{Pickable::IGNORE}
+            Children [
+                Text({format!("{duration_secs:.1}s")})
+                TextFont { font_size: {FontSize::Px(11.0)} }
+                TextColor({colors.label})
+                ~{Pickable::IGNORE}
+            ]
         })
         .id()
 }
@@ -909,15 +895,12 @@ pub(super) fn spawn_note(
     }
 
     commands.entity(root).with_children(|r| {
-        r.spawn((
-            Text::new(note.dir.arrow()),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            Pickable::IGNORE,
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Text({note.dir.arrow()})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::WHITE})
+            ~{Pickable::IGNORE}
+        });
     });
 
     root

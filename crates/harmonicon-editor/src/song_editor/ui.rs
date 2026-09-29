@@ -85,7 +85,7 @@ pub(super) struct GridArea;
 #[derive(Component)]
 pub(super) struct GridContent;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(super) struct GridItem;
 
 /// The row wrapping the hole column and the grid area, sized to
