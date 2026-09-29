@@ -40,29 +40,22 @@ pub(super) fn spawn_practice_badges(parent: &mut ChildSpawnerCommands) {
         })
         .with_children(|row| {
             for marker in [BadgeKind::Speed, BadgeKind::Wait, BadgeKind::Loop] {
-                let mut badge = row.spawn((
-                    Node {
-                        padding: UiRect::axes(Val::Px(8.0), Val::Px(3.0)),
-                        ..default()
-                    },
-                    BackgroundColor(BADGE_BG),
-                    Visibility::Hidden,
-                ));
+                let mut badge = row.spawn_empty();
+                badge.apply_scene(bsn! {
+                    Node { padding: {UiRect::axes(Val::Px(8.0), Val::Px(3.0))} }
+                    BackgroundColor({BADGE_BG})
+                    ~{Visibility::Hidden}
+                    Children [
+                        Text("")
+                        TextFont { font_size: {FontSize::Px(13.0)} }
+                        TextColor({BADGE_FG})
+                    ]
+                });
                 match marker {
                     BadgeKind::Speed => badge.insert(SpeedBadge),
                     BadgeKind::Wait => badge.insert(WaitBadge),
                     BadgeKind::Loop => badge.insert(LoopBadge),
                 };
-                badge.with_children(|b| {
-                    b.spawn((
-                        Text::new(""),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(BADGE_FG),
-                    ));
-                });
             }
         });
 }
