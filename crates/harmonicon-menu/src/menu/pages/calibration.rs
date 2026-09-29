@@ -113,15 +113,15 @@ struct HitOffsetsSummary;
 struct CalStatusText;
 
 /// Result block — shown only after Done.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct CalMeanText;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct CalSuggestedText;
 
 // Phase-gated visibility markers.
 #[derive(Component)]
 struct ShowWaiting;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct ShowDone;
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
@@ -715,35 +715,25 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
         });
 
         // ── Result block (Done only) ───────────────────────────────────────────
-        p.spawn((
+        p.spawn_empty().apply_scene(bsn! {
             Node {
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                row_gap: Val::Px(6.0),
-                ..default()
-            },
-            Visibility::Hidden,
-            ShowDone,
-        ))
-        .with_children(|block| {
-            block.spawn((
-                Text::new(String::from(loc.msg("calibration-mean-offset-placeholder"))),
-                TextFont {
-                    font_size: FontSize::Px(20.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.95, 0.62, 0.30)),
-                CalMeanText,
-            ));
-            block.spawn((
-                Text::new(String::from(loc.msg("calibration-suggested-placeholder"))),
-                TextFont {
-                    font_size: FontSize::Px(16.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.62, 0.65, 0.80)),
-                CalSuggestedText,
-            ));
+                flex_direction: {FlexDirection::Column},
+                align_items: {AlignItems::Center},
+                row_gap: {Val::Px(6.0)},
+            }
+            ~{Visibility::Hidden}
+            ShowDone
+            Children [
+                Text({String::from(loc.msg("calibration-mean-offset-placeholder"))})
+                TextFont { font_size: {FontSize::Px(20.0)} }
+                TextColor({Color::srgb(0.95, 0.62, 0.30)})
+                CalMeanText
+                --
+                Text({String::from(loc.msg("calibration-suggested-placeholder"))})
+                TextFont { font_size: {FontSize::Px(16.0)} }
+                TextColor({Color::srgb(0.62, 0.65, 0.80)})
+                CalSuggestedText
+            ]
         });
 
         // ── Buttons ───────────────────────────────────────────────────────────
