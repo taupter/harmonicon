@@ -4,10 +4,10 @@
 
 use bevy::prelude::*;
 
-use harmonicon_ui::music_score::MusicScoreMeter;
 use harmonicon_ui::music_score::{
     MeterMap, MusicScoreNotes, MusicScorePlayhead, NotationNote, parse_time_signature,
 };
+use harmonicon_ui::music_score::{MusicScoreBarMap, MusicScoreMeter};
 
 use super::TICKS_PER_BEAT;
 use super::metronome::MeterClockCache;
@@ -33,26 +33,11 @@ fn notation_segments(
 ) -> Vec<NotationNote> {
     let start = note.tick as u64;
     let end = (note.tick + note.len.max(1)) as u64;
-    let mut segments = Vec::new();
-    let mut segment_start = start;
-    for (tick, _) in meter_map.bar_starts(start.saturating_add(1), end) {
-        segments.push(NotationNote {
-            start_beat: staff_beat(segment_start as f64, meter_map),
-            duration_beats: (tick - segment_start) as f64 / TICKS_PER_BEAT as f64,
-            midi,
-            tied_from_previous: !segments.is_empty(),
-            highlighted: selected,
-        });
-        segment_start = tick;
+    MusicScoreBarMap {
+        meter: meter_map.clone(),
+        quarter_ticks: TICKS_PER_BEAT as u32,
     }
-    segments.push(NotationNote {
-        start_beat: staff_beat(segment_start as f64, meter_map),
-        duration_beats: (end - segment_start) as f64 / TICKS_PER_BEAT as f64,
-        midi,
-        tied_from_previous: !segments.is_empty(),
-        highlighted: selected,
-    });
-    segments
+    .split_note(start, end, midi, selected)
 }
 
 /// Rebuilds [`MusicScoreNotes`] from `EditorState::notes` whenever the
@@ -69,6 +54,7 @@ pub(super) fn sync_music_score(
     state: Res<EditorState>,
     mut notes: ResMut<MusicScoreNotes>,
     mut meter: ResMut<MusicScoreMeter>,
+    mut bar_map: ResMut<MusicScoreBarMap>,
 ) {
     let editor_meter = parse_time_signature(&state.time_signature);
     if *meter != editor_meter {
@@ -76,6 +62,13 @@ pub(super) fn sync_music_score(
     }
     let harp = state.effective_harp();
     let meter_map = state.meter_map();
+    let next_bar_map = MusicScoreBarMap {
+        meter: meter_map.clone(),
+        quarter_ticks: TICKS_PER_BEAT as u32,
+    };
+    if *bar_map != next_bar_map {
+        *bar_map = next_bar_map;
+    }
     let mut staff: Vec<NotationNote> = state
         .notes
         .iter()

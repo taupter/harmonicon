@@ -706,20 +706,6 @@ pub(super) fn time_sig_glyphs(n: u8) -> String {
         .collect()
 }
 
-/// Every bar-line position (in beats) strictly inside `from..=to`.
-///
-/// Beat 0 is a bar line but never drawn — it's the start of the piece, not
-/// a division within it, and drawing it would put a line through the clef
-/// on the first frame.
-pub fn bar_line_beats(from_beat: f64, to_beat: f64, beats_per_bar: f64) -> Vec<f64> {
-    if beats_per_bar <= 0.0 || to_beat < from_beat {
-        return Vec::new();
-    }
-    let first = (from_beat / beats_per_bar).ceil().max(1.0) as i64;
-    let last = (to_beat / beats_per_bar).floor() as i64;
-    (first..=last).map(|b| b as f64 * beats_per_bar).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -906,34 +892,6 @@ mod tests {
     fn time_sig_glyphs_maps_each_digit_and_handles_two_of_them() {
         assert_eq!(time_sig_glyphs(4), "\u{E084}");
         assert_eq!(time_sig_glyphs(12), "\u{E081}\u{E082}");
-    }
-
-    #[test]
-    fn bar_line_beats_lands_on_every_bar_boundary_in_the_window() {
-        assert_eq!(bar_line_beats(0.0, 9.0, 4.0), vec![4.0, 8.0]);
-    }
-
-    #[test]
-    fn bar_line_beats_skips_beat_zero() {
-        // Beat 0 starts the piece rather than dividing it, and a line
-        // there would cut through the clef.
-        assert!(!bar_line_beats(0.0, 4.0, 4.0).contains(&0.0));
-    }
-
-    #[test]
-    fn bar_line_beats_includes_a_boundary_exactly_at_either_end() {
-        assert_eq!(bar_line_beats(4.0, 8.0, 4.0), vec![4.0, 8.0]);
-    }
-
-    #[test]
-    fn bar_line_beats_is_empty_for_a_window_inside_one_bar() {
-        assert!(bar_line_beats(4.5, 7.5, 4.0).is_empty());
-    }
-
-    #[test]
-    fn bar_line_beats_is_empty_rather_than_looping_on_a_degenerate_meter() {
-        assert!(bar_line_beats(0.0, 100.0, 0.0).is_empty());
-        assert!(bar_line_beats(9.0, 0.0, 4.0).is_empty());
     }
 
     // ── beaming ──────────────────────────────────────────────────────────

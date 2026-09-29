@@ -391,17 +391,13 @@ pub fn build_scheduled_notes(
 /// comment). `resolution`/`tempo_map` are the chart's own, so this stays
 /// correct across a mid-song tempo change. A note with no resolvable
 /// `expected_pitch` has nothing to draw and is skipped, same as it already
-/// can never be hit. `beats_per_bar` feeds
-/// [`harmonicon_ui::music_score::split_at_bar_lines`] so a note crossing bar lines
-/// becomes tied segments instead of one oversized notehead. The staff counts
-/// bars from beat 0, so every note is moved on by `lead_ticks`
-/// (`bars::pickup_lead_ticks`) to put a pickup at the end of its first bar.
+/// can never be hit. The shared bar map splits notes at bar lines and meter
+/// changes, including those in the expanded repeat performance.
 pub fn notes_to_notation(
     notes: &[ScheduledNote],
     resolution: u32,
     tempo_map: &[harmonicon_core::chart::TempoPoint],
-    beats_per_bar: f64,
-    lead_ticks: u64,
+    bar_map: &harmonicon_ui::music_score::MusicScoreBarMap,
 ) -> Vec<harmonicon_ui::music_score::NotationNote> {
     notes
         .iter()
@@ -410,16 +406,9 @@ pub fn notes_to_notation(
             let start_tick = harmonicon_core::chart::seconds_to_tick(n.time, resolution, tempo_map);
             let end_tick =
                 harmonicon_core::chart::seconds_to_tick(n.time + n.duration, resolution, tempo_map);
-            Some(harmonicon_ui::music_score::NotationNote {
-                start_beat: (start_tick + lead_ticks) as f64 / resolution as f64,
-                duration_beats: (end_tick.saturating_sub(start_tick)).max(1) as f64
-                    / resolution as f64,
-                midi,
-                tied_from_previous: false,
-                highlighted: false,
-            })
+            Some(bar_map.split_note(start_tick, end_tick, midi, false))
         })
-        .flat_map(|note| harmonicon_ui::music_score::split_at_bar_lines(note, beats_per_bar))
+        .flatten()
         .collect()
 }
 

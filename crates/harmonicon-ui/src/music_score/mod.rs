@@ -10,7 +10,7 @@
 //! (whole/half/filled by duration), stems, ledger lines, accidentals that
 //! follow the bar rather than the note ([`accidentals`] — a sharp holds
 //! for the rest of its bar, and a note cancelling one gets a natural),
-//! ties across a bar line ([`split_at_bar_lines`]), bar lines
+//! ties across bar lines and bar lines from [`MusicScoreBarMap`],
 //! and a time signature ([`MusicScoreMeter`]), one of three clefs picked
 //! from the music's own range ([`choose_clef`]), and beams joining short
 //! notes within a beat, with a chord's notes on one stem ([`stem_roles`]).
@@ -23,8 +23,8 @@
 //! group drawn to one shared line), draw a partial beam where a group
 //! mixes durations (the whole group takes its shortest note's beam count),
 //! spell anything shorter than a sixteenth or double-dotted, or change
-//! clef or meter mid-piece — both are chosen once for the whole song,
-//! because either changing under a moving playhead would be unreadable. This is a supplementary
+//! clef or draw an inline time signature at a meter change. Bar lines do
+//! follow the meter map. This is a supplementary
 //! visual, not a sight-reading tool (the Song Editor's own tab readout
 //! already exists for players who want exact rhythm) — see
 //! `docs/lessons_plan.md`'s framing of the tab readout for the same
@@ -232,6 +232,114 @@ pub struct BravuraFont(pub Handle<Font>);
 #[derive(Resource, Default)]
 pub struct MusicScoreNotes(pub Vec<NotationNote>);
 
+/// Bar grid for the same score as [`MusicScoreNotes`]. Both callers provide
+/// their chart's meter map; gameplay uses the expanded performance chart.
+#[derive(Resource, Clone, Debug, PartialEq, Eq)]
+pub struct MusicScoreBarMap {
+    pub meter: MeterMap,
+    pub quarter_ticks: u32,
+}
+
+impl Default for MusicScoreBarMap {
+    fn default() -> Self {
+        Self {
+            meter: MeterMap::constant("4/4", 12),
+            quarter_ticks: 12,
+        }
+    }
+}
+
+impl MusicScoreBarMap {
+    /// The bar boundaries in staff quarter-note beats. The first segment's
+    /// phase puts a pickup at the end of its otherwise silent first bar.
+    pub fn beats(&self, from: f64, to: f64) -> Vec<f64> {
+        if self.quarter_ticks == 0 || to < from {
+            return Vec::new();
+        }
+        let phase = self.meter.segments()[0].phase_ticks as f64;
+        let q = self.quarter_ticks as f64;
+        let start = ((from * q - phase).ceil().max(0.0)) as u64;
+        let end = ((to * q - phase).floor().max(0.0)) as u64;
+        self.meter
+            .bar_starts(start, end.saturating_add(1))
+            .into_iter()
+            .filter(|&(tick, _)| tick > 0)
+            .map(|(tick, _)| (tick as f64 + phase) / q)
+            .collect()
+    }
+
+    /// Turns a tick-based note into staff segments, tying it at every bar
+    /// boundary, including a meter change or a repeated passage boundary.
+    pub fn split_note(
+        &self,
+        start: u64,
+        end: u64,
+        midi: u8,
+        highlighted: bool,
+    ) -> Vec<NotationNote> {
+        let end = end.max(start.saturating_add(1));
+        let phase = self.meter.segments()[0].phase_ticks as f64;
+        let q = self.quarter_ticks.max(1) as f64;
+        let mut boundaries = self.meter.bar_starts(start.saturating_add(1), end);
+        boundaries.push((end, 0));
+        let mut previous = start;
+        boundaries
+            .into_iter()
+            .enumerate()
+            .map(|(index, (tick, _))| {
+                let note = NotationNote {
+                    start_beat: (previous as f64 + phase) / q,
+                    duration_beats: (tick - previous) as f64 / q,
+                    midi,
+                    tied_from_previous: index > 0,
+                    highlighted,
+                };
+                previous = tick;
+                note
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod bar_map_tests {
+    use super::*;
+
+    #[test]
+    fn bar_lines_follow_meter_changes_and_do_not_duplicate_the_opening() {
+        let bars = MusicScoreBarMap {
+            meter: MeterMap::new([(0, "4/4"), (48, "3/4")], 12),
+            quarter_ticks: 12,
+        };
+        assert_eq!(bars.beats(0.0, 11.0), vec![4.0, 7.0, 10.0]);
+    }
+
+    #[test]
+    fn pickup_and_window_edges_keep_the_bar_line_at_the_right_beat() {
+        let bars = MusicScoreBarMap {
+            meter: MeterMap::with_pickup([(0, "4/4")], 12, 12),
+            quarter_ticks: 12,
+        };
+        assert_eq!(bars.beats(0.0, 8.0), vec![4.0, 8.0]);
+        assert_eq!(bars.beats(4.0, 4.0), vec![4.0]);
+    }
+
+    #[test]
+    fn a_mid_bar_meter_change_is_a_line_and_a_tie_boundary() {
+        let bars = MusicScoreBarMap {
+            meter: MeterMap::new([(0, "4/4"), (42, "3/4")], 12),
+            quarter_ticks: 12,
+        };
+        assert_eq!(bars.beats(0.0, 7.0), vec![3.5, 6.5]);
+        let parts = bars.split_note(36, 54, 60, false);
+        assert_eq!(
+            parts.iter().map(|n| n.start_beat).collect::<Vec<_>>(),
+            vec![3.0, 3.5]
+        );
+        assert!(parts[1].tied_from_previous);
+    }
+}
+
 /// How wide one beat is drawn, for the song currently loaded.
 ///
 /// Derived once per song from its own note density rather than fixed,
@@ -266,8 +374,8 @@ fn derive_score_spacing(notes: Res<MusicScoreNotes>, mut spacing: ResMut<MusicSc
     }
 }
 
-/// The staff's meter: what the time signature at the head reads, and how
-/// often a bar line falls. Written by whichever bridge is driving the
+/// The staff's meter: what the time signature at the head reads. Bar lines
+/// come from [`MusicScoreBarMap`]. Written by whichever bridge is driving the
 /// staff; [`Default`] is 4/4, matching what every caller assumed back when
 /// the module had no meter at all.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
@@ -430,6 +538,7 @@ impl Plugin for MusicScorePlugin {
             .init_resource::<MusicScoreNotes>()
             .init_resource::<MusicScorePlayhead>()
             .init_resource::<MusicScoreMeter>()
+            .init_resource::<MusicScoreBarMap>()
             .init_resource::<MusicScoreSpacing>()
             .add_systems(Startup, load_bravura_font)
             .add_systems(
@@ -442,6 +551,7 @@ impl Plugin for MusicScorePlugin {
                     .run_if(
                         resource_changed::<MusicScoreNotes>
                             .or_else(resource_changed::<MusicScoreMeter>)
+                            .or_else(resource_changed::<MusicScoreBarMap>)
                             .or_else(resource_changed::<MusicScorePlayhead>)
                             .or_else(resource_changed::<MusicScoreSpacing>)
                             .or_else(panel_width_changed),
@@ -628,6 +738,7 @@ fn rebuild_score_notes(
     mut layers: Query<(Entity, &mut Node), (With<MusicScoreNotesLayer>, Without<MusicScoreClef>)>,
     existing: Query<Entity, With<MusicScoreNoteGlyph>>,
     meter: Res<MusicScoreMeter>,
+    bar_map: Res<MusicScoreBarMap>,
     spacing: Res<MusicScoreSpacing>,
     mut clefs: Query<(&mut Text, &mut Node), With<MusicScoreClef>>,
     mut time_sigs: Query<(&MusicScoreTimeSig, &mut Text), Without<MusicScoreClef>>,
@@ -665,7 +776,12 @@ fn rebuild_score_notes(
             && now - beats_behind >= w.lo
             && now + beats_ahead <= w.hi
     });
-    if !covered || notes.is_changed() || meter.is_changed() || spacing.is_changed() {
+    if !covered
+        || notes.is_changed()
+        || meter.is_changed()
+        || bar_map.is_changed()
+        || spacing.is_changed()
+    {
         let span = beats_behind + beats_ahead;
         let lo = now - beats_behind - span;
         let hi = now + beats_ahead + span;
@@ -675,6 +791,7 @@ fn rebuild_score_notes(
             &tie_material,
             &notes.0,
             &meter,
+            &bar_map,
             scale,
             layer,
             now,
@@ -715,6 +832,7 @@ fn spawn_window(
     tie_material: &TieMaterialHandle,
     notes: &[NotationNote],
     meter: &MusicScoreMeter,
+    bar_map: &MusicScoreBarMap,
     scale: f32,
     layer: Entity,
     origin: f64,
@@ -760,8 +878,10 @@ fn spawn_window(
     commands.entity(layer).with_children(|parent| {
         // Bar lines first, so a notehead always paints over one rather than
         // under it.
-        for beat in bar_line_beats(lo, hi, meter.beats_per_bar()) {
-            let x = ((beat - origin) * scale as f64) as f32;
+        for beat in bar_map.beats(lo, hi) {
+            // Leave a small gap before a downbeat notehead: at the same x
+            // the line appears to run through the first note of the bar.
+            let x = ((beat - origin) * scale as f64) as f32 - STAFF_LINE_SPACING;
             parent.spawn((
                 Node {
                     position_type: PositionType::Absolute,
