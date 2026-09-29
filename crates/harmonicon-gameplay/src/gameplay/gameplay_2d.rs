@@ -215,6 +215,12 @@ pub fn setup(
                     })
                     .id();
 
+                // The technique coach sits at the end of the track, where
+                // the note it coaches is landing.
+                if !aural && modifiers.iter().any(technique_cue::is_coachable) {
+                    super::technique_coach::spawn_technique_coach(left);
+                }
+
                 // Harmonica holes
                 left.spawn(Node {
                     flex_direction: FlexDirection::Column,
@@ -611,11 +617,10 @@ fn spawn_note_visual(
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.04, 0.05, 0.1, 0.72)),
-                NoteCueBadge { note_id },
                 children![(
                     Text::new(cue.text),
                     TextFont {
-                        font_size: FontSize::Px(12.0),
+                        font_size: FontSize::Px(18.0),
                         ..default()
                     },
                     TextLayout::no_wrap(),
@@ -898,13 +903,6 @@ fn head_label(hole: u8, is_blow: bool, modifiers: &[Modifier], show_numbers: boo
     let plain = super::phrase_overlay::tab_label(hole, is_blow, &[]);
     let arrow = if is_blow { "\u{2191}" } else { "\u{2193}" };
     format!("{arrow}{}", &tab[plain.len()..])
-}
-
-/// A note's technique cue badge, hidden by `technique_coach` while that
-/// note's gauge is showing the same information in the same lane.
-#[derive(Component)]
-pub(super) struct NoteCueBadge {
-    pub note_id: usize,
 }
 
 /// The technique cue for one note head (see `technique_cue::note_cue`) and

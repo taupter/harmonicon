@@ -1390,22 +1390,16 @@ lesson-self-recording-body = Record one uninterrupted take, listen away from the
 lesson-mixed-review-title = Mixed review
 lesson-mixed-review-body = Switch among position landings, bends, vibrato, tempo changes, and register movement. The changing demands test recall instead of short-term repetition.
 
-# Scored play — technique cue beside a note head, and the hit-line gauge
-cue-bend-1 = bend ½ step → {$note}
-cue-bend-2 = bend 1 step → {$note}
-cue-bend-3 = bend 1½ steps → {$note}
-cue-bend-n = bend {$semitones} half steps → {$note}
-cue-overblow = overblow → {$note}
-cue-overdraw = overdraw → {$note}
-cue-slide = slide → {$note}
-cue-vibrato = vibrato {$rate}/s
+# Scored play — technique cue beside a note head, and the technique coach row
+cue-target = → {$note}
+cue-vibrato = vib {$rate}/s
 cue-wah = wah {$rate}/s
-coach-rate = {$rate}/s
+coach-follow-pulse = Follow
 coach-bend-more = Bend more
 coach-on-target = Hold it
 coach-too-far = Too far
-coach-follow-pulse = Follow the pulse
 coach-swing-more = Wider
 coach-faster = Faster
 coach-slower = Slower
-coach-on-rate = Good rate
+coach-on-rate = Good
+coach-rate = {$rate}/s

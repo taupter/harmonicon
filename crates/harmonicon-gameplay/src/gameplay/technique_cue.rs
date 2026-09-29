@@ -64,44 +64,46 @@ pub(super) struct CuePart {
     pub args: Vec<(&'static str, String)>,
 }
 
-/// The cue clauses for a note, in modifier order. Pitch techniques name the
-/// note to land on, so they need `expected`; a note the harp can't produce
-/// (`None`) gets no pitch clause, since there is nothing to aim at.
+/// The cue clauses for a note, in modifier order — as short as they can be
+/// and still say what to do, since they are read while scrolling. The bend
+/// depth is already on the head (`-3''`), so a pitch technique's clause is
+/// only the note to land on; a wobble's is its rate. A note the harp can't
+/// produce (`expected` is `None`) gets no pitch clause: nothing to aim at.
 pub(super) fn cue_parts(modifiers: &[Modifier], expected: Option<u8>) -> Vec<CuePart> {
-    let target = |key: &'static str, extra: Option<(&'static str, String)>| {
-        expected.map(|midi| CuePart {
-            key,
-            args: extra
-                .into_iter()
-                .chain([("note", pitch_class_name(midi))])
-                .collect(),
+    let mut parts: Vec<CuePart> = Vec::new();
+    if let Some(midi) = expected
+        && modifiers.iter().any(|m| {
+            matches!(
+                m,
+                Modifier::Bend { .. } | Modifier::Overblow | Modifier::Overdraw | Modifier::Slide
+            )
         })
-    };
-    modifiers
-        .iter()
-        .filter_map(|m| match m {
-            Modifier::Bend { semitones, .. } => {
-                let depth = (semitones.abs().round() as u8).max(1);
-                match depth {
-                    1 => target("cue-bend-1", None),
-                    2 => target("cue-bend-2", None),
-                    3 => target("cue-bend-3", None),
-                    n => target("cue-bend-n", Some(("semitones", n.to_string()))),
-                }
-            }
-            Modifier::Overblow => target("cue-overblow", None),
-            Modifier::Overdraw => target("cue-overdraw", None),
-            Modifier::Slide => target("cue-slide", None),
-            Modifier::Vibrato { oscillation_hz, .. } => Some(CuePart {
-                key: "cue-vibrato",
-                args: vec![("rate", format_rate(*oscillation_hz))],
-            }),
-            Modifier::WahWah { oscillation_hz, .. } => Some(CuePart {
-                key: "cue-wah",
-                args: vec![("rate", format_rate(*oscillation_hz))],
-            }),
-        })
-        .collect()
+    {
+        parts.push(CuePart {
+            key: "cue-target",
+            args: vec![("note", pitch_class_name(midi))],
+        });
+    }
+    parts.extend(modifiers.iter().filter_map(|m| match m {
+        Modifier::Vibrato { oscillation_hz, .. } => Some(CuePart {
+            key: "cue-vibrato",
+            args: vec![("rate", format_rate(*oscillation_hz))],
+        }),
+        Modifier::WahWah { oscillation_hz, .. } => Some(CuePart {
+            key: "cue-wah",
+            args: vec![("rate", format_rate(*oscillation_hz))],
+        }),
+        _ => None,
+    }));
+    parts
+}
+
+/// Whether the technique coach has anything to show for this modifier.
+pub(super) fn is_coachable(modifier: &Modifier) -> bool {
+    matches!(
+        modifier,
+        Modifier::Bend { .. } | Modifier::Vibrato { .. } | Modifier::WahWah { .. }
+    )
 }
 
 /// The localized cue drawn beside a note head, or `None` for a plain note.
@@ -117,7 +119,7 @@ pub(super) fn note_cue(loc: &Localization, note: &ScheduledNote) -> Option<Strin
             String::from(loc.msg_args(p.key, &args))
         })
         .collect();
-    Some(text.join(" · "))
+    Some(text.join("  "))
 }
 
 // ── Live coaching ────────────────────────────────────────────────────────────
@@ -259,14 +261,16 @@ pub(super) enum RateAdvice {
     OnRate,
 }
 
-/// Samples (one a frame while held) before a rate verdict is worth showing:
-/// a third of a second at 60 fps. Any sooner and every hold would open on
-/// "swing more" before the first cycle could possibly finish.
-const MIN_SAMPLES_FOR_ADVICE: usize = 20;
+/// Cycles of the charted rate that must be heard before a rate verdict is
+/// worth showing. The measurement needs two direction reversals, which a
+/// correct wobble only completes after a full cycle; any sooner and every
+/// slow wah would open on "Wider" while it is being played right.
+const CYCLES_BEFORE_ADVICE: f32 = 1.5;
 
-/// The rate verdict, on the same tolerance the judge pays out on.
-pub(super) fn rate_advice(measured_hz: Option<f32>, target_hz: f32, samples: usize) -> RateAdvice {
-    if samples < MIN_SAMPLES_FOR_ADVICE {
+/// The rate verdict, on the same tolerance the judge pays out on, once
+/// `heard_secs` of the hold cover [`CYCLES_BEFORE_ADVICE`] at `target_hz`.
+pub(super) fn rate_advice(measured_hz: Option<f32>, target_hz: f32, heard_secs: f64) -> RateAdvice {
+    if heard_secs * f64::from(target_hz) < f64::from(CYCLES_BEFORE_ADVICE) {
         return RateAdvice::FollowPulse;
     }
     match measured_hz {
@@ -321,19 +325,24 @@ pub(super) fn min_swing_band(mode: CoachMode) -> f32 {
     }
 }
 
-/// The measured wobble rate for a held note, from the samples the judge
-/// verifies the technique with.
-pub(super) fn measured_rate(mode: CoachMode, note: &ScheduledNote) -> (Option<f32>, usize) {
+/// The measured wobble rate for a held note and how many seconds of hold it
+/// was measured over, from the samples the judge verifies the technique
+/// with.
+pub(super) fn measured_rate(mode: CoachMode, note: &ScheduledNote) -> (Option<f32>, f64) {
+    let span = |samples: &[(f64, f32)]| match (samples.first(), samples.last()) {
+        (Some(&(first, _)), Some(&(last, _))) => last - first,
+        _ => 0.0,
+    };
     match mode {
         CoachMode::Vibrato { .. } => (
             measured_oscillation_hz(&note.pitch_samples, VIBRATO_MIN_SWING_CENTS),
-            note.pitch_samples.len(),
+            span(&note.pitch_samples),
         ),
         CoachMode::Wah { .. } => (
             measured_relative_oscillation_hz(&note.amp_samples, WAH_MIN_SWING_FRAC),
-            note.amp_samples.len(),
+            span(&note.amp_samples),
         ),
-        CoachMode::Bend { .. } => (None, 0),
+        CoachMode::Bend { .. } => (None, 0.0),
     }
 }
 
@@ -440,18 +449,19 @@ mod tests {
     }
 
     #[test]
-    fn a_bend_cue_names_its_depth_and_target() {
+    fn a_pitch_cue_names_only_the_note_to_land_on() {
         let parts = cue_parts(&[bend(-2.0)], Some(69));
         assert_eq!(
             parts,
             vec![CuePart {
-                key: "cue-bend-2",
+                key: "cue-target",
                 args: vec![("note", "A".to_string())],
             }]
         );
-        let deep = cue_parts(&[bend(-4.0)], Some(60));
-        assert_eq!(deep[0].key, "cue-bend-n");
-        assert_eq!(deep[0].args[0], ("semitones", "4".to_string()));
+        // Target first, then the wobble, whatever the modifier order.
+        let both = cue_parts(&[vibrato(5.0), bend(-1.0)], Some(70));
+        let keys: Vec<_> = both.iter().map(|p| p.key).collect();
+        assert_eq!(keys, ["cue-target", "cue-vibrato"]);
     }
 
     #[test]
@@ -467,7 +477,7 @@ mod tests {
         assert!(cue_parts(&[Modifier::Overblow], None).is_empty());
         assert_eq!(
             cue_parts(&[Modifier::Overblow], Some(63))[0].key,
-            "cue-overblow"
+            "cue-target"
         );
     }
 
@@ -555,11 +565,13 @@ mod tests {
 
     #[test]
     fn rate_advice_waits_then_points_the_way() {
-        assert_eq!(rate_advice(Some(5.0), 5.0, 5), RateAdvice::FollowPulse);
-        assert_eq!(rate_advice(None, 5.0, 40), RateAdvice::SwingMore);
-        assert_eq!(rate_advice(Some(2.0), 5.0, 40), RateAdvice::Faster);
-        assert_eq!(rate_advice(Some(9.0), 5.0, 40), RateAdvice::Slower);
-        assert_eq!(rate_advice(Some(5.5), 5.0, 40), RateAdvice::OnRate);
+        // 1.5 cycles at 5/s is 0.3 s; at 3/s, 0.5 s.
+        assert_eq!(rate_advice(Some(5.0), 5.0, 0.2), RateAdvice::FollowPulse);
+        assert_eq!(rate_advice(None, 3.0, 0.4), RateAdvice::FollowPulse);
+        assert_eq!(rate_advice(None, 5.0, 0.4), RateAdvice::SwingMore);
+        assert_eq!(rate_advice(Some(2.0), 5.0, 1.0), RateAdvice::Faster);
+        assert_eq!(rate_advice(Some(9.0), 5.0, 1.0), RateAdvice::Slower);
+        assert_eq!(rate_advice(Some(5.5), 5.0, 1.0), RateAdvice::OnRate);
     }
 
     #[test]

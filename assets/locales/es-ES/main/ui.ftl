@@ -1389,22 +1389,16 @@ lesson-self-recording-body = Graba una toma completa, escúchala sin el instrume
 lesson-mixed-review-title = Repaso mixto
 lesson-mixed-review-body = Alterna llegadas de posición, bends, vibrato, cambios de tempo y movimiento de registro. Los cambios ponen a prueba la memoria.
 
-# Scored play — technique cue beside a note head, and the hit-line gauge
-cue-bend-1 = doblar ½ tono → {$note}
-cue-bend-2 = doblar 1 tono → {$note}
-cue-bend-3 = doblar tono y medio → {$note}
-cue-bend-n = doblar {$semitones} semitonos → {$note}
-cue-overblow = oversoplo → {$note}
-cue-overdraw = overaspiración → {$note}
-cue-slide = slide → {$note}
-cue-vibrato = vibrato {$rate}/s
+# Scored play — technique cue beside a note head, and the technique coach row
+cue-target = → {$note}
+cue-vibrato = vib {$rate}/s
 cue-wah = wah {$rate}/s
-coach-rate = {$rate}/s
+coach-follow-pulse = Sigue
 coach-bend-more = Dobla más
 coach-on-target = Mantén
 coach-too-far = Te pasaste
-coach-follow-pulse = Sigue el pulso
 coach-swing-more = Más amplio
 coach-faster = Más rápido
 coach-slower = Más lento
-coach-on-rate = Buen ritmo
+coach-on-rate = Bien
+coach-rate = {$rate}/s

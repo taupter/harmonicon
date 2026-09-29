@@ -370,7 +370,6 @@ impl Plugin for GameplayPlugin {
                 gameplay_2d::animate_judged_notes,
                 gameplay_2d::update_holes,
                 beat_guides::update_beat_guides,
-                technique_coach::spawn_technique_coach,
                 technique_coach::update_technique_coach,
             )
                 .chain()
