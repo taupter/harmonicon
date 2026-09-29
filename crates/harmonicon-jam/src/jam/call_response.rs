@@ -70,7 +70,7 @@ pub struct CallResponseEnabled(pub bool);
 
 /// The "Call & Response: ..." readout, kept in step with
 /// [`CallResponseEnabled`] the same way `session::JamLoopLabel` is.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct CallResponseLabel;
 
 /// How dense the generated calls are — the one musical control the player
@@ -80,7 +80,7 @@ pub struct CallResponseLabel;
 pub struct JamCallDensity(pub CallDensity);
 
 /// The "Phrasing: ..." readout beside the density button.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct CallDensityLabel;
 
 /// The backing's current duck gain (1.0 = untouched), eased toward

@@ -23,10 +23,10 @@ pub struct JamGuidePanel;
 #[derive(Component)]
 pub struct JamPrimaryPanel;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamGuidesLabel;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamChordPosition;
 
 /// Shows or collapses every guide panel and hands the primary stage the

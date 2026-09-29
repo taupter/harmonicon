@@ -163,15 +163,14 @@ pub fn setup(
         ))
         .with_children(|root| {
             // Dark overlay for legibility.
-            root.spawn((
+            root.spawn_empty().apply_scene(bsn! {
                 Node {
-                    position_type: PositionType::Absolute,
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.04, 0.04, 0.06, 0.70)),
-            ));
+                    position_type: {PositionType::Absolute},
+                    width: {Val::Percent(100.0)},
+                    height: {Val::Percent(100.0)},
+                }
+                BackgroundColor({Color::srgba(0.04, 0.04, 0.06, 0.70)})
+            });
 
             // The two side-by-side columns below, wrapped in their own
             // Row-direction, flex-growing container so the MIDI-track mute
@@ -203,22 +202,16 @@ pub fn setup(
                         JamPrimaryPanel,
                     ))
                     .with_children(|left| {
-                        left.spawn((
-                            Text::new(title),
-                            TextFont {
-                                font_size: FontSize::Px(20.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
-                        left.spawn((
-                            Text::new(harp_hint),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgb(0.95, 0.80, 0.35)),
-                        ));
+                        left.spawn_empty().apply_scene(bsn! {
+                            Text({title})
+                            TextFont { font_size: {FontSize::Px(20.0)} }
+                            TextColor({Color::WHITE})
+                        });
+                        left.spawn_empty().apply_scene(bsn! {
+                            Text({harp_hint})
+                            TextFont { font_size: {FontSize::Px(15.0)} }
+                            TextColor({Color::srgb(0.95, 0.80, 0.35)})
+                        });
                         if generated.is_some() {
                             left.spawn(Node {
                                 flex_direction: FlexDirection::Row,
@@ -242,15 +235,12 @@ pub fn setup(
                                         }
                                     },
                                 ));
-                                row.spawn((
-                                    Text::new(String::from(loc.msg("jam-keep-playing"))),
-                                    TextFont {
-                                        font_size: FontSize::Px(15.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                    JamEndingLabel,
-                                ));
+                                row.spawn_empty().apply_scene(bsn! {
+                                    Text({String::from(loc.msg("jam-keep-playing"))})
+                                    TextFont { font_size: {FontSize::Px(15.0)} }
+                                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                    JamEndingLabel
+                                });
                             });
                         } else {
                             left.spawn(Node {
@@ -266,38 +256,29 @@ pub fn setup(
                                         jam_loop.0 = !jam_loop.0;
                                     },
                                 ));
-                                row.spawn((
-                                    Text::new(String::from(loc.msg("jam-loop-off"))),
-                                    TextFont {
-                                        font_size: FontSize::Px(15.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                    JamLoopLabel,
-                                ));
+                                row.spawn_empty().apply_scene(bsn! {
+                                    Text({String::from(loc.msg("jam-loop-off"))})
+                                    TextFont { font_size: {FontSize::Px(15.0)} }
+                                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                    JamLoopLabel
+                                });
                             });
                         }
-                        left.spawn((
-                            Text::new(String::from(loc.msg_args(
+                        left.spawn_empty().apply_scene(bsn! {
+                            Text({String::from(loc.msg_args(
                                 "jam-form-position",
                                 &[("chorus", "1".into()), ("bar", "1".into())],
-                            ))),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(Color::srgb(0.95, 0.80, 0.35)),
-                            JamFormPosition,
-                        ));
-                        left.spawn((
-                            Text::new(format!("{}  →  {}", chords[0], chords[1])),
-                            TextFont {
-                                font_size: FontSize::Px(32.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            JamChordPosition,
-                        ));
+                            ))})
+                            TextFont { font_size: {FontSize::Px(15.0)} }
+                            TextColor({Color::srgb(0.95, 0.80, 0.35)})
+                            JamFormPosition
+                        });
+                        left.spawn_empty().apply_scene(bsn! {
+                            Text({format!("{}  →  {}", chords[0], chords[1])})
+                            TextFont { font_size: {FontSize::Px(32.0)} }
+                            TextColor({Color::WHITE})
+                            JamChordPosition
+                        });
                         spawn_form_strip(left, key, progression, theme.twelve_bar_colors());
                         super::call_response::spawn_call_response_banner(left);
                         spawn_detected_note(left, &loc);
@@ -314,19 +295,16 @@ pub fn setup(
                                     guides.0 = !guides.0;
                                 },
                             ));
-                            row.spawn((
-                                Text::new(String::from(if guides_visible {
+                            row.spawn_empty().apply_scene(bsn! {
+                                Text({String::from(if guides_visible {
                                     loc.msg("jam-guides-on")
                                 } else {
                                     loc.msg("jam-guides-off")
-                                })),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                JamGuidesLabel,
-                            ));
+                                })})
+                                TextFont { font_size: {FontSize::Px(15.0)} }
+                                TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                JamGuidesLabel
+                            });
                         });
                         left.spawn(Node {
                             flex_direction: FlexDirection::Row,
@@ -346,15 +324,12 @@ pub fn setup(
                                     },
                                 ),
                             );
-                            row.spawn((
-                                Text::new(String::from(loc.msg("jam-call-response-off"))),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                super::call_response::CallResponseLabel,
-                            ));
+                            row.spawn_empty().apply_scene(bsn! {
+                                Text({String::from(loc.msg("jam-call-response-off"))})
+                                TextFont { font_size: {FontSize::Px(15.0)} }
+                                TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                ~{super::call_response::CallResponseLabel}
+                            });
                         });
                         // The one musical control over the calls: how busy
                         // they are. A cycle button, not a level picker.
@@ -372,17 +347,14 @@ pub fn setup(
                                     density.0 = density.0.next();
                                 },
                             ));
-                            row.spawn((
-                                Text::new(String::from(
+                            row.spawn_empty().apply_scene(bsn! {
+                                Text({String::from(
                                     loc.msg(super::call_response::density_key(call_density.0)),
-                                )),
-                                TextFont {
-                                    font_size: FontSize::Px(15.0),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                super::call_response::CallDensityLabel,
-                            ));
+                                )})
+                                TextFont { font_size: {FontSize::Px(15.0)} }
+                                TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                ~{super::call_response::CallDensityLabel}
+                            });
                         });
                         // Only a generated jam has a band that can listen.
                         if generated.is_some() {
@@ -400,19 +372,16 @@ pub fn setup(
                                         adaptive.0 = !adaptive.0;
                                     },
                                 ));
-                                row.spawn((
-                                    Text::new(String::from(if adaptive_band {
+                                row.spawn_empty().apply_scene(bsn! {
+                                    Text({String::from(if adaptive_band {
                                         loc.msg("jam-adaptive-band-on")
                                     } else {
                                         loc.msg("jam-adaptive-band-off")
-                                    })),
-                                    TextFont {
-                                        font_size: FontSize::Px(15.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::srgb(0.70, 0.70, 0.80)),
-                                    super::band::AdaptiveBandLabel,
-                                ));
+                                    })})
+                                    TextFont { font_size: {FontSize::Px(15.0)} }
+                                    TextColor({Color::srgb(0.70, 0.70, 0.80)})
+                                    ~{super::band::AdaptiveBandLabel}
+                                });
                             });
                         }
                         left.spawn((
@@ -591,7 +560,7 @@ pub fn setup(
 pub struct JamLoop(pub bool);
 
 /// The "Loop: on/off" readout, kept in step with [`JamLoop`].
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamLoopLabel;
 
 /// Generated-jam transport state. A scheduled ending names the first bar of
@@ -603,10 +572,10 @@ pub struct JamEnding {
     ended_at_secs: Option<f64>,
 }
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamEndingLabel;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamFormPosition;
 
 fn next_chorus_boundary(absolute_bar: usize) -> usize {

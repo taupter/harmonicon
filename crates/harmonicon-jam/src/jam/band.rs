@@ -71,7 +71,7 @@ impl Default for AdaptiveBand {
 }
 
 /// The "Adaptive band: ..." readout beside its toggle.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct AdaptiveBandLabel;
 
 /// What the player did during one beat — counts and presence only, never
