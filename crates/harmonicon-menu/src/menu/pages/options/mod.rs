@@ -115,7 +115,7 @@ struct HarmonicaButton(String);
 struct MicBanner;
 
 /// The failure-reason text inside [`MicBanner`].
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct MicBannerText;
 
 /// Marks a preview scene root (a `WorldAssetRoot`); the propagation system forces

@@ -39,36 +39,34 @@ pub(super) fn spawn_mic_banner(
     let visible = mic_banner_visible(status);
     let text = mic_banner_text(status, loc);
 
+    let display = if visible {
+        Display::Flex
+    } else {
+        Display::None
+    };
     let banner = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                width: Val::Px(560.0),
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(14.0),
-                padding: UiRect::all(Val::Px(10.0)),
-                display: if visible {
-                    Display::Flex
-                } else {
-                    Display::None
-                },
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.45, 0.12, 0.12, 0.85)),
-            MicBanner,
-        ))
+                width: {Val::Px(560.0)},
+                flex_direction: {FlexDirection::Row},
+                align_items: {AlignItems::Center},
+                column_gap: {Val::Px(14.0)},
+                padding: {UiRect::all(Val::Px(10.0))},
+                display: {display},
+            }
+            BackgroundColor({Color::srgba(0.45, 0.12, 0.12, 0.85)})
+            Children [
+                Text({text})
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.95, 0.85, 0.85)})
+                MicBannerText
+            ]
+        })
+        .insert(MicBanner)
         .id();
 
     commands.entity(banner).with_children(|b| {
-        b.spawn((
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.95, 0.85, 0.85)),
-            MicBannerText,
-        ));
         b.spawn_empty().apply_scene(mic_retry_button_scene(
             String::from(loc.msg("results-retry")),
             String::from(loc.msg("options-mic-retry-tooltip")),
