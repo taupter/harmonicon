@@ -16,17 +16,17 @@ use super::state::{
 };
 
 // Score HUD marker components
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct ScoreText;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct ComboText;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct FeedbackText;
 /// The second, smaller line under [`FeedbackText`]: what a one-word verdict
 /// can't say on its own, currently only the expected-vs-heard tab of a
 /// wrong-pitch miss. Blank for every other judgment, so dense passages get a
 /// single line rather than two.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct FeedbackDetailText;
 
 /// Where a mode wants its score readout, expressed against whatever node it
@@ -60,75 +60,45 @@ pub struct ScoreReadoutAnchor {
 /// player is already looking at.
 pub fn spawn_score_readout(commands: &mut Commands, parent: Entity, anchor: ScoreReadoutAnchor) {
     let root = commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            left: anchor.left,
-            bottom: anchor.bottom,
-            width: anchor.width,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::FlexEnd,
-            justify_content: JustifyContent::SpaceBetween,
-            padding: UiRect::horizontal(Val::Px(10.0)),
-            ..default()
+        .spawn_scene(bsn! {
+            Node {
+                position_type: {PositionType::Absolute},
+                left: {anchor.left},
+                bottom: {anchor.bottom},
+                width: {anchor.width},
+                flex_direction: {FlexDirection::Row},
+                align_items: {AlignItems::FlexEnd},
+                justify_content: {JustifyContent::SpaceBetween},
+                padding: {UiRect::horizontal(Val::Px(10.0))},
+            }
+            Children [
+                Node {
+                    flex_direction: {FlexDirection::Column},
+                    align_items: {AlignItems::FlexStart},
+                    row_gap: {Val::Px(2.0)},
+                } Children [
+                    Text("0") TextFont { font_size: {FontSize::Px(26.0)} }
+                    TextColor({Color::WHITE}) ScoreText
+                    --
+                    Text("") TextFont { font_size: {FontSize::Px(14.0)} }
+                    TextColor({Color::srgb(0.90, 0.72, 0.20)}) ComboText
+                ]
+                --
+                Node {
+                    flex_direction: {FlexDirection::Column},
+                    align_items: {AlignItems::FlexEnd},
+                    row_gap: {Val::Px(1.0)},
+                } Children [
+                    Text("") TextFont { font_size: {FontSize::Px(22.0)} }
+                    TextColor({Color::srgba(0.0, 0.0, 0.0, 0.0)}) FeedbackText
+                    --
+                    Text("") TextFont { font_size: {FontSize::Px(13.0)} }
+                    TextColor({Color::srgba(0.0, 0.0, 0.0, 0.0)}) FeedbackDetailText
+                ]
+            ]
         })
         .id();
     commands.entity(parent).add_child(root);
-
-    commands.entity(root).with_children(|row| {
-        row.spawn(Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::FlexStart,
-            row_gap: Val::Px(2.0),
-            ..default()
-        })
-        .with_children(|col| {
-            col.spawn((
-                Text::new("0"),
-                TextFont {
-                    font_size: FontSize::Px(26.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                ScoreText,
-            ));
-            col.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.90, 0.72, 0.20)),
-                ComboText,
-            ));
-        });
-
-        row.spawn(Node {
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::FlexEnd,
-            row_gap: Val::Px(1.0),
-            ..default()
-        })
-        .with_children(|col| {
-            col.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(22.0),
-                    ..default()
-                },
-                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                FeedbackText,
-            ));
-            col.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
-                FeedbackDetailText,
-            ));
-        });
-    });
 }
 
 /// Localization key and tint for one judgment, shared by the label-once and
