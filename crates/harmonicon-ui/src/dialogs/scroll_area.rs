@@ -120,6 +120,42 @@ fn bounded_scroll_position(overflow: Overflow, requested: Vec2, available_range:
     )
 }
 
+fn spawn_scrollbar(
+    parent: &mut ChildSpawnerCommands,
+    area: Entity,
+    orientation: ControlOrientation,
+    thumb_color: Color,
+    track_color: Color,
+) {
+    let (width, height, margin) = match orientation {
+        ControlOrientation::Vertical => (Val::Px(10.0), Val::Auto, UiRect::left(Val::Px(8.0))),
+        ControlOrientation::Horizontal => (Val::Auto, Val::Px(10.0), UiRect::top(Val::Px(8.0))),
+    };
+    parent
+        .spawn_empty()
+        .apply_scene(bsn! {
+            Node {
+                width: {width},
+                height: {height},
+                flex_shrink: 0.0,
+                margin: {margin},
+                // Collapse the track until the overflow check runs, so it neither
+                // flashes nor shifts centered page content on the first frame.
+                display: {Display::None},
+            }
+            BackgroundColor({track_color})
+            ~{Visibility::Hidden}
+            Children [
+                ~{ScrollbarThumb {
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    border: UiRect::ZERO,
+                }}
+                BackgroundColor({thumb_color})
+            ]
+        })
+        .insert(Scrollbar::new(area, orientation, 24.0));
+}
+
 /// Spawns a full "scrollable content area + visible scrollbar" unit as a
 /// child of `parent`: an outer row holding the scrollable column (sized to
 /// its own content, but force-shrinkable down to whatever room is actually
@@ -163,35 +199,13 @@ pub fn spawn_scroll_area(
                 },
                 ScrollArea,
             )));
-            outer
-                .spawn((
-                    Scrollbar::new(area, ControlOrientation::Vertical, 24.0),
-                    Node {
-                        width: Val::Px(10.0),
-                        flex_shrink: 0.0,
-                        margin: UiRect::left(Val::Px(8.0)),
-                        // Starts collapsed — avoids a one-frame flash of a
-                        // full-height thumb before `update_scrollbar_
-                        // visibility`'s first run corrects it. `Display::
-                        // None`, not just `Visibility::Hidden`: many menu
-                        // pages rely on perfectly horizontal centering, and
-                        // a merely-invisible-but-still-laid-out track would
-                        // reserve its width, nudging content off-center.
-                        display: Display::None,
-                        ..default()
-                    },
-                    BackgroundColor(track_color),
-                    Visibility::Hidden,
-                ))
-                .with_children(|track| {
-                    track.spawn((
-                        ScrollbarThumb {
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                            border: UiRect::ZERO,
-                        },
-                        BackgroundColor(thumb_color),
-                    ));
-                });
+            spawn_scrollbar(
+                outer,
+                area,
+                ControlOrientation::Vertical,
+                thumb_color,
+                track_color,
+            );
         });
     area
 }
@@ -246,50 +260,21 @@ pub fn spawn_scroll_area_xy(
                         },
                         ScrollArea,
                     )));
-                    row.spawn((
-                        Scrollbar::new(area, ControlOrientation::Vertical, 24.0),
-                        Node {
-                            width: Val::Px(10.0),
-                            flex_shrink: 0.0,
-                            margin: UiRect::left(Val::Px(8.0)),
-                            display: Display::None,
-                            ..default()
-                        },
-                        BackgroundColor(track_color),
-                        Visibility::Hidden,
-                    ))
-                    .with_children(|track| {
-                        track.spawn((
-                            ScrollbarThumb {
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
-                                border: UiRect::ZERO,
-                            },
-                            BackgroundColor(thumb_color),
-                        ));
-                    });
+                    spawn_scrollbar(
+                        row,
+                        area,
+                        ControlOrientation::Vertical,
+                        thumb_color,
+                        track_color,
+                    );
                 });
-            column
-                .spawn((
-                    Scrollbar::new(area, ControlOrientation::Horizontal, 24.0),
-                    Node {
-                        height: Val::Px(10.0),
-                        flex_shrink: 0.0,
-                        margin: UiRect::top(Val::Px(8.0)),
-                        display: Display::None,
-                        ..default()
-                    },
-                    BackgroundColor(track_color),
-                    Visibility::Hidden,
-                ))
-                .with_children(|track| {
-                    track.spawn((
-                        ScrollbarThumb {
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                            border: UiRect::ZERO,
-                        },
-                        BackgroundColor(thumb_color),
-                    ));
-                });
+            spawn_scrollbar(
+                column,
+                area,
+                ControlOrientation::Horizontal,
+                thumb_color,
+                track_color,
+            );
         });
     area
 }
@@ -357,7 +342,13 @@ mod tests {
         // `DragScrollStart` stands in for the observers here: it is
         // inserted in the same place they are attached, and nothing else
         // inserts it.
-        let mut world = World::new();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            bevy::scene::ScenePlugin,
+        ));
+        let world = app.world_mut();
         let mut areas = Vec::new();
         {
             let mut commands = world.commands();
