@@ -47,7 +47,7 @@ pub struct JamHoleGuide {
 }
 
 /// One hole cell in the map; its background is tinted each frame by play state.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamHoleCell {
     hole: u8,
 }
@@ -165,14 +165,11 @@ pub(crate) fn spawn_hole_map(
             ..default()
         })
         .with_children(|col| {
-            col.spawn((
-                Text::new(String::from(loc.msg("jam-hole-map-hint"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.70, 0.70, 0.80)),
-            ));
+            col.spawn_empty().apply_scene(bsn! {
+                Text({String::from(loc.msg("jam-hole-map-hint"))})
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.70, 0.70, 0.80)})
+            });
             col.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(4.0),
@@ -180,53 +177,44 @@ pub(crate) fn spawn_hole_map(
             })
             .with_children(|row| {
                 for h in holes {
-                    row.spawn((
-                        Node {
-                            width: Val::Px(50.0),
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            row_gap: Val::Px(2.0),
-                            padding: UiRect::all(Val::Px(4.0)),
-                            ..default()
-                        },
-                        BackgroundColor(HOLE_DEFAULT),
-                        JamHoleCell { hole: h.hole },
-                    ))
-                    .with_children(|cell| {
-                        cell.spawn((
-                            Text::new(note_class(&h.blow).to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(if h.blow_in_scale {
-                                LABEL_IN_SCALE
-                            } else {
-                                LABEL_OUT_SCALE
-                            }),
-                        ));
-                        cell.spawn((
-                            Text::new(h.hole.to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(16.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                        ));
-                        cell.spawn((
-                            Text::new(note_class(&h.draw).to_string()),
-                            TextFont {
-                                font_size: FontSize::Px(15.0),
-                                ..default()
-                            },
-                            TextColor(if h.draw_in_scale {
-                                LABEL_IN_SCALE
-                            } else {
-                                LABEL_OUT_SCALE
-                            }),
-                        ));
-                    });
+                    row.spawn_empty()
+                        .apply_scene(bsn! {
+                            Node {
+                                width: {Val::Px(50.0)},
+                                flex_direction: {FlexDirection::Column},
+                                align_items: {AlignItems::Center},
+                                justify_content: {JustifyContent::Center},
+                                row_gap: {Val::Px(2.0)},
+                                padding: {UiRect::all(Val::Px(4.0))},
+                            }
+                            BackgroundColor({HOLE_DEFAULT})
+                            JamHoleCell { hole: {h.hole} }
+                        })
+                        .with_children(|cell| {
+                            cell.spawn_empty().apply_scene(bsn! {
+                                Text({note_class(&h.blow).to_string()})
+                                TextFont { font_size: {FontSize::Px(15.0)} }
+                                TextColor({if h.blow_in_scale {
+                                    LABEL_IN_SCALE
+                                } else {
+                                    LABEL_OUT_SCALE
+                                }})
+                            });
+                            cell.spawn_empty().apply_scene(bsn! {
+                                Text({h.hole.to_string()})
+                                TextFont { font_size: {FontSize::Px(16.0)} }
+                                TextColor({Color::WHITE})
+                            });
+                            cell.spawn_empty().apply_scene(bsn! {
+                                Text({note_class(&h.draw).to_string()})
+                                TextFont { font_size: {FontSize::Px(15.0)} }
+                                TextColor({if h.draw_in_scale {
+                                    LABEL_IN_SCALE
+                                } else {
+                                    LABEL_OUT_SCALE
+                                }})
+                            });
+                        });
                 }
             });
         });
@@ -290,7 +278,7 @@ pub fn update_hole_map(
 /// The default stage's one line of live feedback: which hole and breath the
 /// mic hears, tinted by the same fit the hole map uses. Restrained on
 /// purpose — no history, no counts, and a rest reads as a plain dash.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct JamDetectedNote;
 
 /// Colour for a rest — nothing sounding.
@@ -312,15 +300,12 @@ pub(crate) fn lowest_sounding<'a>(
 
 /// Spawns the indicator, resting.
 pub(crate) fn spawn_detected_note(parent: &mut ChildSpawnerCommands, loc: &Localization) {
-    parent.spawn((
-        Text::new(String::from(loc.msg("jam-detected-none"))),
-        TextFont {
-            font_size: FontSize::Px(20.0),
-            ..default()
-        },
-        TextColor(DETECTED_NONE),
-        JamDetectedNote,
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({String::from(loc.msg("jam-detected-none"))})
+        TextFont { font_size: {FontSize::Px(20.0)} }
+        TextColor({DETECTED_NONE})
+        JamDetectedNote
+    });
 }
 
 /// Names the hole/breath the mic hears and tints it by fit — chord tone,
