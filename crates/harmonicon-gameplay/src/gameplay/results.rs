@@ -480,57 +480,39 @@ pub(super) fn setup(
 }
 
 fn spawn_caption(parent: &mut ChildSpawnerCommands, text: &str, color: Color) {
-    parent.spawn((
-        Text::new(text.to_string()),
-        TextFont {
-            font_size: FontSize::Px(16.0),
-            ..default()
-        },
-        TextColor(color),
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({text.to_string()})
+        TextFont { font_size: {FontSize::Px(16.0)} }
+        TextColor({color})
+    });
 }
 
 fn spawn_section_heading(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((
-        Text::new(text.to_string()),
-        TextFont {
-            font_size: FontSize::Px(15.0),
-            ..default()
-        },
-        TextColor(Color::srgb(0.55, 0.58, 0.65)),
-        Node {
-            margin: UiRect::top(Val::Px(6.0)),
-            ..default()
-        },
-    ));
+    parent.spawn_empty().apply_scene(bsn! {
+        Text({text.to_string()})
+        TextFont { font_size: {FontSize::Px(15.0)} }
+        TextColor({Color::srgb(0.55, 0.58, 0.65)})
+        Node { margin: {UiRect::top(Val::Px(6.0))} }
+    });
 }
 
 fn spawn_text_row(parent: &mut ChildSpawnerCommands, label: &str, value: &str, color: Color) {
-    parent
-        .spawn(Node {
-            width: Val::Px(320.0),
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::SpaceBetween,
-            ..default()
-        })
-        .with_children(|row| {
-            row.spawn((
-                Text::new(label.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.65, 0.68, 0.75)),
-            ));
-            row.spawn((
-                Text::new(value.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(18.0),
-                    ..default()
-                },
-                TextColor(color),
-            ));
-        });
+    parent.spawn_empty().apply_scene(bsn! {
+        Node {
+            width: {Val::Px(320.0)},
+            flex_direction: {FlexDirection::Row},
+            justify_content: {JustifyContent::SpaceBetween},
+        }
+        Children [
+            Text({label.to_string()})
+            TextFont { font_size: {FontSize::Px(18.0)} }
+            TextColor({Color::srgb(0.65, 0.68, 0.75)})
+            --
+            Text({value.to_string()})
+            TextFont { font_size: {FontSize::Px(18.0)} }
+            TextColor({color})
+        ]
+    });
 }
 
 fn spawn_stat_row(parent: &mut ChildSpawnerCommands, label: &str, value: u32, color: Color) {
