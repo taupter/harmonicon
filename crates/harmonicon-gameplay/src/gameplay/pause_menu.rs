@@ -123,14 +123,12 @@ fn spawn_practice_speed_row(
         })
         .id();
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Text::new("\u{00BD}"), // ½ — practice speed; see tests/glyph_coverage.rs
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.70, 0.80)),
-        ));
+        // ½ — practice speed; see tests/glyph_coverage.rs
+        r.spawn_empty().apply_scene(bsn! {
+            Text("\u{00BD}")
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::srgb(0.70, 0.70, 0.80)})
+        });
     });
     let track = commands
         .spawn_scene(practice_speed_slider_scene(value))
@@ -141,15 +139,12 @@ fn spawn_practice_speed_row(
         .id();
     commands.entity(row).add_child(track);
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Text::new(practice_speed_label_text(loc, value)),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.70, 0.80)),
-            PracticeSpeedLabel,
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Text({practice_speed_label_text(loc, value)})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::srgb(0.70, 0.70, 0.80)})
+            PracticeSpeedLabel
+        });
     });
     commands.entity(parent).add_child(row);
 }
@@ -442,14 +437,11 @@ fn spawn_phrase_learned_row(
         })
         .id();
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Text::new(String::from(loc.msg("pause-learned-label"))),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.70, 0.80)),
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("pause-learned-label"))})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::srgb(0.70, 0.70, 0.80)})
+        });
     });
     let track = commands
         .spawn_scene(phrase_learned_slider_scene(value))
@@ -457,19 +449,13 @@ fn spawn_phrase_learned_row(
         .id();
     commands.entity(row).add_child(track);
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Node {
-                width: Val::Px(50.0),
-                ..default()
-            },
-            Text::new(format!("{:.0}%", value * 100.0)),
-            TextFont {
-                font_size: FontSize::Px(15.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.70, 0.80)),
-            PhraseLearnedValueLabel,
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(50.0)} }
+            Text({format!("{:.0}%", value * 100.0)})
+            TextFont { font_size: {FontSize::Px(15.0)} }
+            TextColor({Color::srgb(0.70, 0.70, 0.80)})
+            PhraseLearnedValueLabel
+        });
     });
     commands.entity(parent).add_child(row);
 }
@@ -552,14 +538,11 @@ fn card_node(align: AlignItems) -> Node {
 fn spawn_group_heading(commands: &mut Commands, card: Entity, loc: &Localization, key: &str) {
     let label = String::from(loc.msg(key));
     commands.entity(card).with_children(|children| {
-        children.spawn((
-            Text::new(label),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.58, 0.58, 0.70)),
-        ));
+        children.spawn_empty().apply_scene(bsn! {
+            Text({label})
+            TextFont { font_size: {FontSize::Px(13.0)} }
+            TextColor({Color::srgb(0.58, 0.58, 0.70)})
+        });
     });
 }
 
@@ -652,14 +635,11 @@ pub(super) fn setup_pause_menu(
         // The other moment the player isn't playing, so the other place the
         // song's own details are worth the space (see `song_info`).
         spawn_song_details(col, &song_info);
-        col.spawn((
-            Text::new(String::from(loc.msg("pause-paused"))),
-            TextFont {
-                font_size: FontSize::Px(34.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
+        col.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("pause-paused"))})
+            TextFont { font_size: {FontSize::Px(34.0)} }
+            TextColor({Color::WHITE})
+        });
         col.spawn_empty()
             .apply_scene(button::default(&loc.msg("pause-resume"), on_resume));
         col.spawn_empty()
