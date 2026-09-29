@@ -201,7 +201,7 @@ mod tests {
             AssetPlugin::default(),
             bevy::scene::ScenePlugin,
         ));
-        let mut world = app.world_mut();
+        let world = app.world_mut();
         world.insert_resource(GameplayClock::default());
         let lines = vec![
             line(&[("how", 1.0), ("sweet", 2.0)]),
@@ -219,20 +219,20 @@ mod tests {
             spans(world)
         };
         assert_eq!(
-            at(&mut world, 0.0),
+            at(world, 0.0),
             (String::new(), "how sweet".into(), "the sound".into())
         );
         assert_eq!(
-            at(&mut world, 1.5),
+            at(world, 1.5),
             ("how ".into(), "sweet".into(), "the sound".into())
         );
         assert_eq!(
-            at(&mut world, 3.5),
+            at(world, 3.5),
             ("the ".into(), "sound".into(), String::new())
         );
         // A loop rewinding the clock brings the first line back.
         assert_eq!(
-            at(&mut world, 1.0),
+            at(world, 1.0),
             ("how ".into(), "sweet".into(), "the sound".into())
         );
     }
