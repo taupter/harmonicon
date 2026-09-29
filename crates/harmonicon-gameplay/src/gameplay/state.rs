@@ -426,7 +426,7 @@ pub struct NoteScored {
 #[derive(Component, Default, Clone)]
 pub struct GameplayRoot;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 #[require(HoleState)]
 pub struct HoleCell(pub u8);
 
