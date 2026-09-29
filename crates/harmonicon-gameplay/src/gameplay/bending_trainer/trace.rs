@@ -170,17 +170,17 @@ const RAIL_HEIGHT: f32 = 96.0;
 const DOT_SIZE: f32 = 8.0;
 const MARKER_SIZE: f32 = 18.0;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendTraceDot(pub usize);
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendLiveMarker;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendTargetBand;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendNaturalLabel;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendTargetLabel;
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub struct BendSlotMarker(pub usize);
 #[derive(Component, Clone, Copy)]
 pub enum BendMetric {
@@ -196,102 +196,88 @@ pub(super) fn spawn_bend_rail(card: &mut ChildSpawnerCommands, loc: &Localizatio
         ..default()
     })
     .with_children(|labels| {
-        labels.spawn((
-            Text::new(loc.msg("bending-rail-natural")),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.74, 0.80)),
-            BendNaturalLabel,
-        ));
-        labels.spawn((
-            Text::new(loc.msg("bending-rail-target")),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.70, 0.84, 0.74)),
-            BendTargetLabel,
-        ));
+        labels.spawn_empty().apply_scene(bsn! {
+            Text({loc.msg("bending-rail-natural")})
+            TextFont { font_size: {FontSize::Px(14.0)} }
+            TextColor({Color::srgb(0.70, 0.74, 0.80)})
+            BendNaturalLabel
+        });
+        labels.spawn_empty().apply_scene(bsn! {
+            Text({loc.msg("bending-rail-target")})
+            TextFont { font_size: {FontSize::Px(14.0)} }
+            TextColor({Color::srgb(0.70, 0.84, 0.74)})
+            BendTargetLabel
+        });
     });
-    card.spawn((
-        Node {
-            position_type: PositionType::Relative,
-            width: Val::Percent(100.0),
-            height: Val::Px(RAIL_HEIGHT),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.06, 0.07, 0.10, 0.90)),
-    ))
-    .with_children(|rail| {
-        rail.spawn((
+    card.spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(RAIL_START_PERCENT),
-                top: Val::Px(RAIL_HEIGHT / 2.0 - 1.0),
-                width: Val::Percent(RAIL_END_PERCENT - RAIL_START_PERCENT),
-                height: Val::Px(2.0),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.35, 0.38, 0.44)),
-        ));
-        rail.spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(RAIL_HEIGHT * 0.2),
-                height: Val::Px(RAIL_HEIGHT * 0.6),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.25, 0.75, 0.38, 0.20)),
-            BendTargetBand,
-        ));
-        for index in 0..2 {
-            rail.spawn((
+                position_type: {PositionType::Relative},
+                width: {Val::Percent(100.0)},
+                height: {Val::Px(RAIL_HEIGHT)},
+            }
+            BackgroundColor({Color::srgba(0.06, 0.07, 0.10, 0.90)})
+        })
+        .with_children(|rail| {
+            rail.spawn_empty().apply_scene(bsn! {
                 Node {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px(2.0),
-                    ..default()
-                },
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.72, 0.76, 0.82)),
-                Visibility::Hidden,
-                BendSlotMarker(index),
-            ));
-        }
-        for index in 0..TRACE_DOTS {
-            rail.spawn((
+                    position_type: {PositionType::Absolute},
+                    left: {Val::Percent(RAIL_START_PERCENT)},
+                    top: {Val::Px(RAIL_HEIGHT / 2.0 - 1.0)},
+                    width: {Val::Percent(RAIL_END_PERCENT - RAIL_START_PERCENT)},
+                    height: {Val::Px(2.0)},
+                }
+                BackgroundColor({Color::srgb(0.35, 0.38, 0.44)})
+            });
+            rail.spawn_empty().apply_scene(bsn! {
                 Node {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px((RAIL_HEIGHT - DOT_SIZE) / 2.0),
-                    width: Val::Px(DOT_SIZE),
-                    height: Val::Px(DOT_SIZE),
-                    border_radius: BorderRadius::all(Val::Percent(50.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.45, 0.72, 0.95, 0.0)),
-                Visibility::Hidden,
-                BendTraceDot(index),
-            ));
-        }
-        rail.spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px((RAIL_HEIGHT - MARKER_SIZE) / 2.0),
-                width: Val::Px(MARKER_SIZE),
-                height: Val::Px(MARKER_SIZE),
-                border_radius: BorderRadius::all(Val::Percent(50.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.92, 0.94, 1.0)),
-            Visibility::Hidden,
-            BendLiveMarker,
-        ));
-    });
+                    position_type: {PositionType::Absolute},
+                    top: {Val::Px(RAIL_HEIGHT * 0.2)},
+                    height: {Val::Px(RAIL_HEIGHT * 0.6)},
+                }
+                BackgroundColor({Color::srgba(0.25, 0.75, 0.38, 0.20)})
+                BendTargetBand
+            });
+            for index in 0..2usize {
+                rail.spawn_empty().apply_scene(bsn! {
+                    Node {
+                        position_type: {PositionType::Absolute},
+                        top: {Val::Px(2.0)},
+                    }
+                    Text("")
+                    TextFont { font_size: {FontSize::Px(11.0)} }
+                    TextColor({Color::srgb(0.72, 0.76, 0.82)})
+                    ~{Visibility::Hidden}
+                    BendSlotMarker(index)
+                });
+            }
+            for index in 0..TRACE_DOTS {
+                rail.spawn_empty().apply_scene(bsn! {
+                    Node {
+                        position_type: {PositionType::Absolute},
+                        top: {Val::Px((RAIL_HEIGHT - DOT_SIZE) / 2.0)},
+                        width: {Val::Px(DOT_SIZE)},
+                        height: {Val::Px(DOT_SIZE)},
+                        border_radius: {BorderRadius::all(Val::Percent(50.0))},
+                    }
+                    BackgroundColor({Color::srgba(0.45, 0.72, 0.95, 0.0)})
+                    ~{Visibility::Hidden}
+                    BendTraceDot(index)
+                });
+            }
+            rail.spawn_empty().apply_scene(bsn! {
+                Node {
+                    position_type: {PositionType::Absolute},
+                    top: {Val::Px((RAIL_HEIGHT - MARKER_SIZE) / 2.0)},
+                    width: {Val::Px(MARKER_SIZE)},
+                    height: {Val::Px(MARKER_SIZE)},
+                    border_radius: {BorderRadius::all(Val::Percent(50.0))},
+                }
+                BackgroundColor({Color::srgb(0.92, 0.94, 1.0)})
+                ~{Visibility::Hidden}
+                BendLiveMarker
+            });
+        });
     card.spawn(Node {
         width: Val::Percent(100.0),
         justify_content: JustifyContent::SpaceBetween,
