@@ -90,7 +90,7 @@ struct CalRoot;
 #[derive(Component)]
 struct BeatDot(usize);
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct MicBarFill;
 
 /// Container for the timing-window bar. Hit markers are added as children.
@@ -626,42 +626,32 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
         });
 
         // ── Mic-level bar ─────────────────────────────────────────────────────
-        p.spawn(Node {
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(12.0),
-            ..default()
-        })
-        .with_children(|row| {
-            row.spawn((
-                Text::new(String::from(loc.msg("calibration-mic-label"))),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.55, 0.58, 0.68)),
-            ));
-            // Track
-            row.spawn((
+        p.spawn_empty().apply_scene(bsn! {
+            Node {
+                flex_direction: {FlexDirection::Row},
+                align_items: {AlignItems::Center},
+                column_gap: {Val::Px(12.0)},
+            }
+            Children [
+                Text({String::from(loc.msg("calibration-mic-label"))})
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.55, 0.58, 0.68)})
+                --
                 Node {
-                    width: Val::Px(220.0),
-                    height: Val::Px(12.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgb(0.10, 0.12, 0.10)),
-            ))
-            .with_children(|track| {
-                // Fill — width is animated by update_mic_bar
-                track.spawn((
+                    width: {Val::Px(220.0)},
+                    height: {Val::Px(12.0)},
+                }
+                BackgroundColor({Color::srgb(0.10, 0.12, 0.10)})
+                Children [
+                    // Fill — width is animated by update_mic_bar.
                     Node {
-                        width: Val::Percent(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.10, 0.18, 0.14)),
-                    MicBarFill,
-                ));
-            });
+                        width: {Val::Percent(0.0)},
+                        height: {Val::Percent(100.0)},
+                    }
+                    BackgroundColor({Color::srgb(0.10, 0.18, 0.14)})
+                    MicBarFill
+                ]
+            ]
         });
 
         // ── Timing window bar ─────────────────────────────────────────────────
