@@ -333,6 +333,13 @@ pub(crate) fn sync_tutorial_overlay(
     let Some((_, title_key, body_key, _)) = TOUR_STEPS.get(tour.step) else {
         return;
     };
+    let step_text = String::from(loc.msg_args(
+        "tutorial-step",
+        &[
+            ("n", (tour.step + 1).to_string()),
+            ("total", TOUR_STEPS.len().to_string()),
+        ],
+    ));
 
     commands
         .spawn((
@@ -356,54 +363,34 @@ pub(crate) fn sync_tutorial_overlay(
         ))
         .with_children(|overlay| {
             overlay
-                .spawn((
+                .spawn_empty()
+                .apply_scene(bsn! {
                     Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        row_gap: Val::Px(10.0),
-                        max_width: Val::Px(560.0),
-                        padding: UiRect::axes(Val::Px(28.0), Val::Px(20.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.96)),
-                    BorderColor::all(Color::srgb(0.35, 0.35, 0.48)),
-                ))
+                        flex_direction: {FlexDirection::Column},
+                        align_items: {AlignItems::Center},
+                        row_gap: {Val::Px(10.0)},
+                        max_width: {Val::Px(560.0)},
+                        padding: {UiRect::axes(Val::Px(28.0), Val::Px(20.0))},
+                        border: {UiRect::all(Val::Px(1.0))},
+                    }
+                    BackgroundColor({Color::srgba(0.08, 0.08, 0.12, 0.96)})
+                    ~{BorderColor::all(Color::srgb(0.35, 0.35, 0.48))}
+                    Children [
+                        Text({String::from(loc.msg(title_key))})
+                        TextFont { font_size: {FontSize::Px(24.0)} }
+                        TextColor({Color::WHITE})
+                        --
+                        Text({String::from(loc.msg(body_key))})
+                        TextFont { font_size: {FontSize::Px(16.0)} }
+                        TextColor({Color::srgb(0.80, 0.80, 0.88)})
+                        TextLayout { justify: {Justify::Center} }
+                        --
+                        Text({step_text})
+                        TextFont { font_size: {FontSize::Px(13.0)} }
+                        TextColor({Color::srgb(0.55, 0.55, 0.65)})
+                    ]
+                })
                 .with_children(|panel| {
-                    panel.spawn((
-                        Text::new(String::from(loc.msg(title_key))),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
-                    panel.spawn((
-                        Text::new(String::from(loc.msg(body_key))),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.80, 0.80, 0.88)),
-                        TextLayout {
-                            justify: Justify::Center,
-                            ..default()
-                        },
-                    ));
-                    panel.spawn((
-                        Text::new(String::from(loc.msg_args(
-                            "tutorial-step",
-                            &[
-                                ("n", (tour.step + 1).to_string()),
-                                ("total", TOUR_STEPS.len().to_string()),
-                            ],
-                        ))),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.55, 0.55, 0.65)),
-                    ));
                     panel.spawn_empty().apply_scene(button::small(
                         &String::from(loc.msg("tutorial-skip")),
                         skip_tutorial_tour,
