@@ -48,6 +48,21 @@ what the chart expects, at that instant:
   terms, not just "was some pitch playing": a bend note checks you actually
   bent to the target pitch, a vibrato/wah note checks the oscillation rate
   you played matches what the chart asks for.
+- **Each technique note says what it wants.** The head's tab carries the
+  bend depth — one `'` per half step, so `-3''` is draw 3 bent a whole
+  step — and a small label beside the note spells it out with the note to
+  land on (*bend 1 step → A*, *overblow → D#*) or the wobble rate to play
+  (*vibrato 5/s*: five swings a second).
+- **A gauge coaches the technique as you play it.** Shortly before a bend,
+  vibrato or wah note reaches the hit line, a small panel appears in the
+  lane beside it. For a bend, it runs from the unbent note at the top to
+  the target at the bottom, with the target band in green; the marker is
+  your pitch, so bending moves it down, and it turns green once you're
+  there (*Bend more* / *Hold it* / *Too far*). For vibrato or wah, a pale
+  bar swings at the rate the chart asks for — copy it — and once you're
+  holding the note your own pitch (vibrato) or volume (wah) swings beside
+  it, with *Faster*, *Slower*, *Wider* or *Good rate* underneath, judged
+  exactly as the score is.
 - **Chords and octave-split notes** only score when every note in the
   group sounds *together* — playing the same holes correctly but one at a
   time doesn't count.

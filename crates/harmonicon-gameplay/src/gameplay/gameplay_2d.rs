@@ -25,6 +25,7 @@ use super::note_feedback::{
 use super::note_tail_2d::{NoteTail2dMaterial, tail_params};
 use super::note_visual_2d::{NoteChildConfig, spawn_note_children};
 use super::song_progress_overlay::{BAR_HEIGHT, NoteMarker, spawn_song_progress};
+use super::technique_cue;
 use super::{
     ActivePitches, ActiveTargets, COUNTDOWN, GameplayRoot, HoleCell, HoleState, LOOKAHEAD,
     MusicStarted, NoteVisual, PlayedHarp, ScheduledNote, ScoreReadoutAnchor, SongInfo, SongNotes,
@@ -445,6 +446,7 @@ pub fn spawn_visible_notes(
     theme: Res<LoadedTheme>,
     colorblind: Res<harmonicon_platform::settings::ColorblindPalette>,
     lesson: Option<Res<harmonicon_song::lessons::LessonContext>>,
+    loc: Res<Localization>,
 ) {
     if lesson.is_some_and(|lesson| lesson.aural) {
         return;
@@ -475,13 +477,19 @@ pub fn spawn_visible_notes(
 
     commands.entity(highway_entity).with_children(|hw| {
         for i in to_spawn {
-            if note_has_left_view(&song_notes.notes[i], elapsed) {
+            let note = &song_notes.notes[i];
+            if note_has_left_view(note, elapsed) {
                 continue;
             }
+            let cue = technique_cue::note_cue(&loc, note).map(|text| NoteCue {
+                text,
+                on_right: technique_cue::beside_lane(note.hole, harp.hole_count()) > note.hole,
+            });
             spawn_note_visual(
                 hw,
                 i,
-                &song_notes.notes[i],
+                note,
+                cue,
                 lane_pct,
                 head_image,
                 tail_cfg,
@@ -503,6 +511,7 @@ fn spawn_note_visual(
     hw: &mut ChildSpawnerCommands,
     note_id: usize,
     note: &ScheduledNote,
+    cue: Option<NoteCue>,
     lane_pct: f32,
     head_image: &AssetPath<'static>,
     tail_cfg: &NoteThemeConfig,
@@ -511,9 +520,8 @@ fn spawn_note_visual(
     show_numbers: bool,
     colors: NoteColors,
 ) {
-    let is_blow = note.is_blow;
-    let hole = note.hole;
-    let (r, g, b) = note_rgb(colors, is_blow);
+    let label = head_label(note.hole, note.is_blow, &note.modifiers, show_numbers);
+    let (r, g, b) = note_rgb(colors, note.is_blow);
     let note_color = Color::srgba(r, g, b, 1.0);
     let left_pct = (note.hole as f32 - 1.0) * lane_pct;
     let duration_frac = (note.duration / LOOKAHEAD) as f32;
@@ -570,7 +578,7 @@ fn spawn_note_visual(
             |cmd| {
                 cmd.insert(NoteHead).with_children(|head| {
                     head.spawn((
-                        Text::new(head_label(hole, is_blow, show_numbers)),
+                        Text::new(label),
                         TextFont {
                             font_size: FontSize::Px(15.0),
                             ..default()
@@ -581,6 +589,40 @@ fn spawn_note_visual(
                 });
             },
         );
+
+        // What the technique asks for, in the lane beside the head.
+        if let Some(cue) = cue {
+            note_e.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Percent(30.0),
+                    left: if cue.on_right {
+                        Val::Percent(100.0)
+                    } else {
+                        Val::Auto
+                    },
+                    right: if cue.on_right {
+                        Val::Auto
+                    } else {
+                        Val::Percent(100.0)
+                    },
+                    padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
+                    border_radius: BorderRadius::all(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.04, 0.05, 0.1, 0.72)),
+                NoteCueBadge { note_id },
+                children![(
+                    Text::new(cue.text),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextLayout::no_wrap(),
+                    TextColor(Color::srgba(0.95, 0.95, 1.0, 0.95)),
+                )],
+            ));
+        }
 
         // Chord / split play-mode badge, pinned to the bottom edge.
         if let Some(tag) = play_mode_tag {
@@ -832,7 +874,7 @@ pub fn animate_judged_notes(
             }
             let wanted = match current {
                 Some(hit) => judged_stamp(hit).to_string(),
-                None => head_label(note.hole, note.is_blow, show_numbers.0),
+                None => head_label(note.hole, note.is_blow, &note.modifiers, show_numbers.0),
             };
             for grandchild in head_children {
                 if let Ok((mut text, mut color)) = labels.get_mut(*grandchild) {
@@ -845,17 +887,31 @@ pub fn animate_judged_notes(
 }
 
 /// The tab shown on a note head: `+`/`-` and the hole with numbers on, a
-/// bare direction arrow with them off. No bend/overblow/slide suffix — that
-/// level of detail lives in the tab ribbon (`phrase_overlay`); the head is
-/// just "which hole, which direction".
-fn head_label(hole: u8, is_blow: bool, show_numbers: bool) -> String {
+/// direction arrow with them off — followed either way by the tab ribbon's
+/// technique suffix (`'` per bent semitone, `o`, `*`), so `-3''` reads as a
+/// whole-step bend right where the player is looking.
+fn head_label(hole: u8, is_blow: bool, modifiers: &[Modifier], show_numbers: bool) -> String {
+    let tab = super::phrase_overlay::tab_label(hole, is_blow, modifiers);
     if show_numbers {
-        super::phrase_overlay::tab_label(hole, is_blow, &[])
-    } else if is_blow {
-        "\u{2191}".to_string()
-    } else {
-        "\u{2193}".to_string()
+        return tab;
     }
+    let plain = super::phrase_overlay::tab_label(hole, is_blow, &[]);
+    let arrow = if is_blow { "\u{2191}" } else { "\u{2193}" };
+    format!("{arrow}{}", &tab[plain.len()..])
+}
+
+/// A note's technique cue badge, hidden by `technique_coach` while that
+/// note's gauge is showing the same information in the same lane.
+#[derive(Component)]
+pub(super) struct NoteCueBadge {
+    pub note_id: usize,
+}
+
+/// The technique cue for one note head (see `technique_cue::note_cue`) and
+/// which side of the head it sits on.
+struct NoteCue {
+    text: String,
+    on_right: bool,
 }
 
 /// The set of currently-sounding MIDI pitches that are actually producible

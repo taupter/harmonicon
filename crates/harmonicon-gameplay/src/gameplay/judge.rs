@@ -73,7 +73,7 @@ pub(crate) fn is_sustained_technique(modifier: &Modifier) -> bool {
 /// How far a measured vibrato/wah rate may drift from the chart's declared
 /// `oscillation_hz` and still count — generous, since hand technique speed
 /// varies naturally between players and even between notes.
-const OSCILLATION_RATE_TOLERANCE_FRAC: f32 = 0.4;
+pub(crate) const OSCILLATION_RATE_TOLERANCE_FRAC: f32 = 0.4;
 
 /// Is the player performing this sustained technique, judged from the
 /// pitch/loudness samples collected while the note is held — both that it

@@ -43,6 +43,8 @@ mod song_info;
 pub mod song_progress_overlay;
 mod song_waveform_material;
 mod state;
+mod technique_coach;
+mod technique_cue;
 pub mod twelve_bar_blues_overlay;
 mod wait_freeze_overlay;
 pub mod warning_banner;

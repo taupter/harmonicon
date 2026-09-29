@@ -25,6 +25,7 @@ use super::state::{
     NoteScored, Paused, PitchGate, PlayedHarp, PracticeRequest, Score, ScoringConfig, SongEnd,
     SongStats, ValidHarpNotes, collect_pitches,
 };
+use super::technique_coach;
 use super::{
     adaptive_difficulty, bending_trainer, call_response, countdown_overlay, gameplay_2d,
     gameplay_3d, harmonica_overlay, metronome_overlay, modifier_legend, music_score_bridge,
@@ -369,6 +370,8 @@ impl Plugin for GameplayPlugin {
                 gameplay_2d::animate_judged_notes,
                 gameplay_2d::update_holes,
                 beat_guides::update_beat_guides,
+                technique_coach::spawn_technique_coach,
+                technique_coach::update_technique_coach,
             )
                 .chain()
                 .after(GameplayLogic)

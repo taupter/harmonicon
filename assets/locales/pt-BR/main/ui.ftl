@@ -1386,3 +1386,23 @@ lesson-self-recording-title = Auto-gravação
 lesson-self-recording-body = Grave uma tomada inteira, ouça sem o instrumento e anote um problema de tempo e um de timbre. Repita com uma única mudança concreta.
 lesson-mixed-review-title = Revisão mista
 lesson-mixed-review-body = Alterne chegadas de posição, bends, vibrato, mudanças de andamento e movimento de registro. As mudanças testam a memória.
+
+# Scored play — technique cue beside a note head, and the hit-line gauge
+cue-bend-1 = dobrar ½ tom → {$note}
+cue-bend-2 = dobrar 1 tom → {$note}
+cue-bend-3 = dobrar 1 tom e meio → {$note}
+cue-bend-n = dobrar {$semitones} semitons → {$note}
+cue-overblow = oversopro → {$note}
+cue-overdraw = overpuxada → {$note}
+cue-slide = slide → {$note}
+cue-vibrato = vibrato {$rate}/s
+cue-wah = wah {$rate}/s
+coach-rate = {$rate}/s
+coach-bend-more = Dobre mais
+coach-on-target = Segure
+coach-too-far = Passou
+coach-follow-pulse = Siga o pulso
+coach-swing-more = Mais amplo
+coach-faster = Mais rápido
+coach-slower = Mais lento
+coach-on-rate = Bom ritmo
