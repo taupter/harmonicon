@@ -49,18 +49,12 @@ pub(super) fn spawn_slider_row(
         })
         .id();
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Node {
-                width: Val::Px(OPTIONS_LABEL_WIDTH),
-                ..default()
-            },
-            Text::new(label.to_string()),
-            TextFont {
-                font_size: FontSize::Px(20.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
+        r.spawn_empty().apply_scene(bsn! {
+            Node { width: {Val::Px(OPTIONS_LABEL_WIDTH)} }
+            Text({label.to_string()})
+            TextFont { font_size: {FontSize::Px(20.0)} }
+            TextColor({Color::WHITE})
+        });
     });
     commands.entity(row).insert(Tooltip(tooltip.to_string()));
     commands.entity(parent).add_child(row);
@@ -78,19 +72,14 @@ pub(super) fn spawn_slider_value_label(
     marker: impl Component,
 ) {
     commands.entity(row).with_children(|r| {
-        r.spawn((
-            Node {
-                width: Val::Px(50.0),
-                ..default()
-            },
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(18.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.6, 0.6, 0.7)),
-            marker,
-        ));
+        r.spawn_empty()
+            .apply_scene(bsn! {
+                Node { width: {Val::Px(50.0)} }
+                Text({text})
+                TextFont { font_size: {FontSize::Px(18.0)} }
+                TextColor({Color::srgb(0.6, 0.6, 0.7)})
+            })
+            .insert(marker);
     });
 }
 
