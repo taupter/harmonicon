@@ -81,37 +81,28 @@ pub fn spawn_phrase_looper(parent: &mut ChildSpawnerCommands, steps: &[String]) 
                 _ => "",
             };
             let cell = row
-                .spawn((
+                .spawn_empty()
+                .apply_scene(bsn! {
                     Node {
-                        min_width: Val::Px(82.0),
-                        height: Val::Px(58.0),
-                        padding: UiRect::horizontal(Val::Px(10.0)),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(if index == 0 { ACTIVE_BG } else { CELL_BG }),
-                    BorderColor::all(Color::srgb(0.40, 0.40, 0.55)),
-                ))
-                .with_children(|cell| {
-                    cell.spawn((
-                        Text::new(label.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(19.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
-                    cell.spawn((
-                        Text::new(boundary),
-                        TextFont {
-                            font_size: FontSize::Px(12.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.68, 0.70, 0.76)),
-                    ));
+                        min_width: {Val::Px(82.0)},
+                        height: {Val::Px(58.0)},
+                        padding: {UiRect::horizontal(Val::Px(10.0))},
+                        flex_direction: {FlexDirection::Column},
+                        align_items: {AlignItems::Center},
+                        justify_content: {JustifyContent::Center},
+                        border: {UiRect::all(Val::Px(1.0))},
+                    }
+                    BackgroundColor({if index == 0 { ACTIVE_BG } else { CELL_BG }})
+                    ~{BorderColor::all(Color::srgb(0.40, 0.40, 0.55))}
+                    Children [
+                        Text({label.clone()})
+                        TextFont { font_size: {FontSize::Px(19.0)} }
+                        TextColor({Color::WHITE})
+                        --
+                        Text({boundary})
+                        TextFont { font_size: {FontSize::Px(12.0)} }
+                        TextColor({Color::srgb(0.68, 0.70, 0.76)})
+                    ]
                 })
                 .id();
             cells.push(cell);
