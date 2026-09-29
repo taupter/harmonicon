@@ -73,38 +73,29 @@ pub fn spawn_12_bar_grid(
                 for col in 0..4usize {
                     let idx = row * 4 + col;
                     let cell_entity = row_node
-                        .spawn((
+                        .spawn_empty()
+                        .apply_scene(bsn! {
                             Node {
-                                width: cfg.cell_width,
-                                height: cfg.cell_height,
-                                flex_direction: FlexDirection::Column,
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border: UiRect::all(Val::Px(1.0)),
-                                ..default()
-                            },
-                            BackgroundColor(bar_bg(idx, key, progression, colors)),
-                            BorderColor::all(Color::srgb(0.25, 0.25, 0.38)),
-                            BarCell(idx),
-                        ))
-                        .with_children(|cell| {
-                            cell.spawn((
-                                Text::new(chords[idx].clone()),
-                                TextFont {
-                                    font_size: FontSize::Px(cfg.chord_font_size),
-                                    ..default()
-                                },
-                                TextColor(Color::WHITE),
-                            ));
-                            cell.spawn((
-                                Text::new(format!("{}", idx + 1)),
-                                TextFont {
-                                    font_size: FontSize::Px(cfg.bar_num_font_size),
-                                    ..default()
-                                },
-                                TextColor(Color::srgb(0.45, 0.45, 0.55)),
-                            ));
+                                width: {cfg.cell_width},
+                                height: {cfg.cell_height},
+                                flex_direction: {FlexDirection::Column},
+                                align_items: {AlignItems::Center},
+                                justify_content: {JustifyContent::Center},
+                                border: {UiRect::all(Val::Px(1.0))},
+                            }
+                            BackgroundColor({bar_bg(idx, key, progression, colors)})
+                            ~{BorderColor::all(Color::srgb(0.25, 0.25, 0.38))}
+                            Children [
+                                Text({chords[idx].clone()})
+                                TextFont { font_size: {FontSize::Px(cfg.chord_font_size)} }
+                                TextColor({Color::WHITE})
+                                --
+                                Text({format!("{}", idx + 1)})
+                                TextFont { font_size: {FontSize::Px(cfg.bar_num_font_size)} }
+                                TextColor({Color::srgb(0.45, 0.45, 0.55)})
+                            ]
                         })
+                        .insert(BarCell(idx))
                         .id();
                     cells.push(cell_entity);
                 }
