@@ -87,7 +87,7 @@ struct CalSounds {
 #[derive(Component)]
 struct CalRoot;
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct BeatDot(usize);
 
 #[derive(Component, Default, Clone)]
@@ -98,18 +98,18 @@ struct MicBarFill;
 struct TimingBarContainer;
 
 /// A per-hit tick mark inside the timing bar.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct TimingMarker {
     offset_secs: f64,
     age: f32,
 }
 
 /// Text showing the per-hit offset list ("±Xms  ±Yms …").
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct HitOffsetsSummary;
 
 /// Dynamic status / counter line.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct CalStatusText;
 
 /// Result block — shown only after Done.
@@ -333,21 +333,17 @@ fn sync_hit_markers(
             Color::srgba(0.95, 0.35, 0.30, 1.0) // red = outside good window
         };
         commands.entity(bar_entity).with_children(|bar| {
-            bar.spawn((
+            bar.spawn_empty().apply_scene(bsn! {
                 Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(frac * 100.0),
-                    top: Val::Percent(0.0),
-                    width: Val::Px(3.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                BackgroundColor(color),
-                TimingMarker {
-                    offset_secs,
-                    age: 0.0,
-                },
-            ));
+                    position_type: {PositionType::Absolute},
+                    left: {Val::Percent(frac * 100.0)},
+                    top: {Val::Percent(0.0)},
+                    width: {Val::Px(3.0)},
+                    height: {Val::Percent(100.0)},
+                }
+                BackgroundColor({color})
+                TimingMarker { offset_secs: {offset_secs}, age: {0.0f32} }
+            });
         });
     }
     spawned.1 = cal.offsets.len();
@@ -577,33 +573,21 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
 
     commands.entity(root).with_children(|p| {
         // ── Title ─────────────────────────────────────────────────────────────
-        p.spawn((
-            Text::new(String::from(loc.msg("calibration-title"))),
-            TextFont {
-                font_size: FontSize::Px(38.0),
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
+        p.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("calibration-title"))})
+            TextFont { font_size: {FontSize::Px(38.0)} }
+            TextColor({Color::WHITE})
+        });
 
         // ── Status text ───────────────────────────────────────────────────────
-        p.spawn((
-            Text::new(String::from(loc.msg("calibration-instructions"))),
-            TextFont {
-                font_size: FontSize::Px(16.0),
-                ..default()
-            },
-            TextColor(Color::srgb(0.62, 0.65, 0.80)),
-            TextLayout {
-                justify: Justify::Center,
-                ..default()
-            },
-            Node {
-                max_width: Val::Px(480.0),
-                ..default()
-            },
-            CalStatusText,
-        ));
+        p.spawn_empty().apply_scene(bsn! {
+            Text({String::from(loc.msg("calibration-instructions"))})
+            TextFont { font_size: {FontSize::Px(16.0)} }
+            TextColor({Color::srgb(0.62, 0.65, 0.80)})
+            TextLayout { justify: {Justify::Center} }
+            Node { max_width: {Val::Px(480.0)} }
+            CalStatusText
+        });
 
         // ── Beat dots ─────────────────────────────────────────────────────────
         p.spawn(Node {
@@ -612,16 +596,15 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
             ..default()
         })
         .with_children(|row| {
-            for i in 0..4 {
-                row.spawn((
+            for i in 0..4usize {
+                row.spawn_empty().apply_scene(bsn! {
                     Node {
-                        width: Val::Px(44.0),
-                        height: Val::Px(44.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.12, 0.12, 0.20)),
-                    BeatDot(i),
-                ));
+                        width: {Val::Px(44.0)},
+                        height: {Val::Px(44.0)},
+                    }
+                    BackgroundColor({Color::srgb(0.12, 0.12, 0.20)})
+                    BeatDot(i)
+                });
             }
         });
 
@@ -687,31 +670,22 @@ fn setup_ui(mut commands: Commands, loc: Res<Localization>) {
             })
             .with_children(|labels| {
                 for txt in ["-200ms", "0", "+200ms"] {
-                    labels.spawn((
-                        Text::new(txt),
-                        TextFont {
-                            font_size: FontSize::Px(15.0),
-                            ..default()
-                        },
-                        TextColor(Color::srgb(0.40, 0.42, 0.52)),
-                    ));
+                    labels.spawn_empty().apply_scene(bsn! {
+                        Text({txt})
+                        TextFont { font_size: {FontSize::Px(15.0)} }
+                        TextColor({Color::srgb(0.40, 0.42, 0.52)})
+                    });
                 }
             });
 
             // Per-hit offset summary text
-            col.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::srgb(0.70, 0.72, 0.85)),
-                Node {
-                    margin: UiRect::top(Val::Px(2.0)),
-                    ..default()
-                },
-                HitOffsetsSummary,
-            ));
+            col.spawn_empty().apply_scene(bsn! {
+                Text("")
+                TextFont { font_size: {FontSize::Px(15.0)} }
+                TextColor({Color::srgb(0.70, 0.72, 0.85)})
+                Node { margin: {UiRect::top(Val::Px(2.0))} }
+                HitOffsetsSummary
+            });
         });
 
         // ── Result block (Done only) ───────────────────────────────────────────
@@ -823,31 +797,29 @@ fn spawn_timing_zones(bar: &mut ChildSpawnerCommands) {
     ];
 
     for &(left, width, color) in zones {
-        bar.spawn((
+        bar.spawn_empty().apply_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(left),
-                top: Val::Percent(0.0),
-                width: Val::Percent(width),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            BackgroundColor(color),
-        ));
+                position_type: {PositionType::Absolute},
+                left: {Val::Percent(left)},
+                top: {Val::Percent(0.0)},
+                width: {Val::Percent(width)},
+                height: {Val::Percent(100.0)},
+            }
+            BackgroundColor({color})
+        });
     }
 
     // Centre line (beat target).
-    bar.spawn((
+    bar.spawn_empty().apply_scene(bsn! {
         Node {
-            position_type: PositionType::Absolute,
-            left: Val::Percent(50.0),
-            top: Val::Percent(0.0),
-            width: Val::Px(1.0),
-            height: Val::Percent(100.0),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.35)),
-    ));
+            position_type: {PositionType::Absolute},
+            left: {Val::Percent(50.0)},
+            top: {Val::Percent(0.0)},
+            width: {Val::Px(1.0)},
+            height: {Val::Percent(100.0)},
+        }
+        BackgroundColor({Color::srgba(1.0, 1.0, 1.0, 0.35)})
+    });
 }
 
 /// One calibration button: shared shell + label, wired with its own dedicated
@@ -926,23 +898,29 @@ mod tests {
 
     #[test]
     fn faded_hits_do_not_respawn_but_new_hits_and_sessions_do() {
-        let mut world = World::new();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            bevy::scene::ScenePlugin,
+        ));
+        let world = app.world_mut();
         world.insert_resource(state_with_offsets(&[0.03]));
         world.spawn(TimingBarContainer);
         let mut schedule = Schedule::default();
         schedule.add_systems(sync_hit_markers);
         let mut markers = world.query_filtered::<Entity, With<TimingMarker>>();
 
-        schedule.run(&mut world);
-        let first = markers.single(&world).unwrap();
+        schedule.run(world);
+        let first = markers.single(world).unwrap();
         world.despawn(first);
         world.resource_mut::<CalState>().clock += 1.0;
-        schedule.run(&mut world);
-        assert_eq!(markers.iter(&world).count(), 0);
+        schedule.run(world);
+        assert_eq!(markers.iter(world).count(), 0);
 
         world.resource_mut::<CalState>().offsets.push(0.08);
-        schedule.run(&mut world);
-        let second = markers.single(&world).unwrap();
+        schedule.run(world);
+        let second = markers.single(world).unwrap();
         world.despawn(second);
 
         {
@@ -950,7 +928,7 @@ mod tests {
             cal.reset();
             cal.offsets.push(-0.02);
         }
-        schedule.run(&mut world);
-        assert_eq!(markers.iter(&world).count(), 1);
+        schedule.run(world);
+        assert_eq!(markers.iter(world).count(), 1);
     }
 }
