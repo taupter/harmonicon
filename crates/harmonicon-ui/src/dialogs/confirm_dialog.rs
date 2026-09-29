@@ -54,97 +54,74 @@ fn handle_open(
 
     let purpose = req.purpose;
     commands
-        .spawn((
+        .spawn_scene(bsn! {
+            Node {
+                position_type: {PositionType::Absolute},
+                left: {Val::Px(0.0)},
+                top: {Val::Px(0.0)},
+                width: {Val::Percent(100.0)},
+                height: {Val::Percent(100.0)},
+                flex_direction: {FlexDirection::Column},
+                align_items: {AlignItems::Center},
+                justify_content: {JustifyContent::Center},
+            }
+            BackgroundColor({MODAL_BACKDROP_BG})
+            GlobalZIndex(300)
+            Children [
+                Node {
+                    flex_direction: {FlexDirection::Column},
+                    align_items: {AlignItems::Center},
+                    row_gap: {Val::Px(18.0)},
+                    padding: {UiRect::all(Val::Px(24.0))},
+                    max_width: {Val::Px(480.0)},
+                    border: {UiRect::all(Val::Px(1.0))},
+                }
+                BackgroundColor({MODAL_PANEL_BG})
+                ~{BorderColor::all(MODAL_PANEL_BORDER)}
+                Children [
+                    Text({req.message.clone()})
+                    TextFont { font_size: {FontSize::Px(16.0)} }
+                    TextColor({Color::WHITE})
+                    TextLayout { justify: {Justify::Center} }
+                    --
+                    Node {
+                        flex_direction: {FlexDirection::Row},
+                        column_gap: {Val::Px(12.0)},
+                    }
+                    Children [
+                        @choice_button(purpose, true, "Yes")
+                        --
+                        @choice_button(purpose, false, "No")
+                    ]
+                ]
+            ]
+        })
+        .insert((
             ConfirmDialogRoot,
             // Modal: Tab/Shift+Tab cycles the Yes/No buttons without
             // leaking to whatever page opened this dialog.
             TabGroup::modal(),
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                top: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BackgroundColor(MODAL_BACKDROP_BG),
-            GlobalZIndex(300),
-        ))
-        .with_children(|backdrop| {
-            backdrop
-                .spawn((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        row_gap: Val::Px(18.0),
-                        padding: UiRect::all(Val::Px(24.0)),
-                        max_width: Val::Px(480.0),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(MODAL_PANEL_BG),
-                    BorderColor::all(MODAL_PANEL_BORDER),
-                ))
-                .with_children(|panel| {
-                    panel.spawn((
-                        Text::new(req.message.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        TextLayout {
-                            justify: Justify::Center,
-                            ..default()
-                        },
-                    ));
-                    panel
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Row,
-                            column_gap: Val::Px(12.0),
-                            ..default()
-                        })
-                        .with_children(|row| {
-                            row.spawn_empty().apply_scene(button::small(
-                                "Yes",
-                                move |_: On<Activate>,
-                                      mut open: ResMut<ConfirmDialogOpen>,
-                                      roots: Query<Entity, With<ConfirmDialogRoot>>,
-                                      mut chosen: MessageWriter<ConfirmChosen>,
-                                      mut commands: Commands| {
-                                    respond(
-                                        purpose,
-                                        true,
-                                        &mut open,
-                                        &roots,
-                                        &mut chosen,
-                                        &mut commands,
-                                    );
-                                },
-                            ));
-                            row.spawn_empty().apply_scene(button::small(
-                                "No",
-                                move |_: On<Activate>,
-                                      mut open: ResMut<ConfirmDialogOpen>,
-                                      roots: Query<Entity, With<ConfirmDialogRoot>>,
-                                      mut chosen: MessageWriter<ConfirmChosen>,
-                                      mut commands: Commands| {
-                                    respond(
-                                        purpose,
-                                        false,
-                                        &mut open,
-                                        &roots,
-                                        &mut chosen,
-                                        &mut commands,
-                                    );
-                                },
-                            ));
-                        });
-                });
-        });
+        ));
+}
+
+fn choice_button(purpose: DialogId, confirmed: bool, label: &'static str) -> impl Scene {
+    button::small(
+        label,
+        move |_: On<Activate>,
+              mut open: ResMut<ConfirmDialogOpen>,
+              roots: Query<Entity, With<ConfirmDialogRoot>>,
+              mut chosen: MessageWriter<ConfirmChosen>,
+              mut commands: Commands| {
+            respond(
+                purpose,
+                confirmed,
+                &mut open,
+                &roots,
+                &mut chosen,
+                &mut commands,
+            );
+        },
+    )
 }
 
 fn respond(
