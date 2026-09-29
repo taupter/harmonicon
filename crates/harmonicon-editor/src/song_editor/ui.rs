@@ -97,7 +97,7 @@ pub(super) struct GridRowContainer;
 /// width (not the hole column) below it — hidden entirely when the song's
 /// notes all fit within the visible width, since there's nothing to scroll
 /// to. See `view_scroll::update_grid_scrollbar`.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(super) struct GridScrollTrack;
 
 /// One note's tiny rectangle on the scrollbar track — together they sketch
@@ -109,7 +109,7 @@ pub(super) struct GridScrollMarker;
 
 /// The scrollbar's thumb, sized/positioned each frame from [`Scroll`] vs.
 /// the notes' total span vs. the track's own width.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(super) struct GridScrollThumb;
 
 /// The fixed-width hole column's container (number + box per hole). Its
@@ -732,47 +732,41 @@ fn spawn_fixed_chrome(
     // Horizontal scrollbar for the grid, spanning only the grid area's own
     // width (the leading spacer matches `HOLE_COL_W`) — hidden by
     // `update_grid_scrollbar` whenever the song fits the visible width.
-    root.spawn(Node {
-        width: Val::Percent(100.0),
-        flex_direction: FlexDirection::Row,
-        flex_shrink: 0.0,
-        ..default()
-    })
-    .with_children(|row| {
-        row.spawn(Node {
-            width: Val::Px(HOLE_COL_W),
-            flex_shrink: 0.0,
-            ..default()
-        });
-        row.spawn((
-            GridScrollTrack,
+    root.spawn_empty().apply_scene(bsn! {
+        Node {
+            width: {Val::Percent(100.0)},
+            flex_direction: {FlexDirection::Row},
+            flex_shrink: {0.0_f32},
+        }
+        Children [
             Node {
-                flex_grow: 1.0,
-                height: Val::Px(10.0),
-                margin: UiRect::top(Val::Px(4.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.35)),
-            Visibility::Hidden,
-        ))
-        .with_children(|track| {
+                width: {Val::Px(HOLE_COL_W)},
+                flex_shrink: {0.0_f32},
+            }
+            --
+            GridScrollTrack
+            Node {
+                flex_grow: {1.0_f32},
+                height: {Val::Px(10.0)},
+                margin: {UiRect::top(Val::Px(4.0))},
+            }
+            BackgroundColor({Color::srgba(0.0, 0.0, 0.0, 0.35)})
+            ~{Visibility::Hidden}
+            Children [
             // ZIndex above the note markers, which are spawned later (as
             // fresh children) and would otherwise paint over the thumb.
-            track
-                .spawn((
-                    GridScrollThumb,
-                    ZIndex(1),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        top: Val::Px(0.0),
-                        left: Val::Px(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(colors.accent.with_alpha(0.65)),
-                ))
-                .observe(drag_grid_scrollbar);
-        });
+                GridScrollThumb
+                ZIndex(1)
+                Node {
+                    position_type: {PositionType::Absolute},
+                    top: {Val::Px(0.0)},
+                    left: {Val::Px(0.0)},
+                    height: {Val::Percent(100.0)},
+                }
+                BackgroundColor({colors.accent.with_alpha(0.65)})
+                on(drag_grid_scrollbar)
+            ]
+        ]
     });
 
     // The music-notation staff: a supplementary read of the chart's current
