@@ -60,29 +60,25 @@ pub(super) fn spawn_legend_row(
         ..default()
     })
     .with_children(|line| {
-        line.spawn((
+        line.spawn_empty().apply_scene(bsn! {
             Node {
-                width: Val::Px(SWATCH_SIZE),
-                height: Val::Px(SWATCH_SIZE),
-                flex_shrink: 0.0,
-                border: UiRect::all(Val::Px(if border_only { 2.0 } else { 1.0 })),
-                ..default()
-            },
-            BackgroundColor(if border_only { Color::NONE } else { swatch }),
-            BorderColor::all(if border_only {
+                width: {Val::Px(SWATCH_SIZE)},
+                height: {Val::Px(SWATCH_SIZE)},
+                flex_shrink: {0.0f32},
+                border: {UiRect::all(Val::Px(if border_only { 2.0 } else { 1.0 }))},
+            }
+            BackgroundColor({if border_only { Color::NONE } else { swatch }})
+            ~{BorderColor::all(if border_only {
                 swatch
             } else {
                 Color::srgb(0.30, 0.30, 0.40)
-            }),
-        ));
-        line.spawn((
-            Text::new(text),
-            TextFont {
-                font_size: FontSize::Px(12.5),
-                ..default()
-            },
-            TextColor(colors.label),
-        ));
+            })}
+        });
+        line.spawn_empty().apply_scene(bsn! {
+            Text({text})
+            TextFont { font_size: {FontSize::Px(12.5)} }
+            TextColor({colors.label})
+        });
     });
 }
 
@@ -93,18 +89,12 @@ pub(super) fn spawn_legend_heading(
     colors: SongEditorColors,
     text: String,
 ) {
-    col.spawn((
-        Text::new(text),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(colors.accent),
-        Node {
-            margin: UiRect::top(Val::Px(4.0)),
-            ..default()
-        },
-    ));
+    col.spawn_empty().apply_scene(bsn! {
+        Text({text})
+        TextFont { font_size: {FontSize::Px(13.0)} }
+        TextColor({colors.accent})
+        Node { margin: {UiRect::top(Val::Px(4.0))} }
+    });
 }
 
 /// Explains every color the song editor uses, grouped by where it shows up.
@@ -172,20 +162,17 @@ pub(super) fn spawn_color_legend(
         true,
         loc.msg("editor-legend-selected").to_string(),
     );
-    col.spawn((
-        Text::new(format!(
+    col.spawn_empty().apply_scene(bsn! {
+        Text({format!(
             "{}  {} / {}  {}",
             Dir::Blow.arrow(),
             loc.msg("editor-legend-blow"),
             loc.msg("editor-legend-draw"),
             Dir::Draw.arrow(),
-        )),
-        TextFont {
-            font_size: FontSize::Px(12.5),
-            ..default()
-        },
-        TextColor(colors.label),
-    ));
+        )})
+        TextFont { font_size: {FontSize::Px(12.5)} }
+        TextColor({colors.label})
+    });
 
     spawn_legend_heading(col, colors, loc.msg("editor-legend-dragging").to_string());
     spawn_legend_row(
@@ -260,16 +247,10 @@ pub(super) fn spawn_color_legend(
         false,
         loc.msg("editor-legend-scrollbar-draw").to_string(),
     );
-    col.spawn((
-        Text::new(loc.msg("editor-legend-scrollbar-note").to_string()),
-        TextFont {
-            font_size: FontSize::Px(10.0),
-            ..default()
-        },
-        TextColor(colors.label.with_alpha(0.75)),
-        Node {
-            max_width: Val::Px(220.0),
-            ..default()
-        },
-    ));
+    col.spawn_empty().apply_scene(bsn! {
+        Text({loc.msg("editor-legend-scrollbar-note").to_string()})
+        TextFont { font_size: {FontSize::Px(10.0)} }
+        TextColor({colors.label.with_alpha(0.75)})
+        Node { max_width: {Val::Px(220.0)} }
+    });
 }
