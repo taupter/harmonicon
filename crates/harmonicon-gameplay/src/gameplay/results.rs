@@ -332,33 +332,25 @@ pub(super) fn setup(
             }
 
             // Grade and score together, one line.
-            root.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Baseline,
-                column_gap: Val::Px(18.0),
-                margin: UiRect::vertical(Val::Px(4.0)),
-                ..default()
-            })
-            .with_children(|row| {
-                row.spawn((
-                    Text::new(g),
-                    TextFont {
-                        font_size: FontSize::Px(48.0),
-                        ..default()
-                    },
-                    TextColor(grade_color(g)),
-                ));
-                row.spawn((
-                    Text::new(String::from(loc.msg_args(
+            root.spawn_empty().apply_scene(bsn! {
+                Node {
+                    flex_direction: {FlexDirection::Row},
+                    align_items: {AlignItems::Baseline},
+                    column_gap: {Val::Px(18.0)},
+                    margin: {UiRect::vertical(Val::Px(4.0))},
+                }
+                Children [
+                    Text({g})
+                    TextFont { font_size: {FontSize::Px(48.0)} }
+                    TextColor({grade_color(g)})
+                    --
+                    Text({String::from(loc.msg_args(
                         "results-score",
                         &[("points", score.points.to_string())],
-                    ))),
-                    TextFont {
-                        font_size: FontSize::Px(22.0),
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                ));
+                    ))})
+                    TextFont { font_size: {FontSize::Px(22.0)} }
+                    TextColor({Color::WHITE})
+                ]
             });
 
             // Persisted best for this song — always shown once known, with a
