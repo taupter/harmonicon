@@ -96,20 +96,19 @@ pub(super) fn spawn_due_badge(
 ) {
     let at = PartKind::DueBadge.top_left(centre);
     let badge = commands
-        .spawn((
+        .spawn_empty()
+        .apply_scene(bsn! {
             Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(at.x),
-                top: Val::Px(at.y),
-                ..default()
-            },
+                position_type: {PositionType::Absolute},
+                left: {Val::Px(at.x)},
+                top: {Val::Px(at.y)},
+            }
+            Text("\u{21BB}")
+            TextFont { font_size: {FontSize::Px(BADGE_PX)} }
+            TextColor({DUE_COLOR})
+        })
+        .insert((
             PartKind::DueBadge.part(&node.id),
-            Text::new("\u{21BB}"),
-            TextFont {
-                font_size: FontSize::Px(BADGE_PX),
-                ..default()
-            },
-            TextColor(DUE_COLOR),
             ClusterMember(node.unit_id.clone()),
             LayoutOwner(node.unit_id.clone()),
         ))
