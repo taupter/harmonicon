@@ -33,7 +33,7 @@ const CHECK_COLOR: Color = Color::srgb(0.35, 0.85, 0.45);
 
 /// The checkmark glyph inside a checkbox box; shown only while its sibling
 /// [`Checkbox`] entity carries [`Checked`] — see [`sync_checkbox_visuals`].
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct CheckMark;
 
 /// Spawns a `<box> <label>` row as a child of `parent`. `on_change` fires on
@@ -58,35 +58,31 @@ pub fn spawn_checkbox<M: 'static>(
         })
         .id();
     commands.entity(row).with_children(|r| {
-        let mut box_ec = r.spawn((
-            Checkbox,
-            TabIndex(0),
+        let mut box_ec = r.spawn_empty();
+        box_ec.apply_scene(bsn! {
+            Checkbox
+            TabIndex(0)
             Node {
-                width: Val::Px(BOX_SIZE),
-                height: Val::Px(BOX_SIZE),
-                border: UiRect::all(Val::Px(2.0)),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BackgroundColor(BOX_BG),
-            BorderColor::all(BOX_BORDER),
-        ));
+                width: {Val::Px(BOX_SIZE)},
+                height: {Val::Px(BOX_SIZE)},
+                border: {UiRect::all(Val::Px(2.0))},
+                align_items: {AlignItems::Center},
+                justify_content: {JustifyContent::Center},
+            }
+            BackgroundColor({BOX_BG})
+            ~{BorderColor::all(BOX_BORDER)}
+            Children [
+                Text("\u{2713}")
+                TextFont { font_size: {FontSize::Px(14.0)} }
+                TextColor({CHECK_COLOR})
+                CheckMark
+                ~{Visibility::Hidden}
+            ]
+        });
         if checked {
             box_ec.insert(Checked);
         }
-        box_ec.observe(on_change).with_children(|b| {
-            b.spawn((
-                Text::new("\u{2713}"),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(CHECK_COLOR),
-                CheckMark,
-                Visibility::Hidden,
-            ));
-        });
+        box_ec.observe(on_change);
         r.spawn((
             Text::new(label.to_string()),
             TextFont {
