@@ -496,25 +496,21 @@ pub(super) fn setup(
             ..default()
         })
         .with_children(|root| {
-            root.spawn((
+            root.spawn_empty().apply_scene(bsn! {
                 Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(5.0),
-                    flex_shrink: 0.0,
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-            ))
-            .with_children(|bar| {
-                bar.spawn((
-                    EditorProgressFill,
+                    width: {Val::Percent(100.0)},
+                    height: {Val::Px(5.0)},
+                    flex_shrink: {0.0_f32},
+                }
+                BackgroundColor({Color::srgba(0.0, 0.0, 0.0, 0.55)})
+                Children [
+                    EditorProgressFill
                     Node {
-                        width: Val::Percent(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.35, 0.75, 1.0)),
-                ));
+                        width: {Val::Percent(0.0)},
+                        height: {Val::Percent(100.0)},
+                    }
+                    BackgroundColor({Color::srgb(0.35, 0.75, 1.0)})
+                ]
             });
 
             // Filled in after this closure by `spawn_tab_bar`, which needs a

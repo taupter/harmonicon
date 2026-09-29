@@ -26,7 +26,7 @@ pub(super) struct EditorAudio;
 pub(super) struct PlayheadLine;
 
 /// The growing fill of the top progress bar.
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 pub(super) struct EditorProgressFill;
 
 /// A one-shot seek to apply to the *next* editor audio sink that appears.
