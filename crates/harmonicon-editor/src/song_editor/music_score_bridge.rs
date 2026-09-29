@@ -126,6 +126,7 @@ pub(super) fn sync_music_score_playhead(
 mod tests {
     use super::*;
     use crate::song_editor::state::{Dir, Expr, GridNote, Pitch};
+    use harmonicon_ui::music_score::rests_between_notes;
 
     fn note(tick: usize, len: usize) -> GridNote {
         GridNote {
@@ -188,6 +189,29 @@ mod tests {
             segments[1..]
                 .iter()
                 .all(|segment| segment.tied_from_previous)
+        );
+    }
+
+    #[test]
+    fn staff_rests_match_short_silence_lane_gaps() {
+        // At 120 BPM these are 0.125 s and 0.375 s, displayed as 0.1 s
+        // and 0.4 s in the editor's Silence lane.
+        let map = MeterMap::constant("4/4", TICKS_PER_BEAT as u32);
+        let staff = [note(0, 12), note(15, 12), note(36, 12)]
+            .iter()
+            .flat_map(|n| notation_segments(n, 60, &map, false))
+            .collect::<Vec<_>>();
+        let bars = MusicScoreBarMap {
+            meter: map,
+            quarter_ticks: TICKS_PER_BEAT as u32,
+        };
+        let rests = rests_between_notes(&staff, &bars);
+        assert_eq!(
+            rests
+                .iter()
+                .map(|r| (r.start_beat, r.duration_beats))
+                .collect::<Vec<_>>(),
+            vec![(1.0, 0.25), (2.25, 0.75)]
         );
     }
 }

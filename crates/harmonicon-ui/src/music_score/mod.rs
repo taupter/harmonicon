@@ -6,7 +6,7 @@
 //! spawn [`spawn_music_score`] wherever their own layout calls for it and
 //! drive it by writing [`MusicScoreNotes`]/[`MusicScorePlayhead`].
 //!
-//! Deliberately not full music engraving. It does draw: noteheads
+//! Deliberately not full music engraving. It does draw: noteheads and rests
 //! (whole/half/filled by duration), stems, ledger lines, accidentals that
 //! follow the bar rather than the note ([`accidentals`] — a sharp holds
 //! for the rest of its bar, and a note cancelling one gets a natural),
@@ -53,6 +53,9 @@ pub use notation::*;
 
 mod meter_map;
 pub use meter_map::{BarPosition, MeterMap, MeterSegment};
+
+mod rests;
+pub use rests::{NotationRest, rests_between_notes};
 
 // ── Layout constants ──────────────────────────────────────────────────────
 
@@ -186,10 +189,9 @@ const PLAYHEAD_X: f32 = 56.0;
 /// the floor [`MusicScoreSpacing`] clamps to, so a sparse song is never
 /// squeezed *tighter* than this.
 const PIXELS_PER_BEAT: f32 = 34.0;
-/// The most a dense song may widen to. Past this the lookahead gets short
-/// enough to be its own problem: at 2x, a panel showing four bars ahead
-/// shows two. A passage tighter than this is left to crowd.
-const MAX_PIXELS_PER_BEAT: f32 = PIXELS_PER_BEAT * 2.0;
+/// Limit the width required by very short notes and rests. The score scrolls,
+/// so a readable sixteenth rest takes priority over showing extra bars.
+const MAX_PIXELS_PER_BEAT: f32 = 128.0;
 /// Extra trailing margin (beats) behind the playhead, on top of what the
 /// panel's own on-screen space left of the reference line already fits —
 /// so a just-played note doesn't vanish the instant its onset crosses the
@@ -338,14 +340,39 @@ mod bar_map_tests {
         );
         assert!(parts[1].tied_from_previous);
     }
+
+    #[test]
+    fn a_short_pause_widens_the_staff_until_its_rest_fits() {
+        let bars = MusicScoreBarMap::default();
+        let notes = vec![
+            NotationNote {
+                start_beat: 0.0,
+                duration_beats: 1.0,
+                midi: 60,
+                tied_from_previous: false,
+                highlighted: false,
+            },
+            NotationNote {
+                start_beat: 1.25,
+                duration_beats: 1.0,
+                midi: 62,
+                tied_from_previous: false,
+                highlighted: true,
+            },
+        ];
+        let rests = rests_between_notes(&notes, &bars);
+        assert_eq!(rests.len(), 1);
+        let scale = score_pixels_per_beat(&notes, &bars);
+        assert!(scale > 68.0);
+        assert!(rests[0].fits_slot(scale, STAFF_LINE_SPACING));
+    }
 }
 
 /// How wide one beat is drawn, for the song currently loaded.
 ///
-/// Derived once per song from its own note density rather than fixed,
-/// because the crowding a player sees is set by the shortest subdivision
-/// the music actually sustains — a piece of sixteenths needs more room per
-/// beat than a piece of quarters, and one constant cannot suit both. Kept
+/// Derived once per song from its note density and rests rather than fixed,
+/// because a piece of sixteenths or short pauses needs more room per beat
+/// than a piece of quarters. Kept
 /// in a resource, not recomputed inside [`rebuild_score_notes`], because
 /// that runs on every playhead change (i.e. every frame) while this only
 /// moves when the notes do.
@@ -358,20 +385,34 @@ impl Default for MusicScoreSpacing {
     }
 }
 
-/// Recomputes [`MusicScoreSpacing`] when the notes change.
-fn derive_score_spacing(notes: Res<MusicScoreNotes>, mut spacing: ResMut<MusicScoreSpacing>) {
-    let derived = pixels_per_beat(
-        &notes.0,
-        STAFF_LINE_SPACING,
-        PIXELS_PER_BEAT,
-        MAX_PIXELS_PER_BEAT,
-    );
+/// Recomputes [`MusicScoreSpacing`] when notes or bar positions change.
+/// Note density alone misses a short rest between otherwise sparse notes.
+fn derive_score_spacing(
+    notes: Res<MusicScoreNotes>,
+    bar_map: Res<MusicScoreBarMap>,
+    mut spacing: ResMut<MusicScoreSpacing>,
+) {
+    let derived = score_pixels_per_beat(&notes.0, &bar_map);
     // Written through `set_if_neq` semantics by hand: this system runs on
     // any note change, and a needless write would re-trigger the rebuild
     // that reads it.
     if spacing.0 != derived {
         spacing.0 = derived;
     }
+}
+
+fn score_pixels_per_beat(notes: &[NotationNote], bar_map: &MusicScoreBarMap) -> f32 {
+    let note_scale = pixels_per_beat(
+        notes,
+        STAFF_LINE_SPACING,
+        PIXELS_PER_BEAT,
+        MAX_PIXELS_PER_BEAT,
+    );
+    let rest_scale = rests_between_notes(notes, bar_map)
+        .into_iter()
+        .map(|rest| rest.required_pixels_per_beat(STAFF_LINE_SPACING))
+        .fold(PIXELS_PER_BEAT, f32::max);
+    note_scale.max(rest_scale.ceil()).min(MAX_PIXELS_PER_BEAT)
 }
 
 /// The staff's meter: what the time signature at the head reads. Bar lines
@@ -543,7 +584,10 @@ impl Plugin for MusicScorePlugin {
             .add_systems(Startup, load_bravura_font)
             .add_systems(
                 Update,
-                derive_score_spacing.run_if(resource_changed::<MusicScoreNotes>),
+                derive_score_spacing.run_if(
+                    resource_changed::<MusicScoreNotes>
+                        .or_else(resource_changed::<MusicScoreBarMap>),
+                ),
             )
             .add_systems(
                 Update,
@@ -896,6 +940,56 @@ fn spawn_window(
                 BackgroundColor(Color::srgba(0.75, 0.75, 0.80, 0.45)),
                 MusicScoreNoteGlyph,
             ));
+        }
+
+        for rest in rests_between_notes(notes, bar_map) {
+            if rest.start_beat > hi || rest.start_beat + rest.duration_beats < lo {
+                continue;
+            }
+            if !rest.fits_slot(scale, STAFF_LINE_SPACING) {
+                continue;
+            }
+            let x = ((rest.start_beat - origin) * scale as f64) as f32;
+            parent.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(x),
+                    top: Val::Px(y_for_step(rest.staff_step()) - GLYPH_BASELINE_CORRECTION),
+                    ..default()
+                },
+                Text::new(rest.glyph()),
+                TextFont {
+                    font: FontSource::Handle(bravura.0.clone()),
+                    font_size: FontSize::Px(GLYPH_FONT_PX),
+                    ..default()
+                },
+                LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+                FontHinting::Disabled,
+                TextColor(Color::WHITE),
+                MusicScoreNoteGlyph,
+                crate::dialogs::font_fallback::SkipFontFallback,
+            ));
+            if rest.dots > 0 {
+                parent.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(x + 1.5 * STAFF_LINE_SPACING),
+                        top: Val::Px(y_for_step(5) - GLYPH_BASELINE_CORRECTION),
+                        ..default()
+                    },
+                    Text::new(glyph::AUGMENTATION_DOT),
+                    TextFont {
+                        font: FontSource::Handle(bravura.0.clone()),
+                        font_size: FontSize::Px(GLYPH_FONT_PX),
+                        ..default()
+                    },
+                    LineHeight::Px(GLYPH_LINE_HEIGHT_PX),
+                    FontHinting::Disabled,
+                    TextColor(Color::WHITE),
+                    MusicScoreNoteGlyph,
+                    crate::dialogs::font_fallback::SkipFontFallback,
+                ));
+            }
         }
 
         for (i, note) in notes.iter().enumerate() {

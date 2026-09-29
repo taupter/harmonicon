@@ -59,7 +59,7 @@ load-bearing about *this* crate.
   `tests/glyph_coverage.rs::bravura_ascent_equals_its_descent` guards the
   font side.
   - **`NotationNote { start_beat, duration_beats, midi, .. }`** (beats, not
-    ticks or seconds) is the module's only input — it never touches a
+    ticks or seconds) and `MusicScoreBarMap` are the module's inputs. It never touches a
     chart's tempo map or an editor's own tick resolution, so each of the
     three call sites converts its own time representation first: gameplay
     (`gameplay::music_score_bridge`) goes `ScheduledNote::time` (seconds)
@@ -74,8 +74,8 @@ load-bearing about *this* crate.
     clocks/note models) — not duplicated logic, since the actual
     rendering stays 100% inside `music_score` either way.
   - **A note that crosses one or more bar lines is split into per-bar
-    segments and tied together** (`split_at_bar_lines`, called by both
-    bridges with their own `beats_per_bar`) rather than drawn as one
+    segments and tied together** (`MusicScoreBarMap::split_note`, used by both
+    bridges) rather than drawn as one
     oversized notehead — `NotationNote::tied_from_previous` marks every
     segment after the first, which suppresses that segment's own
     accidental (a tie doesn't restate one) and draws a tie mark back to
@@ -89,9 +89,16 @@ load-bearing about *this* crate.
     bowing down, one up). It runs from just past the first head's right
     edge to just before the second head's left edge — positions taken from
     the immediately-preceding entry in `MusicScoreNotes`, which
-    `split_at_bar_lines` guarantees is the tied-from segment — and sits on
+    `MusicScoreBarMap::split_note` guarantees is the tied-from segment — and sits on
     the side away from the stems: under the heads for stems up, over them
     for stems down.
+  - **Rests come from gaps in the union of sounding notes.** The shared
+    renderer leaves the tail of a bar blank when a silent gap crosses its
+    boundary, then spells whole through sixteenth rests from the next
+    bar's start. Chords and tied continuations do not create false rests;
+    the renderer does not infer silence after the final note. Staff spacing
+    widens to fit the shortest rest and leave air before the next notehead;
+    the capped scale still omits a rest too small to draw without overlap.
   - **The visible window sizes itself from the panel's own on-screen
     width**, independent of any other host UI (the falling-note highway's
     own lookahead, the Song Editor grid's own column count): `visible_
